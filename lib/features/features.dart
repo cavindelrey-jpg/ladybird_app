@@ -1,0 +1,10 @@
+// lib/features/features.dart
+export 'institution/institution.dart';
+export 'academic_content/academic_content.dart';
+export 'announcements/announcements.dart';
+export 'timetable/timetable_page.dart';
+export 'attendance/attendance_page.dart';
+export 'assignments/assignments_page.dart';
+export 'calendar/calendar_page.dart';
+export 'courses/courses_page.dart';
+export 'admin/admin_panel_page.dart';

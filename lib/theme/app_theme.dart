@@ -1,0 +1,200 @@
+// lib/theme/app_theme.dart
+// Academia Design System — Material 3, Navy × Gold palette.
+// All colour tokens are defined once here, used everywhere.
+
+import 'package:flutter/material.dart';
+
+/// Academia Design System colour tokens.
+class C {
+  C._();
+
+  // ── Brand ───────────────────────────────────────────────────────────────
+  static const Color primary   = Color(0xFF1A56DB);   // Academy Blue
+  static const Color primaryBg = Color(0xFFEEF4FF);   // Very pale blue
+
+  static const Color navy  = Color(0xFF0A1F44);   // Deep navy
+  static const Color navy2 = Color(0xFF152D5E);   // Mid navy
+  static const Color navy3 = Color(0xFF3B4E7A);   // Slate navy
+
+  static const Color gold  = Color(0xFFC9A227);   // Academy Gold
+  static const Color goldp = Color(0xFFFBF3DA);   // Pale gold
+
+  // ── Surfaces ────────────────────────────────────────────────────────────
+  static const Color bg    = Color(0xFFF5F7FA);   // App background
+  static const Color surf  = Color(0xFFFFFFFF);   // Card surface
+  static const Color surf2 = Color(0xFFF8F9FB);   // Secondary surface
+  static const Color surf3 = Color(0xFFF1F3F8);   // Tertiary surface (inputs)
+
+  // ── Text ────────────────────────────────────────────────────────────────
+  static const Color txt   = Color(0xFF0F172A);   // Primary text
+  static const Color txt2  = Color(0xFF475569);   // Secondary text
+  static const Color muted = Color(0xFF94A3B8);   // Muted / placeholder
+
+  // ── Borders ────────────────────────────────────────────────────────────
+  static const Color bdr   = Color(0xFFE2E8F0);   // Standard border
+  static const Color bdr2  = Color(0xFFF1F5F9);   // Subtle border
+
+  // ── Semantic ────────────────────────────────────────────────────────────
+  static const Color grn   = Color(0xFF16A34A);
+  static const Color grnb  = Color(0xFFDCFCE7);
+  static const Color red   = Color(0xFFDC2626);
+  static const Color redb  = Color(0xFFFEE2E2);
+  static const Color org   = Color(0xFFEA580C);
+  static const Color orgb  = Color(0xFFFFEDD5);
+  static const Color blu   = Color(0xFF0284C7);
+  static const Color blub  = Color(0xFFE0F2FE);
+  static const Color pur   = Color(0xFF7C3AED);
+  static const Color purb  = Color(0xFFF5F3FF);
+
+  // ── Welcome / Onboarding ────────────────────────────────────────────────
+  static const Color welcomeBg = navy;
+}
+
+/// Default Academia theme (before institution brand loads).
+class AppTheme {
+  AppTheme._();
+
+  static final ThemeData light = ThemeData(
+    useMaterial3: true,
+    scaffoldBackgroundColor: C.bg,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: C.navy,
+      primary: C.navy,
+      secondary: C.gold,
+      surface: C.surf,
+      brightness: Brightness.light,
+    ),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: C.surf,
+      foregroundColor: C.txt,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: false,
+      surfaceTintColor: Colors.transparent,
+      iconTheme: IconThemeData(color: C.txt),
+    ),
+    cardTheme: CardThemeData(
+      color: C.surf,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: C.bdr),
+      ),
+      surfaceTintColor: Colors.transparent,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: C.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        minimumSize: const Size(double.infinity, 52),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: C.primary,
+        side: const BorderSide(color: C.primary, width: 1.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: C.surf3,
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: C.bdr)),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: C.bdr)),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: C.primary, width: 1.5)),
+      errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: C.red)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: C.surf,
+      indicatorColor: C.primaryBg,
+      labelTextStyle: WidgetStateProperty.all(
+          const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return const IconThemeData(color: C.primary, size: 22);
+        }
+        return const IconThemeData(color: C.muted, size: 22);
+      }),
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: C.surf3,
+      selectedColor: C.primaryBg,
+      labelStyle: const TextStyle(fontSize: 12),
+      side: const BorderSide(color: C.bdr),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    ),
+    dividerColor: C.bdr,
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: C.gold,
+      foregroundColor: C.navy,
+      elevation: 2,
+    ),
+  );
+}
+
+// ── Design tokens ─────────────────────────────────────────────────────────────
+
+/// Consistent border radius values used across the app.
+class Rad {
+  static const double xs  = 8;
+  static const double sm  = 12;
+  static const double md  = 16;
+  static const double lg  = 20;
+  static const double xl  = 24;
+  static const double xxl = 32;
+}
+
+/// Standard elevation shadows.
+class Shad {
+  static List<BoxShadow> get sm => [
+    BoxShadow(color: Colors.black.withValues(alpha: .04),
+        blurRadius: 8, offset: const Offset(0, 2))
+  ];
+  static List<BoxShadow> get md => [
+    BoxShadow(color: Colors.black.withValues(alpha: .06),
+        blurRadius: 16, offset: const Offset(0, 4))
+  ];
+  static List<BoxShadow> get lg => [
+    BoxShadow(color: Colors.black.withValues(alpha: .10),
+        blurRadius: 24, offset: const Offset(0, 8))
+  ];
+}
+
+/// Semantic colour helpers by role.
+class RoleColors {
+  static Color bg(String role) {
+    switch (role) {
+      case 'superAdmin':     return C.purb;
+      case 'schoolAdmin':    return C.primaryBg;
+      case 'departmentAdmin':return C.blub;
+      case 'lecturer':       return C.goldp;
+      case 'student':        return C.grnb;
+      default:               return C.surf3;
+    }
+  }
+
+  static Color fg(String role) {
+    switch (role) {
+      case 'superAdmin':     return C.pur;
+      case 'schoolAdmin':    return C.primary;
+      case 'departmentAdmin':return C.blu;
+      case 'lecturer':       return C.gold;
+      case 'student':        return C.grn;
+      default:               return C.muted;
+    }
+  }
+}

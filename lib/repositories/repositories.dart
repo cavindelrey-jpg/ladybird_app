@@ -1,0 +1,13 @@
+// lib/repositories/repositories.dart
+export 'institution_repository.dart';
+export 'academic_content_repository.dart';
+export 'announcement_repository.dart';
+export 'marks_repository.dart';
+export 'accounts_repository.dart';
+export 'library_repository.dart';
+export 'club_repository.dart';
+export 'course_repository.dart';
+export 'timetable_repository.dart';
+export 'attendance_repository.dart';
+export 'assignment_repository.dart';
+export 'calendar_repository.dart';

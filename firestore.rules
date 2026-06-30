@@ -1,0 +1,118 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ────────────────────────────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(uid())).data;
+    }
+
+    function userRole() {
+      return userDoc().role;
+    }
+
+    function isRole(role) {
+      return isAuthenticated() && userRole() == role;
+    }
+
+    function isAtLeastRole(minPrivilege) {
+      let privileges = {
+        'guest': 0, 'student': 1, 'lecturer': 2,
+        'departmentAdmin': 3, 'schoolAdmin': 4, 'superAdmin': 5
+      };
+      return isAuthenticated() && privileges[userRole()] >= minPrivilege;
+    }
+
+    function inSameSchool(schoolId) {
+      return isAuthenticated() && userDoc().schoolId == schoolId;
+    }
+
+    function isSchoolAdmin() { return isAtLeastRole(4); }
+    function isLecturer()    { return isAtLeastRole(2); }
+    function isSuperAdmin()  { return isRole('superAdmin'); }
+
+    // ── Users ──────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (uid() == userId || isSchoolAdmin());
+      allow create: if isAuthenticated() && uid() == userId;
+      allow update: if isAuthenticated() && (
+        uid() == userId ||
+        (isSchoolAdmin() && inSameSchool(resource.data.schoolId))
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    // ── Institutions ───────────────────────────────────────────────────────
+    match /institutions/{instId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // ── Schools (subcollections) ───────────────────────────────────────────
+    match /schools/{schoolId}/{collection}/{docId} {
+      allow read: if isAuthenticated() && inSameSchool(schoolId);
+      allow write: if isAuthenticated() && (
+        inSameSchool(schoolId) && isLecturer()
+      );
+      allow delete: if inSameSchool(schoolId) && isSchoolAdmin();
+    }
+
+    // Announcements — lecturers can create; all school members can read
+    match /schools/{schoolId}/announcements/{annId} {
+      allow read: if inSameSchool(schoolId);
+      allow create: if inSameSchool(schoolId) && isLecturer();
+      allow delete: if inSameSchool(schoolId) && isSchoolAdmin();
+    }
+
+    // Submissions — students create their own; lecturers can read/update
+    match /schools/{schoolId}/assignments/{asgId}/submissions/{subId} {
+      allow read: if inSameSchool(schoolId) && (
+        uid() == subId || isLecturer()
+      );
+      allow create: if inSameSchool(schoolId) && uid() == subId;
+      allow update: if inSameSchool(schoolId) && isLecturer();
+    }
+
+    // Seats — admin only
+    match /schools/{schoolId}/seats/{seatId} {
+      allow read: if inSameSchool(schoolId) && isSchoolAdmin();
+      allow write: if inSameSchool(schoolId) && isSchoolAdmin();
+    }
+
+    // ── Marks ──────────────────────────────────────────────────────────────
+    match /marks/{schoolId}/{studentId}/{path=**} {
+      allow read: if isAuthenticated() && (
+        uid() == studentId || isLecturer()
+      );
+      allow write: if isAuthenticated() && isLecturer();
+    }
+
+    // ── Subscriptions ──────────────────────────────────────────────────────
+    match /subscriptions/{instId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // ── App config ─────────────────────────────────────────────────────────
+    match /app_config/{key} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // ── Audit logs ─────────────────────────────────────────────────────────
+    match /audit_logs/{instId}/entries/{entryId} {
+      allow read: if isAuthenticated() && isSchoolAdmin();
+      allow create: if isAuthenticated(); // written by service layer
+      allow update, delete: if false;     // immutable
+    }
+  }
+}

@@ -1,0 +1,15 @@
+// lib/models/models.dart
+export 'institution.dart';
+export 'academic_content.dart';
+export 'app_user.dart';
+export 'announcement.dart';
+export 'club.dart';
+export 'library_item.dart';
+export 'mark.dart';
+export 'school_config.dart';
+export 'student_account.dart';
+export 'course.dart';
+export 'timetable_slot.dart';
+export 'attendance_record.dart';
+export 'assignment.dart';
+export 'calendar_event.dart';

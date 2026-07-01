@@ -9,10 +9,10 @@ import '../providers/institution_provider.dart';
 import '../models/models.dart';
 import '../theme/institution_theme_engine.dart';
 import '../theme/app_theme.dart';
-import '../features/institution/school_code_page.dart';
 import '../features/institution/institution_splash_screen.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
+import '../pages/guest_landing_page.dart';
 // pages
 import '../features/dashboard/dashboard_page.dart';
 import '../features/announcements/announcements_page.dart';
@@ -28,6 +28,18 @@ import '../pages/profile_page.dart';
 
 // ────────────────────────────────────────────────────────────────────────────
 // AppRouter — watches InstitutionProvider + Firebase auth
+//
+// Entry logic:
+//  1. If an institution is actively loading/loaded (Student/school-linked
+//     path — either mid school-code-entry, or restored from a previous
+//     session via SharedPreferences) → the existing splash + auth + role
+//     flow takes over, unchanged.
+//  2. Otherwise the app has no institution context. If nobody is signed in,
+//     Guest is the true front door — full read access to the feed, notes,
+//     past questions, magazine, etc. with no login wall.
+//  3. If somebody IS signed in but there's no institution (Normal or
+//     Premium independent account), they go straight into HomeShell under
+//     the generic Academia brand (Institution.fallback).
 // ────────────────────────────────────────────────────────────────────────────
 
 class AppRouter extends StatefulWidget {
@@ -43,24 +55,85 @@ class _AppRouterState extends State<AppRouter> {
   Widget build(BuildContext context) {
     final instProv = context.watch<InstitutionProvider>();
 
-    if (!instProv.isLoaded) {
-      _splashDone = false; _splashInst = null;
-      if (instProv.isValidating) {
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    // ── Student / school-linked path ──────────────────────────────────────
+    if (instProv.isValidating) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (instProv.isLoaded) {
+      final inst = instProv.effectiveInstitution;
+
+      if (!_splashDone || _splashInst?.institutionId != inst.institutionId) {
+        return InstitutionSplashScreen(
+          institution: inst,
+          onContinue: () => setState(() { _splashDone = true; _splashInst = inst; }),
+        );
       }
-      return const SchoolCodePage();
+
+      return Theme(data: InstitutionThemeEngine.build(inst), child: _AuthGate(institution: inst));
     }
 
-    final inst = instProv.effectiveInstitution;
+    _splashDone = false; _splashInst = null;
 
-    if (!_splashDone || _splashInst?.institutionId != inst.institutionId) {
-      return InstitutionSplashScreen(
-        institution: inst,
-        onContinue: () => setState(() { _splashDone = true; _splashInst = inst; }),
-      );
-    }
+    // ── No institution loaded — Guest / independent path ───────────────────
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (ctx, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        if (snap.data == null) {
+          // Guest: no login wall, browse everything read-only.
+          return const GuestLandingPage();
+        }
+        return const _IndependentUserGate();
+      },
+    );
+  }
+}
 
-    return Theme(data: InstitutionThemeEngine.build(inst), child: _AuthGate(institution: inst));
+/// Gate for signed-in users with no institution loaded yet — covers both
+/// independent (Normal / Premium) accounts, and the brief moment right
+/// after a linked-student sign-in before their institution has resolved.
+class _IndependentUserGate extends StatelessWidget {
+  const _IndependentUserGate();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AppUser?>(
+      stream: AuthService.instance.currentAppUserStream(),
+      builder: (ctx, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        final user = snap.data;
+        if (user == null) {
+          FirebaseAuth.instance.signOut();
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        if (user.status == AccountStatus.suspended) return _SuspendedScreen(user: user);
+
+        // Linked student whose institution hasn't resolved on this session
+        // yet — kick off a load and wait; AppRouter above will pick it up
+        // and swap to the institution flow once it lands.
+        if (user.accountType == AccountType.linked && (user.schoolId ?? '').isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final prov = context.read<InstitutionProvider>();
+            if (!prov.isLoaded && !prov.isValidating) {
+              prov.loadById(user.schoolId!);
+            }
+          });
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        // Independent (Normal or Premium) account — generic Academia brand,
+        // curated feature set (no school-scoped tabs like Timetable/Marks).
+        return Theme(
+          data: InstitutionThemeEngine.build(Institution.independentDefault),
+          child: HomeShell(user: user, institution: Institution.independentDefault),
+        );
+      },
+    );
   }
 }
 

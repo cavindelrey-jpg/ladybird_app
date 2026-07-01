@@ -35,7 +35,12 @@ class _SchoolCodePageState extends State<SchoolCodePage>
   Future<void> _submit() async {
     final code = _ctrl.text.trim().toUpperCase();
     if (code.isEmpty) return;
-    await context.read<InstitutionProvider>().loadByCode(code);
+    final ok = await context.read<InstitutionProvider>().loadByCode(code);
+    if (ok && mounted && Navigator.of(context).canPop()) {
+      // Reveal the root AppRouter, which has already swapped to the
+      // institution flow now that the provider reports isLoaded.
+      Navigator.of(context).popUntil((r) => r.isFirst);
+    }
   }
 
   @override
@@ -44,7 +49,8 @@ class _SchoolCodePageState extends State<SchoolCodePage>
     return Scaffold(
       backgroundColor: C.bg,
       body: SafeArea(
-        child: FadeTransition(
+        child: Stack(children: [
+          FadeTransition(
           opacity: _fadeAnim,
           child: SlideTransition(
             position: _slideAnim,
@@ -159,7 +165,16 @@ class _SchoolCodePageState extends State<SchoolCodePage>
               ),
             ),
           ),
-        ),
+          ),
+          if (Navigator.of(context).canPop())
+            Positioned(
+              top: 4, left: 4,
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back_rounded, color: C.txt2),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+        ]),
       ),
     );
   }

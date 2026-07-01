@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../widgets/widgets.dart';
+import '../models/school_config.dart';
+import '../screens/login_screen.dart';
+import '../features/onboarding/account_choice_screen.dart';
 
 // ── Guest palette (dark editorial) ───────────────────────
 class _G {
@@ -28,6 +31,22 @@ final _mockMagazineHero = <String,dynamic>{};
 final _mockEditions = <Map<String,dynamic>>[];
 
 final _mockArticles = <Map<String,dynamic>>[];
+
+// ── Navigation helpers ────────────────────────────────────
+void _goSignIn(BuildContext context) {
+  Navigator.of(context).push(MaterialPageRoute(
+    builder: (_) => const LoginScreen(school: SchoolConfig(
+      id: 'independent', name: 'Academia',
+      motto: 'Sign in to your account', academicYear: '',
+    )),
+  ));
+}
+
+void _goJoin(BuildContext context) {
+  Navigator.of(context).push(MaterialPageRoute(
+    builder: (_) => const AccountChoiceScreen(),
+  ));
+}
 
 // ── Main Widget ───────────────────────────────────────────
 class GuestLandingPage extends StatefulWidget {
@@ -91,9 +110,9 @@ class _GuestLandingPageState extends State<GuestLandingPage>
         Text('Explore as Guest', style: TextStyle(fontSize: 10, color: _G.subText)),
       ]),
       const Spacer(),
-      _ChipButton(label: 'Sign In', onTap: () {}),
+      _ChipButton(label: 'Sign In', onTap: () => _goSignIn(context)),
       const SizedBox(width: 8),
-      _ChipButton(label: 'Join Free', onTap: () {}, gold: true),
+      _ChipButton(label: 'Join Free', onTap: () => _goJoin(context), gold: true),
     ]),
   );
 
@@ -859,8 +878,8 @@ class _GuestCtaCard extends StatelessWidget {
       const SizedBox(height: 14),
       Row(children: [
         Expanded(
-          child: GestureDetector(
-            onTap: () {},
+          child: Builder(builder: (context) => GestureDetector(
+            onTap: () => _goJoin(context),
             child: Container(
               height: 42,
               decoration: BoxDecoration(
@@ -871,11 +890,11 @@ class _GuestCtaCard extends StatelessWidget {
               child: Text('Create Free Account',
                 style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.black)),
             ),
-          ),
+          )),
         ),
         const SizedBox(width: 10),
-        GestureDetector(
-          onTap: () {},
+        Builder(builder: (context) => GestureDetector(
+          onTap: () => _goSignIn(context),
           child: Container(
             height: 42,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -888,7 +907,7 @@ class _GuestCtaCard extends StatelessWidget {
             child: Text('Sign In',
               style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
           ),
-        ),
+        )),
       ]),
     ]),
   );

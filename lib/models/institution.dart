@@ -97,4 +97,17 @@ class Institution {
     primaryColor: '#1A56DB', secondaryColor: '#3B82F6', accentColor: '#F59E0B',
     fontFamily: 'Inter', enabledFeatures: InstitutionFeature.values,
   );
+
+  /// Branding used for Normal / Premium independent accounts — no school,
+  /// so only the school-agnostic features are enabled. Note: HomeShell's
+  /// "Courses" tab is currently unconditional regardless of feature flags
+  /// (see app_router.dart _buildNav) — that's a known follow-up, not
+  /// something this feature set can hide on its own yet.
+  static Institution get independentDefault => const Institution(
+    institutionId: 'independent', schoolCode: '', schoolName: 'Academia',
+    tagline: 'Independent Member',
+    primaryColor: '#0A1F44', secondaryColor: '#152D5E', accentColor: '#C9A227',
+    fontFamily: 'Inter',
+    enabledFeatures: [InstitutionFeature.library, InstitutionFeature.announcements],
+  );
 }

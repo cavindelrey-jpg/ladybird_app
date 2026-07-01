@@ -75,6 +75,17 @@ class InstitutionProvider extends ChangeNotifier {
     return _handleResult(result);
   }
 
+  /// Load an institution directly by its Firestore document ID.
+  /// Used when a signed-in linked student's institution hasn't been
+  /// loaded yet on this app session (e.g. sign-in without a prior
+  /// restoreFromPrefs hit).
+  Future<bool> loadById(String id) async {
+    if (id.isEmpty) return false;
+    _set(InstitutionStatus.validating);
+    final result = await InstitutionRepository.instance.findById(id);
+    return _handleResult(result);
+  }
+
   /// Restore institution from a previously-stored ID (e.g. SharedPreferences).
   Future<bool> restoreFromPrefs() async {
     try {

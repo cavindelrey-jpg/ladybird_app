@@ -1,5 +1,14 @@
+// lib/widgets/premium_unlock_sheet.dart
+// MoMo / Orange Money unlock sheet for the 5,000 FCFA individual premium
+// tier. Writes a pending payment record to Firestore; a Cloud Function
+// (not part of this client) should listen on `payments/{id}` and, once the
+// provider confirms the transaction, flip `users/{userId}.isPremium` to
+// true server-side. This sheet does not set isPremium itself.
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../theme/app_theme.dart';
 
 class PremiumUnlockSheet extends StatefulWidget {
   final String userId;
@@ -38,9 +47,9 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
     });
 
     try {
-      // Call Firebase Cloud Function using a standard HTTPS client or custom setup via Firestore trigger
-      // Since cloud_functions package isn't present, we adapt by writing to a payment collection
-      // which acts as the direct pipeline to trigger the payment logic on the backend.
+      // No cloud_functions dependency here — a pending payment record is
+      // written to Firestore, which a backend trigger picks up to launch
+      // the actual MoMo/Orange Money USSD prompt and confirm the result.
       final paymentRef = FirebaseFirestore.instance.collection('payments').doc();
 
       await paymentRef.set({
@@ -54,24 +63,16 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('USSD prompt sent! Please enter your PIN to approve.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Mimic completion callback after webhook processes or manually dismiss
-        widget.onUnlockSuccess();
-        Navigator.pop(context);
-      }
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (_) => _PendingDialog(provider: _selectedProvider),
+      );
+      widget.onUnlockSuccess();
     } catch (e) {
-      setState(() => _errorMessage = 'An error occurred: ${e.toString()}');
+      setState(() => _errorMessage = 'Something went wrong. Please try again.');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -80,9 +81,7 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
-        top: 24,
-        left: 24,
-        right: 24,
+        top: 12, left: 24, right: 24,
       ),
       child: Form(
         key: _formKey,
@@ -90,109 +89,120 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Unlock Premium',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
+            Center(
+              child: Container(
+                width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(color: C.bdr, borderRadius: BorderRadius.circular(4)),
+              ),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Get instant access to all locked past questions.',
-              style: TextStyle(color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
+            Row(children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(color: C.goldp, borderRadius: BorderRadius.circular(Rad.sm)),
+                child: const Icon(Icons.workspace_premium_rounded, color: C.gold, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Unlock Premium',
+                      style: GoogleFonts.sora(fontSize: 17, fontWeight: FontWeight.w800, color: C.txt)),
+                  Text('Every past question, every school, every board.',
+                      style: GoogleFonts.inter(fontSize: 12, color: C.txt2)),
+                ]),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, color: C.muted),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ]),
+            const SizedBox(height: 20),
 
-            // Pricing Badge
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.amber.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                '5,000 XAF Flat Rate',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.amber,
-                ),
-                textAlign: TextAlign.center,
-              ),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(color: C.goldp, borderRadius: BorderRadius.circular(Rad.md)),
+              child: Text('5,000 FCFA — one time',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.sora(fontSize: 17, fontWeight: FontWeight.w800, color: C.navy)),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
-            // Provider Selection
-            Row(
-              children: [
-                Expanded(
-                  child: _ProviderCard(
-                    label: 'MTN MoMo',
-                    logoColor: Colors.amber,
-                    isSelected: _selectedProvider == 'mtn',
-                    onTap: () => setState(() => _selectedProvider = 'mtn'),
-                  ),
+            Text('PAYMENT METHOD',
+                style: GoogleFonts.sora(fontSize: 10, fontWeight: FontWeight.w700,
+                    letterSpacing: 1, color: C.txt2)),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(
+                child: _ProviderCard(
+                  label: 'MTN MoMo',
+                  color: const Color(0xFFFFCC00),
+                  isSelected: _selectedProvider == 'mtn',
+                  onTap: () => setState(() => _selectedProvider = 'mtn'),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _ProviderCard(
-                    label: 'Orange Money',
-                    logoColor: Colors.orange,
-                    isSelected: _selectedProvider == 'orange',
-                    onTap: () => setState(() => _selectedProvider = 'orange'),
-                  ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ProviderCard(
+                  label: 'Orange Money',
+                  color: const Color(0xFFFF6600),
+                  isSelected: _selectedProvider == 'orange',
+                  onTap: () => setState(() => _selectedProvider = 'orange'),
                 ),
-              ],
-            ),
-            const SizedBox(height: 24),
+              ),
+            ]),
+            const SizedBox(height: 20),
 
-            // Phone Number Input
             TextFormField(
               controller: _phoneController,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Phone Number (e.g., 600000000)',
-                border: OutlineInputBorder(),
+              style: GoogleFonts.inter(fontSize: 14, color: C.txt),
+              decoration: InputDecoration(
+                hintText: '6XX XXX XXX',
+                hintStyle: GoogleFonts.inter(fontSize: 14, color: C.muted),
                 prefixText: '+237 ',
+                prefixStyle: GoogleFonts.inter(fontSize: 14, color: C.txt),
+                filled: true, fillColor: C.surf3,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md),
+                    borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               ),
               validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter your phone number';
-                }
-                if (value.length < 9) {
-                  return 'Enter a valid Cameroon phone number';
-                }
+                if (value == null || value.isEmpty) return 'Enter your phone number';
+                if (value.length < 9) return 'Enter a valid Cameroon phone number';
                 return null;
               },
             ),
             const SizedBox(height: 16),
 
-            // Error Display
             if (_errorMessage != null) ...[
-              Text(
-                _errorMessage!,
-                style: const TextStyle(color: Colors.red, fontSize: 14),
-                textAlign: TextAlign.center,
-              ),
+              Text(_errorMessage!,
+                  style: GoogleFonts.inter(color: C.red, fontSize: 13), textAlign: TextAlign.center),
               const SizedBox(height: 12),
             ],
 
-            // Action Button
-            ElevatedButton(
-              onPressed: _isLoading ? null : _handlePayment,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Theme.of(context).primaryColor,
+            SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _handlePayment,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: C.navy, foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.md)),
+                  elevation: 0,
+                ),
+                child: _isLoading
+                    ? const SizedBox(width: 20, height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                    : Text('Pay Now', style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700)),
               ),
-              child: _isLoading
-                  ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              )
-                  : const Text('Pay Now', style: TextStyle(fontSize: 16, color: Colors.white)),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 10),
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('Skip for now',
+                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: C.txt2)),
+              ),
+            ),
+            const SizedBox(height: 12),
           ],
         ),
       ),
@@ -200,15 +210,49 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
   }
 }
 
+class _PendingDialog extends StatelessWidget {
+  final String provider;
+  const _PendingDialog({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = provider == 'mtn' ? 'MTN MoMo' : 'Orange Money';
+    return AlertDialog(
+      backgroundColor: C.surf,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.lg)),
+      title: Row(children: [
+        const Icon(Icons.check_circle_outline_rounded, color: C.grn),
+        const SizedBox(width: 8),
+        Expanded(child: Text('Prompt sent', style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700))),
+      ]),
+      content: Text(
+        'Check your phone for the $label PIN prompt to approve the '
+        '5,000 FCFA payment. Premium access unlocks automatically once '
+        'it\'s confirmed.',
+        style: GoogleFonts.inter(fontSize: 13, color: C.txt2, height: 1.5),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop(); // dialog
+            Navigator.of(context).pop(); // sheet
+          },
+          child: const Text('Got it'),
+        ),
+      ],
+    );
+  }
+}
+
 class _ProviderCard extends StatelessWidget {
   final String label;
-  final Color logoColor;
+  final Color color;
   final bool isSelected;
   final VoidCallback onTap;
 
   const _ProviderCard({
     required this.label,
-    required this.logoColor,
+    required this.color,
     required this.isSelected,
     required this.onTap,
   });
@@ -218,21 +262,17 @@ class _ProviderCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: isSelected ? logoColor : Colors.grey.shade300,
-            width: isSelected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(8),
+          color: isSelected ? color.withValues(alpha: .12) : C.surf3,
+          border: Border.all(color: isSelected ? color : C.bdr, width: isSelected ? 1.6 : 1),
+          borderRadius: BorderRadius.circular(Rad.md),
         ),
-        child: Column(
-          children: [
-            CircleAvatar(radius: 12, backgroundColor: logoColor),
-            const SizedBox(height: 8),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
+        child: Column(children: [
+          CircleAvatar(radius: 10, backgroundColor: color),
+          const SizedBox(height: 8),
+          Text(label, style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, color: C.txt)),
+        ]),
       ),
     );
   }

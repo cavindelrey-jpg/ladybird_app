@@ -12,9 +12,7 @@ import '../theme/app_theme.dart';
 import '../features/institution/institution_splash_screen.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
-import '../pages/guest_landing_page.dart';
 // pages
-import '../features/dashboard/dashboard_page.dart';
 import '../features/announcements/announcements_page.dart';
 import '../features/library/library_page.dart';
 import '../features/timetable/timetable_page.dart';
@@ -25,6 +23,9 @@ import '../features/courses/courses_page.dart';
 import '../features/admin/admin_panel_page.dart';
 import '../pages/marks_page.dart';
 import '../pages/profile_page.dart';
+import '../features/dashboard/universal_home_page.dart';
+import '../widgets/app_drawer.dart';
+import '../features/onboarding/account_choice_screen.dart';
 
 // ────────────────────────────────────────────────────────────────────────────
 // AppRouter — watches InstitutionProvider + Firebase auth
@@ -84,10 +85,116 @@ class _AppRouterState extends State<AppRouter> {
         }
         if (snap.data == null) {
           // Guest: no login wall, browse everything read-only.
-          return const GuestLandingPage();
+          return const _GuestShell();
         }
         return const _IndependentUserGate();
       },
+    );
+  }
+}
+
+/// Scaffold shown to signed-out Guests — same universal dashboard as
+/// signed-in accounts, wrapped with the drawer and a lightweight bottom
+/// nav. Tapping anything that needs an account routes to sign-up/sign-in.
+class _GuestShell extends StatefulWidget {
+  const _GuestShell();
+  @override State<_GuestShell> createState() => _GuestShellState();
+}
+
+class _GuestShellState extends State<_GuestShell> {
+  int _tab = 0;
+
+  void _guestGate(BuildContext context) {
+    Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => const AccountChoiceScreen()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pages = [
+      const UniversalHomePage(user: null),
+      _GuestGateTab(onTap: () => _guestGate(context), label: 'Clubs'),
+      const UniversalHomePage(user: null),
+      _GuestGateTab(onTap: () => _guestGate(context), label: 'Messages'),
+      _GuestGateTab(onTap: () => _guestGate(context), label: 'Profile'),
+    ];
+    return Scaffold(
+      drawer: const AppDrawer(user: null),
+      body: IndexedStack(index: _tab, children: pages),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: C.gold,
+        onPressed: () => _guestGate(context),
+        child: const Icon(Icons.add_rounded, color: C.navy),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: BottomAppBar(
+        shape: const CircularNotchedRectangle(),
+        color: C.surf,
+        child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+          _navIcon(Icons.home_rounded, 'Home', 0),
+          _navIcon(Icons.groups_rounded, 'Clubs', 1),
+          const SizedBox(width: 40),
+          _navIcon(Icons.chat_bubble_outline_rounded, 'Messages', 3),
+          _navIcon(Icons.person_outline_rounded, 'Profile', 4),
+        ]),
+      ),
+    );
+  }
+
+  Widget _navIcon(IconData icon, String label, int index) {
+    final selected = _tab == index;
+    return InkWell(
+      onTap: () => setState(() => _tab = index),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 22, color: selected ? C.primary : C.muted),
+          const SizedBox(height: 2),
+          Text(label, style: GoogleFonts.inter(
+              fontSize: 9.5, color: selected ? C.primary : C.muted,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
+        ]),
+      ),
+    );
+  }
+}
+
+class _GuestGateTab extends StatelessWidget {
+  final VoidCallback onTap;
+  final String label;
+  const _GuestGateTab({required this.onTap, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: C.bg,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.lock_outline_rounded, size: 48, color: C.muted),
+            const SizedBox(height: 16),
+            Text('Sign in to access $label',
+                style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
+            const SizedBox(height: 8),
+            Text('Create a free account to join clubs, message, and post.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(fontSize: 13, color: C.txt2)),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: onTap,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: C.navy, foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.md)),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: Text('Create Free Account'),
+              ),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 }
@@ -300,7 +407,7 @@ class _HomeShellState extends State<HomeShell> {
           ])));
     }
     switch (def.label) {
-      case 'Home':        return DashboardPage(user: u);
+      case 'Home':        return UniversalHomePage(user: u);
       case 'Notices':     return AnnouncementsPage(user: u, canPost: u.canPostAnnouncement);
       case 'Calendar':    return CalendarPage(user: u);
       case 'Courses':     return CoursesPage(user: u);
@@ -321,6 +428,7 @@ class _HomeShellState extends State<HomeShell> {
     final safeTab = _tab.clamp(0, nav.length - 1);
 
     return Scaffold(
+      drawer: AppDrawer(user: widget.user, institution: widget.institution),
       body: SafeArea(
         child: IndexedStack(
           index: safeTab,

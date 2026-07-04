@@ -31,6 +31,15 @@ class AuthService {
             (doc) => doc.exists ? AppUser.fromFirestore(u.uid, doc.data()!) : null);
   }
 
+  /// Sends a Firebase password-reset email. Throws on failure (invalid
+  /// email format, network error, etc.) so the caller can show a message.
+  /// Note: for unregistered emails Firebase Auth still resolves normally
+  /// (no user-enumeration signal) unless email enumeration protection is
+  /// off on the project, in which case it throws 'user-not-found'.
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email.trim());
+  }
+
   Future<AppUser?> signIn({required String email, required String password}) async {
     final cred = await _auth.signInWithEmailAndPassword(email: email, password: password);
     final uid  = cred.user!.uid;

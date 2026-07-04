@@ -15,14 +15,15 @@ import 'content_upload_page.dart';
 
 class AcademicContentPage extends StatefulWidget {
   final AppUser user;
-  const AcademicContentPage({super.key, required this.user});
+  final ContentType? initialTypeFilter;
+  const AcademicContentPage({super.key, required this.user, this.initialTypeFilter});
 
   @override
   State<AcademicContentPage> createState() => _AcademicContentPageState();
 }
 
 class _AcademicContentPageState extends State<AcademicContentPage> {
-  ContentType? _typeFilter;
+  late ContentType? _typeFilter = widget.initialTypeFilter;
   String? _subjectFilter;
   bool _isSearching = false;
   List<AcademicContent>? _searchResults;

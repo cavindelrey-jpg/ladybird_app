@@ -64,6 +64,101 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  Future<void> _showForgotPasswordSheet(BuildContext context) async {
+    final emailCtrl = TextEditingController(text: _emailCtrl.text.trim());
+    bool sending = false;
+    String? localError;
+    bool sent = false;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: C.bg,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetCtx) => StatefulBuilder(builder: (dCtx, setM) => Padding(
+        padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(dCtx).viewInsets.bottom + 24),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+          Text('Reset your password', style: GoogleFonts.sora(
+              fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
+          const SizedBox(height: 8),
+          Text(
+            sent
+                ? 'If an account exists for that email, a reset link is on its way. Check your inbox (and spam folder).'
+                : "Enter the email on your account. We'll send you a link to reset your password.",
+            style: GoogleFonts.inter(fontSize: 13, color: C.txt2),
+          ),
+          const SizedBox(height: 16),
+          if (!sent) ...[
+            TextField(
+              controller: emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              style: GoogleFonts.inter(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Email address',
+                filled: true,
+                fillColor: C.surf,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md),
+                    borderSide: const BorderSide(color: C.bdr)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md),
+                    borderSide: const BorderSide(color: C.bdr)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md),
+                    borderSide: const BorderSide(color: C.primary)),
+              ),
+            ),
+            if (localError != null) ...[
+              const SizedBox(height: 10),
+              Text(localError!, style: GoogleFonts.inter(fontSize: 12, color: C.red)),
+            ],
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity, height: 48,
+              child: ElevatedButton(
+                onPressed: sending
+                    ? null
+                    : () async {
+                        final email = emailCtrl.text.trim();
+                        if (!email.contains('@')) {
+                          setM(() => localError = 'Enter a valid email address.');
+                          return;
+                        }
+                        setM(() { sending = true; localError = null; });
+                        try {
+                          await AuthService.instance.sendPasswordResetEmail(email);
+                          setM(() { sending = false; sent = true; });
+                        } catch (e) {
+                          setM(() {
+                            sending = false;
+                            localError = 'Could not send reset email. Check the address and try again.';
+                          });
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: C.gold, foregroundColor: C.navy,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.md)),
+                  elevation: 0,
+                ),
+                child: sending
+                    ? const SizedBox(width: 18, height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: C.navy))
+                    : Text('Send reset link', style: GoogleFonts.sora(
+                        fontSize: 14, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ] else
+            SizedBox(
+              width: double.infinity, height: 48,
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(dCtx).pop(),
+                child: Text('Done', style: GoogleFonts.sora(fontWeight: FontWeight.w700)),
+              ),
+            ),
+        ]),
+      )),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -138,7 +233,18 @@ class _LoginScreenState extends State<LoginScreen>
                         onPressed: () => setState(() => _obscure = !_obscure),
                       ),
                     ),
-                    const SizedBox(height: 28),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _loading ? null : () => _showForgotPasswordSheet(context),
+                        style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 4)),
+                        child: Text('Forgot password?',
+                            style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600,
+                                color: C.gold)),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
 
                     // Sign in button
                     _loading

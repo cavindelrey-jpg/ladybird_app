@@ -20,6 +20,10 @@ import '../features/admin/admin_panel_page.dart';
 import '../features/onboarding/account_choice_screen.dart';
 import '../screens/login_screen.dart';
 import '../models/school_config.dart';
+import '../features/courses/courses_page.dart';
+import '../features/clubs/clubs_page.dart';
+import '../features/academic_content/academic_content_page.dart';
+import '../models/academic_content.dart';
 
 class AppDrawer extends StatelessWidget {
   final AppUser? user;
@@ -42,14 +46,39 @@ class AppDrawer extends StatelessWidget {
               children: [
                 _item(context, Icons.home_rounded, 'Home',
                     () => Navigator.of(context).pop()),
-                _item(context, Icons.school_rounded, 'Courses',
-                    () => _goComingSoon(context, 'Courses', Icons.school_rounded)),
-                _item(context, Icons.description_rounded, 'Past Questions',
-                    () => _goComingSoon(context, 'Past Questions', Icons.description_rounded)),
-                _item(context, Icons.groups_rounded, 'Clubs',
-                    () => _goComingSoon(context, 'Clubs', Icons.groups_rounded,
-                        subtitle: 'School Clubs and Independent Clubs — join a '
-                            'community even if your school hasn\'t joined Academia.')),
+                _item(context, Icons.school_rounded, 'Courses', () {
+                  if (_isGuest) {
+                    _goSignIn(context);
+                  } else {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => CoursesPage(user: user!)));
+                  }
+                }),
+                _item(context, Icons.folder_copy_rounded, 'Content Library', () {
+                  if (_isGuest) {
+                    _goSignIn(context);
+                  } else {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => AcademicContentPage(user: user!)));
+                  }
+                }),
+                _item(context, Icons.description_rounded, 'Past Questions', () {
+                  if (_isGuest) {
+                    _goSignIn(context);
+                  } else {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => AcademicContentPage(
+                            user: user!, initialTypeFilter: ContentType.pastPaper)));
+                  }
+                }),
+                _item(context, Icons.groups_rounded, 'Clubs', () {
+                  if (_isGuest) {
+                    _goSignIn(context);
+                  } else {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => ClubsPage(user: user!)));
+                  }
+                }),
                 _item(context, Icons.menu_book_rounded, 'Magazine',
                     () => _goComingSoon(context, 'Magazine', Icons.menu_book_rounded)),
                 _item(context, Icons.chat_bubble_outline_rounded, 'Messages',

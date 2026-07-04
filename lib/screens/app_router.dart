@@ -14,7 +14,7 @@ import '../services/auth_service.dart';
 import 'login_screen.dart';
 // pages
 import '../features/announcements/announcements_page.dart';
-import '../features/library/library_page.dart';
+import '../features/academic_content/academic_content_page.dart';
 import '../features/timetable/timetable_page.dart';
 import '../features/attendance/attendance_page.dart';
 import '../features/assignments/assignments_page.dart';
@@ -412,7 +412,7 @@ class _HomeShellState extends State<HomeShell> {
       case 'Assignments': return AssignmentsPage(user: u);
       case 'Grades':      return MarksPage(user: u);
       case 'Attendance':  return AttendancePage(user: u);
-      case 'Library':     return LibraryPage(user: u);
+      case 'Library':     return AcademicContentPage(user: u);
       case 'Profile':     return ProfilePage(user: u, institution: widget.institution);
       default:            return const SizedBox.shrink();
     }

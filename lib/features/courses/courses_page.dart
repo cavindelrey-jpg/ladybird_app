@@ -14,9 +14,45 @@ class CoursesPage extends StatelessWidget {
   const CoursesPage({super.key, required this.user});
 
   String get _sid => user.schoolId ?? '';
+  bool get _isIndependent => (user.schoolId ?? '').isEmpty;
 
   @override
   Widget build(BuildContext context) {
+    // Independent (non-school-linked) users have no schoolId, so there's no
+    // school-scoped course catalogue for them — querying with an empty
+    // schoolId would hit an invalid Firestore path. Show an explanatory
+    // state instead of a broken/empty list. Point them at the Content
+    // Library, which is where independent-user academic content lives.
+    if (_isIndependent) {
+      return Scaffold(
+        backgroundColor: C.bg,
+        appBar: AppBar(
+          title: Text('Courses', style: GoogleFonts.sora(fontWeight: FontWeight.w700)),
+          automaticallyImplyLeading: false,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.school_outlined, size: 48, color: C.muted),
+              const SizedBox(height: 12),
+              Text('Courses are organized by school',
+                  style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700, color: C.txt),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 6),
+              Text(
+                "Your account isn't linked to a school, so there's no course "
+                'catalogue to show yet. Check the Content Library for notes, '
+                'past papers, and videos instead.',
+                style: GoogleFonts.inter(fontSize: 13, color: C.txt2),
+                textAlign: TextAlign.center,
+              ),
+            ]),
+          ),
+        ),
+      );
+    }
+
     final stream = user.isLecturer
         ? CourseRepository.instance.watchForLecturer(_sid, user.id)
         : CourseRepository.instance.watchAll(_sid);

@@ -28,9 +28,12 @@ import '../../services/auth_service.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/coming_soon_page.dart';
 import '../../pages/marks_page.dart';
-import '../library/library_page.dart';
 import '../timetable/timetable_page.dart';
 import '../assignments/assignments_page.dart';
+import '../courses/courses_page.dart';
+import '../clubs/clubs_page.dart';
+import '../academic_content/academic_content_page.dart';
+import '../../models/academic_content.dart';
 
 class UniversalHomePage extends StatefulWidget {
   final AppUser? user;
@@ -290,11 +293,10 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   void _openHeroSlide(HeroSlide slide) {
     switch (slide.destination) {
       case HeroDestination.clubs:
-        _open(context, const ComingSoonPage(title: 'Clubs', icon: Icons.groups_rounded));
+        _open(context, const _ClubsDest());
         break;
       case HeroDestination.pastQuestions:
-        _open(context, const ComingSoonPage(
-            title: 'Past Questions', icon: Icons.description_rounded));
+        _open(context, const _PastQuestionsDest());
         break;
       case HeroDestination.magazine:
         _open(context, const ComingSoonPage(
@@ -304,7 +306,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         _open(context, const _LibraryDest());
         break;
       case HeroDestination.courses:
-        _open(context, const ComingSoonPage(title: 'Courses', icon: Icons.school_rounded));
+        _open(context, const _CoursesDest());
         break;
       case HeroDestination.custom:
         break; // no-op until custom in-app routing is defined
@@ -377,18 +379,17 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         _open(context, const _LibraryDest());
         break;
       case 'past_questions':
-        _open(context, const ComingSoonPage(
-            title: 'Past Questions', icon: Icons.description_rounded));
+        _open(context, const _PastQuestionsDest());
         break;
       case 'magazine':
         _open(context, const ComingSoonPage(
             title: 'Magazine', icon: Icons.auto_stories_rounded));
         break;
       case 'clubs':
-        _open(context, const ComingSoonPage(title: 'Clubs', icon: Icons.groups_rounded));
+        _open(context, const _ClubsDest());
         break;
       case 'courses':
-        _open(context, const ComingSoonPage(title: 'Courses', icon: Icons.school_rounded));
+        _open(context, const _CoursesDest());
         break;
       case 'lecture_notes':
         _open(context, const ComingSoonPage(
@@ -419,7 +420,13 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     }
     Widget page;
     if (destResolver is _LibraryDest) {
-      page = LibraryPage(user: _u!);
+      page = AcademicContentPage(user: _u!);
+    } else if (destResolver is _PastQuestionsDest) {
+      page = AcademicContentPage(user: _u!, initialTypeFilter: ContentType.pastPaper);
+    } else if (destResolver is _CoursesDest) {
+      page = CoursesPage(user: _u!);
+    } else if (destResolver is _ClubsDest) {
+      page = ClubsPage(user: _u!);
     } else if (destResolver is _AssignmentsDest) {
       page = AssignmentsPage(user: _u!);
     } else if (destResolver is _MarksDest) {
@@ -672,5 +679,17 @@ class _MarksDest extends StatelessWidget {
 }
 class _TimetableDest extends StatelessWidget {
   const _TimetableDest();
+  @override Widget build(BuildContext context) => const SizedBox.shrink();
+}
+class _CoursesDest extends StatelessWidget {
+  const _CoursesDest();
+  @override Widget build(BuildContext context) => const SizedBox.shrink();
+}
+class _ClubsDest extends StatelessWidget {
+  const _ClubsDest();
+  @override Widget build(BuildContext context) => const SizedBox.shrink();
+}
+class _PastQuestionsDest extends StatelessWidget {
+  const _PastQuestionsDest();
   @override Widget build(BuildContext context) => const SizedBox.shrink();
 }

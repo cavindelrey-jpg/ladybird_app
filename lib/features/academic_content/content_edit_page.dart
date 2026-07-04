@@ -191,7 +191,7 @@ class _ContentEditPageState extends State<ContentEditPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Content type
-              _Label('Content Type'),
+              const _Label('Content Type'),
               const SizedBox(height: 10),
               _TypeRow(
                 selected: _type,
@@ -199,7 +199,7 @@ class _ContentEditPageState extends State<ContentEditPage> {
               ),
               const SizedBox(height: 20),
 
-              _Label('Title *'),
+              const _Label('Title *'),
               const SizedBox(height: 8),
               _TextField(
                 controller: _titleCtrl,
@@ -209,7 +209,7 @@ class _ContentEditPageState extends State<ContentEditPage> {
               ),
               const SizedBox(height: 16),
 
-              _Label('Subject *'),
+              const _Label('Subject *'),
               const SizedBox(height: 8),
               _TextField(
                 controller: _subjectCtrl,
@@ -219,7 +219,7 @@ class _ContentEditPageState extends State<ContentEditPage> {
               ),
               const SizedBox(height: 16),
 
-              _Label('Description'),
+              const _Label('Description'),
               const SizedBox(height: 8),
               _TextField(
                   controller: _descCtrl,
@@ -227,14 +227,14 @@ class _ContentEditPageState extends State<ContentEditPage> {
                   maxLines: 3),
               const SizedBox(height: 16),
 
-              _Label('Tags (comma separated)'),
+              const _Label('Tags (comma separated)'),
               const SizedBox(height: 8),
               _TextField(
                   controller: _tagsCtrl, hint: 'e.g. form4, exam'),
               const SizedBox(height: 20),
 
               // Replace file
-              _Label('Replace Content File (optional)'),
+              const _Label('Replace Content File (optional)'),
               const SizedBox(height: 8),
               _FileRow(
                 label: _newContentFileName ??
@@ -247,7 +247,7 @@ class _ContentEditPageState extends State<ContentEditPage> {
               const SizedBox(height: 16),
 
               // Replace thumbnail
-              _Label('Replace Thumbnail (optional)'),
+              const _Label('Replace Thumbnail (optional)'),
               const SizedBox(height: 8),
               _ThumbnailRow(
                 existingUrl: widget.content.thumbnailUrl,

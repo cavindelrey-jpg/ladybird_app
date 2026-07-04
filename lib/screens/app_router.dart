@@ -20,7 +20,6 @@ import '../features/attendance/attendance_page.dart';
 import '../features/assignments/assignments_page.dart';
 import '../features/calendar/calendar_page.dart';
 import '../features/courses/courses_page.dart';
-import '../features/admin/admin_panel_page.dart';
 import '../pages/marks_page.dart';
 import '../pages/profile_page.dart';
 import '../features/dashboard/universal_home_page.dart';
@@ -381,11 +380,9 @@ class _HomeShellState extends State<HomeShell> {
       nav.add(const _NavDef('Library', Icons.menu_book_rounded, Icons.menu_book_outlined, UserRole.student));
     }
 
-    // Admin — dept admin and above
-    if (u.canManageUsers) {
-      nav.add(const _NavDef('Admin', Icons.admin_panel_settings_rounded,
-          Icons.admin_panel_settings_outlined, UserRole.departmentAdmin));
-    }
+    // Administration tab intentionally removed from the bottom nav for now
+    // — we're on the General UI; school-specific admin UI comes later.
+    // (superAdmin can still reach AdminPanelPage via the drawer.)
 
     // Profile — always last
     nav.add(const _NavDef('Profile', Icons.person_rounded, Icons.person_outlined, UserRole.guest));
@@ -416,7 +413,6 @@ class _HomeShellState extends State<HomeShell> {
       case 'Grades':      return MarksPage(user: u);
       case 'Attendance':  return AttendancePage(user: u);
       case 'Library':     return LibraryPage(user: u);
-      case 'Admin':       return AdminPanelPage(user: u);
       case 'Profile':     return ProfilePage(user: u, institution: widget.institution);
       default:            return const SizedBox.shrink();
     }

@@ -11,3 +11,5 @@ export 'timetable_repository.dart';
 export 'attendance_repository.dart';
 export 'assignment_repository.dart';
 export 'calendar_repository.dart';
+export 'hero_slide_repository.dart';
+export 'magazine_repository.dart';

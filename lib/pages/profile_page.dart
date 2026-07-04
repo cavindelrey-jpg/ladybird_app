@@ -6,6 +6,8 @@ import '../theme/app_theme.dart';
 import '../models/models.dart';
 import '../services/auth_service.dart';
 import '../providers/institution_provider.dart';
+import 'profile_edit_page.dart';
+import 'settings_page.dart';
 
 class ProfilePage extends StatelessWidget {
   final AppUser user;
@@ -33,6 +35,12 @@ class ProfilePage extends StatelessWidget {
         title: Text('Profile', style: GoogleFonts.sora(fontWeight: FontWeight.w700)),
         automaticallyImplyLeading: false,
         actions: [
+          IconButton(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => SettingsPage(user: user))),
+            icon: const Icon(Icons.settings_outlined, color: C.txt2),
+            tooltip: 'Settings',
+          ),
           TextButton.icon(
             onPressed: () async {
               await AuthService.instance.signOut();
@@ -76,13 +84,15 @@ class ProfilePage extends StatelessWidget {
           ],
 
           // Avatar
-          Container(
-            width: 80, height: 80,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: rc.withValues(alpha: .1),
-                border: Border.all(color: rc.withValues(alpha: .3), width: 2)),
-            child: Center(child: Text(user.initials,
-                style: GoogleFonts.sora(fontSize: 28, fontWeight: FontWeight.w700, color: rc))),
-          ),
+          user.photoUrl != null && user.photoUrl!.isNotEmpty
+              ? CircleAvatar(radius: 40, backgroundImage: NetworkImage(user.photoUrl!))
+              : Container(
+                  width: 80, height: 80,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: rc.withValues(alpha: .1),
+                      border: Border.all(color: rc.withValues(alpha: .3), width: 2)),
+                  child: Center(child: Text(user.initials,
+                      style: GoogleFonts.sora(fontSize: 28, fontWeight: FontWeight.w700, color: rc))),
+                ),
           const SizedBox(height: 12),
           Text(user.name, style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
@@ -92,12 +102,36 @@ class ProfilePage extends StatelessWidget {
                 color: rc.withValues(alpha: .1), borderRadius: BorderRadius.circular(20)),
             child: Text(user.roleLabel,
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: rc))),
+          const SizedBox(height: 14),
+          if (user.bio.trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(user.bio, textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(fontSize: 13, color: C.txt2, height: 1.5)),
+            )
+          else
+            Text('No bio yet — tell people a bit about yourself.',
+                style: GoogleFonts.inter(fontSize: 12, color: C.muted, fontStyle: FontStyle.italic)),
+          const SizedBox(height: 14),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => ProfileEditPage(user: user))),
+            icon: const Icon(Icons.edit_outlined, size: 16),
+            label: const Text('Edit Profile'),
+          ),
           const SizedBox(height: 24),
 
           // Info rows
           _InfoRow(Icons.email_outlined, 'Email', user.email.isEmpty ? '—' : user.email),
           _InfoRow(Icons.school_outlined, 'Class / Level',
               user.classLevel.isEmpty ? '—' : user.classLevel),
+          _InfoRow(
+            Icons.grade_outlined,
+            'Education Level',
+            user.educationLevel.isEmpty ? 'Tap to set' : user.educationLevel,
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => ProfileEditPage(user: user))),
+          ),
           if (user.subject != null && user.subject!.isNotEmpty)
             _InfoRow(Icons.subject_rounded, 'Subject', user.subject!),
           _InfoRow(Icons.account_circle_outlined, 'Account Type', user.accountTypeLabel),
@@ -120,11 +154,12 @@ class ProfilePage extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label, value;
-  const _InfoRow(this.icon, this.label, this.value);
+  final VoidCallback? onTap;
+  const _InfoRow(this.icon, this.label, this.value, {this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final row = Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: C.surf,
@@ -137,7 +172,13 @@ class _InfoRow extends StatelessWidget {
         Flexible(child: Text(value,
             style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: C.txt),
             textAlign: TextAlign.end)),
+        if (onTap != null) ...[
+          const SizedBox(width: 6),
+          const Icon(Icons.chevron_right_rounded, size: 16, color: C.muted),
+        ],
       ]),
     );
+    if (onTap == null) return row;
+    return GestureDetector(onTap: onTap, child: row);
   }
 }

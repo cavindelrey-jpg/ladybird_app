@@ -13,3 +13,6 @@ export 'timetable_slot.dart';
 export 'attendance_record.dart';
 export 'assignment.dart';
 export 'calendar_event.dart';
+export 'hero_slide.dart';
+export 'magazine_article.dart';
+export 'quick_access_feature.dart';

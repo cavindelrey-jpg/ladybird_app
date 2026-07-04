@@ -1,6 +1,7 @@
 // lib/services/auth_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:google_sign_in/google_sign_in.dart';
 import '../models/models.dart';
 import '../core/constants.dart';
 
@@ -10,6 +11,7 @@ class AuthService {
 
   final fb.FirebaseAuth _auth = fb.FirebaseAuth.instance;
   final FirebaseFirestore _db  = FirebaseFirestore.instance;
+  final GoogleSignIn _google = GoogleSignIn.instance;
 
   fb.User? get firebaseUser   => _auth.currentUser;
   Stream<fb.User?> get authStateChanges => _auth.authStateChanges();
@@ -26,7 +28,7 @@ class AuthService {
     final u = _auth.currentUser;
     if (u == null) return Stream.value(null);
     return _db.collection(AppConstants.colUsers).doc(u.uid).snapshots().map(
-        (doc) => doc.exists ? AppUser.fromFirestore(u.uid, doc.data()!) : null);
+            (doc) => doc.exists ? AppUser.fromFirestore(u.uid, doc.data()!) : null);
   }
 
   Future<AppUser?> signIn({required String email, required String password}) async {
@@ -54,6 +56,23 @@ class AuthService {
     );
     await _db.collection(AppConstants.colUsers).doc(uid).set(user.toFirestore());
     return user;
+  }
+
+  /// Runs the Google account picker and signs in. Returns null if the user
+  /// cancels the picker — that's a normal outcome, not an error, so the
+  /// caller should just stay on the current screen.
+  Future<AppUser?> signInWithGoogle() async {
+    await _google.initialize();
+    final googleUser = await _google.authenticate();
+
+    // FIXED: Removed 'await' as .authentication is now a normal synchronous getter
+    final googleAuth = googleUser.authentication;
+
+    // FIXED: Removed 'accessToken' as 'idToken' is all Firebase needs for auth here
+    final credential = fb.GoogleAuthProvider.credential(
+      idToken: googleAuth.idToken,
+    );
+    return signInWithGoogleCredential(credential);
   }
 
   Future<AppUser> signInWithGoogleCredential(fb.AuthCredential credential) async {
@@ -114,7 +133,19 @@ class AuthService {
           .snapshots()
           .map((s) => s.docs.map((d) => AppUser.fromFirestore(d.id, d.data())).toList());
 
-  Future<void> signOut() => _auth.signOut();
+  Future<void> signOut() async {
+    await _google.signOut();
+    await _auth.signOut();
+  }
+
+  /// Increments a Quick Access tap count for the signed-in user. Fire-and-
+  /// forget by design — never blocks navigation on the write.
+  Future<void> recordQuickAccessTap(String userId, String featureId) {
+    if (userId.isEmpty) return Future.value();
+    return _db.collection(AppConstants.colUsers).doc(userId).set({
+      'quickAccessUsage': {featureId: FieldValue.increment(1)},
+    }, SetOptions(merge: true));
+  }
 
   Future<void> updateUser(AppUser user, Map<String, dynamic> fields) async {
     if (user.id.isEmpty) return;

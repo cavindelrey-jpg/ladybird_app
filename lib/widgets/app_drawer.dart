@@ -15,6 +15,7 @@ import '../models/institution.dart';
 import '../services/auth_service.dart';
 import 'coming_soon_page.dart';
 import '../pages/profile_page.dart';
+import '../pages/settings_page.dart';
 import '../features/admin/admin_panel_page.dart';
 import '../features/onboarding/account_choice_screen.dart';
 import '../screens/login_screen.dart';
@@ -62,8 +63,14 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => ProfilePage(user: user!, institution: institution)));
                   }
                 }),
-                _item(context, Icons.settings_outlined, 'Settings',
-                    () => _goComingSoon(context, 'Settings', Icons.settings_outlined)),
+                _item(context, Icons.settings_outlined, 'Settings', () {
+                  if (_isGuest) {
+                    _goSignIn(context);
+                  } else {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => SettingsPage(user: user!)));
+                  }
+                }),
                 _item(context, Icons.notifications_outlined, 'Notifications',
                     () => _goComingSoon(context, 'Notifications', Icons.notifications_outlined)),
                 _item(context, Icons.help_outline_rounded, 'Help & Support',

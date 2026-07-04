@@ -11,9 +11,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
+import '../../models/app_user.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/premium_unlock_sheet.dart';
+import '../../widgets/google_sign_in_button.dart';
 
 class CreateAccountScreen extends StatefulWidget {
   final bool isPremium;
@@ -74,6 +76,21 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
     }
   }
 
+  Future<void> _afterGoogleSignIn(AppUser user) async {
+    if (widget.isPremium) {
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: C.surf,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(Rad.xl))),
+        builder: (_) => PremiumUnlockSheet(userId: user.id, onUnlockSuccess: () {}),
+      );
+    }
+    if (!mounted) return;
+    Navigator.of(context).popUntil((r) => r.isFirst);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -130,6 +147,21 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 ),
                 const SizedBox(height: 16),
               ],
+
+              GoogleSignInButton(
+                onSignedIn: _afterGoogleSignIn,
+                onError: (msg) => setState(() => _error = msg),
+              ),
+              const SizedBox(height: 18),
+              Row(children: [
+                const Expanded(child: Divider(color: C.bdr)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('or', style: GoogleFonts.inter(fontSize: 12, color: C.muted)),
+                ),
+                const Expanded(child: Divider(color: C.bdr)),
+              ]),
+              const SizedBox(height: 18),
 
               _Field(
                 controller: _nameCtrl,

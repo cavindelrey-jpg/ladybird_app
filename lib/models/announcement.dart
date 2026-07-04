@@ -13,6 +13,12 @@ class Announcement {
   final bool urgent;
   final String? schoolId;
 
+  /// What generated this row: 'magazinePost' | 'paperUpload' |
+  /// 'clubAnnouncement' | 'general'. Lets the Home feed route the tap to
+  /// the right place via [referenceId] instead of everything being static.
+  final String sourceType;
+  final String? referenceId; // articleId / paperId / clubId
+
   const Announcement({
     required this.id,
     required this.title,
@@ -23,6 +29,8 @@ class Announcement {
     required this.date,
     this.urgent = false,
     this.schoolId,
+    this.sourceType = 'general',
+    this.referenceId,
   });
 
   factory Announcement.fromFirestore(DocumentSnapshot doc) {
@@ -37,6 +45,8 @@ class Announcement {
       date: (d['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
       urgent: d['urgent'] ?? false,
       schoolId: d['schoolId'],
+      sourceType: d['sourceType'] ?? 'general',
+      referenceId: d['referenceId'],
     );
   }
 
@@ -49,6 +59,8 @@ class Announcement {
     'date': Timestamp.fromDate(date),
     'urgent': urgent,
     'schoolId': schoolId,
+    'sourceType': sourceType,
+    'referenceId': referenceId,
     'createdAt': FieldValue.serverTimestamp(),
   };
 }

@@ -14,6 +14,19 @@ enum UserRole {
 enum AccountType  { independent, linked, guest }
 enum AccountStatus{ active, suspended, assigned, unassigned }
 
+/// Editable education levels shown on Profile — Cameroon GCE-relevant,
+/// plus generic options for independent/adult users.
+class EducationLevels {
+  EducationLevels._();
+  static const List<String> all = [
+    'Form 1', 'Form 2', 'Form 3', 'Form 4', 'Form 5',
+    'Lower Sixth Arts', 'Lower Sixth Science',
+    'Upper Sixth Arts', 'Upper Sixth Science',
+    'University', 'Professional / Working Adult',
+    'Independent Learner', 'Other',
+  ];
+}
+
 class AppUser {
   final String id;
   final String name;
@@ -32,6 +45,17 @@ class AppUser {
   final bool adminAccessRevoked;
   final bool isPremium;
 
+  /// Free-text bio, ~100 words enforced at the Profile edit UI layer.
+  final String bio;
+
+  /// User-editable education level (Form 1 .. University .. Independent
+  /// Learner). Free text, not tied to classLevel (which is school-scoped).
+  final String educationLevel;
+
+  /// Per-feature tap counts (QuickAccessFeature.id -> count), used to rank
+  /// the 4-icon Quick Access row by real usage frequency.
+  final Map<String, int> quickAccessUsage;
+
   const AppUser({
     required this.id,
     required this.name,
@@ -49,6 +73,9 @@ class AppUser {
     this.isFirstLogin = false,
     this.adminAccessRevoked = false,
     this.isPremium = false,
+    this.bio = '',
+    this.educationLevel = '',
+    this.quickAccessUsage = const {},
   });
 
   // ── Identity helpers ───────────────────────────────────────────────────────
@@ -143,6 +170,9 @@ class AppUser {
     isFirstLogin: d['isFirstLogin'] ?? false,
     adminAccessRevoked: d['adminAccessRevoked'] ?? false,
     isPremium: d['isPremium'] ?? false,
+    bio: d['bio'] ?? '',
+    educationLevel: d['educationLevel'] ?? '',
+    quickAccessUsage: Map<String, int>.from(d['quickAccessUsage'] ?? {}),
   );
 
   /// Handles both old 4-role values and new 6-role values stored in Firestore.
@@ -166,6 +196,9 @@ class AppUser {
     'isFirstLogin': isFirstLogin,
     'adminAccessRevoked': adminAccessRevoked,
     'isPremium': isPremium,
+    'bio': bio,
+    'educationLevel': educationLevel,
+    'quickAccessUsage': quickAccessUsage,
   };
 
   AppUser copyWith({
@@ -175,6 +208,7 @@ class AppUser {
     String? schoolId, String? departmentId,
     String? classLevel, String? subject, List<String>? courseIds,
     bool? isFirstLogin, bool? adminAccessRevoked, bool? isPremium,
+    String? bio, String? educationLevel, Map<String, int>? quickAccessUsage,
   }) => AppUser(
     id: id ?? this.id, name: name ?? this.name,
     email: email ?? this.email, photoUrl: photoUrl ?? this.photoUrl,
@@ -189,5 +223,8 @@ class AppUser {
     isFirstLogin: isFirstLogin ?? this.isFirstLogin,
     adminAccessRevoked: adminAccessRevoked ?? this.adminAccessRevoked,
     isPremium: isPremium ?? this.isPremium,
+    bio: bio ?? this.bio,
+    educationLevel: educationLevel ?? this.educationLevel,
+    quickAccessUsage: quickAccessUsage ?? this.quickAccessUsage,
   );
 }

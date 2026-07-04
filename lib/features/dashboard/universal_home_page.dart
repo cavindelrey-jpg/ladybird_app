@@ -1,23 +1,30 @@
 // lib/features/dashboard/universal_home_page.dart
 // The one dashboard layout shared across Guest, Normal, Premium, and
 // Student accounts — matches the reference design (greeting block, stat
-// card, banner carousel, Quick Access grid, Upcoming/Announcements split,
-// Recommended row) but themed to Academia's navy/gold system instead of
-// generic purple.
+// card, banner carousel, Quick Access grid, Top Writers/Announcements
+// split, Recommended row) but themed to Academia's navy/gold system
+// instead of generic purple.
 //
 // user == null            -> Guest (NPC placeholder, no stats, read-only)
 // user.photoUrl == null   -> signed in, no photo -> NPC placeholder, real name
 // user.photoUrl != null   -> real avatar
 //
-// NOTE: Upcoming / Recent Announcements / Recommended sections use mock
-// data for now — real Firestore wiring is a follow-up pass. Quick Access
-// tiles route to real pages where they exist, and to a "Coming Soon"
-// placeholder where they don't yet.
+// Hero carousel, Quick Access ranking, Top Writers, and Announcements are
+// ALL live Firestore data now — no hardcoded rows. Each section renders an
+// honest empty state until real content/usage exists.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../models/app_user.dart';
+import '../../models/hero_slide.dart';
+import '../../models/announcement.dart';
+import '../../models/magazine_article.dart';
+import '../../models/quick_access_feature.dart';
+import '../../repositories/hero_slide_repository.dart';
+import '../../repositories/announcement_repository.dart';
+import '../../repositories/magazine_repository.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/coming_soon_page.dart';
 import '../../pages/marks_page.dart';
@@ -179,72 +186,129 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     );
   }
 
-  // ── Banner carousel ──────────────────────────────────────────────────────
+  // ── Banner carousel — live Firestore slides, no hardcoded copy ──────────
   Widget _bannerCarousel() {
-    final banners = [
-      ('Learn. Connect. Excel.',
-          'Access resources, join clubs, track performance and achieve more.'),
-      ('Every Past Question. One App.',
-          'GCE, BEPC, BAC — search, revise, and download.'),
-      ('Your Voice in the Magazine.',
-          'Publish, get read, and build your name across schools.'),
-    ];
-    return SizedBox(
-      height: 190,
-      child: Column(children: [
-        Expanded(
-          child: PageView.builder(
-            controller: _bannerCtrl,
-            onPageChanged: (i) => setState(() => _bannerIndex = i),
-            itemCount: banners.length,
-            itemBuilder: (_, i) {
-              final (title, body) = banners[i];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-                child: Container(
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [C.navy, C.navy2],
-                      begin: Alignment.topLeft, end: Alignment.bottomRight),
-                    borderRadius: BorderRadius.circular(Rad.lg),
-                    boxShadow: Shad.md,
-                  ),
-                  child: Row(children: [
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(title, style: GoogleFonts.sora(
-                            fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
-                        const SizedBox(height: 8),
-                        Text(body, style: GoogleFonts.inter(
-                            fontSize: 12, color: Colors.white.withValues(alpha: .75), height: 1.4)),
-                        const SizedBox(height: 14),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                          decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(10)),
-                          child: Text('Explore Now', style: GoogleFonts.sora(
-                              fontSize: 12, fontWeight: FontWeight.w700, color: C.navy)),
-                        ),
-                      ]),
-                    ),
-                    const Icon(Icons.school_rounded, size: 56, color: Colors.white24),
-                  ]),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(banners.length, (i) => Container(
-              width: 6, height: 6, margin: const EdgeInsets.symmetric(horizontal: 3),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: i == _bannerIndex ? C.gold : C.bdr,
+    return StreamBuilder<List<HeroSlide>>(
+      stream: HeroSlideRepository.instance.watchActive(),
+      builder: (context, snap) {
+        final slides = snap.data ?? const <HeroSlide>[];
+
+        if (slides.isEmpty) {
+          // Nothing configured yet. superAdmin gets a nudge to add the
+          // first slide via the in-app image manager; everyone else just
+          // doesn't see the carousel — no fake placeholder banners.
+          if (!_isGuest && _u!.isSuperAdmin) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const ComingSoonPage(
+                        title: 'Hero Slide Manager',
+                        subtitle: 'Add your first Home banner (image + link).',
+                        icon: Icons.image_outlined))),
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: const Text('Add your first Home banner'),
               ),
-            ))),
-      ]),
+            );
+          }
+          return const SizedBox.shrink();
+        }
+
+        return SizedBox(
+          height: 190,
+          child: Column(children: [
+            Expanded(
+              child: PageView.builder(
+                controller: _bannerCtrl,
+                onPageChanged: (i) => setState(() => _bannerIndex = i),
+                itemCount: slides.length,
+                itemBuilder: (_, i) => _bannerCard(slides[i]),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(slides.length, (i) => Container(
+                  width: 6, height: 6, margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: i == _bannerIndex ? C.gold : C.bdr,
+                  ),
+                ))),
+          ]),
+        );
+      },
     );
+  }
+
+  Widget _bannerCard(HeroSlide slide) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: GestureDetector(
+        onTap: () => _openHeroSlide(slide),
+        child: Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+                colors: [C.navy, C.navy2],
+                begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(Rad.lg),
+            boxShadow: Shad.md,
+            image: (slide.imageUrl != null && slide.imageUrl!.isNotEmpty)
+                ? DecorationImage(
+                    image: NetworkImage(slide.imageUrl!),
+                    fit: BoxFit.cover,
+                    colorFilter: ColorFilter.mode(
+                        Colors.black.withValues(alpha: .35), BlendMode.darken),
+                  )
+                : null,
+          ),
+          child: Row(children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(slide.headline, style: GoogleFonts.sora(
+                    fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
+                const SizedBox(height: 8),
+                Text(slide.subtext, style: GoogleFonts.inter(
+                    fontSize: 12, color: Colors.white.withValues(alpha: .75), height: 1.4)),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                  decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(10)),
+                  child: Text(slide.ctaLabel, style: GoogleFonts.sora(
+                      fontSize: 12, fontWeight: FontWeight.w700, color: C.navy)),
+                ),
+              ]),
+            ),
+            if (slide.imageUrl == null || slide.imageUrl!.isEmpty)
+              const Icon(Icons.school_rounded, size: 56, color: Colors.white24),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  void _openHeroSlide(HeroSlide slide) {
+    switch (slide.destination) {
+      case HeroDestination.clubs:
+        _open(context, const ComingSoonPage(title: 'Clubs', icon: Icons.groups_rounded));
+        break;
+      case HeroDestination.pastQuestions:
+        _open(context, const ComingSoonPage(
+            title: 'Past Questions', icon: Icons.description_rounded));
+        break;
+      case HeroDestination.magazine:
+        _open(context, const ComingSoonPage(
+            title: 'Magazine', icon: Icons.auto_stories_rounded));
+        break;
+      case HeroDestination.library:
+        _open(context, const _LibraryDest());
+        break;
+      case HeroDestination.courses:
+        _open(context, const ComingSoonPage(title: 'Courses', icon: Icons.school_rounded));
+        break;
+      case HeroDestination.custom:
+        break; // no-op until custom in-app routing is defined
+    }
   }
 
   Widget _sectionHeader(String title, {required VoidCallback onViewAll}) {
@@ -262,36 +326,24 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     );
   }
 
-  // ── Quick Access grid ────────────────────────────────────────────────────
+  // ── Quick Access grid — exactly 4 tiles, ranked by real tap frequency ───
+  // New users (empty usage map) see the QuickAccessRegistry default order:
+  // Library, Past Questions, Magazine, Clubs.
   Widget _quickAccessGrid(BuildContext context) {
-    final items = <_QuickItem>[
-      _QuickItem('Library', Icons.menu_book_rounded, C.primary, C.primaryBg,
-          () => _open(context, const _LibraryDest())),
-      _QuickItem('Past Questions', Icons.description_rounded, C.grn, C.grnb,
-          () => _open(context, const ComingSoonPage(
-              title: 'Past Questions', icon: Icons.description_rounded))),
-      _QuickItem('Lecture Notes', Icons.sticky_note_2_rounded, C.gold, C.goldp,
-          () => _open(context, const ComingSoonPage(
-              title: 'Lecture Notes', icon: Icons.sticky_note_2_rounded))),
-      _QuickItem('Assignments', Icons.assignment_rounded, C.blu, C.blub,
-          () => _open(context, const _AssignmentsDest())),
-      _QuickItem('Results', Icons.bar_chart_rounded, C.red, C.redb,
-          () => _open(context, const _MarksDest())),
-      _QuickItem('Timetable', Icons.calendar_month_rounded, C.pur, C.purb,
-          () => _open(context, const _TimetableDest())),
-    ];
+    final usage = _isGuest ? const <String, int>{} : _u!.quickAccessUsage;
+    final top4 = QuickAccessRegistry.topFour(usage);
 
     return SizedBox(
       height: 92,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 18),
-        itemCount: items.length,
+        itemCount: top4.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) {
-          final it = items[i];
+          final feat = top4[i];
           return GestureDetector(
-            onTap: it.onTap,
+            onTap: () => _openQuickAccess(context, feat),
             child: Container(
               width: 84,
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
@@ -302,11 +354,11 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Container(
                   width: 36, height: 36,
-                  decoration: BoxDecoration(color: it.bg, borderRadius: BorderRadius.circular(10)),
-                  child: Icon(it.icon, color: it.fg, size: 19),
+                  decoration: BoxDecoration(color: feat.bg, borderRadius: BorderRadius.circular(10)),
+                  child: Icon(feat.icon, color: feat.fg, size: 19),
                 ),
                 const SizedBox(height: 8),
-                Text(it.label, textAlign: TextAlign.center,
+                Text(feat.label, textAlign: TextAlign.center,
                     style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: C.txt),
                     maxLines: 2, overflow: TextOverflow.ellipsis),
               ]),
@@ -315,6 +367,43 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         },
       ),
     );
+  }
+
+  void _openQuickAccess(BuildContext context, QuickAccessFeature feat) {
+    if (!_isGuest) AuthService.instance.recordQuickAccessTap(_u!.id, feat.id);
+
+    switch (feat.id) {
+      case 'library':
+        _open(context, const _LibraryDest());
+        break;
+      case 'past_questions':
+        _open(context, const ComingSoonPage(
+            title: 'Past Questions', icon: Icons.description_rounded));
+        break;
+      case 'magazine':
+        _open(context, const ComingSoonPage(
+            title: 'Magazine', icon: Icons.auto_stories_rounded));
+        break;
+      case 'clubs':
+        _open(context, const ComingSoonPage(title: 'Clubs', icon: Icons.groups_rounded));
+        break;
+      case 'courses':
+        _open(context, const ComingSoonPage(title: 'Courses', icon: Icons.school_rounded));
+        break;
+      case 'lecture_notes':
+        _open(context, const ComingSoonPage(
+            title: 'Lecture Notes', icon: Icons.sticky_note_2_rounded));
+        break;
+      case 'assignments':
+        _open(context, const _AssignmentsDest());
+        break;
+      case 'results':
+        _open(context, const _MarksDest());
+        break;
+      case 'timetable':
+        _open(context, const _TimetableDest());
+        break;
+    }
   }
 
   void _open(BuildContext context, Widget destResolver) {
@@ -343,37 +432,152 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 
-  // ── Upcoming + Announcements split ──────────────────────────────────────
+  // ── Top Writers + Announcements split ────────────────────────────────────
   Widget _upcomingAndAnnouncements() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18),
       child: Column(children: [
-        _panelCard(
-          title: 'Upcoming',
-          child: Column(children: [
-            _upcomingRow('MAY', '21', 'Debate Club Meeting', '3:00 PM – 5:00 PM · Students\' Lounge'),
-            const Divider(height: 20, color: C.bdr2),
-            _upcomingRow('MAY', '23', 'Economics Lecture', '10:00 AM – 12:00 PM · Room 302'),
-            const Divider(height: 20, color: C.bdr2),
-            _upcomingRow('MAY', '25', 'Assignment Due', 'Business Management · 11:59 PM'),
-          ]),
-        ),
+        _panelCard(title: 'Top Writers', child: _topWritersPanel()),
         const SizedBox(height: 16),
-        _panelCard(
-          title: 'Recent Announcements',
-          child: Column(children: [
-            _announceRow(Icons.campaign_rounded, C.primary, C.primaryBg,
-                'School resumes on Monday, 27th May.', '2 hours ago'),
-            const SizedBox(height: 14),
-            _announceRow(Icons.description_rounded, C.grn, C.grnb,
-                'New past questions uploaded for Law 300 Level.', '5 hours ago'),
-            const SizedBox(height: 14),
-            _announceRow(Icons.groups_rounded, C.blu, C.blub,
-                'Entrepreneurship workshop this Saturday!', '1 day ago'),
-          ]),
-        ),
+        _panelCard(title: 'Recent Announcements', child: _announcementsPanel()),
       ]),
     );
+  }
+
+  // Ranked by (reads * 0.4) + (comments * 0.6). Empty until real articles
+  // exist — no seeded names.
+  Widget _topWritersPanel() {
+    return FutureBuilder<List<TopWriterEntry>>(
+      future: MagazineRepository.instance.topWriters(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(child: SizedBox(
+                width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+          );
+        }
+        final writers = (snap.data ?? const <TopWriterEntry>[]).take(3).toList();
+        if (writers.isEmpty) {
+          return _emptyPanelRow(
+            icon: Icons.auto_stories_outlined,
+            text: 'No published articles yet. Be the first to write for the '
+                'Academia Magazine.',
+          );
+        }
+        return Column(children: [
+          for (var i = 0; i < writers.length; i++) ...[
+            if (i > 0) const Divider(height: 20, color: C.bdr2),
+            _topWriterRow(rank: i + 1, entry: writers[i]),
+          ],
+        ]);
+      },
+    );
+  }
+
+  Widget _topWriterRow({required int rank, required TopWriterEntry entry}) {
+    return Row(children: [
+      Container(
+        width: 32, height: 32,
+        decoration: BoxDecoration(color: C.goldp, shape: BoxShape.circle),
+        alignment: Alignment.center,
+        child: Text('#$rank', style: GoogleFonts.sora(
+            fontSize: 12, fontWeight: FontWeight.w800, color: C.gold)),
+      ),
+      const SizedBox(width: 12),
+      UserAvatar(
+        initials: entry.authorName.trim().isEmpty ? '?' : entry.authorName.trim()[0].toUpperCase(),
+        photoUrl: entry.authorPhotoUrl,
+        radius: 16,
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(entry.authorName, style: GoogleFonts.sora(
+              fontSize: 12.5, fontWeight: FontWeight.w700, color: C.txt)),
+          Text('${entry.totalReads} reads · ${entry.totalComments} comments',
+              style: GoogleFonts.inter(fontSize: 11, color: C.txt2)),
+        ]),
+      ),
+    ]);
+  }
+
+  // Real Firestore announcements — zero mock rows. Empty state instead.
+  Widget _announcementsPanel() {
+    return StreamBuilder<List<Announcement>>(
+      stream: AnnouncementRepository.instance.watchAnnouncements(schoolId: _u?.schoolId),
+      builder: (context, snap) {
+        final items = (snap.data ?? const <Announcement>[]).take(3).toList();
+        if (items.isEmpty) {
+          return _emptyPanelRow(
+            icon: Icons.campaign_outlined,
+            text: 'No announcements yet. Magazine posts, paper uploads, and '
+                'club news will show up here.',
+          );
+        }
+        return Column(children: [
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0) const SizedBox(height: 14),
+            _announceRow(
+              _iconFor(items[i].sourceType),
+              _colorFor(items[i].sourceType),
+              _bgFor(items[i].sourceType),
+              items[i].title,
+              _timeAgo(items[i].date),
+            ),
+          ],
+        ]);
+      },
+    );
+  }
+
+  Widget _emptyPanelRow({required IconData icon, required String text}) {
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(
+        width: 36, height: 36,
+        decoration: BoxDecoration(color: C.surf3, borderRadius: BorderRadius.circular(10)),
+        child: Icon(icon, color: C.muted, size: 18),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Text(text, style: GoogleFonts.inter(fontSize: 12.5, color: C.txt2, height: 1.4)),
+      ),
+    ]);
+  }
+
+  IconData _iconFor(String sourceType) {
+    switch (sourceType) {
+      case 'magazinePost':      return Icons.auto_stories_rounded;
+      case 'paperUpload':       return Icons.description_rounded;
+      case 'clubAnnouncement':  return Icons.groups_rounded;
+      default:                  return Icons.campaign_rounded;
+    }
+  }
+
+  Color _colorFor(String sourceType) {
+    switch (sourceType) {
+      case 'magazinePost':      return C.pur;
+      case 'paperUpload':       return C.grn;
+      case 'clubAnnouncement':  return C.blu;
+      default:                  return C.primary;
+    }
+  }
+
+  Color _bgFor(String sourceType) {
+    switch (sourceType) {
+      case 'magazinePost':      return C.purb;
+      case 'paperUpload':       return C.grnb;
+      case 'clubAnnouncement':  return C.blub;
+      default:                  return C.primaryBg;
+    }
+  }
+
+  String _timeAgo(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 60) return '${diff.inMinutes.clamp(1, 59)} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hours ago';
+    if (diff.inDays < 7) return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
+    return '${date.day}/${date.month}/${date.year}';
   }
 
   Widget _panelCard({required String title, required Widget child}) {
@@ -395,29 +599,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         child,
       ]),
     );
-  }
-
-  Widget _upcomingRow(String month, String day, String title, String sub) {
-    return Row(children: [
-      Container(
-        width: 44, height: 44,
-        decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(10)),
-        alignment: Alignment.center,
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Text(month, style: GoogleFonts.sora(fontSize: 8, fontWeight: FontWeight.w700, color: C.red)),
-          Text(day, style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w800, color: C.red)),
-        ]),
-      ),
-      const SizedBox(width: 12),
-      Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: C.txt)),
-          const SizedBox(height: 2),
-          Text(sub, style: GoogleFonts.inter(fontSize: 11, color: C.txt2)),
-        ]),
-      ),
-      const Icon(Icons.chevron_right_rounded, color: C.muted, size: 18),
-    ]);
   }
 
   Widget _announceRow(IconData icon, Color fg, Color bg, String text, String time) {
@@ -492,13 +673,4 @@ class _MarksDest extends StatelessWidget {
 class _TimetableDest extends StatelessWidget {
   const _TimetableDest();
   @override Widget build(BuildContext context) => const SizedBox.shrink();
-}
-
-class _QuickItem {
-  final String label;
-  final IconData icon;
-  final Color fg;
-  final Color bg;
-  final VoidCallback onTap;
-  _QuickItem(this.label, this.icon, this.fg, this.bg, this.onTap);
 }

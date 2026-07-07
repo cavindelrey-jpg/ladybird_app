@@ -4,7 +4,6 @@ export 'academic_content.dart';
 export 'app_user.dart';
 export 'announcement.dart';
 export 'club.dart';
-export 'library_item.dart';
 export 'mark.dart';
 export 'school_config.dart';
 export 'student_account.dart';
@@ -16,3 +15,5 @@ export 'calendar_event.dart';
 export 'hero_slide.dart';
 export 'magazine_article.dart';
 export 'quick_access_feature.dart';
+export 'app_notification.dart';
+export 'library_item.dart'; // Make sure this line exists!

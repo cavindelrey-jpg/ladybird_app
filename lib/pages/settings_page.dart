@@ -9,8 +9,11 @@ import '../theme/app_theme.dart';
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
 import '../providers/institution_provider.dart';
-import '../widgets/coming_soon_page.dart';
 import 'profile_edit_page.dart';
+import 'change_password_page.dart';
+import 'notification_preferences_page.dart';
+import 'help_support_page.dart';
+import 'about_academia_page.dart';
 
 class SettingsPage extends StatelessWidget {
   final AppUser user;
@@ -37,8 +40,7 @@ class SettingsPage extends StatelessWidget {
           _tile(context, Icons.lock_outline_rounded, 'Change Password',
               'Update your sign-in password',
               () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const ComingSoonPage(
-                      title: 'Change Password', icon: Icons.lock_outline_rounded)))),
+                  builder: (_) => const ChangePasswordPage()))),
           if (user.accountType == AccountType.linked)
             _tile(context, Icons.swap_horiz_rounded, 'Switch School', 'Leave this institution',
                 () => context.read<InstitutionProvider>().clear()),
@@ -48,19 +50,16 @@ class SettingsPage extends StatelessWidget {
           _tile(context, Icons.notifications_outlined, 'Notification Preferences',
               'Announcements, comments, replies',
               () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const ComingSoonPage(
-                      title: 'Notification Preferences', icon: Icons.notifications_outlined)))),
+                  builder: (_) => NotificationPreferencesPage(userId: user.id)))),
 
           const SizedBox(height: 24),
           _sectionLabel('Support'),
           _tile(context, Icons.help_outline_rounded, 'Help & Support', 'FAQs and contact',
               () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const ComingSoonPage(
-                      title: 'Help & Support', icon: Icons.help_outline_rounded)))),
+                  builder: (_) => const HelpSupportPage()))),
           _tile(context, Icons.info_outline_rounded, 'About Academia', 'Version 2.0.0',
               () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const ComingSoonPage(
-                      title: 'About Academia', icon: Icons.info_outline_rounded)))),
+                  builder: (_) => const AboutAcademiaPage()))),
 
           const SizedBox(height: 24),
           _tile(context, Icons.logout_rounded, 'Sign Out', null, () async {

@@ -1,5 +1,5 @@
 // lib/features/onboarding/account_choice_screen.dart
-// Reached from GuestLandingPage's "Join Free" / "Create Free Account" CTAs.
+// Reached from the Home dashboard's "Join Free" / "Create Free Account" CTAs.
 // Three paths:
 //   1. Normal   — free identity, no payment, no school.
 //   2. Premium  — 5,000 FCFA via MoMo/Orange Money, unlocks all past

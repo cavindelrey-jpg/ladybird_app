@@ -24,6 +24,9 @@ import '../features/courses/courses_page.dart';
 import '../features/clubs/clubs_page.dart';
 import '../features/academic_content/academic_content_page.dart';
 import '../models/academic_content.dart';
+import '../features/magazine/magazine_feed_page.dart';
+import '../pages/notifications_page.dart';
+import '../pages/help_support_page.dart';
 
 class AppDrawer extends StatelessWidget {
   final AppUser? user;
@@ -79,8 +82,10 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => ClubsPage(user: user!)));
                   }
                 }),
-                _item(context, Icons.menu_book_rounded, 'Magazine',
-                    () => _goComingSoon(context, 'Magazine', Icons.menu_book_rounded)),
+                _item(context, Icons.menu_book_rounded, 'Magazine', () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => MagazineFeedPage(user: user)));
+                }),
                 _item(context, Icons.chat_bubble_outline_rounded, 'Messages',
                     () => _goComingSoon(context, 'Messages', Icons.chat_bubble_outline_rounded)),
                 const Divider(height: 24, color: C.bdr2),
@@ -100,10 +105,17 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => SettingsPage(user: user!)));
                   }
                 }),
-                _item(context, Icons.notifications_outlined, 'Notifications',
-                    () => _goComingSoon(context, 'Notifications', Icons.notifications_outlined)),
+                _item(context, Icons.notifications_outlined, 'Notifications', () {
+                  if (_isGuest) {
+                    _goSignIn(context);
+                  } else {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => NotificationsPage(userId: user!.id)));
+                  }
+                }),
                 _item(context, Icons.help_outline_rounded, 'Help & Support',
-                    () => _goComingSoon(context, 'Help & Support', Icons.help_outline_rounded)),
+                    () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const HelpSupportPage()))),
                 if (!_isGuest && user!.canManagePlatform) ...[
                   const Divider(height: 24, color: C.bdr2),
                   _item(context, Icons.admin_panel_settings_rounded, 'Admin Panel', () {

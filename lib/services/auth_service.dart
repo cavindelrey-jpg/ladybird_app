@@ -40,6 +40,35 @@ class AuthService {
     await _auth.sendPasswordResetEmail(email: email.trim());
   }
 
+  /// Changes the signed-in user's password. Firebase requires a recent
+  /// sign-in for this operation, so we always reauthenticate with the
+  /// current password first — this also doubles as verifying the caller
+  /// actually knows their current password before setting a new one.
+  /// Throws on failure (wrong current password -> 'wrong-password' /
+  /// 'invalid-credential', weak new password -> 'weak-password', or no
+  /// email/password provider on this account -> 'no-password-provider').
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) {
+      throw Exception('No signed-in email account found.');
+    }
+    final hasPasswordProvider = user.providerData
+        .any((p) => p.providerId == 'password');
+    if (!hasPasswordProvider) {
+      throw Exception(
+          'This account signed in with Google and has no password to change.');
+    }
+    final cred = fb.EmailAuthProvider.credential(
+      email: user.email!,
+      password: currentPassword,
+    );
+    await user.reauthenticateWithCredential(cred);
+    await user.updatePassword(newPassword);
+  }
+
   Future<AppUser?> signIn({required String email, required String password}) async {
     final cred = await _auth.signInWithEmailAndPassword(email: email, password: password);
     final uid  = cred.user!.uid;

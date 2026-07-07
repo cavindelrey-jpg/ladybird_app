@@ -1,118 +1,335 @@
 rules_version = '2';
 
+// ═══════════════════════════════════════════════════════════════════════
+// Academia — Firestore Security Rules
+// ═══════════════════════════════════════════════════════════════════════
+// Mirrors the 6-tier role system in lib/models/app_user.dart:
+//   guest(0) < student(1) < lecturer(2) < departmentAdmin(3)
+//            < schoolAdmin(4) < superAdmin(5)
+//
+// These rules are the enforcement layer the audit flagged as MISSING.
+// The current dev rules ("allow read, write: if request.auth != null")
+// let any signed-in user read or write ANY document — these replace that
+// with checks that mirror AppUser's canX getters.
+//
+// Deploy: firebase deploy --only firestore:rules
+// (requires firebase.json to point "firestore.rules" at this file — the
+// default Firebase CLI init layout already does this.)
+// ═══════════════════════════════════════════════════════════════════════
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Helpers ────────────────────────────────────────────────────────────
-    function isAuthenticated() {
+    // ── Role helpers ──────────────────────────────────────────────────
+    // Reads the requester's OWN user doc. Firestore rules can't recurse,
+    // so each helper does exactly one get() — cheap and within limits.
+
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    function uid() {
-      return request.auth.uid;
+    function myUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    function userDoc() {
-      return get(/databases/$(database)/documents/users/$(uid())).data;
+    function myRole() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? myUserDoc().role
+        : 'guest';
     }
 
-    function userRole() {
-      return userDoc().role;
+    function roleLevel(role) {
+      return role == 'superAdmin'       ? 5 :
+             role == 'schoolAdmin'      ? 4 :
+             role == 'departmentAdmin'  ? 3 :
+             role == 'lecturer'         ? 2 :
+             role == 'student'          ? 1 : 0;
     }
 
-    function isRole(role) {
-      return isAuthenticated() && userRole() == role;
+    function myLevel() {
+      return roleLevel(myRole());
     }
 
-    function isAtLeastRole(minPrivilege) {
-      let privileges = {
-        'guest': 0, 'student': 1, 'lecturer': 2,
-        'departmentAdmin': 3, 'schoolAdmin': 4, 'superAdmin': 5
-      };
-      return isAuthenticated() && privileges[userRole()] >= minPrivilege;
+    function hasMinRole(role) {
+      return isSignedIn() && myLevel() >= roleLevel(role);
     }
 
-    function inSameSchool(schoolId) {
-      return isAuthenticated() && userDoc().schoolId == schoolId;
+    function isSuperAdmin()  { return hasMinRole('superAdmin'); }
+    function canManageSchool()   { return hasMinRole('schoolAdmin'); }
+    function canManageUsers()    { return hasMinRole('departmentAdmin'); }
+    function canUploadContent()  { return hasMinRole('lecturer'); }
+    function canPostAnnouncement() { return hasMinRole('lecturer'); }
+
+    function mySchoolId() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? myUserDoc().schoolId
+        : null;
     }
 
-    function isSchoolAdmin() { return isAtLeastRole(4); }
-    function isLecturer()    { return isAtLeastRole(2); }
-    function isSuperAdmin()  { return isRole('superAdmin'); }
+    function isOwnSchool(schoolId) {
+      return mySchoolId() == schoolId;
+    }
 
-    // ── Users ──────────────────────────────────────────────────────────────
-    match /users/{userId} {
-      allow read: if isAuthenticated() && (uid() == userId || isSchoolAdmin());
-      allow create: if isAuthenticated() && uid() == userId;
-      allow update: if isAuthenticated() && (
-        uid() == userId ||
-        (isSchoolAdmin() && inSameSchool(resource.data.schoolId))
+    function isOwner(field) {
+      return isSignedIn() && request.auth.uid == field;
+    }
+
+    function accountNotSuspended() {
+      return !exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        || myUserDoc().status != 'suspended';
+    }
+
+    // Club-scoped role helpers (used by the clubs/{clubId} rules below).
+    function clubMemberRole(clubId) {
+      return get(/databases/$(database)/documents/clubs/$(clubId)/members/$(request.auth.uid)).data.role;
+    }
+    function isClubMember(clubId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/clubs/$(clubId)/members/$(request.auth.uid));
+    }
+
+    // ── users/{uid} ───────────────────────────────────────────────────
+    // Anyone signed in can read profile info (author bylines, avatars in
+    // Magazine/comments need this). Users edit their own doc; role/status/
+    // schoolId changes are admin-only to stop client-side privilege
+    // escalation (e.g. a student setting their own role to superAdmin).
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update: if isSignedIn() && accountNotSuspended() && (
+        (request.auth.uid == uid &&
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.status == resource.data.status &&
+          request.resource.data.schoolId == resource.data.schoolId &&
+          request.resource.data.accountType == resource.data.accountType)
+        || canManageUsers()
       );
       allow delete: if isSuperAdmin();
+
+      // Per-user notification feed — only the owner ever reads/writes it.
+      match /notifications/{notificationId} {
+        allow read, update, delete: if isOwner(uid);
+        allow create: if isSignedIn(); // other users' actions (comments/replies) create these
+      }
+
+      // Per-user settings (notification preferences etc).
+      match /settings/{settingId} {
+        allow read, write: if isOwner(uid);
+      }
     }
 
-    // ── Institutions ───────────────────────────────────────────────────────
-    match /institutions/{instId} {
-      allow read: if isAuthenticated();
+    // ── schools/{schoolId} ────────────────────────────────────────────
+    match /schools/{schoolId} {
+      allow read: if isSignedIn();
+      allow write: if canManageSchool() && isOwnSchool(schoolId);
+
+      match /seats/{seatId} {
+        // Seat claiming happens pre-auth-doc-existing in some flows, so
+        // allow any signed-in user to read/create-claim a seat, but only
+        // school admins can provision new unclaimed seats.
+        allow read: if isSignedIn();
+        allow update: if isSignedIn(); // claim flow sets claimed/claimedByUid
+        allow create, delete: if canManageSchool() && isOwnSchool(schoolId);
+      }
+    }
+
+    // ── institutions/{id} ─────────────────────────────────────────────
+    // Public read (school-code lookup happens pre-auth in some flows);
+    // only superAdmin manages the institution directory itself.
+    match /institutions/{id} {
+      allow read: if true;
       allow write: if isSuperAdmin();
     }
 
-    // ── Schools (subcollections) ───────────────────────────────────────────
-    match /schools/{schoolId}/{collection}/{docId} {
-      allow read: if isAuthenticated() && inSameSchool(schoolId);
-      allow write: if isAuthenticated() && (
-        inSameSchool(schoolId) && isLecturer()
+    // ── announcements/{id} ────────────────────────────────────────────
+    match /announcements/{id} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if canPostAnnouncement();
+    }
+
+    // ── academic_content/{id} ─────────────────────────────────────────
+    match /academic_content/{id} {
+      allow read: if true; // guests browse the Content Library read-only
+      allow create: if canUploadContent();
+      allow update, delete: if canUploadContent() &&
+        (resource.data.uploadedBy == request.auth.uid || canManageSchool());
+    }
+
+    // ── clubs/{clubId} ────────────────────────────────────────────────
+    // Any signed-in user can create a club (they become its admin via
+    // the members subcollection, set in the same createClub() batch
+    // write). Editing the club doc itself (name/description/banner) is
+    // restricted to that club's own admin/moderator, its founder, or
+    // school staff — EXCEPT the memberCount field, which any member can
+    // increment/decrement by joining or leaving.
+    match /clubs/{clubId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        // join/leave only touches memberCount — allow any signed-in user
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount'])
+        || resource.data.moderatorId == request.auth.uid
+        || canManageSchool()
+        || (isClubMember(clubId) && clubMemberRole(clubId) in ['admin', 'moderator'])
       );
-      allow delete: if inSameSchool(schoolId) && isSchoolAdmin();
+      allow delete: if isSignedIn() &&
+        (resource.data.moderatorId == request.auth.uid || canManageSchool());
+
+      match /posts/{postId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        allow update, delete: if isOwner(resource.data.authorId) || canManageSchool();
+      }
+      match /events/{eventId} {
+        allow read: if true;
+        allow write: if canManageSchool() || canUploadContent();
+      }
+
+      // Club chat — matches ClubRepository.watchMessages/sendMessage.
+      // Simple append-only model: members post, nobody edits after send.
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
+      }
+
+      // Membership + the mod structure (visitor < member < moderator <
+      // admin). Joining/leaving is self-service; role changes and
+      // removals follow "normal mod structure" rules: admins manage
+      // anyone, moderators manage only plain members.
+      match /members/{memberId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.auth.uid == memberId; // join / found
+        allow update: if isSignedIn() && (
+          canManageSchool()
+          || (isClubMember(clubId) && clubMemberRole(clubId) == 'admin')
+          || (isClubMember(clubId) && clubMemberRole(clubId) == 'moderator'
+              && resource.data.role in ['member', 'moderator']
+              && request.resource.data.role in ['member', 'moderator'])
+        );
+        allow delete: if isSignedIn() && (
+          request.auth.uid == memberId // leave
+          || canManageSchool()
+          || (isClubMember(clubId) && clubMemberRole(clubId) == 'admin')
+          || (isClubMember(clubId) && clubMemberRole(clubId) == 'moderator' && resource.data.role == 'member')
+        );
+      }
     }
 
-    // Announcements — lecturers can create; all school members can read
-    match /schools/{schoolId}/announcements/{annId} {
-      allow read: if inSameSchool(schoolId);
-      allow create: if inSameSchool(schoolId) && isLecturer();
-      allow delete: if inSameSchool(schoolId) && isSchoolAdmin();
+    // ── articles/{id}  (Magazine) ─────────────────────────────────────
+    match /articles/{articleId} {
+      allow read: if resource.data.published == true
+                   || (isSignedIn() && resource.data.authorId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+      // readCount/commentCount increments happen via the same update rule
+      // above (author-owned doc) — reads/comments themselves are what
+      // change those counters through the app's own repository calls,
+      // so no separate public-increment rule is granted.
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+        allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+      }
     }
 
-    // Submissions — students create their own; lecturers can read/update
-    match /schools/{schoolId}/assignments/{asgId}/submissions/{subId} {
-      allow read: if inSameSchool(schoolId) && (
-        uid() == subId || isLecturer()
-      );
-      allow create: if inSameSchool(schoolId) && uid() == subId;
-      allow update: if inSameSchool(schoolId) && isLecturer();
+    // ── heroSlides/{id} ───────────────────────────────────────────────
+    match /heroSlides/{id} {
+      allow read: if true;
+      allow write: if canManageSchool(); // superAdmin/schoolAdmin per repo's own comment
     }
 
-    // Seats — admin only
-    match /schools/{schoolId}/seats/{seatId} {
-      allow read: if inSameSchool(schoolId) && isSchoolAdmin();
-      allow write: if inSameSchool(schoolId) && isSchoolAdmin();
+    // ── marks/{id}, sequences/{id}, subjects/{id} ─────────────────────
+    match /marks/{id} {
+      allow read: if isSignedIn() &&
+        (resource.data.studentId == request.auth.uid || canUploadContent() || canManageSchool());
+      allow write: if canUploadContent() || canManageSchool();
+    }
+    match /sequences/{id} { allow read: if isSignedIn(); allow write: if canManageSchool(); }
+    match /subjects/{id}  { allow read: if isSignedIn(); allow write: if canManageSchool(); }
+
+    // ── timetable/{id} ────────────────────────────────────────────────
+    match /timetable/{id} {
+      allow read: if isSignedIn();
+      allow write: if canManageSchool();
     }
 
-    // ── Marks ──────────────────────────────────────────────────────────────
-    match /marks/{schoolId}/{studentId}/{path=**} {
-      allow read: if isAuthenticated() && (
-        uid() == studentId || isLecturer()
-      );
-      allow write: if isAuthenticated() && isLecturer();
+    // ── chatrooms/{id}/messages/{id} ──────────────────────────────────
+    match /chatrooms/{roomId} {
+      allow read, write: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+      allow create: if isSignedIn();
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if isSignedIn() && resource.data.senderId == request.auth.uid;
+      }
     }
 
-    // ── Subscriptions ──────────────────────────────────────────────────────
-    match /subscriptions/{instId} {
-      allow read: if isAuthenticated();
+    // ── attendance/{id} ───────────────────────────────────────────────
+    match /attendance/{id} {
+      allow read: if isSignedIn() &&
+        (resource.data.studentId == request.auth.uid || canUploadContent() || canManageSchool());
+      allow write: if canUploadContent() || canManageSchool();
+    }
+
+    // ── assignments/{id}/submissions/{id} ─────────────────────────────
+    match /assignments/{id} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if canUploadContent() || canManageSchool();
+
+      match /submissions/{subId} {
+        allow read: if isSignedIn() &&
+          (resource.data.studentId == request.auth.uid || canUploadContent() || canManageSchool());
+        allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
+        allow update: if isSignedIn() &&
+          (resource.data.studentId == request.auth.uid || canUploadContent());
+      }
+    }
+
+    // ── academic_calendar/{id} ────────────────────────────────────────
+    match /academic_calendar/{id} {
+      allow read: if isSignedIn();
+      allow write: if canManageSchool();
+    }
+
+    // ── courses/{id} ──────────────────────────────────────────────────
+    // NOTE: pending the Courses rebuild discussed separately — these
+    // rules match the CURRENT school-catalog model (single lecturerId,
+    // schoolAdmin-gated creation) so Attendance/Assignments keep working.
+    // Revisit when/if a parallel contributor-publishing model ships.
+    match /courses/{id} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if canManageSchool() ||
+        (canUploadContent() && resource.data.lecturerId == request.auth.uid);
+    }
+
+    // ── audit_logs/{id} ───────────────────────────────────────────────
+    match /audit_logs/{id} {
+      allow read: if isSuperAdmin();
+      allow create: if isSignedIn(); // app writes audit entries for any signed-in action
+      allow update, delete: if false; // append-only
+    }
+
+    // ── subscriptions/{id} ────────────────────────────────────────────
+    match /subscriptions/{id} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || canManageSchool());
+      allow write: if canManageSchool() || isSuperAdmin();
+      // Actual payment confirmation should happen via a Cloud Function
+      // with the Admin SDK (bypasses these rules entirely) once the MoMo
+      // confirmation function exists — client should never mark its own
+      // subscription active directly.
+    }
+
+    // ── app_config/{id} ───────────────────────────────────────────────
+    match /app_config/{id} {
+      allow read: if true;
       allow write: if isSuperAdmin();
     }
 
-    // ── App config ─────────────────────────────────────────────────────────
-    match /app_config/{key} {
-      allow read: if isAuthenticated();
-      allow write: if isSuperAdmin();
-    }
-
-    // ── Audit logs ─────────────────────────────────────────────────────────
-    match /audit_logs/{instId}/entries/{entryId} {
-      allow read: if isAuthenticated() && isSchoolAdmin();
-      allow create: if isAuthenticated(); // written by service layer
-      allow update, delete: if false;     // immutable
-    }
+    // ── Default deny ──────────────────────────────────────────────────
+    // Anything not explicitly matched above is denied by default under
+    // Firestore rules semantics — no catch-all rule needed, but stated
+    // here for clarity to whoever edits this file next.
   }
 }

@@ -7,6 +7,8 @@ import '../../repositories/club_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import 'create_club_page.dart';
+import 'club_members_page.dart';
 
 class ClubsPage extends StatelessWidget {
   final AppUser user;
@@ -15,6 +17,20 @@ class ClubsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: C.navy,
+        onPressed: () {
+          if (user.isGuest) {
+            showToast(context, 'Create an account to start a club');
+            return;
+          }
+          Navigator.push(context, MaterialPageRoute(
+              builder: (_) => CreateClubPage(user: user)));
+        },
+        icon: const Icon(Icons.add_rounded, color: C.gold),
+        label: Text('Create Club', style: GoogleFonts.sora(
+            fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+      ),
       body: StreamBuilder<List<Club>>(
         stream: ClubRepository.instance.watchClubs(schoolId: user.schoolId),
         builder: (context, snap) {
@@ -126,7 +142,9 @@ class _ClubTile extends StatelessWidget {
       showToast(context, 'Create an account to join clubs');
       return;
     }
-    final result = await ClubRepository.instance.joinClub(club.id, user.id);
+    final result = await ClubRepository.instance.joinClub(
+      club.id, user.id, name: user.name, photoUrl: user.photoUrl,
+    );
     if (context.mounted) {
       if (result is Success) {
         showToast(context, '✅ Welcome to ${club.name}!');
@@ -203,6 +221,14 @@ class _ClubDetailPageState extends State<ClubDetailPage>
         ]),
         bottom: TabBar(controller: _tabs, tabs: const [
           Tab(text: 'CHAT'), Tab(text: 'ANNOUNCEMENTS')]),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.group_outlined),
+            tooltip: 'Members',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(
+                builder: (_) => ClubMembersPage(club: widget.club, currentUser: widget.user))),
+          ),
+        ],
       ),
       body: TabBarView(controller: _tabs, children: [
         _ChatTab(club: widget.club, user: widget.user,

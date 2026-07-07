@@ -1,6 +1,8 @@
 // lib/repositories/club_repository.dart
 
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../models/models.dart';
 import '../core/constants.dart';
 import '../core/result.dart';
@@ -50,7 +52,12 @@ class ClubRepository {
     });
   }
 
-  Future<Result<void>> joinClub(String clubId, String userId) async {
+  Future<Result<void>> joinClub(
+    String clubId,
+    String userId, {
+    required String name,
+    String? photoUrl,
+  }) async {
     try {
       final batch = _db.batch();
       final memberRef = _db
@@ -58,7 +65,12 @@ class ClubRepository {
           .doc(clubId)
           .collection(AppConstants.colMembers)
           .doc(userId);
-      batch.set(memberRef, {'role': ClubRole.member.name, 'joinedAt': FieldValue.serverTimestamp()});
+      batch.set(memberRef, {
+        'name': name,
+        'photoUrl': photoUrl,
+        'role': ClubRole.member.name,
+        'joinedAt': FieldValue.serverTimestamp(),
+      });
       batch.update(
         _db.collection(AppConstants.colClubs).doc(clubId),
         {'memberCount': FieldValue.increment(1)},
@@ -117,19 +129,103 @@ class ClubRepository {
 
   // ── Create ─────────────────────────────────────────────
 
-  Future<Result<String>> createClub(Club club, String founderId) async {
+  Future<Result<String>> createClub(
+    Club club,
+    String founderId, {
+    required String founderName,
+    String? founderPhotoUrl,
+  }) async {
     try {
       final docRef = _db.collection(AppConstants.colClubs).doc();
       final batch = _db.batch();
       batch.set(docRef, club.toFirestore());
       batch.set(
         docRef.collection(AppConstants.colMembers).doc(founderId),
-        {'role': ClubRole.admin.name, 'joinedAt': FieldValue.serverTimestamp()},
+        {
+          'name': founderName,
+          'photoUrl': founderPhotoUrl,
+          'role': ClubRole.admin.name,
+          'joinedAt': FieldValue.serverTimestamp(),
+        },
       );
       await batch.commit();
       return Success(docRef.id);
     } catch (e) {
       return Failure('Failed to create club', e);
+    }
+  }
+
+  // ── Member management (mod structure) ───────────────────
+  // Normal roles: visitor (not joined) < member < moderator < admin.
+  // Moderators can manage regular members; only admins can appoint or
+  // remove other moderators/admins. Enforced both here (defense in
+  // depth for the UI) and in firestore.rules (the real gate).
+
+  Stream<List<ClubMember>> watchMembers(String clubId) => _db
+      .collection(AppConstants.colClubs)
+      .doc(clubId)
+      .collection(AppConstants.colMembers)
+      .orderBy('joinedAt')
+      .snapshots()
+      .map((s) => s.docs.map(ClubMember.fromFirestore).toList());
+
+  Future<Result<void>> updateMemberRole(
+      String clubId, String userId, ClubRole newRole) async {
+    try {
+      await _db
+          .collection(AppConstants.colClubs)
+          .doc(clubId)
+          .collection(AppConstants.colMembers)
+          .doc(userId)
+          .update({'role': newRole.name});
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to update member role', e);
+    }
+  }
+
+  Future<Result<void>> removeMember(String clubId, String userId) async {
+    try {
+      final batch = _db.batch();
+      batch.delete(_db
+          .collection(AppConstants.colClubs)
+          .doc(clubId)
+          .collection(AppConstants.colMembers)
+          .doc(userId));
+      batch.update(
+        _db.collection(AppConstants.colClubs).doc(clubId),
+        {'memberCount': FieldValue.increment(-1)},
+      );
+      await batch.commit();
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to remove member', e);
+    }
+  }
+
+  // ── Banner image ─────────────────────────────────────────
+
+  Future<Result<String>> uploadBanner({
+    required String clubId,
+    required File imageFile,
+  }) async {
+    try {
+      final ref = FirebaseStorage.instance.ref('club_banners/$clubId.jpg');
+      await ref.putFile(imageFile);
+      final url = await ref.getDownloadURL();
+      return Success(url);
+    } catch (e) {
+      return Failure('Failed to upload club banner', e);
+    }
+  }
+
+  Future<Result<void>> updateClub(Club club) async {
+    try {
+      await _db.collection(AppConstants.colClubs).doc(club.id)
+          .set(club.toFirestore(), SetOptions(merge: true));
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to update club', e);
     }
   }
 }

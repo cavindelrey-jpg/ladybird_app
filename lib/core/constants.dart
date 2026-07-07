@@ -33,6 +33,9 @@ class AppConstants {
   static const String colAuditLogs       = 'audit_logs';
   static const String colSubscriptions   = 'subscriptions';
   static const String colAppConfig       = 'app_config';
+  static const String colArticles        = 'articles';
+  static const String colHeroSlides      = 'heroSlides';
+  static const String colNotifications   = 'notifications';
 
   // Firebase Storage
   static const String storageContentFiles = 'content_files';

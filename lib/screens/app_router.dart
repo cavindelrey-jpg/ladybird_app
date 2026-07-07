@@ -12,6 +12,7 @@ import '../theme/app_theme.dart';
 import '../features/institution/institution_splash_screen.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
+import 'first_login_screen.dart';
 // pages
 import '../features/announcements/announcements_page.dart';
 import '../features/academic_content/academic_content_page.dart';
@@ -234,6 +235,7 @@ class _IndependentUserGate extends StatelessWidget {
 
         // Independent (Normal or Premium) account — generic Academia brand,
         // curated feature set (no school-scoped tabs like Timetable/Marks).
+        if (user.isFirstLogin) return FirstLoginScreen(user: user);
         return Theme(
           data: InstitutionThemeEngine.build(Institution.independentDefault),
           child: HomeShell(user: user, institution: Institution.independentDefault),
@@ -287,6 +289,7 @@ class _AppUserGate extends StatelessWidget {
           return const Scaffold(body: Center(child: Text('Account not found.')));
         }
         if (user.status == AccountStatus.suspended) return _SuspendedScreen(user: user);
+        if (user.isFirstLogin) return FirstLoginScreen(user: user);
         return HomeShell(user: user, institution: institution);
       },
     );

@@ -3,6 +3,8 @@
 // and the Top Writers leaderboard computation.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
 import '../models/magazine_article.dart';
 import '../core/result.dart';
 
@@ -57,6 +59,22 @@ class MagazineRepository {
       return const Success(null);
     } catch (e) {
       return Failure('Failed to delete article', e);
+    }
+  }
+
+  /// Uploads a cover image for [articleId], returns the download URL.
+  /// Caller should then call update() with thumbnailUrl set.
+  Future<Result<String>> uploadThumbnail({
+    required String articleId,
+    required File imageFile,
+  }) async {
+    try {
+      final ref = FirebaseStorage.instance.ref('magazine_thumbnails/$articleId.jpg');
+      await ref.putFile(imageFile);
+      final url = await ref.getDownloadURL();
+      return Success(url);
+    } catch (e) {
+      return Failure('Failed to upload cover image', e);
     }
   }
 

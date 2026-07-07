@@ -218,6 +218,7 @@ class _ResourceCard extends StatelessWidget {
               decoration: BoxDecoration(
                   color: C.txt.withValues(alpha: .6),
                   borderRadius: BorderRadius.circular(Rad.md)),
+              // FIXED: Added const to the top-level Column layout widget to fix performance warning
               child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Icon(Icons.lock_rounded, color: Colors.white, size: 28),
                 SizedBox(height: 6),

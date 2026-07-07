@@ -96,3 +96,33 @@ class ClubMessage {
     'time': Timestamp.fromDate(time),
   };
 }
+
+/// One row in a club's member-management list. Stored at
+/// clubs/{clubId}/members/{userId} alongside the role.
+class ClubMember {
+  final String userId;
+  final String name;
+  final String? photoUrl;
+  final ClubRole role;
+  final DateTime joinedAt;
+
+  const ClubMember({
+    required this.userId,
+    required this.name,
+    this.photoUrl,
+    required this.role,
+    required this.joinedAt,
+  });
+
+  factory ClubMember.fromFirestore(DocumentSnapshot doc) {
+    final d = doc.data() as Map<String, dynamic>? ?? {};
+    return ClubMember(
+      userId: doc.id,
+      name: d['name'] ?? 'Member',
+      photoUrl: d['photoUrl'],
+      role: ClubRole.values.firstWhere(
+          (r) => r.name == d['role'], orElse: () => ClubRole.member),
+      joinedAt: (d['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+}

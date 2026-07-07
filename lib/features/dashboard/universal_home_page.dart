@@ -34,6 +34,9 @@ import '../courses/courses_page.dart';
 import '../clubs/clubs_page.dart';
 import '../academic_content/academic_content_page.dart';
 import '../../models/academic_content.dart';
+import '../magazine/magazine_feed_page.dart';
+import '../../pages/notifications_page.dart';
+import '../admin/hero_slide_manager_page.dart';
 
 class UniversalHomePage extends StatefulWidget {
   final AppUser? user;
@@ -108,8 +111,12 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           IconButton(
             icon: const Icon(Icons.notifications_outlined, color: C.txt2),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const ComingSoonPage(
-                    title: 'Notifications', icon: Icons.notifications_outlined))),
+                builder: (_) => _isGuest
+                    ? const ComingSoonPage(
+                        title: 'Sign in required',
+                        subtitle: 'Create a free account to see notifications.',
+                        icon: Icons.lock_outline_rounded)
+                    : NotificationsPage(userId: _u!.id))),
           ),
           if (!_isGuest)
             Positioned(
@@ -205,10 +212,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               padding: const EdgeInsets.symmetric(horizontal: 18),
               child: OutlinedButton.icon(
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => const ComingSoonPage(
-                        title: 'Hero Slide Manager',
-                        subtitle: 'Add your first Home banner (image + link).',
-                        icon: Icons.image_outlined))),
+                    builder: (_) => HeroSlideManagerPage(createdByUid: _u!.id))),
                 icon: const Icon(Icons.add_photo_alternate_outlined),
                 label: const Text('Add your first Home banner'),
               ),
@@ -299,8 +303,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         _open(context, const _PastQuestionsDest());
         break;
       case HeroDestination.magazine:
-        _open(context, const ComingSoonPage(
-            title: 'Magazine', icon: Icons.auto_stories_rounded));
+        _open(context, const _MagazineDest());
         break;
       case HeroDestination.library:
         _open(context, const _LibraryDest());
@@ -382,8 +385,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         _open(context, const _PastQuestionsDest());
         break;
       case 'magazine':
-        _open(context, const ComingSoonPage(
-            title: 'Magazine', icon: Icons.auto_stories_rounded));
+        _open(context, const _MagazineDest());
         break;
       case 'clubs':
         _open(context, const _ClubsDest());
@@ -427,6 +429,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       page = CoursesPage(user: _u!);
     } else if (destResolver is _ClubsDest) {
       page = ClubsPage(user: _u!);
+    } else if (destResolver is _MagazineDest) {
+      page = MagazineFeedPage(user: _u);
     } else if (destResolver is _AssignmentsDest) {
       page = AssignmentsPage(user: _u!);
     } else if (destResolver is _MarksDest) {
@@ -687,6 +691,10 @@ class _CoursesDest extends StatelessWidget {
 }
 class _ClubsDest extends StatelessWidget {
   const _ClubsDest();
+  @override Widget build(BuildContext context) => const SizedBox.shrink();
+}
+class _MagazineDest extends StatelessWidget {
+  const _MagazineDest();
   @override Widget build(BuildContext context) => const SizedBox.shrink();
 }
 class _PastQuestionsDest extends StatelessWidget {

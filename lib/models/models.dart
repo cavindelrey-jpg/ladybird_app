@@ -16,4 +16,3 @@ export 'hero_slide.dart';
 export 'magazine_article.dart';
 export 'quick_access_feature.dart';
 export 'app_notification.dart';
-export 'library_item.dart'; // Make sure this line exists!

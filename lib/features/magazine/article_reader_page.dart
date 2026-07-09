@@ -2,9 +2,14 @@
 // Full article render, author byline, comment thread, read counter fired
 // once per view. Body renders as plain paragraphs — see the composer's
 // header comment for the block-editor upgrade path.
+//
+// Design pass: reading text now uses AppText.body (15px / 1.65 line
+// height) instead of a tight 1.7-height inline style picked ad hoc — this
+// is the single biggest lever on whether reading here feels like Substack
+// or a form. Whole page fades in on open rather than popping in flat.
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
 import '../../models/app_user.dart';
 import '../../models/magazine_article.dart';
 import '../../repositories/magazine_repository.dart';
@@ -24,14 +29,22 @@ class ArticleReaderPage extends StatefulWidget {
   State<ArticleReaderPage> createState() => _ArticleReaderPageState();
 }
 
-class _ArticleReaderPageState extends State<ArticleReaderPage> {
+class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTickerProviderStateMixin {
   final _commentCtrl = TextEditingController();
   bool _postingComment = false;
   bool _countedRead = false;
 
+  late final AnimationController _entryCtrl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 420));
+  late final Animation<double> _entryFade = CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOut);
+  late final Animation<Offset> _entryRise = Tween<Offset>(
+    begin: const Offset(0, 0.03), end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOutCubic));
+
   @override
   void initState() {
     super.initState();
+    _entryCtrl.forward();
     // Fire once per view, don't block render on it.
     if (!_countedRead) {
       _countedRead = true;
@@ -42,6 +55,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
   @override
   void dispose() {
     _commentCtrl.dispose();
+    _entryCtrl.dispose();
     super.dispose();
   }
 
@@ -51,6 +65,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
     final user = widget.currentUser;
     final body = _commentCtrl.text.trim();
     if (user == null || body.isEmpty) return;
+    HapticFeedback.lightImpact();
     setState(() => _postingComment = true);
     final comment = ArticleComment(
       id: '', articleId: widget.article.id,
@@ -89,110 +104,123 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> {
             ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          if ((a.thumbnailUrl ?? '').isNotEmpty)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(Rad.md),
-              child: Image.network(a.thumbnailUrl!, height: 200, width: double.infinity, fit: BoxFit.cover),
-            ),
-          const SizedBox(height: 20),
-          Text(a.title, style: GoogleFonts.sora(
-              fontSize: 22, fontWeight: FontWeight.w800, color: C.txt, height: 1.3)),
-          const SizedBox(height: 16),
-          GestureDetector(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => AuthorProfilePage(authorId: a.authorId, currentUser: widget.currentUser))),
-            child: Row(children: [
-              UserAvatar(initials: a.authorName.isEmpty ? '?' : a.authorName[0].toUpperCase(),
-                  radius: 18, photoUrl: a.authorPhotoUrl),
-              const SizedBox(width: 10),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(a.authorName, style: GoogleFonts.inter(
-                    fontSize: 13, fontWeight: FontWeight.w700, color: C.txt)),
-                Text(_formatDate(a.createdAt), style: GoogleFonts.inter(fontSize: 11.5, color: C.muted)),
-              ]),
-              const Spacer(),
-              Icon(Icons.visibility_outlined, size: 15, color: C.muted),
-              const SizedBox(width: 4),
-              Text('${a.readCount}', style: GoogleFonts.inter(fontSize: 12, color: C.muted)),
-            ]),
-          ),
-          const SizedBox(height: 20),
-          const Divider(color: C.bdr2),
-          const SizedBox(height: 20),
-          Text(a.body, style: GoogleFonts.inter(fontSize: 15, color: C.txt, height: 1.7)),
-          const SizedBox(height: 32),
-          const Divider(color: C.bdr2),
-          const SizedBox(height: 16),
-          Text('Comments (${a.commentCount})', style: GoogleFonts.sora(
-              fontSize: 15, fontWeight: FontWeight.w700, color: C.txt)),
-          const SizedBox(height: 14),
-          if (widget.currentUser != null)
-            Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: _commentCtrl,
-                  style: GoogleFonts.inter(fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: 'Add a comment…',
-                    filled: true, fillColor: C.surf3,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
+      body: FadeTransition(
+        opacity: _entryFade,
+        child: SlideTransition(
+          position: _entryRise,
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              if ((a.thumbnailUrl ?? '').isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(Rad.md),
+                  child: Image.network(a.thumbnailUrl!, height: 200, width: double.infinity, fit: BoxFit.cover),
+                ),
+              const SizedBox(height: 20),
+              Text(a.title, style: AppText.h1),
+              const SizedBox(height: 16),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Rad.sm),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => AuthorProfilePage(authorId: a.authorId, currentUser: widget.currentUser)));
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(children: [
+                      UserAvatar(initials: a.authorName.isEmpty ? '?' : a.authorName[0].toUpperCase(),
+                          radius: 18, photoUrl: a.authorPhotoUrl),
+                      const SizedBox(width: 10),
+                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(a.authorName, style: AppText.subtitle.copyWith(color: C.txt, fontSize: 13.5)),
+                        Text(_formatDate(a.createdAt), style: AppText.caption),
+                      ]),
+                      const Spacer(),
+                      Icon(Icons.visibility_outlined, size: 15, color: C.muted),
+                      const SizedBox(width: 4),
+                      Text('${a.readCount}', style: AppText.caption),
+                    ]),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              _postingComment
-                  ? const SizedBox(width: 40, height: 40,
-                      child: Center(child: SizedBox(width: 18, height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))))
-                  : IconButton(
-                      icon: const Icon(Icons.send_rounded, color: C.primary),
-                      onPressed: _postComment,
-                    ),
-            ])
-          else
-            Text('Sign in to join the discussion.',
-                style: GoogleFonts.inter(fontSize: 12.5, color: C.muted)),
-          const SizedBox(height: 16),
-          StreamBuilder<List<ArticleComment>>(
-            stream: MagazineRepository.instance.watchComments(a.id),
-            builder: (context, snap) {
-              final comments = snap.data ?? const <ArticleComment>[];
-              if (comments.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text('No comments yet — start the discussion.',
-                      style: GoogleFonts.inter(fontSize: 12.5, color: C.muted)),
-                );
-              }
-              return Column(children: comments.map((c) => Padding(
-                padding: const EdgeInsets.only(bottom: 14),
-                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  UserAvatar(initials: c.authorName.isEmpty ? '?' : c.authorName[0].toUpperCase(),
-                      radius: 14, photoUrl: c.authorPhotoUrl),
-                  const SizedBox(width: 10),
+              const SizedBox(height: 20),
+              const Divider(color: C.bdr2),
+              const SizedBox(height: 20),
+              Text(a.body, style: AppText.body),
+              const SizedBox(height: 32),
+              const Divider(color: C.bdr2),
+              const SizedBox(height: 16),
+              Text('Comments (${a.commentCount})', style: AppText.h2.copyWith(fontSize: 15)),
+              const SizedBox(height: 14),
+              if (widget.currentUser != null)
+                Row(children: [
                   Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [
-                        Text(c.authorName, style: GoogleFonts.inter(
-                            fontSize: 12.5, fontWeight: FontWeight.w700, color: C.txt)),
-                        const SizedBox(width: 6),
-                        Text(_formatDate(c.createdAt),
-                            style: GoogleFonts.inter(fontSize: 11, color: C.muted)),
-                      ]),
-                      const SizedBox(height: 3),
-                      Text(c.body, style: GoogleFonts.inter(fontSize: 13, color: C.txt2, height: 1.4)),
-                    ]),
+                    child: TextField(
+                      controller: _commentCtrl,
+                      style: AppText.bodySm.copyWith(color: C.txt),
+                      decoration: InputDecoration(
+                        hintText: 'Add a comment…',
+                        filled: true, fillColor: C.surf3,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
+                      ),
+                    ),
                   ),
-                ]),
-              )).toList());
-            },
+                  const SizedBox(width: 8),
+                  _postingComment
+                      ? const SizedBox(width: 40, height: 40,
+                          child: Center(child: SizedBox(width: 18, height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2))))
+                      : Material(
+                          color: Colors.transparent,
+                          shape: const CircleBorder(),
+                          child: IconButton(
+                            icon: const Icon(Icons.send_rounded, color: C.primary),
+                            onPressed: _postComment,
+                          ),
+                        ),
+                ])
+              else
+                Text('Sign in to join the discussion.', style: AppText.bodySm),
+              const SizedBox(height: 16),
+              StreamBuilder<List<ArticleComment>>(
+                stream: MagazineRepository.instance.watchComments(a.id),
+                builder: (context, snap) {
+                  final comments = snap.data ?? const <ArticleComment>[];
+                  if (comments.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text('No comments yet — start the discussion.', style: AppText.bodySm),
+                    );
+                  }
+                  return Column(children: comments.map((c) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      UserAvatar(initials: c.authorName.isEmpty ? '?' : c.authorName[0].toUpperCase(),
+                          radius: 14, photoUrl: c.authorPhotoUrl),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(children: [
+                            Text(c.authorName, style: AppText.subtitle.copyWith(color: C.txt)),
+                            const SizedBox(width: 6),
+                            Text(_formatDate(c.createdAt), style: AppText.caption),
+                          ]),
+                          const SizedBox(height: 3),
+                          Text(c.body, style: AppText.bodySm.copyWith(height: 1.4)),
+                        ]),
+                      ),
+                    ]),
+                  )).toList());
+                },
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

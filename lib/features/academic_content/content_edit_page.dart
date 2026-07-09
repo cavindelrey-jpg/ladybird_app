@@ -3,6 +3,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
@@ -367,25 +368,33 @@ class _TypeRow extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         children: ContentType.values.map((t) {
           final active = t == selected;
-          return GestureDetector(
-            onTap: () => onSelected(t),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              margin: const EdgeInsets.only(right: 8),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: active ? C.primaryBg : C.surf,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                    color: active ? C.primary : C.bdr,
-                    width: active ? 1.5 : 1),
+          return Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                onSelected(t);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: active ? C.primaryBg : C.surf,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                      color: active ? C.primary : C.bdr,
+                      width: active ? 1.5 : 1),
+                ),
+                child: Text('${t.emoji} ${t.label}',
+                    style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: active ? C.primary : C.txt2)),
               ),
-              child: Text('${t.emoji} ${t.label}',
-                  style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: active ? C.primary : C.txt2)),
             ),
           );
         }).toList(),
@@ -403,29 +412,37 @@ class _FileRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: selected ? C.primaryBg : C.surf,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color: selected ? C.primary : C.bdr),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap == null ? null : () {
+          HapticFeedback.selectionClick();
+          onTap!();
+        },
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: selected ? C.primaryBg : C.surf,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: selected ? C.primary : C.bdr),
+          ),
+          child: Row(children: [
+            Icon(Icons.attach_file_rounded,
+                size: 18,
+                color: selected ? C.primary : C.muted),
+            const SizedBox(width: 10),
+            Expanded(
+                child: Text(label,
+                    style: GoogleFonts.inter(
+                        fontSize: 13,
+                        color: selected ? C.txt : C.muted))),
+            const Icon(Icons.edit_outlined, size: 16, color: C.muted),
+          ]),
         ),
-        child: Row(children: [
-          Icon(Icons.attach_file_rounded,
-              size: 18,
-              color: selected ? C.primary : C.muted),
-          const SizedBox(width: 10),
-          Expanded(
-              child: Text(label,
-                  style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: selected ? C.txt : C.muted))),
-          const Icon(Icons.edit_outlined, size: 16, color: C.muted),
-        ]),
       ),
     );
   }
@@ -440,45 +457,53 @@ class _ThumbnailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 90,
-        decoration: BoxDecoration(
-          color: C.surf,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: C.bdr),
-        ),
-        child: newFile != null
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.file(newFile!, fit: BoxFit.cover,
-                    width: double.infinity))
-            : existingUrl != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Stack(fit: StackFit.expand, children: [
-                      Image.network(existingUrl!, fit: BoxFit.cover),
-                      Container(
-                        color: Colors.black26,
-                        child: const Center(
-                          child: Icon(Icons.edit,
-                              color: Colors.white, size: 28),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap == null ? null : () {
+          HapticFeedback.selectionClick();
+          onTap!();
+        },
+        child: Container(
+          height: 90,
+          decoration: BoxDecoration(
+            color: C.surf,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: C.bdr),
+          ),
+          child: newFile != null
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(newFile!, fit: BoxFit.cover,
+                      width: double.infinity))
+              : existingUrl != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Stack(fit: StackFit.expand, children: [
+                        Image.network(existingUrl!, fit: BoxFit.cover),
+                        Container(
+                          color: Colors.black26,
+                          child: const Center(
+                            child: Icon(Icons.edit,
+                                color: Colors.white, size: 28),
+                          ),
                         ),
-                      ),
-                    ]),
-                  )
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.add_photo_alternate_outlined,
-                          size: 28, color: C.muted),
-                      const SizedBox(height: 4),
-                      Text('Add thumbnail',
-                          style: GoogleFonts.inter(
-                              fontSize: 12, color: C.muted)),
-                    ],
-                  ),
+                      ]),
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.add_photo_alternate_outlined,
+                            size: 28, color: C.muted),
+                        const SizedBox(height: 4),
+                        Text('Add thumbnail',
+                            style: GoogleFonts.inter(
+                                fontSize: 12, color: C.muted)),
+                      ],
+                    ),
+        ),
       ),
     );
   }

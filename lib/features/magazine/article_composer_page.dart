@@ -1,6 +1,10 @@
 // lib/features/magazine/article_composer_page.dart
 // Create/edit an article: title, cover image, body, draft vs published.
 //
+// Design pass: title/body fields now use the same AppText.h1 / AppText.body
+// styles as the reader page renders them in — what you type looks like
+// what readers will see, rather than a generic form font.
+//
 // Body is plain text for this MVP — MagazineArticle.body is a single
 // String field, so mixed text+image ordering (a true Substack block
 // editor) needs a follow-up model change (a List<ContentBlock> field) per
@@ -10,7 +14,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/app_user.dart';
 import '../../models/magazine_article.dart';
@@ -45,6 +49,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
   }
 
   Future<void> _pickCover() async {
+    HapticFeedback.selectionClick();
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked != null) setState(() => _pickedCover = File(picked.path));
   }
@@ -54,6 +59,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
       setState(() => _error = 'Title and body are required.');
       return;
     }
+    HapticFeedback.mediumImpact();
     setState(() { _saving = true; _error = null; });
 
     final repo = MagazineRepository.instance;
@@ -115,6 +121,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
       ),
     );
     if (confirmed == true) {
+      HapticFeedback.heavyImpact();
       await MagazineRepository.instance.delete(widget.existing!.id);
       if (mounted) Navigator.of(context).pop();
     }
@@ -127,8 +134,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
       appBar: AppBar(
         backgroundColor: C.bg, elevation: 0,
         iconTheme: const IconThemeData(color: C.txt),
-        title: Text(_isNew ? 'Write an Article' : 'Edit Article', style: GoogleFonts.sora(
-            fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
+        title: Text(_isNew ? 'Write an Article' : 'Edit Article', style: AppText.title),
         actions: [
           if (!_isNew)
             IconButton(icon: const Icon(Icons.delete_outline_rounded, color: C.red), onPressed: _delete),
@@ -137,34 +143,39 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          GestureDetector(
-            onTap: _pickCover,
-            child: Container(
-              height: 150, width: double.infinity,
-              decoration: BoxDecoration(
-                color: C.navy, borderRadius: BorderRadius.circular(Rad.md),
-                image: _pickedCover != null
-                    ? DecorationImage(image: FileImage(_pickedCover!), fit: BoxFit.cover)
-                    : (widget.existing?.thumbnailUrl != null
-                        ? DecorationImage(image: NetworkImage(widget.existing!.thumbnailUrl!), fit: BoxFit.cover)
-                        : null),
+          Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(Rad.md),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(Rad.md),
+              onTap: _pickCover,
+              child: Container(
+                height: 150, width: double.infinity,
+                decoration: BoxDecoration(
+                  color: C.navy, borderRadius: BorderRadius.circular(Rad.md),
+                  image: _pickedCover != null
+                      ? DecorationImage(image: FileImage(_pickedCover!), fit: BoxFit.cover)
+                      : (widget.existing?.thumbnailUrl != null
+                          ? DecorationImage(image: NetworkImage(widget.existing!.thumbnailUrl!), fit: BoxFit.cover)
+                          : null),
+                ),
+                child: (_pickedCover == null && widget.existing?.thumbnailUrl == null)
+                    ? const Center(child: Icon(Icons.add_photo_alternate_outlined, color: Colors.white70, size: 32))
+                    : null,
               ),
-              child: (_pickedCover == null && widget.existing?.thumbnailUrl == null)
-                  ? const Center(child: Icon(Icons.add_photo_alternate_outlined, color: Colors.white70, size: 32))
-                  : null,
             ),
           ),
           const SizedBox(height: 20),
           TextField(
             controller: _titleCtrl,
-            style: GoogleFonts.sora(fontSize: 18, fontWeight: FontWeight.w700, color: C.txt),
+            style: AppText.h1,
             decoration: const InputDecoration(hintText: 'Title', border: InputBorder.none),
           ),
           const Divider(color: C.bdr2),
           const SizedBox(height: 12),
           TextField(
             controller: _bodyCtrl,
-            style: GoogleFonts.inter(fontSize: 14.5, color: C.txt, height: 1.6),
+            style: AppText.body,
             maxLines: null,
             minLines: 12,
             decoration: const InputDecoration(
@@ -175,7 +186,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(Rad.sm)),
-              child: Text(_error!, style: GoogleFonts.inter(fontSize: 12, color: C.red)),
+              child: Text(_error!, style: AppText.bodySm.copyWith(color: C.red)),
             ),
           ],
           const SizedBox(height: 28),

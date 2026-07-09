@@ -48,7 +48,12 @@ class AcademiaApp extends StatelessWidget {
       child: MaterialApp(
         title: 'Academia',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
+        theme: AppTheme.light.copyWith(
+          pageTransitionsTheme: const PageTransitionsTheme(builders: {
+            TargetPlatform.android: _AcademiaPageTransition(),
+            TargetPlatform.iOS: _AcademiaPageTransition(),
+          }),
+        ),
         home: const _MaintenanceGate(),
         builder: (ctx, child) {
           // Global error boundary — catches widget build errors in release.
@@ -98,6 +103,36 @@ class _MaintenanceScreen extends StatelessWidget {
           ]),
         ),
       )),
+    );
+  }
+}
+
+/// A single, consistent motion for every screen transition in the app —
+/// a subtle fade combined with a short upward slide, eased out rather than
+/// linear. Replaces the stock OS default (which differs per platform and
+/// doesn't carry any of the app's own character) with one deliberate,
+/// branded feel used everywhere.
+class _AcademiaPageTransition extends PageTransitionsBuilder {
+  const _AcademiaPageTransition();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+    return FadeTransition(
+      opacity: curved,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.04),
+          end: Offset.zero,
+        ).animate(curved),
+        child: child,
+      ),
     );
   }
 }

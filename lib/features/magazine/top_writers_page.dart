@@ -3,7 +3,6 @@
 // already fully implemented server-round-trip-free — just needed a screen.
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/magazine_article.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../theme/app_theme.dart';
@@ -29,14 +28,13 @@ class TopWritersPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: C.bg, elevation: 0,
         iconTheme: const IconThemeData(color: C.txt),
-        title: Text('Top Writers', style: GoogleFonts.sora(
-            fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
+        title: Text('Top Writers', style: AppText.title),
       ),
       body: FutureBuilder<List<TopWriterEntry>>(
         future: MagazineRepository.instance.topWriters(),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const LoadingView();
+            return const _LeaderboardSkeleton();
           }
           final writers = snap.data ?? const <TopWriterEntry>[];
           if (writers.isEmpty) {
@@ -60,8 +58,8 @@ class TopWritersPage extends StatelessWidget {
                   child: Row(children: [
                     SizedBox(
                       width: 28,
-                      child: Text('$rank', style: GoogleFonts.sora(
-                          fontSize: 16, fontWeight: FontWeight.w800, color: _rankColor(rank))),
+                      child: Text('$rank', style: AppText.h2.copyWith(
+                          fontSize: 16, color: _rankColor(rank))),
                     ),
                     const SizedBox(width: 8),
                     UserAvatar(
@@ -71,21 +69,47 @@ class TopWritersPage extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(w.authorName, style: GoogleFonts.inter(
-                            fontSize: 14, fontWeight: FontWeight.w700, color: C.txt)),
+                        Text(w.authorName, style: AppText.title.copyWith(fontSize: 14)),
                         const SizedBox(height: 3),
                         Text('${w.totalReads} reads · ${w.totalComments} comments',
-                            style: GoogleFonts.inter(fontSize: 11.5, color: C.txt2)),
+                            style: AppText.bodySm),
                       ]),
                     ),
-                    Text(w.score.toStringAsFixed(1), style: GoogleFonts.sora(
-                        fontSize: 15, fontWeight: FontWeight.w800, color: C.primary)),
+                    Text(w.score.toStringAsFixed(1), style: AppText.h2.copyWith(
+                        fontSize: 15, color: C.primary)),
                   ]),
                 ),
               );
             },
           );
         },
+      ),
+    );
+  }
+}
+
+class _LeaderboardSkeleton extends StatelessWidget {
+  const _LeaderboardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 6,
+      itemBuilder: (_, __) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+              color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+          child: Row(children: const [
+            ShimmerCircle(size: 18),
+            SizedBox(width: 8),
+            ShimmerCircle(size: 36),
+            SizedBox(width: 12),
+            Expanded(child: ShimmerLine(height: 14)),
+          ]),
+        ),
       ),
     );
   }

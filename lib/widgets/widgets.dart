@@ -2,6 +2,7 @@
 // Academia shared widget library — Material 3, animated, accessible.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 
@@ -62,7 +63,10 @@ class SecondaryBtn extends StatelessWidget {
 // CARDS
 // ════════════════════════════════════════════════════════════════════════════
 
-/// Standard Academia card with consistent shadow and border.
+/// Standard Academia card with consistent shadow and border. Tappable cards
+/// get a real Material ripple + a light haptic tick — GestureDetector gives
+/// zero visual/tactile response on tap, which is the single biggest reason
+/// the app read as unresponsive; this fixes it everywhere ACard is reused.
 class ACard extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
@@ -77,18 +81,30 @@ class ACard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final card = Container(
+    final radius = BorderRadius.circular(borderRadius);
+    final decoratedChild = Container(
       decoration: BoxDecoration(
         color: color ?? C.surf,
-        borderRadius: BorderRadius.circular(borderRadius),
+        borderRadius: radius,
         border: Border.all(color: C.bdr),
         boxShadow: Shad.sm,
       ),
       padding: padding,
       child: child,
     );
-    if (onTap == null) return card;
-    return GestureDetector(onTap: onTap, child: card);
+    if (onTap == null) return decoratedChild;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: radius,
+      child: InkWell(
+        borderRadius: radius,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap!();
+        },
+        child: decoratedChild,
+      ),
+    );
   }
 }
 
@@ -184,6 +200,102 @@ class _ShimmerCardState extends State<ShimmerCard>
             Color.lerp(C.bdr, C.bdr2, _anim.value)!,
           ]),
           borderRadius: BorderRadius.circular(Rad.md),
+        ),
+      ),
+    );
+  }
+}
+
+/// A single shimmering rounded line — for text placeholders. Width can be
+/// fixed or fractional (pass a width, or wrap in Expanded/SizedBox).
+class ShimmerLine extends StatefulWidget {
+  final double width;
+  final double height;
+  const ShimmerLine({super.key, this.width = double.infinity, this.height = 14});
+  @override State<ShimmerLine> createState() => _ShimmerLineState();
+}
+
+class _ShimmerLineState extends State<ShimmerLine> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1200))..repeat(reverse: true);
+  late final Animation<double> _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Container(
+        width: widget.width, height: widget.height,
+        decoration: BoxDecoration(
+          color: Color.lerp(C.bdr2, C.bdr, _anim.value),
+          borderRadius: BorderRadius.circular(Rad.xs / 2),
+        ),
+      ),
+    );
+  }
+}
+
+/// A shimmering circle — for avatar placeholders.
+class ShimmerCircle extends StatefulWidget {
+  final double size;
+  const ShimmerCircle({super.key, this.size = 40});
+  @override State<ShimmerCircle> createState() => _ShimmerCircleState();
+}
+
+class _ShimmerCircleState extends State<ShimmerCircle> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1200))..repeat(reverse: true);
+  late final Animation<double> _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Container(
+        width: widget.size, height: widget.size,
+        decoration: BoxDecoration(
+          color: Color.lerp(C.bdr2, C.bdr, _anim.value),
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
+}
+
+/// A shimmering block — for image/thumbnail placeholders. Same primitive
+/// as ShimmerCard but without the bottom margin, so it composes cleanly
+/// inside a larger skeleton layout.
+class ShimmerBlock extends StatefulWidget {
+  final double? width;
+  final double height;
+  final double borderRadius;
+  const ShimmerBlock({super.key, this.width, this.height = 80, this.borderRadius = Rad.md});
+  @override State<ShimmerBlock> createState() => _ShimmerBlockState();
+}
+
+class _ShimmerBlockState extends State<ShimmerBlock> with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1200))..repeat(reverse: true);
+  late final Animation<double> _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Container(
+        width: widget.width, height: widget.height,
+        decoration: BoxDecoration(
+          color: Color.lerp(C.bdr2, C.bdr, _anim.value),
+          borderRadius: BorderRadius.circular(widget.borderRadius),
         ),
       ),
     );

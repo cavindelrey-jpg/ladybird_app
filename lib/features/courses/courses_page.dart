@@ -1,13 +1,19 @@
 // lib/features/courses/courses_page.dart
 // All roles see the course catalogue. Students enroll/drop. Admins create/delete.
+//
+// Design pass + the missing piece: cards are now tappable, opening the new
+// CourseDetailPage (description, lecturer, live enrollment count, edit).
+// Previously a course card did nothing when tapped — enroll/drop/delete
+// were the only actions, with no way to actually read about a course.
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
 import '../../models/models.dart';
 import '../../repositories/course_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import 'course_detail_page.dart';
 
 class CoursesPage extends StatelessWidget {
   final AppUser user;
@@ -27,7 +33,7 @@ class CoursesPage extends StatelessWidget {
       return Scaffold(
         backgroundColor: C.bg,
         appBar: AppBar(
-          title: Text('Courses', style: GoogleFonts.sora(fontWeight: FontWeight.w700)),
+          title: Text('Courses', style: AppText.title),
           automaticallyImplyLeading: false,
         ),
         body: Center(
@@ -37,14 +43,13 @@ class CoursesPage extends StatelessWidget {
               const Icon(Icons.school_outlined, size: 48, color: C.muted),
               const SizedBox(height: 12),
               Text('Courses are organized by school',
-                  style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700, color: C.txt),
-                  textAlign: TextAlign.center),
+                  style: AppText.title.copyWith(fontSize: 15), textAlign: TextAlign.center),
               const SizedBox(height: 6),
               Text(
                 "Your account isn't linked to a school, so there's no course "
                 'catalogue to show yet. Check the Content Library for notes, '
                 'past papers, and videos instead.',
-                style: GoogleFonts.inter(fontSize: 13, color: C.txt2),
+                style: AppText.bodySm,
                 textAlign: TextAlign.center,
               ),
             ]),
@@ -59,7 +64,7 @@ class CoursesPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: C.bg,
       appBar: AppBar(
-        title: Text('Courses', style: GoogleFonts.sora(fontWeight: FontWeight.w700)),
+        title: Text('Courses', style: AppText.title),
         automaticallyImplyLeading: false,
         actions: user.canManageSchool
             ? [IconButton(icon: const Icon(Icons.add_rounded),
@@ -70,14 +75,14 @@ class CoursesPage extends StatelessWidget {
         stream: stream,
         builder: (ctx, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const _CourseListSkeleton();
           }
           final courses = snap.data ?? [];
           if (courses.isEmpty) {
             return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
               const Icon(Icons.school_outlined, size: 48, color: C.muted),
               const SizedBox(height: 12),
-              Text('No courses available', style: GoogleFonts.inter(color: C.muted)),
+              Text('No courses available', style: AppText.bodySm),
             ]));
           }
           return ListView.builder(
@@ -105,8 +110,7 @@ class CoursesPage extends StatelessWidget {
       builder: (_) => StatefulBuilder(builder: (dCtx, setM) => Padding(
         padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(dCtx).viewInsets.bottom + 20),
         child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('Create Course',
-              style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700)),
+          Text('Create Course', style: AppText.title.copyWith(fontSize: 16)),
           const SizedBox(height: 16),
           Row(children: [
             Expanded(child: TextField(controller: codeC,
@@ -128,6 +132,7 @@ class CoursesPage extends StatelessWidget {
           const SizedBox(height: 16),
           PrimaryBtn(label: 'Create Course', loading: saving, onTap: () async {
             if (nameC.text.trim().isEmpty) return;
+            HapticFeedback.mediumImpact();
             setM(() => saving = true);
             final c = Course(
               id: '', schoolId: _sid, code: codeC.text.trim(),
@@ -149,6 +154,32 @@ class CoursesPage extends StatelessWidget {
   }
 }
 
+/// Card-shaped skeleton matching the loaded list's silhouette.
+class _CourseListSkeleton extends StatelessWidget {
+  const _CourseListSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      itemCount: 4,
+      itemBuilder: (_, __) => Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+            color: C.surf, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.bdr)),
+        child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          ShimmerLine(width: 60, height: 12),
+          SizedBox(height: 8),
+          ShimmerLine(height: 15),
+          SizedBox(height: 6),
+          ShimmerLine(width: 100, height: 12),
+        ]),
+      ),
+    );
+  }
+}
+
 class _CourseCard extends StatelessWidget {
   final Course course;
   final AppUser user;
@@ -166,63 +197,71 @@ class _CourseCard extends StatelessWidget {
       decoration: BoxDecoration(
           color: C.surf, borderRadius: BorderRadius.circular(16),
           border: Border.all(color: C.bdr)),
-      child: Column(children: [
-        Container(height: 5, decoration: BoxDecoration(
-            color: _accent,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)))),
-        Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                      color: _accent.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(6)),
-                  child: Text(course.code.isEmpty ? 'GEN' : course.code,
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _accent))),
-                const SizedBox(width: 8),
-                Text('${course.credits} cr.',
-                    style: GoogleFonts.inter(fontSize: 11, color: C.muted)),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            Navigator.push(context, MaterialPageRoute(
+                builder: (_) => CourseDetailPage(course: course, user: user)));
+          },
+          child: Column(children: [
+            Container(height: 5, color: _accent),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                          color: _accent.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6)),
+                      child: Text(course.code.isEmpty ? 'GEN' : course.code,
+                          style: AppText.label.copyWith(fontSize: 10, color: _accent, letterSpacing: 0.2))),
+                    const SizedBox(width: 8),
+                    Text('${course.credits} cr.', style: AppText.caption.copyWith(fontSize: 11)),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text(course.name, style: AppText.title.copyWith(fontSize: 14)),
+                  Text(course.lecturerName, style: AppText.bodySm.copyWith(fontSize: 12)),
+                  if (course.classGroup != null)
+                    Text(course.classGroup!, style: AppText.caption.copyWith(fontSize: 11)),
+                ])),
+                const SizedBox(width: 10),
+                if (user.isStudent)
+                  _enrolled
+                      ? OutlinedButton(
+                          onPressed: () async {
+                            HapticFeedback.lightImpact();
+                            await CourseRepository.instance.unenrollStudent(sid, course.id, user.id);
+                            if (context.mounted) showToast(context, 'Unenrolled');
+                          },
+                          style: OutlinedButton.styleFrom(
+                              foregroundColor: C.red, side: const BorderSide(color: C.red)),
+                          child: const Text('Drop'))
+                      : ElevatedButton(
+                          onPressed: () async {
+                            HapticFeedback.mediumImpact();
+                            await CourseRepository.instance.enrollStudent(sid, course.id, user.id);
+                            if (context.mounted) showToast(context, '✅ Enrolled in ${course.name}');
+                          },
+                          child: const Text('Enroll')),
+                if (user.canManageSchool)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 18, color: C.muted),
+                    onPressed: () async {
+                      HapticFeedback.heavyImpact();
+                      await CourseRepository.instance.delete(sid, course.id);
+                      if (context.mounted) showToast(context, 'Course deleted');
+                    },
+                  ),
               ]),
-              const SizedBox(height: 4),
-              Text(course.name,
-                  style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: C.txt)),
-              Text(course.lecturerName,
-                  style: GoogleFonts.inter(fontSize: 12, color: C.txt2)),
-              if (course.classGroup != null)
-                Text(course.classGroup!,
-                    style: GoogleFonts.inter(fontSize: 11, color: C.muted)),
-            ])),
-            const SizedBox(width: 10),
-            if (user.isStudent)
-              _enrolled
-                  ? OutlinedButton(
-                      onPressed: () async {
-                        await CourseRepository.instance.unenrollStudent(sid, course.id, user.id);
-                        if (context.mounted) showToast(context, 'Unenrolled');
-                      },
-                      style: OutlinedButton.styleFrom(
-                          foregroundColor: C.red, side: const BorderSide(color: C.red)),
-                      child: const Text('Drop'))
-                  : ElevatedButton(
-                      onPressed: () async {
-                        await CourseRepository.instance.enrollStudent(sid, course.id, user.id);
-                        if (context.mounted) showToast(context, '✅ Enrolled in ${course.name}');
-                      },
-                      child: const Text('Enroll')),
-            if (user.canManageSchool)
-              IconButton(
-                icon: const Icon(Icons.delete_outline, size: 18, color: C.muted),
-                onPressed: () async {
-                  await CourseRepository.instance.delete(sid, course.id);
-                  if (context.mounted) showToast(context, 'Course deleted');
-                },
-              ),
+            ),
           ]),
         ),
-      ]),
+      ),
     );
   }
 }

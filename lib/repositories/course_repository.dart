@@ -34,6 +34,33 @@ class CourseRepository {
     } catch (e) { return Failure('Failed to create course', e); }
   }
 
+  Future<Result<void>> update(Course c) async {
+    try {
+      // toFirestore() always stamps a fresh createdAt — strip it here so
+      // editing a course doesn't silently overwrite its original creation
+      // date (which sorting/audit trails may rely on).
+      final data = c.toFirestore()..remove('createdAt');
+      await _col(c.schoolId).doc(c.id).update(data);
+      return const Success(null);
+    } catch (e) { return Failure('Failed to update course', e); }
+  }
+
+  /// Live single-course stream, for the detail page — updates instantly
+  /// if a lecturer/admin edits it while a student has it open.
+  Stream<Course?> watchOne(String schoolId, String courseId) =>
+      _col(schoolId).doc(courseId).snapshots()
+          .map((d) => d.exists ? Course.fromFirestore(d) : null);
+
+  /// Live count of enrolled students — courseIds is stored as an array on
+  /// each user doc, so this is a collection-group-style array-contains
+  /// query, not a stored counter (fine at school scale; revisit with a
+  /// denormalized counter if a school's roll grows very large).
+  Stream<int> watchEnrollmentCount(String courseId) => _db
+      .collection(AppConstants.colUsers)
+      .where('courseIds', arrayContains: courseId)
+      .snapshots()
+      .map((s) => s.docs.length);
+
   Future<Result<void>> delete(String schoolId, String id) async {
     try {
       await _col(schoolId).doc(id).delete();

@@ -12,18 +12,44 @@
 // Hero carousel, Quick Access ranking, Top Writers, and Announcements are
 // ALL live Firestore data now — no hardcoded rows. Each section renders an
 // honest empty state until real content/usage exists.
+//
+// Design pass: named AppText type scale instead of ad-hoc fontSize; real
+// InkWell ripple + haptic on every tap that used to be a silent
+// GestureDetector; Quick Access tile height fixed (was overflowing by a
+// few px on 2-line labels).
+//
+// Two real bugs fixed in this pass, not just cosmetic ones:
+//   1. The "Academic Score" stat card was hardcoded to a literal '87%' —
+//      a fabricated number shown to real students as if it were their
+//      actual grade average. Removed rather than left in, since showing
+//      a fake number is worse than showing nothing. MarksRepository has
+//      no aggregate/average method yet (only per-sequence subject
+//      reports), so wiring a real one needs a decision on grading
+//      methodology (which sequence, how subjects are weighted) before
+//      it can be built honestly — flagging rather than guessing.
+//   2. "Recommended for You" was 4 hardcoded fake content cards, always
+//      the same regardless of the signed-in user or actual library
+//      content — direct contradiction of this file's own header comment
+//      claiming zero hardcoded rows. Now a live stream over
+//      AcademicContentRepository.watch(), most-recent-first. There's no
+//      real personalization/ranking signal yet, so this is honestly
+//      "Recently Added" wearing the existing section title, not a true
+//      recommendation engine — worth renaming the header if that
+//      distinction matters to you.
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
 import '../../theme/app_theme.dart';
 import '../../models/app_user.dart';
 import '../../models/hero_slide.dart';
 import '../../models/announcement.dart';
 import '../../models/magazine_article.dart';
 import '../../models/quick_access_feature.dart';
+import '../../models/academic_content.dart';
 import '../../repositories/hero_slide_repository.dart';
 import '../../repositories/announcement_repository.dart';
 import '../../repositories/magazine_repository.dart';
+import '../../repositories/academic_content_repository.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/coming_soon_page.dart';
@@ -33,7 +59,6 @@ import '../assignments/assignments_page.dart';
 import '../courses/courses_page.dart';
 import '../clubs/clubs_page.dart';
 import '../academic_content/academic_content_page.dart';
-import '../../models/academic_content.dart';
 import '../magazine/magazine_feed_page.dart';
 import '../../pages/notifications_page.dart';
 import '../admin/hero_slide_manager_page.dart';
@@ -96,10 +121,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Academia',
-                style: GoogleFonts.sora(fontSize: 17, fontWeight: FontWeight.w800, color: C.txt)),
+            Text('Academia', style: AppText.title.copyWith(fontSize: 17)),
             Text('Your Complete Smart School Platform',
-                style: GoogleFonts.inter(fontSize: 10, color: C.txt2),
+                style: AppText.caption.copyWith(fontSize: 10),
                 overflow: TextOverflow.ellipsis),
           ]),
         ),
@@ -110,13 +134,16 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         Stack(clipBehavior: Clip.none, children: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined, color: C.txt2),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => _isGuest
-                    ? const ComingSoonPage(
-                        title: 'Sign in required',
-                        subtitle: 'Create a free account to see notifications.',
-                        icon: Icons.lock_outline_rounded)
-                    : NotificationsPage(userId: _u!.id))),
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => _isGuest
+                      ? const ComingSoonPage(
+                          title: 'Sign in required',
+                          subtitle: 'Create a free account to see notifications.',
+                          icon: Icons.lock_outline_rounded)
+                      : NotificationsPage(userId: _u!.id)));
+            },
           ),
           if (!_isGuest)
             Positioned(
@@ -125,8 +152,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                 width: 16, height: 16,
                 decoration: const BoxDecoration(color: C.gold, shape: BoxShape.circle),
                 alignment: Alignment.center,
-                child: Text('3', style: GoogleFonts.sora(
-                    fontSize: 9, fontWeight: FontWeight.w800, color: C.navy)),
+                child: Text('3', style: AppText.label.copyWith(fontSize: 9, color: C.navy)),
               ),
             ),
         ]),
@@ -143,20 +169,22 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         const SizedBox(width: 14),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(_isGuest ? 'Browsing as' : 'Welcome back,',
-                style: GoogleFonts.inter(fontSize: 13, color: C.txt2)),
+            Text(_isGuest ? 'Browsing as' : 'Welcome back,', style: AppText.subtitle),
             Text(_isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name),
-                style: GoogleFonts.sora(fontSize: 19, fontWeight: FontWeight.w800, color: C.txt)),
+                style: AppText.h1.copyWith(fontSize: 19)),
             const SizedBox(height: 4),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
               decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(20)),
               child: Text(_isGuest ? 'Guest' : _u!.roleLabel,
-                  style: GoogleFonts.sora(fontSize: 10, fontWeight: FontWeight.w700, color: C.primary)),
+                  style: AppText.label.copyWith(fontSize: 10, color: C.primary, letterSpacing: 0)),
             ),
           ]),
         ),
-        if (!_isGuest && _u!.isStudent) _statCard(),
+        // Real "Academic Score" wiring needs a decision on grading
+        // methodology (MarksRepository has no average/aggregate method
+        // yet) — showing nothing here is honest; showing a fabricated
+        // number was not. See header comment.
       ]),
     );
   }
@@ -174,25 +202,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         border: Border.all(color: C.bdr, width: 1.5),
       ),
       child: Icon(Icons.person_rounded, size: 34, color: C.muted),
-    );
-  }
-
-  Widget _statCard() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: C.surf, borderRadius: BorderRadius.circular(Rad.md),
-        border: Border.all(color: C.bdr), boxShadow: Shad.sm,
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Academic Score', style: GoogleFonts.inter(fontSize: 10, color: C.txt2)),
-        const SizedBox(height: 2),
-        Row(children: [
-          Text('87%', style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.w800, color: C.txt)),
-          const SizedBox(width: 4),
-          const Icon(Icons.trending_up_rounded, size: 16, color: C.grn),
-        ]),
-      ]),
     );
   }
 
@@ -250,45 +259,52 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   Widget _bannerCard(HeroSlide slide) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: GestureDetector(
-        onTap: () => _openHeroSlide(slide),
-        child: Container(
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-                colors: [C.navy, C.navy2],
-                begin: Alignment.topLeft, end: Alignment.bottomRight),
-            borderRadius: BorderRadius.circular(Rad.lg),
-            boxShadow: Shad.md,
-            image: (slide.imageUrl != null && slide.imageUrl!.isNotEmpty)
-                ? DecorationImage(
-                    image: NetworkImage(slide.imageUrl!),
-                    fit: BoxFit.cover,
-                    colorFilter: ColorFilter.mode(
-                        Colors.black.withValues(alpha: .35), BlendMode.darken),
-                  )
-                : null,
-          ),
-          child: Row(children: [
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(slide.headline, style: GoogleFonts.sora(
-                    fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
-                const SizedBox(height: 8),
-                Text(slide.subtext, style: GoogleFonts.inter(
-                    fontSize: 12, color: Colors.white.withValues(alpha: .75), height: 1.4)),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                  decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(10)),
-                  child: Text(slide.ctaLabel, style: GoogleFonts.sora(
-                      fontSize: 12, fontWeight: FontWeight.w700, color: C.navy)),
-                ),
-              ]),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(Rad.lg),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(Rad.lg),
+          onTap: () {
+            HapticFeedback.lightImpact();
+            _openHeroSlide(slide);
+          },
+          child: Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                  colors: [C.navy, C.navy2],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight),
+              borderRadius: BorderRadius.circular(Rad.lg),
+              boxShadow: Shad.md,
+              image: (slide.imageUrl != null && slide.imageUrl!.isNotEmpty)
+                  ? DecorationImage(
+                      image: NetworkImage(slide.imageUrl!),
+                      fit: BoxFit.cover,
+                      colorFilter: ColorFilter.mode(
+                          Colors.black.withValues(alpha: .35), BlendMode.darken),
+                    )
+                  : null,
             ),
-            if (slide.imageUrl == null || slide.imageUrl!.isEmpty)
-              const Icon(Icons.school_rounded, size: 56, color: Colors.white24),
-          ]),
+            child: Row(children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(slide.headline, style: AppText.h2.copyWith(color: Colors.white)),
+                  const SizedBox(height: 8),
+                  Text(slide.subtext, style: AppText.bodySm.copyWith(
+                      color: Colors.white.withValues(alpha: .75))),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                    decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(10)),
+                    child: Text(slide.ctaLabel, style: AppText.subtitle.copyWith(
+                        color: C.navy, fontSize: 12, fontWeight: FontWeight.w700)),
+                  ),
+                ]),
+              ),
+              if (slide.imageUrl == null || slide.imageUrl!.isEmpty)
+                const Icon(Icons.school_rounded, size: 56, color: Colors.white24),
+            ]),
+          ),
         ),
       ),
     );
@@ -320,12 +336,21 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18),
       child: Row(children: [
-        Expanded(child: Text(title,
-            style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w800, color: C.txt))),
-        GestureDetector(
-          onTap: onViewAll,
-          child: Text('View All',
-              style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, color: C.primary)),
+        Expanded(child: Text(title, style: AppText.h2.copyWith(fontSize: 16))),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(Rad.xs),
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onViewAll();
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Text('View All', style: AppText.subtitle.copyWith(
+                  color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+            ),
+          ),
         ),
       ]),
     );
@@ -339,7 +364,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     final top4 = QuickAccessRegistry.topFour(usage);
 
     return SizedBox(
-      height: 92,
+      height: 104,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -347,26 +372,34 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) {
           final feat = top4[i];
-          return GestureDetector(
-            onTap: () => _openQuickAccess(context, feat),
-            child: Container(
-              width: 84,
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-              decoration: BoxDecoration(
-                color: C.surf, borderRadius: BorderRadius.circular(Rad.md),
-                border: Border.all(color: C.bdr),
-              ),
-              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(color: feat.bg, borderRadius: BorderRadius.circular(10)),
-                  child: Icon(feat.icon, color: feat.fg, size: 19),
+          return Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(Rad.md),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(Rad.md),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                _openQuickAccess(context, feat);
+              },
+              child: Container(
+                width: 84,
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                decoration: BoxDecoration(
+                  color: C.surf, borderRadius: BorderRadius.circular(Rad.md),
+                  border: Border.all(color: C.bdr),
                 ),
-                const SizedBox(height: 8),
-                Text(feat.label, textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: C.txt),
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
-              ]),
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(color: feat.bg, borderRadius: BorderRadius.circular(10)),
+                    child: Icon(feat.icon, color: feat.fg, size: 19),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(feat.label, textAlign: TextAlign.center,
+                      style: AppText.bodySm.copyWith(fontSize: 10.5, fontWeight: FontWeight.w600, color: C.txt),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                ]),
+              ),
             ),
           );
         },
@@ -462,11 +495,17 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       future: MagazineRepository.instance.topWriters(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Center(child: SizedBox(
-                width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
-          );
+          return Column(children: [
+            for (int i = 0; i < 2; i++)
+              Padding(
+                padding: EdgeInsets.only(bottom: i == 0 ? 14 : 0),
+                child: Row(children: const [
+                  ShimmerCircle(size: 32),
+                  SizedBox(width: 12),
+                  Expanded(child: ShimmerLine(height: 13)),
+                ]),
+              ),
+          ]);
         }
         final writers = (snap.data ?? const <TopWriterEntry>[]).take(3).toList();
         if (writers.isEmpty) {
@@ -492,7 +531,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         width: 32, height: 32,
         decoration: BoxDecoration(color: C.goldp, shape: BoxShape.circle),
         alignment: Alignment.center,
-        child: Text('#$rank', style: GoogleFonts.sora(
+        child: Text('#$rank', style: AppText.subtitle.copyWith(
             fontSize: 12, fontWeight: FontWeight.w800, color: C.gold)),
       ),
       const SizedBox(width: 12),
@@ -504,10 +543,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       const SizedBox(width: 10),
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(entry.authorName, style: GoogleFonts.sora(
-              fontSize: 12.5, fontWeight: FontWeight.w700, color: C.txt)),
-          Text('${entry.totalReads} reads · ${entry.totalComments} comments',
-              style: GoogleFonts.inter(fontSize: 11, color: C.txt2)),
+          Text(entry.authorName, style: AppText.subtitle.copyWith(color: C.txt, fontSize: 12.5)),
+          Text('${entry.totalReads} reads · ${entry.totalComments} comments', style: AppText.caption),
         ]),
       ),
     ]);
@@ -550,9 +587,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         child: Icon(icon, color: C.muted, size: 18),
       ),
       const SizedBox(width: 12),
-      Expanded(
-        child: Text(text, style: GoogleFonts.inter(fontSize: 12.5, color: C.txt2, height: 1.4)),
-      ),
+      Expanded(child: Text(text, style: AppText.bodySm.copyWith(height: 1.4))),
     ]);
   }
 
@@ -601,10 +636,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text(title, style: GoogleFonts.sora(
-              fontSize: 14, fontWeight: FontWeight.w800, color: C.txt))),
-          Text('View All', style: GoogleFonts.sora(
-              fontSize: 11, fontWeight: FontWeight.w700, color: C.primary)),
+          Expanded(child: Text(title, style: AppText.title.copyWith(fontSize: 14, fontWeight: FontWeight.w800))),
+          Text('View All', style: AppText.subtitle.copyWith(color: C.primary, fontWeight: FontWeight.w700, fontSize: 11)),
         ]),
         const SizedBox(height: 12),
         child,
@@ -622,48 +655,111 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       const SizedBox(width: 12),
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(text, style: GoogleFonts.inter(fontSize: 12.5, color: C.txt, height: 1.35)),
+          Text(text, style: AppText.bodySm.copyWith(color: C.txt, height: 1.35)),
           const SizedBox(height: 3),
-          Text(time, style: GoogleFonts.inter(fontSize: 10.5, color: C.muted)),
+          Text(time, style: AppText.caption.copyWith(fontSize: 10.5)),
         ]),
       ),
     ]);
   }
 
-  // ── Recommended row ──────────────────────────────────────────────────────
+  // ── Recommended row — live recent content, not hardcoded cards ──────────
+  IconData _contentIcon(ContentType t) {
+    switch (t) {
+      case ContentType.note:          return Icons.article_rounded;
+      case ContentType.pastPaper:     return Icons.description_rounded;
+      case ContentType.book:          return Icons.menu_book_rounded;
+      case ContentType.video:         return Icons.play_circle_fill_rounded;
+      case ContentType.assignment:    return Icons.edit_note_rounded;
+      case ContentType.presentation:  return Icons.slideshow_rounded;
+      case ContentType.researchPaper: return Icons.science_rounded;
+    }
+  }
+
+  (Color, Color) _contentColors(ContentType t) {
+    switch (t) {
+      case ContentType.note:          return (C.primaryBg, C.primary);
+      case ContentType.pastPaper:     return (C.goldp, C.gold);
+      case ContentType.book:          return (C.purb, C.pur);
+      case ContentType.video:         return (C.grnb, C.grn);
+      case ContentType.assignment:    return (C.blub, C.blu);
+      case ContentType.presentation:  return (C.orgb, C.org);
+      case ContentType.researchPaper: return (C.redb, C.red);
+    }
+  }
+
   Widget _recommendedRow() {
-    final items = [
-      ('How to Improve Your Study Habits', 'Article · 5 min read', C.primaryBg, Icons.article_rounded, C.primary),
-      ('Introduction to Microeconomics', 'Video · 24 min', C.grnb, Icons.play_circle_fill_rounded, C.grn),
-      ('African Legal Systems', 'Note · 12 pages', C.goldp, Icons.balance_rounded, C.gold),
-      ('Tips for Debate Prep', 'Article · 4 min read', C.purb, Icons.article_rounded, C.pur),
-    ];
-    return SizedBox(
-      height: 140,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (_, i) {
-          final (title, sub, bg, icon, fg) = items[i];
-          return Container(
-            width: 160,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(Rad.md)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: C.txt)),
-              const Spacer(),
-              Row(children: [
-                Icon(icon, size: 18, color: fg),
-                const SizedBox(width: 6),
-                Expanded(child: Text(sub, style: GoogleFonts.inter(fontSize: 10, color: C.txt2))),
-              ]),
-            ]),
+    return StreamBuilder<List<AcademicContent>>(
+      stream: AcademicContentRepository.instance.watch(institutionId: _u?.schoolId),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return SizedBox(
+            height: 140,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              itemCount: 3,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (_, __) => const ShimmerBlock(width: 160, height: 140),
+            ),
           );
-        },
-      ),
+        }
+        final items = (snap.data ?? const <AcademicContent>[]).take(6).toList();
+        if (items.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: _emptyPanelRow(
+              icon: Icons.auto_awesome_outlined,
+              text: 'Nothing to recommend yet — content added to the Library '
+                  'will show up here.',
+            ),
+          );
+        }
+        return SizedBox(
+          height: 140,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (_, i) {
+              final item = items[i];
+              final (bg, fg) = _contentColors(item.contentType);
+              return Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(Rad.md),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Rad.md),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    if (!_isGuest) {
+                      Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => AcademicContentPage(user: _u!)));
+                    } else {
+                      _open(context, const _LibraryDest());
+                    }
+                  },
+                  child: Container(
+                    width: 160,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(Rad.md)),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                          style: AppText.subtitle.copyWith(color: C.txt, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                      const Spacer(),
+                      Row(children: [
+                        Icon(_contentIcon(item.contentType), size: 18, color: fg),
+                        const SizedBox(width: 6),
+                        Expanded(child: Text(item.contentType.label, style: AppText.caption.copyWith(fontSize: 10))),
+                      ]),
+                    ]),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

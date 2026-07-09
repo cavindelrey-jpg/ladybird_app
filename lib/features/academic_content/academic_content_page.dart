@@ -1,15 +1,20 @@
 // lib/features/academic_content/academic_content_page.dart
 // Full content library: search, subject filter, content type filter, live stream.
 // Replaces the old LibraryPage.
+//
+// Design pass: named AppText scale, real InkWell ripple + haptic on every
+// card/chip tap (was silent GestureDetector everywhere), skeleton grid
+// while the stream connects instead of a bare spinner.
 
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
 import '../../core/debouncer.dart';
 import '../../models/app_user.dart';
 import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/widgets.dart';
 import 'content_details_page.dart';
 import 'content_upload_page.dart';
 
@@ -68,8 +73,7 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
     });
   }
 
-  bool get _canUpload =>
-      widget.user.canUploadContent;
+  bool get _canUpload => widget.user.canUploadContent;
 
   @override
   Widget build(BuildContext context) {
@@ -98,13 +102,16 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
       ]),
       floatingActionButton: _canUpload
           ? FloatingActionButton.extended(
-              onPressed: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => ContentUploadPage(user: widget.user)))
-                  .then((_) => _loadSubjects()),
+              onPressed: () {
+                HapticFeedback.mediumImpact();
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => ContentUploadPage(user: widget.user)))
+                    .then((_) => _loadSubjects());
+              },
               backgroundColor: C.primary,
               foregroundColor: Colors.white,
               icon: const Icon(Icons.upload_file_rounded),
-              label: Text('Upload', style: GoogleFonts.sora(fontWeight: FontWeight.w700)),
+              label: Text('Upload', style: AppText.button.copyWith(fontSize: 15)),
             )
           : null,
     );
@@ -124,9 +131,10 @@ class _SearchBar extends StatelessWidget {
       child: TextField(
         controller: controller,
         onChanged: onChanged,
+        style: AppText.bodySm.copyWith(color: C.txt),
         decoration: InputDecoration(
           hintText: 'Search content, subjects, tags…',
-          hintStyle: GoogleFonts.inter(fontSize: 14, color: C.muted),
+          hintStyle: AppText.bodySm.copyWith(color: C.muted),
           prefixIcon: const Icon(Icons.search_rounded, color: C.muted, size: 20),
           filled: true,
           fillColor: C.surf2,
@@ -170,23 +178,31 @@ class _FilterRow extends StatelessWidget {
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.only(left: 16, right: 16, bottom: 6),
-              children: subjects.map((s) => GestureDetector(
-                onTap: () => onSubjectChanged(s),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  margin: const EdgeInsets.only(right: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: s == selectedSubject ? C.blub : C.surf2,
+              children: subjects.map((s) {
+                final active = s == selectedSubject;
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: s == selectedSubject ? C.blu : C.bdr,
-                        width: s == selectedSubject ? 1.5 : 1),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onSubjectChanged(s);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: active ? C.blub : C.surf2,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: active ? C.blu : C.bdr, width: active ? 1.5 : 1),
+                      ),
+                      child: Text(s, style: AppText.caption.copyWith(
+                          fontSize: 10, fontWeight: FontWeight.w600, color: active ? C.blu : C.txt2)),
+                    ),
                   ),
-                  child: Text(s, style: GoogleFonts.inter(
-                      fontSize: 10, fontWeight: FontWeight.w600,
-                      color: s == selectedSubject ? C.blu : C.txt2)),
-                ),
-              )).toList(),
+                );
+              }).toList(),
             ),
           ),
       ]),
@@ -204,20 +220,26 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final active = value == selected;
-    return GestureDetector(
-      onTap: () => onTap(value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        decoration: BoxDecoration(
-          color: active ? C.primary : C.surf2,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: active ? C.primary : C.bdr, width: active ? 1.5 : 1),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap(value);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.only(right: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: active ? C.primary : C.surf2,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: active ? C.primary : C.bdr, width: active ? 1.5 : 1),
+          ),
+          child: Text(label, style: AppText.caption.copyWith(
+              fontSize: 11, fontWeight: FontWeight.w600, color: active ? Colors.white : C.txt2)),
         ),
-        child: Text(label, style: GoogleFonts.inter(
-            fontSize: 11, fontWeight: FontWeight.w600,
-            color: active ? Colors.white : C.txt2)),
       ),
     );
   }
@@ -236,7 +258,7 @@ class _LiveFeed extends StatelessWidget {
           institutionId: user.schoolId, contentType: typeFilter, subject: subjectFilter),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const _ContentGridSkeleton();
         }
         final items = snap.data ?? [];
         if (items.isEmpty) return _EmptyState(typeFilter: typeFilter);
@@ -254,15 +276,51 @@ class _SearchResults extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (loading) return const Center(child: CircularProgressIndicator());
+    if (loading) return const _ContentGridSkeleton();
     if (results.isEmpty) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Icon(Icons.search_off, size: 48, color: C.muted),
         const SizedBox(height: 12),
-        Text('No results found', style: GoogleFonts.inter(color: C.muted, fontSize: 15)),
+        Text('No results found', style: AppText.body.copyWith(color: C.muted, fontSize: 15)),
       ]));
     }
     return _ContentGrid(items: results, user: user);
+  }
+}
+
+/// Grid-shaped skeleton matching the real card silhouette (thumbnail +
+/// badge + title lines), shown while the stream connects or a search runs.
+class _ContentGridSkeleton extends StatelessWidget {
+  const _ContentGridSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 200, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.72),
+      itemCount: 6,
+      itemBuilder: (_, __) => Container(
+        decoration: BoxDecoration(
+            color: C.surf, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.bdr)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const ClipRRect(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            child: AspectRatio(aspectRatio: 16 / 9, child: ShimmerBlock(borderRadius: 0)),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+              ShimmerLine(width: 60, height: 14),
+              SizedBox(height: 8),
+              ShimmerLine(height: 12),
+              SizedBox(height: 4),
+              ShimmerLine(width: 80, height: 11),
+            ]),
+          ),
+        ]),
+      ),
+    );
   }
 }
 
@@ -294,51 +352,59 @@ class _ContentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-            color: C.surf, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.bdr)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            child: AspectRatio(
-              aspectRatio: 16 / 9,
-              child: item.thumbnailUrl != null
-                  ? Image.network(item.thumbnailUrl!, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _Placeholder(type: item.contentType))
-                  : _Placeholder(type: item.contentType),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        child: Container(
+          decoration: BoxDecoration(
+              color: C.surf, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.bdr)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: item.thumbnailUrl != null
+                    ? Image.network(item.thumbnailUrl!, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => _Placeholder(type: item.contentType))
+                    : _Placeholder(type: item.contentType),
+              ),
             ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(color: C.purb, borderRadius: BorderRadius.circular(20)),
-                  child: Text('${item.contentType.emoji} ${item.contentType.label}',
-                      style: GoogleFonts.inter(fontSize: 8, fontWeight: FontWeight.w700, color: C.pur)),
-                ),
-                const SizedBox(height: 5),
-                Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: C.txt)),
-                const SizedBox(height: 3),
-                Text(item.subject, style: GoogleFonts.inter(fontSize: 10, color: C.txt2)),
-                const Spacer(),
-                Row(children: [
-                  const Icon(Icons.visibility_outlined, size: 10, color: C.muted),
-                  const SizedBox(width: 2),
-                  Text('${item.views}', style: GoogleFonts.inter(fontSize: 9, color: C.muted)),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.download_outlined, size: 10, color: C.muted),
-                  const SizedBox(width: 2),
-                  Text('${item.downloads}', style: GoogleFonts.inter(fontSize: 9, color: C.muted)),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(color: C.purb, borderRadius: BorderRadius.circular(20)),
+                    child: Text('${item.contentType.emoji} ${item.contentType.label}',
+                        style: AppText.label.copyWith(fontSize: 8, color: C.pur, letterSpacing: 0)),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: AppText.title.copyWith(fontSize: 11)),
+                  const SizedBox(height: 3),
+                  Text(item.subject, style: AppText.caption.copyWith(fontSize: 10)),
+                  const Spacer(),
+                  Row(children: [
+                    const Icon(Icons.visibility_outlined, size: 10, color: C.muted),
+                    const SizedBox(width: 2),
+                    Text('${item.views}', style: AppText.caption.copyWith(fontSize: 9)),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.download_outlined, size: 10, color: C.muted),
+                    const SizedBox(width: 2),
+                    Text('${item.downloads}', style: AppText.caption.copyWith(fontSize: 9)),
+                  ]),
                 ]),
-              ]),
+              ),
             ),
-          ),
-        ]),
+          ]),
+        ),
       ),
     );
   }
@@ -363,10 +429,10 @@ class _EmptyState extends StatelessWidget {
       Text(typeFilter?.emoji ?? '📚', style: const TextStyle(fontSize: 48)),
       const SizedBox(height: 12),
       Text(typeFilter != null ? 'No ${typeFilter!.label} yet' : 'No content uploaded yet',
-          style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
+          style: AppText.h2.copyWith(fontSize: 16)),
       const SizedBox(height: 6),
       Text('Upload the first resource for your school.',
-          style: GoogleFonts.inter(fontSize: 13, color: C.muted)),
+          style: AppText.bodySm.copyWith(color: C.muted)),
     ]),
   );
 }

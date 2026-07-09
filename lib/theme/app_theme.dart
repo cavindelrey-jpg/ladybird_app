@@ -3,6 +3,7 @@
 // All colour tokens are defined once here, used everywhere.
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// Academia Design System colour tokens.
 class C {
@@ -197,4 +198,57 @@ class RoleColors {
       default:               return C.muted;
     }
   }
+}
+
+// ── Type scale ──────────────────────────────────────────────────────────
+// Named text roles instead of ad-hoc `fontSize: 13` scattered per screen.
+// Sora for anything that needs to command attention (headers, titles,
+// numbers people should notice); Inter for anything meant to be read at
+// length (body copy, captions). Line-height is set deliberately per role
+// — tight for headers, generous (1.5–1.6) for reading text, since a lot
+// of "feels cramped" is line-height fighting the text, not the font size.
+//
+// Color is intentionally NOT baked in (except caption/label, which are
+// almost always muted) — call `.copyWith(color: ...)` at the use site for
+// anything that needs to sit on a dark background or change with state.
+class AppText {
+  AppText._();
+
+  static TextStyle get display => GoogleFonts.sora(
+      fontSize: 28, fontWeight: FontWeight.w800, height: 1.2, color: C.txt);
+
+  static TextStyle get h1 => GoogleFonts.sora(
+      fontSize: 22, fontWeight: FontWeight.w800, height: 1.25, color: C.txt);
+
+  static TextStyle get h2 => GoogleFonts.sora(
+      fontSize: 18, fontWeight: FontWeight.w700, height: 1.3, color: C.txt);
+
+  /// Card titles, list-item primary text, section headers.
+  static TextStyle get title => GoogleFonts.sora(
+      fontSize: 15, fontWeight: FontWeight.w700, height: 1.35, color: C.txt);
+
+  /// Secondary line under a title — byline, role, metadata row.
+  static TextStyle get subtitle => GoogleFonts.inter(
+      fontSize: 13, fontWeight: FontWeight.w600, height: 1.4, color: C.txt2);
+
+  /// Long-form reading text — article bodies, descriptions.
+  static TextStyle get body => GoogleFonts.inter(
+      fontSize: 15, fontWeight: FontWeight.w400, height: 1.65, color: C.txt);
+
+  /// Compact body text — comments, list secondary text.
+  static TextStyle get bodySm => GoogleFonts.inter(
+      fontSize: 13, fontWeight: FontWeight.w400, height: 1.5, color: C.txt2);
+
+  /// Timestamps, counts, fine print.
+  static TextStyle get caption => GoogleFonts.inter(
+      fontSize: 11.5, fontWeight: FontWeight.w500, height: 1.4, color: C.muted);
+
+  /// Badges, overline tags, all-caps labels.
+  static TextStyle get label => GoogleFonts.inter(
+      fontSize: 10.5, fontWeight: FontWeight.w700, height: 1.2,
+      letterSpacing: 0.6, color: C.muted);
+
+  /// Button label text.
+  static TextStyle get button => GoogleFonts.sora(
+      fontSize: 15, fontWeight: FontWeight.w700, height: 1.2, color: Colors.white);
 }

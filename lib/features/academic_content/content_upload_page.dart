@@ -3,6 +3,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
@@ -379,30 +380,38 @@ class _ContentTypeGrid extends StatelessWidget {
       itemBuilder: (_, i) {
         final t = ContentType.values[i];
         final active = t == selected;
-        return GestureDetector(
-          onTap: () => onSelected(t),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            decoration: BoxDecoration(
-              color: active ? C.primaryBg : C.surf,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: active ? C.primary : C.bdr,
-                  width: active ? 1.5 : 1),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(t.emoji,
-                    style: const TextStyle(fontSize: 22)),
-                const SizedBox(height: 4),
-                Text(t.label,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: active ? C.primary : C.txt2)),
-              ],
+        return Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onSelected(t);
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              decoration: BoxDecoration(
+                color: active ? C.primaryBg : C.surf,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: active ? C.primary : C.bdr,
+                    width: active ? 1.5 : 1),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(t.emoji,
+                      style: const TextStyle(fontSize: 22)),
+                  const SizedBox(height: 4),
+                  Text(t.label,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: active ? C.primary : C.txt2)),
+                ],
+              ),
             ),
           ),
         );
@@ -426,30 +435,38 @@ class _FilePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-        decoration: BoxDecoration(
-          color: selected ? C.primaryBg : C.surf,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color: selected ? C.primary : C.bdr,
-              style: BorderStyle.solid),
-        ),
-        child: Row(children: [
-          Icon(icon, size: 20, color: selected ? C.primary : C.muted),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(label,
-                style: GoogleFonts.inter(
-                    fontSize: 13,
-                    color: selected ? C.txt : C.muted)),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap == null ? null : () {
+          HapticFeedback.selectionClick();
+          onTap!();
+        },
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+          decoration: BoxDecoration(
+            color: selected ? C.primaryBg : C.surf,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: selected ? C.primary : C.bdr,
+                style: BorderStyle.solid),
           ),
-          if (selected)
-            const Icon(Icons.check_circle, size: 18, color: C.grn),
-        ]),
+          child: Row(children: [
+            Icon(icon, size: 20, color: selected ? C.primary : C.muted),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(label,
+                  style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: selected ? C.txt : C.muted)),
+            ),
+            if (selected)
+              const Icon(Icons.check_circle, size: 18, color: C.grn),
+          ]),
+        ),
       ),
     );
   }
@@ -462,29 +479,37 @@ class _ThumbnailPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 120,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: C.surf,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: C.bdr),
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap == null ? null : () {
+          HapticFeedback.selectionClick();
+          onTap!();
+        },
+        child: Container(
+          height: 120,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: C.surf,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: C.bdr),
+          ),
+          child: file != null
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(file!, fit: BoxFit.cover),
+                )
+              : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const Icon(Icons.add_photo_alternate_outlined,
+                      size: 32, color: C.muted),
+                  const SizedBox(height: 6),
+                  Text('Add thumbnail image',
+                      style: GoogleFonts.inter(
+                          fontSize: 13, color: C.muted)),
+                ]),
         ),
-        child: file != null
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.file(file!, fit: BoxFit.cover),
-              )
-            : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const Icon(Icons.add_photo_alternate_outlined,
-                    size: 32, color: C.muted),
-                const SizedBox(height: 6),
-                Text('Add thumbnail image',
-                    style: GoogleFonts.inter(
-                        fontSize: 13, color: C.muted)),
-              ]),
       ),
     );
   }

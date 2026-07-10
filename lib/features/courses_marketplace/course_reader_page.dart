@@ -260,7 +260,11 @@ class _CourseBody extends StatelessWidget {
     quill.QuillController controller;
     try {
       final doc = quill.Document.fromJson(jsonDecode(deltaJson));
-      controller = quill.QuillController(document: doc, selection: const TextSelection.collapsed(offset: 0));
+      controller = quill.QuillController(
+        document: doc,
+        selection: const TextSelection.collapsed(offset: 0),
+        readOnly: true,
+      );
     } catch (_) {
       return Text(course.body, style: AppText.body);
     }
@@ -268,7 +272,6 @@ class _CourseBody extends StatelessWidget {
     return quill.QuillEditor.basic(
       controller: controller,
       config: quill.QuillEditorConfig(
-        readOnly: true,
         showCursor: false,
         autoFocus: false,
         placeholder: 'Course content…',

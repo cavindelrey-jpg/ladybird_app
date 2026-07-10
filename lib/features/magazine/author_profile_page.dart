@@ -4,9 +4,11 @@
 // profile shows only what's published.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../models/app_user.dart';
 import '../../models/magazine_article.dart';
 import '../../repositories/magazine_repository.dart';
+import '../../repositories/follow_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 import 'article_reader_page.dart';
@@ -55,11 +57,26 @@ class AuthorProfilePage extends StatelessWidget {
                   radius: 26, photoUrl: articles.first.authorPhotoUrl,
                 ),
                 const SizedBox(width: 14),
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(headerName, style: AppText.h2),
-                  Text('${articles.length} article${articles.length == 1 ? '' : 's'}',
-                      style: AppText.bodySm),
-                ]),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(headerName, style: AppText.h2),
+                    Row(children: [
+                      Text('${articles.length} article${articles.length == 1 ? '' : 's'}',
+                          style: AppText.bodySm),
+                      if (!_isOwnProfile) ...[
+                        Text('  ·  ', style: AppText.bodySm),
+                        StreamBuilder<int>(
+                          stream: FollowRepository.instance.watchFollowerCount(authorId),
+                          builder: (context, s) => Text(
+                              '${s.data ?? 0} follower${(s.data ?? 0) == 1 ? '' : 's'}',
+                              style: AppText.bodySm),
+                        ),
+                      ],
+                    ]),
+                  ]),
+                ),
+                if (!_isOwnProfile && currentUser != null)
+                  _FollowButton(currentUserId: currentUser!.id, authorId: authorId),
               ]),
               const SizedBox(height: 20),
               ...articles.map((a) => Padding(
@@ -110,6 +127,51 @@ class AuthorProfilePage extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _FollowButton extends StatelessWidget {
+  final String currentUserId;
+  final String authorId;
+  const _FollowButton({required this.currentUserId, required this.authorId});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<bool>(
+      stream: FollowRepository.instance.watchIsFollowing(currentUserId, authorId),
+      builder: (context, snap) {
+        final following = snap.data ?? false;
+        return SizedBox(
+          height: 34,
+          child: following
+              ? OutlinedButton(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    FollowRepository.instance.unfollow(currentUserId, authorId);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: C.txt2,
+                    side: const BorderSide(color: C.bdr),
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                  ),
+                  child: Text('Following', style: AppText.caption.copyWith(fontSize: 12, fontWeight: FontWeight.w700)),
+                )
+              : ElevatedButton(
+                  onPressed: () {
+                    HapticFeedback.mediumImpact();
+                    FollowRepository.instance.follow(currentUserId, authorId);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: C.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                  ),
+                  child: Text('Follow', style: AppText.caption.copyWith(
+                      fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+                ),
+        );
+      },
     );
   }
 }

@@ -1,9 +1,6 @@
 // lib/features/magazine/article_composer_page.dart
-// Create/edit an article: title, cover image, body, draft vs published.
-//
-// Design pass: title/body fields now use the same AppText.h1 / AppText.body
-// styles as the reader page renders them in — what you type looks like
-// what readers will see, rather than a generic form font.
+// Create/edit an article: title, cover image, category, body, draft vs
+// published.
 //
 // Body is plain text for this MVP — MagazineArticle.body is a single
 // String field, so mixed text+image ordering (a true Substack block
@@ -18,7 +15,10 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/app_user.dart';
 import '../../models/magazine_article.dart';
+import '../../models/app_notification.dart';
 import '../../repositories/magazine_repository.dart';
+import '../../repositories/follow_repository.dart';
+import '../../repositories/notification_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
@@ -35,6 +35,7 @@ class ArticleComposerPage extends StatefulWidget {
 class _ArticleComposerPageState extends State<ArticleComposerPage> {
   late final _titleCtrl = TextEditingController(text: widget.existing?.title ?? '');
   late final _bodyCtrl = TextEditingController(text: widget.existing?.body ?? '');
+  late String _category = widget.existing?.category ?? kArticleCategories.first;
   File? _pickedCover;
   bool _saving = false;
   String? _error;
@@ -63,12 +64,15 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
     setState(() { _saving = true; _error = null; });
 
     final repo = MagazineRepository.instance;
+    final wasAlreadyPublished = widget.existing?.published ?? false;
     var article = widget.existing ?? MagazineArticle(
       id: '', authorId: widget.user.id, authorName: widget.user.name,
       authorPhotoUrl: widget.user.photoUrl, title: '', body: '',
+      schoolId: widget.user.schoolId,
     );
     article.title = _titleCtrl.text.trim();
     article.body = _bodyCtrl.text.trim();
+    article.category = _category;
     article.published = publish;
 
     if (_isNew) {
@@ -83,6 +87,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
         authorId: article.authorId, authorName: article.authorName,
         authorPhotoUrl: article.authorPhotoUrl,
         title: article.title, body: article.body,
+        category: article.category, schoolId: article.schoolId,
         thumbnailUrl: article.thumbnailUrl,
         published: article.published,
       );
@@ -102,8 +107,36 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
       setState(() => _error = (saveResult).message);
       return;
     }
+
+    // Notify followers on the transition into "published" — not on every
+    // draft save, and not a second time if it was already published.
+    if (publish && !wasAlreadyPublished) {
+      _notifyFollowers(article);
+    }
+
     showToast(context, publish ? 'Article published.' : 'Draft saved.');
     Navigator.of(context).pop();
+  }
+
+  /// Best-effort fan-out — never blocks the publish success path. Fine at
+  /// current scale; a Cloud Function trigger is the right home for this
+  /// once a writer's follower count gets large (fan-out writes scale with
+  /// follower count, done client-side here).
+  Future<void> _notifyFollowers(MagazineArticle article) async {
+    try {
+      final followerIds = await FollowRepository.instance.watchFollowerIds(widget.user.id).first;
+      for (final followerId in followerIds) {
+        await NotificationRepository.instance.create(
+          uid: followerId,
+          type: NotificationType.articlePublished,
+          title: '${widget.user.name} published a new article',
+          body: article.title,
+          deepLinkId: article.id,
+        );
+      }
+    } catch (_) {
+      // best-effort — swallow, publishing already succeeded
+    }
   }
 
   Future<void> _delete() async {
@@ -164,6 +197,35 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
                     : null,
               ),
             ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8, runSpacing: 8,
+            children: kArticleCategories.map((cat) {
+              final active = cat == _category;
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    setState(() => _category = cat);
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: active ? C.primary : C.surf2,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: active ? C.primary : C.bdr),
+                    ),
+                    child: Text(cat, style: AppText.caption.copyWith(
+                        fontSize: 12, fontWeight: FontWeight.w700,
+                        color: active ? Colors.white : C.txt2)),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
           const SizedBox(height: 20),
           TextField(

@@ -20,7 +20,7 @@ import '../features/timetable/timetable_page.dart';
 import '../features/attendance/attendance_page.dart';
 import '../features/assignments/assignments_page.dart';
 import '../features/calendar/calendar_page.dart';
-import '../features/courses/courses_page.dart';
+import '../features/courses_marketplace/courses_marketplace_page.dart';
 import '../pages/marks_page.dart';
 import '../pages/profile_page.dart';
 import '../features/dashboard/universal_home_page.dart';
@@ -410,7 +410,7 @@ class _HomeShellState extends State<HomeShell> {
       case 'Home':        return UniversalHomePage(user: u);
       case 'Notices':     return AnnouncementsPage(user: u, canPost: u.canPostAnnouncement);
       case 'Calendar':    return CalendarPage(user: u);
-      case 'Courses':     return CoursesPage(user: u);
+      case 'Courses':     return CoursesMarketplacePage(user: u);
       case 'Timetable':   return TimetablePage(user: u);
       case 'Assignments': return AssignmentsPage(user: u);
       case 'Grades':      return MarksPage(user: u);

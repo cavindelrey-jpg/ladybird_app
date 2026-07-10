@@ -56,7 +56,7 @@ import '../../widgets/coming_soon_page.dart';
 import '../../pages/marks_page.dart';
 import '../timetable/timetable_page.dart';
 import '../assignments/assignments_page.dart';
-import '../courses/courses_page.dart';
+import '../courses_marketplace/courses_marketplace_page.dart';
 import '../clubs/clubs_page.dart';
 import '../academic_content/academic_content_page.dart';
 import '../magazine/magazine_feed_page.dart';
@@ -443,9 +443,13 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   void _open(BuildContext context, Widget destResolver) {
-    // Guests get a read-only nudge instead of pages that require an
-    // AppUser (write-capable pages need a real account).
-    if (_isGuest) {
+    // Magazine and Courses both fully support guest browsing (user: null)
+    // — blocking guests here contradicted both those screens and the
+    // drawer's own "guest can browse everything" design. Everything else
+    // genuinely needs a real account (force-unwraps _u! below), so those
+    // still get the sign-in nudge.
+    final guestBrowsable = destResolver is _MagazineDest || destResolver is _CoursesDest;
+    if (_isGuest && !guestBrowsable) {
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ComingSoonPage(
         title: 'Sign in required',
         subtitle: 'Create a free account to open this section.',
@@ -459,7 +463,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     } else if (destResolver is _PastQuestionsDest) {
       page = AcademicContentPage(user: _u!, initialTypeFilter: ContentType.pastPaper);
     } else if (destResolver is _CoursesDest) {
-      page = CoursesPage(user: _u!);
+      page = CoursesMarketplacePage(user: _u);
     } else if (destResolver is _ClubsDest) {
       page = ClubsPage(user: _u!);
     } else if (destResolver is _MagazineDest) {

@@ -20,7 +20,7 @@ import '../features/admin/admin_panel_page.dart';
 import '../features/onboarding/account_choice_screen.dart';
 import '../screens/login_screen.dart';
 import '../models/school_config.dart';
-import '../features/courses/courses_page.dart';
+import '../features/courses_marketplace/courses_marketplace_page.dart';
 import '../features/clubs/clubs_page.dart';
 import '../features/academic_content/academic_content_page.dart';
 import '../models/academic_content.dart';
@@ -50,12 +50,8 @@ class AppDrawer extends StatelessWidget {
                 _item(context, Icons.home_rounded, 'Home',
                     () => Navigator.of(context).pop()),
                 _item(context, Icons.school_rounded, 'Courses', () {
-                  if (_isGuest) {
-                    _goSignIn(context);
-                  } else {
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => CoursesPage(user: user!)));
-                  }
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => CoursesMarketplacePage(user: user)));
                 }),
                 _item(context, Icons.folder_copy_rounded, 'Content Library', () {
                   if (_isGuest) {

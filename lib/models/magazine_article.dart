@@ -20,8 +20,19 @@ class MagazineArticle {
   String? thumbnailUrl;    // author-supplied cover image
   String? cachedThumbnailPath;
 
+  /// Free-text category label (Essay, Opinion, Story, News, etc.) — shown
+  /// as the small colored tag on article cards. No fixed enum since this
+  /// is editorial, not structural — see kArticleCategories for the
+  /// suggested picker list in the composer.
+  String category;
+
+  /// Author's schoolId at time of publish (nullable — independent users
+  /// have none). Backs the "Local Feed" tab; "Global Feed" ignores it.
+  final String? schoolId;
+
   int readCount;
   int commentCount;
+  int likeCount;
   bool published;
   final DateTime createdAt;
   DateTime updatedAt;
@@ -35,8 +46,11 @@ class MagazineArticle {
     required this.body,
     this.thumbnailUrl,
     this.cachedThumbnailPath,
+    this.category = 'Essay',
+    this.schoolId,
     this.readCount = 0,
     this.commentCount = 0,
+    this.likeCount = 0,
     this.published = true,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -53,8 +67,11 @@ class MagazineArticle {
       title: d['title'] ?? '',
       body: d['body'] ?? '',
       thumbnailUrl: d['thumbnailUrl'],
+      category: d['category'] ?? 'Essay',
+      schoolId: d['schoolId'],
       readCount: d['readCount'] ?? 0,
       commentCount: d['commentCount'] ?? 0,
+      likeCount: d['likeCount'] ?? 0,
       published: d['published'] ?? true,
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -68,13 +85,20 @@ class MagazineArticle {
         'title': title,
         'body': body,
         'thumbnailUrl': thumbnailUrl,
+        'category': category,
+        'schoolId': schoolId,
         'readCount': readCount,
         'commentCount': commentCount,
+        'likeCount': likeCount,
         'published': published,
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': FieldValue.serverTimestamp(),
       };
 }
+
+/// Suggested category picker options for the composer. Free-text under
+/// the hood, but a fixed list keeps the tags visually consistent.
+const kArticleCategories = ['Essay', 'Opinion', 'Story', 'News', 'Guide', 'Interview'];
 
 class ArticleComment {
   final String id;

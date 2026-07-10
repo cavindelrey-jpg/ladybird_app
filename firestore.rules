@@ -221,7 +221,13 @@ service cloud.firestore {
       allow read: if resource.data.published == true
                    || (isSignedIn() && resource.data.authorId == request.auth.uid);
       allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid
+        // Any signed-in user can bump likeCount by liking/unliking —
+        // full-document edits still stay author-only.
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount'])
+      );
+      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
       // readCount/commentCount increments happen via the same update rule
       // above (author-owned doc) — reads/comments themselves are what
       // change those counters through the app's own repository calls,
@@ -232,6 +238,23 @@ service cloud.firestore {
         allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
         allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
       }
+
+      // One doc per user who's liked this article — existence == liked.
+      match /likes/{userId} {
+        allow read: if true;
+        allow create, delete: if isSignedIn() && request.auth.uid == userId;
+      }
+    }
+
+    // ── follows/{followerId}_{followedId} ────────────────────────────
+    // One-way follow relationships backing Magazine's Following tab.
+    // Doc ID is composite (followerId_followedId) so a user can only
+    // ever have one follow-doc per person they follow.
+    match /follows/{followId} {
+      allow read: if true; // follower/following counts are public, like most social apps
+      allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+      allow update: if false; // follows are create/delete only, never edited
     }
 
     // ── heroSlides/{id} ───────────────────────────────────────────────
@@ -302,6 +325,47 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update, delete: if canManageSchool() ||
         (canUploadContent() && resource.data.lecturerId == request.auth.uid);
+    }
+
+    // ── public_courses/{id} ───────────────────────────────────────────
+    // The general-app marketplace Courses — genuinely separate from the
+    // school-scoped courses/{id} above. Any signed-in user creates their
+    // own; likeCount/enrolledCount/avgRating/ratingCount need cross-user
+    // updates (same pattern as articles' likeCount), full-document edits
+    // stay creator-only.
+    match /public_courses/{courseId} {
+      allow read: if resource.data.published == true
+                   || (isSignedIn() && resource.data.creatorId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.creatorId == request.auth.uid
+        || request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['likeCount', 'enrolledCount', 'avgRating', 'ratingCount', 'commentCount'])
+      );
+      allow delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
+
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+        allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+      }
+      match /likes/{userId} {
+        allow read: if true;
+        allow create, delete: if isSignedIn() && request.auth.uid == userId;
+      }
+      match /bookmarks/{userId} {
+        allow read, create, delete: if isSignedIn() && request.auth.uid == userId;
+      }
+      match /learners/{userId} {
+        allow read: if true;
+        allow create: if isSignedIn() && request.auth.uid == userId;
+        allow update, delete: if false; // enrollment marker, never edited/removed
+      }
+      match /ratings/{userId} {
+        allow read: if true;
+        allow create, update: if isSignedIn() && request.auth.uid == userId;
+        allow delete: if false;
+      }
     }
 
     // ── audit_logs/{id} ───────────────────────────────────────────────

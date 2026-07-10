@@ -265,19 +265,14 @@ class _CourseBody extends StatelessWidget {
       return Text(course.body, style: AppText.body);
     }
 
-    // Wrapped in IgnorePointer instead of passing a readOnly/isReadOnly flag —
-    // the exact param name on QuillEditorConfigurations has moved around across
-    // flutter_quill releases, so this makes the viewer non-interactive without
-    // depending on which name this particular build expects.
-    return IgnorePointer(
-      child: quill.QuillEditor.basic(
-        controller: controller,
-        configurations: quill.QuillEditorConfigurations(
-          showCursor: false,
-          autoFocus: false,
-          placeholder: 'Course content…',
-          embedBuilders: FlutterQuillEmbeds.editorBuilders(),
-        ),
+    return quill.QuillEditor.basic(
+      controller: controller,
+      config: quill.QuillEditorConfig(
+        readOnly: true,
+        showCursor: false,
+        autoFocus: false,
+        placeholder: 'Course content…',
+        embedBuilders: FlutterQuillEmbeds.editorBuilders(),
       ),
     );
   }

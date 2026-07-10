@@ -29,8 +29,8 @@ dependencies:
   fl_chart: ^1.2.0
 
   # Rich Text Canvas Editor & Word Importer Dependencies
-  flutter_quill: ^10.8.3
-  flutter_quill_extensions: ^10.8.3
+  flutter_quill: ^11.0.0
+  flutter_quill_extensions: ^11.0.0
   archive: ^3.6.1
   xml: ^6.5.0
 

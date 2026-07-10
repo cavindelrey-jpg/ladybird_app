@@ -309,7 +309,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                   controller: _quillCtrl,
                   focusNode: _editorFocusNode,
                   scrollController: _editorScrollCtrl,
-                  configurations: quill.QuillEditorConfigurations(
+                  config: quill.QuillEditorConfig(
                     placeholder: 'Course content…',
                     embedBuilders: FlutterQuillEmbeds.editorBuilders(),
                   ),
@@ -331,16 +331,12 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
           decoration: const BoxDecoration(color: C.surf, border: Border(top: BorderSide(color: C.bdr))),
           child: quill.QuillSimpleToolbar(
             controller: _quillCtrl,
-            configurations: quill.QuillSimpleToolbarConfigurations(
+            config: quill.QuillSimpleToolbarConfig(
               multiRowsDisplay: false,
               embedButtons: FlutterQuillEmbeds.toolbarButtons(
                 imageButtonOptions: QuillToolbarImageButtonOptions(
-                  imageButtonConfigurations: QuillToolbarImageConfigurations(
-                    onRequestPickImage: (context, imagePickerService) async {
-                      // Deliberately not using the injected imagePickerService here —
-                      // its pickImage() expects an ImageSource type that doesn't line
-                      // up cleanly with this project's image_picker version. Using our
-                      // own ImagePicker() instance (same as _pickCover) sidesteps that.
+                  imageButtonConfig: QuillToolbarImageConfig(
+                    onRequestPickImage: (context) async {
                       final picked = await ImagePicker().pickImage(
                         source: ImageSource.gallery,
                       );

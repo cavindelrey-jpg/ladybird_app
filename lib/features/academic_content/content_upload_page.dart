@@ -46,7 +46,7 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
   }
 
   Future<void> _pickContentFile() async {
-    final result = await FilePicker.pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: [
         'pdf','doc','docx','ppt','pptx','xls','xlsx',

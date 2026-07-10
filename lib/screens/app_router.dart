@@ -421,17 +421,28 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
+  // Lazy tab loading: IndexedStack previously built every single nav
+  // page eagerly on shell mount (nav.map(_buildPage).toList()) — meaning
+  // Attendance, Grades, Timetable, Assignments, etc. all started their
+  // own Firestore streams immediately regardless of whether Home was the
+  // only tab ever opened. Beyond the wasted reads, if any one of those
+  // untouched tabs has a build-time bug, only building it lazily (on
+  // first visit) keeps that from being able to affect Home at all.
+  final Set<int> _visitedTabs = {0};
+
   @override
   Widget build(BuildContext context) {
     final nav     = _buildNav();
     final safeTab = _tab.clamp(0, nav.length - 1);
+    _visitedTabs.add(safeTab);
 
     return Scaffold(
       drawer: AppDrawer(user: widget.user, institution: widget.institution),
       body: SafeArea(
         child: IndexedStack(
           index: safeTab,
-          children: nav.map(_buildPage).toList(),
+          children: List.generate(nav.length,
+              (i) => _visitedTabs.contains(i) ? _buildPage(nav[i]) : const SizedBox.shrink()),
         ),
       ),
       bottomNavigationBar: NavigationBar(

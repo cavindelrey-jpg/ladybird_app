@@ -1,16 +1,20 @@
 // lib/features/courses_marketplace/course_composer_page.dart
-// Create/edit a marketplace course: cover, category, title, description,
-// body content. Any signed-in user can publish — matches the "anyone can
-// contribute" vision, separate entirely from school-scoped Course
-// creation (which stays admin-only in features/courses/).
+// Create/edit a marketplace course — now a real rich text editor
+// (flutter_quill) instead of a plain TextField, so bold/italic/headings/
+// lists/inline images are all real formatting, not just typed characters.
 
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import '../../models/app_user.dart';
 import '../../models/public_course.dart';
 import '../../repositories/public_course_repository.dart';
+import '../../core/docx_parser.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
@@ -27,17 +31,42 @@ class CourseComposerPage extends StatefulWidget {
 class _CourseComposerPageState extends State<CourseComposerPage> {
   late final _titleCtrl = TextEditingController(text: widget.existing?.title ?? '');
   late final _descCtrl = TextEditingController(text: widget.existing?.description ?? '');
-  late final _bodyCtrl = TextEditingController(text: widget.existing?.body ?? '');
   late String _category = widget.existing?.category ?? kCourseCategories.first;
+  late final quill.QuillController _quillCtrl = _initQuillController();
+  final _editorFocusNode = FocusNode();
+  final _editorScrollCtrl = ScrollController();
+
   File? _pickedCover;
   bool _saving = false;
+  bool _importing = false;
   String? _error;
 
   bool get _isNew => widget.existing == null;
+  bool get _canImportDocx => widget.user.isSuperAdmin;
+
+  quill.QuillController _initQuillController() {
+    final existingDelta = widget.existing?.bodyDelta;
+    if (existingDelta != null && existingDelta.isNotEmpty) {
+      try {
+        final doc = quill.Document.fromJson(jsonDecode(existingDelta));
+        return quill.QuillController(document: doc, selection: const TextSelection.collapsed(offset: 0));
+      } catch (_) {
+        // Corrupt/old-format delta fallback
+      }
+    }
+    final plain = widget.existing?.body ?? '';
+    final controller = quill.QuillController.basic();
+    if (plain.isNotEmpty) controller.document.insert(0, plain);
+    return controller;
+  }
 
   @override
   void dispose() {
-    _titleCtrl.dispose(); _descCtrl.dispose(); _bodyCtrl.dispose();
+    _titleCtrl.dispose();
+    _descCtrl.dispose();
+    _quillCtrl.dispose();
+    _editorFocusNode.dispose();
+    _editorScrollCtrl.dispose();
     super.dispose();
   }
 
@@ -47,8 +76,40 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     if (picked != null) setState(() => _pickedCover = File(picked.path));
   }
 
+  Future<void> _importDocx() async {
+    HapticFeedback.mediumImpact();
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom, allowedExtensions: ['docx'], withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final bytes = result.files.single.bytes;
+    if (bytes == null) {
+      if (mounted) showToast(context, 'Could not read that file.', isError: true);
+      return;
+    }
+
+    setState(() => _importing = true);
+    try {
+      final parsed = DocxParser.parse(bytes);
+      final delta = quill.Document.fromJson(jsonDecode(parsed.deltaJson));
+      setState(() {
+        _quillCtrl.document = delta;
+        _importing = false;
+      });
+      if (parsed.warnings.isNotEmpty && mounted) {
+        showToast(context, parsed.warnings.join(' '));
+      } else if (mounted) {
+        showToast(context, 'Document imported — review before publishing.');
+      }
+    } catch (e) {
+      setState(() => _importing = false);
+      if (mounted) showToast(context, 'Could not convert this file: $e', isError: true);
+    }
+  }
+
   Future<void> _save({required bool publish}) async {
-    if (_titleCtrl.text.trim().isEmpty || _bodyCtrl.text.trim().isEmpty) {
+    final plainText = _quillCtrl.document.toPlainText().trim();
+    if (_titleCtrl.text.trim().isEmpty || plainText.isEmpty) {
       setState(() => _error = 'Title and body are required.');
       return;
     }
@@ -62,7 +123,8 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     );
     course.title = _titleCtrl.text.trim();
     course.description = _descCtrl.text.trim();
-    course.body = _bodyCtrl.text.trim();
+    course.body = plainText;
+    course.bodyDelta = jsonEncode(_quillCtrl.document.toDelta().toJson());
     course.category = _category;
     course.published = publish;
 
@@ -76,7 +138,8 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
         id: (result as Success<String>).value,
         creatorId: course.creatorId, creatorName: course.creatorName,
         creatorPhotoUrl: course.creatorPhotoUrl,
-        title: course.title, description: course.description, body: course.body,
+        title: course.title, description: course.description,
+        body: course.body, bodyDelta: course.bodyDelta,
         category: course.category, published: course.published,
       );
     }
@@ -87,12 +150,14 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     }
 
     final saveResult = await repo.update(course);
+
     if (!mounted) return;
     setState(() => _saving = false);
     if (saveResult is Failure) {
-      setState(() => _error = (saveResult).message);
+      setState(() => _error = (saveResult as Failure<String>).message);
       return;
     }
+
     showToast(context, publish ? 'Course published.' : 'Draft saved.');
     Navigator.of(context).pop();
   }
@@ -118,6 +183,14 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     }
   }
 
+  Future<String?> _onEmbedImagePick(File file) async {
+    final courseId = widget.existing?.id ?? 'draft_${widget.user.id}_${DateTime.now().millisecondsSinceEpoch}';
+    final result = await PublicCourseRepository.instance.uploadCover(
+        courseId: '${courseId}_inline_${DateTime.now().millisecondsSinceEpoch}', imageFile: file);
+    if (result is Success<String>) return result.value;
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -127,103 +200,181 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
         iconTheme: const IconThemeData(color: C.txt),
         title: Text(_isNew ? 'Create Course' : 'Edit Course', style: AppText.title),
         actions: [
+          if (_canImportDocx)
+            IconButton(
+              icon: _importing
+                  ? const SizedBox(width: 20, height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.upload_file_rounded, color: C.txt),
+              tooltip: 'Import Word document (Super Admin)',
+              onPressed: _importing ? null : _importDocx,
+            ),
           if (!_isNew)
             IconButton(icon: const Icon(Icons.delete_outline_rounded, color: C.red), onPressed: _delete),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(Rad.md),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(Rad.md),
-              onTap: _pickCover,
-              child: Container(
-                height: 140, width: double.infinity,
-                decoration: BoxDecoration(
-                  color: C.navy, borderRadius: BorderRadius.circular(Rad.md),
-                  image: _pickedCover != null
-                      ? DecorationImage(image: FileImage(_pickedCover!), fit: BoxFit.cover)
-                      : (widget.existing?.coverImageUrl != null
+      body: Column(children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(Rad.md),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Rad.md),
+                  onTap: _pickCover,
+                  child: Container(
+                    height: 140, width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: C.navy, borderRadius: BorderRadius.circular(Rad.md),
+                      image: _pickedCover != null
+                          ? DecorationImage(image: FileImage(_pickedCover!), fit: BoxFit.cover)
+                          : (widget.existing?.coverImageUrl != null
                           ? DecorationImage(image: NetworkImage(widget.existing!.coverImageUrl!), fit: BoxFit.cover)
                           : null),
+                    ),
+                    child: (_pickedCover == null && widget.existing?.coverImageUrl == null)
+                        ? const Center(child: Icon(Icons.add_photo_alternate_outlined, color: Colors.white70, size: 32))
+                        : null,
+                  ),
                 ),
-                child: (_pickedCover == null && widget.existing?.coverImageUrl == null)
-                    ? const Center(child: Icon(Icons.add_photo_alternate_outlined, color: Colors.white70, size: 32))
-                    : null,
+              ),
+              if (_canImportDocx) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
+                  child: Row(children: [
+                    const Icon(Icons.info_outline_rounded, size: 15, color: C.primary),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(
+                        'As Super Admin, you can import a .docx to fill the editor below — '
+                            'review and add any diagrams before publishing.',
+                        style: AppText.caption.copyWith(fontSize: 11, color: C.primary))),
+                  ]),
+                ),
+              ],
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8, runSpacing: 8,
+                children: kCourseCategories.map((cat) {
+                  final active = cat == _category;
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _category = cat);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: active ? C.primary : C.surf2,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: active ? C.primary : C.bdr),
+                        ),
+                        child: Text(cat, style: AppText.caption.copyWith(
+                            fontSize: 12, fontWeight: FontWeight.w700,
+                            color: active ? Colors.white : C.txt2)),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _titleCtrl, style: AppText.h1,
+                decoration: const InputDecoration(hintText: 'Course title', border: InputBorder.none),
+              ),
+              const Divider(color: C.bdr2),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _descCtrl, style: AppText.bodySm.copyWith(color: C.txt),
+                maxLines: 2,
+                decoration: const InputDecoration(
+                    hintText: 'Short description (shown on cards)…', border: InputBorder.none),
+              ),
+              const SizedBox(height: 12),
+              const Divider(color: C.bdr2),
+              const SizedBox(height: 12),
+              Container(
+                constraints: const BoxConstraints(minHeight: 320),
+                decoration: BoxDecoration(
+                    color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr)),
+                padding: const EdgeInsets.all(8),
+                child: quill.QuillEditor.basic(
+                  controller: _quillCtrl,
+                  focusNode: _editorFocusNode,
+                  scrollController: _editorScrollCtrl,
+                  configurations: quill.QuillEditorConfigurations(
+                    placeholder: 'Course content…',
+                    embedBuilders: FlutterQuillEmbeds.editorBuilders(),
+                  ),
+                ),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(Rad.sm)),
+                  child: Text(_error!, style: AppText.bodySm.copyWith(color: C.red)),
+                ),
+              ],
+              const SizedBox(height: 100),
+            ],
+          ),
+        ),
+        Container(
+          decoration: const BoxDecoration(color: C.surf, border: Border(top: BorderSide(color: C.bdr))),
+          child: quill.QuillSimpleToolbar(
+            controller: _quillCtrl,
+            configurations: quill.QuillSimpleToolbarConfigurations(
+              multiRowsDisplay: false,
+              embedButtons: FlutterQuillEmbeds.toolbarButtons(
+                imageButtonOptions: QuillToolbarImageButtonOptions(
+                  imageButtonConfigurations: QuillToolbarImageConfigurations(
+                    onRequestPickImage: (context, imagePickerService) async {
+                      // Deliberately not using the injected imagePickerService here —
+                      // its pickImage() expects an ImageSource type that doesn't line
+                      // up cleanly with this project's image_picker version. Using our
+                      // own ImagePicker() instance (same as _pickCover) sidesteps that.
+                      final picked = await ImagePicker().pickImage(
+                        source: ImageSource.gallery,
+                      );
+                      if (picked == null) return null;
+                      return _onEmbedImagePick(File(picked.path));
+                    },
+                    onImageInsertCallback: (image, controller) async {
+                      final index = controller.selection.baseOffset;
+                      controller.document.insert(index, quill.BlockEmbed.image(image));
+                    },
+                  ),
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8, runSpacing: 8,
-            children: kCourseCategories.map((cat) {
-              final active = cat == _category;
-              return Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    setState(() => _category = cat);
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: active ? C.primary : C.surf2,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: active ? C.primary : C.bdr),
-                    ),
-                    child: Text(cat, style: AppText.caption.copyWith(
-                        fontSize: 12, fontWeight: FontWeight.w700,
-                        color: active ? Colors.white : C.txt2)),
-                  ),
-                ),
-              );
-            }).toList(),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+            child: Row(children: [
+              Expanded(
+                child: SecondaryBtn(label: 'Save Draft',
+                    onTap: _saving ? () {} : () => _save(publish: false)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: PrimaryBtn(label: 'Publish', loading: _saving,
+                    onTap: () => _save(publish: true)),
+              ),
+            ]),
           ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _titleCtrl, style: AppText.h1,
-            decoration: const InputDecoration(hintText: 'Course title', border: InputBorder.none),
-          ),
-          const Divider(color: C.bdr2),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _descCtrl, style: AppText.bodySm.copyWith(color: C.txt),
-            maxLines: 2,
-            decoration: const InputDecoration(
-              hintText: 'Short description (shown on cards)…', border: InputBorder.none),
-          ),
-          const SizedBox(height: 12),
-          const Divider(color: C.bdr2),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _bodyCtrl, style: AppText.body,
-            maxLines: null, minLines: 12,
-            decoration: const InputDecoration(hintText: 'Course content…', border: InputBorder.none),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(Rad.sm)),
-              child: Text(_error!, style: AppText.bodySm.copyWith(color: C.red)),
-            ),
-          ],
-          const SizedBox(height: 28),
-          Row(children: [
-            Expanded(child: SecondaryBtn(label: 'Save Draft',
-                onTap: _saving ? () {} : () => _save(publish: false))),
-            const SizedBox(width: 12),
-            Expanded(child: PrimaryBtn(label: 'Publish', loading: _saving,
-                onTap: () => _save(publish: true))),
-          ]),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 }

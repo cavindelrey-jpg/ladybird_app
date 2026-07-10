@@ -237,6 +237,13 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
             ),
           );
         }
+        if (snap.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text('Failed to load: ${snap.error}',
+                style: AppText.caption.copyWith(color: C.red, fontSize: 11)),
+          );
+        }
         final courses = snap.data ?? const <PublicCourse>[];
         if (courses.isEmpty) {
           return Padding(
@@ -328,6 +335,13 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
               ])),
             ]),
           )));
+        }
+        if (snap.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text('Failed to load: ${snap.error}',
+                style: AppText.caption.copyWith(color: C.red, fontSize: 11)),
+          );
         }
         final courses = snap.data ?? const <PublicCourse>[];
         if (courses.isEmpty) {

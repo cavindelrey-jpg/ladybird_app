@@ -24,7 +24,18 @@ class PublicCourse {
   final String? creatorPhotoUrl;
   String title;
   String description;
-  String body; // the actual course content, read in-app
+
+  /// Plain-text body — kept as a fallback/derived value for card
+  /// excerpts, search, and read-time estimates. Always regenerated from
+  /// bodyDelta's plain text whenever the rich content is saved; never
+  /// edited directly once bodyDelta exists.
+  String body;
+
+  /// Rich content as a Quill Delta, JSON-encoded. Null/empty means this
+  /// course predates rich text and only has plain `body` — the reader
+  /// falls back to rendering that as plain text in that case.
+  String? bodyDelta;
+
   String category;
   String? coverImageUrl;
   bool published;
@@ -46,6 +57,7 @@ class PublicCourse {
     required this.title,
     this.description = '',
     this.body = '',
+    this.bodyDelta,
     this.category = 'Mathematics',
     this.coverImageUrl,
     this.published = true,
@@ -69,6 +81,7 @@ class PublicCourse {
       title: d['title'] ?? '',
       description: d['description'] ?? '',
       body: d['body'] ?? '',
+      bodyDelta: d['bodyDelta'],
       category: d['category'] ?? 'Mathematics',
       coverImageUrl: d['coverImageUrl'],
       published: d['published'] ?? true,
@@ -89,6 +102,7 @@ class PublicCourse {
         'title': title,
         'description': description,
         'body': body,
+        'bodyDelta': bodyDelta,
         'category': category,
         'coverImageUrl': coverImageUrl,
         'published': published,

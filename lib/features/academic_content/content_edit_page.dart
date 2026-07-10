@@ -63,8 +63,7 @@ class _ContentEditPageState extends State<ContentEditPage> {
   }
 
   Future<void> _pickNewFile() async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.custom,
+    final result = await FilePicker.platform.pickFiles(
       allowedExtensions: [
         'pdf','doc','docx','ppt','pptx','xls','xlsx',
         'mp4','mov','avi','png','jpg','jpeg','zip',

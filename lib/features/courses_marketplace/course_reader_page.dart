@@ -4,6 +4,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
+import 'dart:convert';
 import '../../models/app_user.dart';
 import '../../models/public_course.dart';
 import '../../repositories/public_course_repository.dart';
@@ -121,7 +124,7 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                   const SizedBox(height: 20),
                   const Divider(color: C.bdr2),
                   const SizedBox(height: 20),
-                  Text(course.body, style: AppText.body),
+                  _CourseBody(course: course),
                   const SizedBox(height: 32),
                   const Divider(color: C.bdr2),
                   const SizedBox(height: 16),
@@ -145,8 +148,8 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                       const SizedBox(width: 8),
                       _postingComment
                           ? const SizedBox(width: 40, height: 40,
-                              child: Center(child: SizedBox(width: 18, height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2))))
+                          child: Center(child: SizedBox(width: 18, height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2))))
                           : IconButton(icon: const Icon(Icons.send_rounded, color: C.primary), onPressed: _postComment),
                     ])
                   else
@@ -225,11 +228,11 @@ class _RatingRow extends StatelessWidget {
             Text('Rate this course', style: AppText.title.copyWith(fontSize: 16)),
             const SizedBox(height: 16),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(5, (i) =>
-              IconButton(
-                icon: Icon(i < selected ? Icons.star_rounded : Icons.star_outline_rounded,
-                    size: 32, color: C.gold),
-                onPressed: () => setM(() => selected = i + 1),
-              ),
+                IconButton(
+                  icon: Icon(i < selected ? Icons.star_rounded : Icons.star_outline_rounded,
+                      size: 32, color: C.gold),
+                  onPressed: () => setM(() => selected = i + 1),
+                ),
             )),
             const SizedBox(height: 12),
             PrimaryBtn(label: 'Submit Rating', onTap: () {
@@ -240,6 +243,42 @@ class _RatingRow extends StatelessWidget {
           ]),
         );
       }),
+    );
+  }
+}
+
+class _CourseBody extends StatelessWidget {
+  final PublicCourse course;
+  const _CourseBody({required this.course});
+
+  @override
+  Widget build(BuildContext context) {
+    final deltaJson = course.bodyDelta;
+    if (deltaJson == null || deltaJson.isEmpty) {
+      return Text(course.body, style: AppText.body);
+    }
+    quill.QuillController controller;
+    try {
+      final doc = quill.Document.fromJson(jsonDecode(deltaJson));
+      controller = quill.QuillController(document: doc, selection: const TextSelection.collapsed(offset: 0));
+    } catch (_) {
+      return Text(course.body, style: AppText.body);
+    }
+
+    // Wrapped in IgnorePointer instead of passing a readOnly/isReadOnly flag —
+    // the exact param name on QuillEditorConfigurations has moved around across
+    // flutter_quill releases, so this makes the viewer non-interactive without
+    // depending on which name this particular build expects.
+    return IgnorePointer(
+      child: quill.QuillEditor.basic(
+        controller: controller,
+        configurations: quill.QuillEditorConfigurations(
+          showCursor: false,
+          autoFocus: false,
+          placeholder: 'Course content…',
+          embedBuilders: FlutterQuillEmbeds.editorBuilders(),
+        ),
+      ),
     );
   }
 }

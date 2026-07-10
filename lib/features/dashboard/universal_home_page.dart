@@ -210,6 +210,21 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return StreamBuilder<List<HeroSlide>>(
       stream: HeroSlideRepository.instance.watchActive(),
       builder: (context, snap) {
+        if (snap.hasError) {
+          // A failed query (missing index, denied rule, etc.) used to
+          // fall through to the same "no banners yet" empty state as
+          // genuinely having none — this is exactly what hid the missing
+          // heroSlides composite index. Surface it instead of hiding it.
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(Rad.sm)),
+              child: Text('Banners failed to load: ${snap.error}',
+                  style: AppText.caption.copyWith(color: C.red, fontSize: 11)),
+            ),
+          );
+        }
         final slides = snap.data ?? const <HeroSlide>[];
 
         if (slides.isEmpty) {
@@ -511,6 +526,10 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               ),
           ]);
         }
+        if (snap.hasError) {
+          return Text('Failed to load: ${snap.error}',
+              style: AppText.caption.copyWith(color: C.red, fontSize: 11));
+        }
         final writers = (snap.data ?? const <TopWriterEntry>[]).take(3).toList();
         if (writers.isEmpty) {
           return _emptyPanelRow(
@@ -559,6 +578,10 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return StreamBuilder<List<Announcement>>(
       stream: AnnouncementRepository.instance.watchAnnouncements(schoolId: _u?.schoolId),
       builder: (context, snap) {
+        if (snap.hasError) {
+          return Text('Failed to load: ${snap.error}',
+              style: AppText.caption.copyWith(color: C.red, fontSize: 11));
+        }
         final items = (snap.data ?? const <Announcement>[]).take(3).toList();
         if (items.isEmpty) {
           return _emptyPanelRow(
@@ -706,6 +729,13 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               separatorBuilder: (_, __) => const SizedBox(width: 12),
               itemBuilder: (_, __) => const ShimmerBlock(width: 160, height: 140),
             ),
+          );
+        }
+        if (snap.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Text('Failed to load: ${snap.error}',
+                style: AppText.caption.copyWith(color: C.red, fontSize: 11)),
           );
         }
         final items = (snap.data ?? const <AcademicContent>[]).take(6).toList();

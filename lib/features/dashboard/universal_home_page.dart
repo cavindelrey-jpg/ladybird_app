@@ -56,7 +56,7 @@ import '../../widgets/coming_soon_page.dart';
 import '../../pages/marks_page.dart';
 import '../timetable/timetable_page.dart';
 import '../assignments/assignments_page.dart';
-import '../courses_marketplace/courses_marketplace_page.dart';
+import '../courses/courses_page.dart';
 import '../clubs/clubs_page.dart';
 import '../academic_content/academic_content_page.dart';
 import '../magazine/magazine_feed_page.dart';
@@ -210,21 +210,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return StreamBuilder<List<HeroSlide>>(
       stream: HeroSlideRepository.instance.watchActive(),
       builder: (context, snap) {
-        if (snap.hasError) {
-          // A failed query (missing index, denied rule, etc.) used to
-          // fall through to the same "no banners yet" empty state as
-          // genuinely having none — this is exactly what hid the missing
-          // heroSlides composite index. Surface it instead of hiding it.
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(Rad.sm)),
-              child: Text('Banners failed to load: ${snap.error}',
-                  style: AppText.caption.copyWith(color: C.red, fontSize: 11)),
-            ),
-          );
-        }
         final slides = snap.data ?? const <HeroSlide>[];
 
         if (slides.isEmpty) {
@@ -458,13 +443,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   void _open(BuildContext context, Widget destResolver) {
-    // Magazine and Courses both fully support guest browsing (user: null)
-    // — blocking guests here contradicted both those screens and the
-    // drawer's own "guest can browse everything" design. Everything else
-    // genuinely needs a real account (force-unwraps _u! below), so those
-    // still get the sign-in nudge.
-    final guestBrowsable = destResolver is _MagazineDest || destResolver is _CoursesDest;
-    if (_isGuest && !guestBrowsable) {
+    // Guests get a read-only nudge instead of pages that require an
+    // AppUser (write-capable pages need a real account).
+    if (_isGuest) {
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ComingSoonPage(
         title: 'Sign in required',
         subtitle: 'Create a free account to open this section.',
@@ -478,7 +459,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     } else if (destResolver is _PastQuestionsDest) {
       page = AcademicContentPage(user: _u!, initialTypeFilter: ContentType.pastPaper);
     } else if (destResolver is _CoursesDest) {
-      page = CoursesMarketplacePage(user: _u);
+      page = CoursesPage(user: _u!);
     } else if (destResolver is _ClubsDest) {
       page = ClubsPage(user: _u!);
     } else if (destResolver is _MagazineDest) {
@@ -525,10 +506,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                 ]),
               ),
           ]);
-        }
-        if (snap.hasError) {
-          return Text('Failed to load: ${snap.error}',
-              style: AppText.caption.copyWith(color: C.red, fontSize: 11));
         }
         final writers = (snap.data ?? const <TopWriterEntry>[]).take(3).toList();
         if (writers.isEmpty) {
@@ -578,10 +555,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return StreamBuilder<List<Announcement>>(
       stream: AnnouncementRepository.instance.watchAnnouncements(schoolId: _u?.schoolId),
       builder: (context, snap) {
-        if (snap.hasError) {
-          return Text('Failed to load: ${snap.error}',
-              style: AppText.caption.copyWith(color: C.red, fontSize: 11));
-        }
         final items = (snap.data ?? const <Announcement>[]).take(3).toList();
         if (items.isEmpty) {
           return _emptyPanelRow(
@@ -729,13 +702,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               separatorBuilder: (_, __) => const SizedBox(width: 12),
               itemBuilder: (_, __) => const ShimmerBlock(width: 160, height: 140),
             ),
-          );
-        }
-        if (snap.hasError) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Text('Failed to load: ${snap.error}',
-                style: AppText.caption.copyWith(color: C.red, fontSize: 11)),
           );
         }
         final items = (snap.data ?? const <AcademicContent>[]).take(6).toList();

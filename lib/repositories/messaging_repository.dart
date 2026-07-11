@@ -1,0 +1,278 @@
+// lib/repositories/messaging_repository.dart
+// Friend requests, friendships, conversations, and messages. Friendship
+// (mutual, request-gated) is what unlocks messaging — Following
+// (FollowRepository) is a completely separate, one-way relationship and
+// grants no messaging rights on its own.
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
+import '../models/messaging.dart';
+import '../core/constants.dart';
+import '../core/result.dart';
+
+class MessagingRepository {
+  MessagingRepository._();
+  static final MessagingRepository instance = MessagingRepository._();
+
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  CollectionReference<Map<String, dynamic>> get _requests =>
+      _db.collection(AppConstants.colFriendRequests);
+  CollectionReference<Map<String, dynamic>> get _friendships =>
+      _db.collection(AppConstants.colFriendships);
+  CollectionReference<Map<String, dynamic>> get _conversations =>
+      _db.collection(AppConstants.colConversations);
+
+  /// Sorted pair so a friendship has exactly one canonical doc id
+  /// regardless of who sent the original request.
+  String _pairId(String a, String b) {
+    final sorted = [a, b]..sort();
+    return '${sorted[0]}_${sorted[1]}';
+  }
+
+  // ── Friend requests ──────────────────────────────────────
+
+  Future<Result<void>> sendFriendRequest({
+    required String fromUserId,
+    required String fromUserName,
+    String? fromUserPhotoUrl,
+    required String fromUserRoleLabel,
+    required String toUserId,
+  }) async {
+    if (fromUserId == toUserId) return Failure('You can\'t friend yourself', null);
+    try {
+      final alreadyFriends = await isFriend(fromUserId, toUserId);
+      if (alreadyFriends) return Failure('You\'re already friends', null);
+
+      // Don't stack duplicate pending requests between the same pair.
+      final existing = await _requests
+          .where('fromUserId', isEqualTo: fromUserId)
+          .where('toUserId', isEqualTo: toUserId)
+          .where('status', isEqualTo: 'pending')
+          .limit(1)
+          .get();
+      if (existing.docs.isNotEmpty) return Failure('Request already sent', null);
+
+      await _requests.add(FriendRequest(
+        id: '', fromUserId: fromUserId, fromUserName: fromUserName,
+        fromUserPhotoUrl: fromUserPhotoUrl, fromUserRoleLabel: fromUserRoleLabel,
+        toUserId: toUserId, createdAt: DateTime.now(),
+      ).toFirestore());
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to send friend request', e);
+    }
+  }
+
+  Stream<List<FriendRequest>> watchIncomingRequests(String userId) => _requests
+      .where('toUserId', isEqualTo: userId)
+      .where('status', isEqualTo: 'pending')
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map(FriendRequest.fromFirestore).toList());
+
+  Stream<int> watchIncomingRequestCount(String userId) =>
+      watchIncomingRequests(userId).map((list) => list.length);
+
+  Future<Result<void>> acceptRequest(FriendRequest request, String myName, String? myPhotoUrl) async {
+    try {
+      final batch = _db.batch();
+      batch.update(_requests.doc(request.id), {'status': 'accepted'});
+      final pairId = _pairId(request.fromUserId, request.toUserId);
+      batch.set(_friendships.doc(pairId), {
+        'userIds': [request.fromUserId, request.toUserId],
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      await batch.commit();
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to accept request', e);
+    }
+  }
+
+  Future<Result<void>> declineRequest(String requestId) async {
+    try {
+      await _requests.doc(requestId).update({'status': 'declined'});
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to decline request', e);
+    }
+  }
+
+  // ── Friendships ──────────────────────────────────────────
+
+  Future<bool> isFriend(String userId, String otherId) async {
+    final doc = await _friendships.doc(_pairId(userId, otherId)).get();
+    return doc.exists;
+  }
+
+  Stream<bool> watchIsFriend(String userId, String otherId) => _friendships
+      .doc(_pairId(userId, otherId))
+      .snapshots()
+      .map((d) => d.exists);
+
+  Stream<int> watchFriendCount(String userId) => _friendships
+      .where('userIds', arrayContains: userId)
+      .snapshots()
+      .map((s) => s.docs.length);
+
+  // ── Conversations ────────────────────────────────────────
+
+  /// Finds the existing 1:1 conversation between two people, or creates
+  /// one. Requires friendship — call sites should already have gated on
+  /// watchIsFriend before reaching here, but this double-checks.
+  Future<Result<String>> getOrCreateConversation({
+    required String userAId, required String userAName, String? userAPhoto,
+    required String userBId, required String userBName, String? userBPhoto,
+  }) async {
+    try {
+      if (!await isFriend(userAId, userBId)) {
+        return Failure('You need to be friends to message each other', null);
+      }
+      final existing = await _conversations
+          .where('participantIds', arrayContains: userAId)
+          .get();
+      for (final doc in existing.docs) {
+        final ids = List<String>.from(doc.data()['participantIds'] ?? []);
+        if (ids.contains(userBId) && ids.length == 2) {
+          return Success(doc.id);
+        }
+      }
+      final ref = await _conversations.add(Conversation(
+        id: '',
+        participantIds: [userAId, userBId],
+        participantNames: {userAId: userAName, userBId: userBName},
+        participantPhotos: {userAId: userAPhoto, userBId: userBPhoto},
+        lastMessageAt: DateTime.now(),
+      ).toFirestore());
+      return Success(ref.id);
+    } catch (e) {
+      return Failure('Failed to open conversation', e);
+    }
+  }
+
+  Stream<List<Conversation>> watchConversations(String userId) => _conversations
+      .where('participantIds', arrayContains: userId)
+      .orderBy('lastMessageAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map(Conversation.fromFirestore).toList());
+
+  Stream<List<ChatMessage>> watchMessages(String conversationId) => _conversations
+      .doc(conversationId)
+      .collection(AppConstants.colMessages)
+      .orderBy('sentAt')
+      .snapshots()
+      .map((s) => s.docs.map((d) => ChatMessage.fromFirestore(d, conversationId)).toList());
+
+  Future<Result<void>> sendMessage({
+    required String conversationId,
+    required String senderId,
+    required String senderName,
+    String text = '',
+    String? imageUrl,
+    String? videoUrl,
+    String? fileUrl,
+    String? fileName,
+  }) async {
+    try {
+      final batch = _db.batch();
+      final msgRef = _conversations.doc(conversationId).collection(AppConstants.colMessages).doc();
+      batch.set(msgRef, ChatMessage(
+        id: '', conversationId: conversationId, senderId: senderId, senderName: senderName,
+        text: text, imageUrl: imageUrl, videoUrl: videoUrl, fileUrl: fileUrl, fileName: fileName,
+        sentAt: DateTime.now(), readBy: [senderId],
+      ).toFirestore());
+
+      final preview = text.isNotEmpty ? text
+          : (imageUrl != null ? '📷 Photo'
+          : (videoUrl != null ? '🎥 Video'
+          : (fileUrl != null ? '📎 ${fileName ?? "File"}' : '')));
+      batch.update(_conversations.doc(conversationId), {
+        'lastMessageText': preview,
+        'lastMessageSenderId': senderId,
+        'lastMessageAt': FieldValue.serverTimestamp(),
+      });
+      await batch.commit();
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to send message', e);
+    }
+  }
+
+  Future<Result<String>> uploadChatMedia({required String conversationId, required File file, required bool isVideo}) async {
+    try {
+      final ext = isVideo ? 'mp4' : 'jpg';
+      final ref = FirebaseStorage.instance
+          .ref('chat_media/$conversationId/${DateTime.now().millisecondsSinceEpoch}.$ext');
+      await ref.putFile(file);
+      return Success(await ref.getDownloadURL());
+    } catch (e) {
+      return Failure('Failed to upload media', e);
+    }
+  }
+
+  /// General file attachments — any type (PDF, docx, etc.), not just
+  /// photo/video. Keeps the original filename in Storage so it downloads
+  /// with a sensible name rather than a bare timestamp.
+  Future<Result<String>> uploadChatFile({
+    required String conversationId, required File file, required String fileName,
+  }) async {
+    try {
+      final ref = FirebaseStorage.instance
+          .ref('chat_files/$conversationId/${DateTime.now().millisecondsSinceEpoch}_$fileName');
+      await ref.putFile(file);
+      return Success(await ref.getDownloadURL());
+    } catch (e) {
+      return Failure('Failed to upload file', e);
+    }
+  }
+
+  /// Marks every message not yet read by [userId] as read — called on
+  /// opening a conversation. Fetches recent messages and filters
+  /// client-side (Firestore can't query "array doesn't contain X"
+  /// directly) — fine for normal conversation lengths; revisit with a
+  /// denormalized unread-count field if history grows very large.
+  Future<void> markConversationRead(String conversationId, String userId) async {
+    try {
+      final recent = await _conversations
+          .doc(conversationId)
+          .collection(AppConstants.colMessages)
+          .orderBy('sentAt', descending: true)
+          .limit(100)
+          .get();
+      final toUpdate = recent.docs.where((d) {
+        final readBy = List<String>.from(d.data()['readBy'] ?? []);
+        return !readBy.contains(userId);
+      });
+      if (toUpdate.isEmpty) return;
+      final batch = _db.batch();
+      for (final doc in toUpdate) {
+        batch.update(doc.reference, {'readBy': FieldValue.arrayUnion([userId])});
+      }
+      await batch.commit();
+    } catch (_) {
+      // best-effort — a failed read-receipt update shouldn't block the UI
+    }
+  }
+
+  /// Simple name-prefix search across users — powers "Find People".
+  /// Firestore doesn't do substring search natively; this does a
+  /// prefix-range query on a lowercase name field. Requires user docs to
+  /// have a `nameLower` field maintained alongside `name` — if that
+  /// field doesn't exist yet on existing users, this returns nothing for
+  /// them until they next update their profile. Flagging as a follow-up
+  /// rather than silently returning incomplete results forever.
+  Future<List<Map<String, dynamic>>> searchUsers(String query, {int limit = 20}) async {
+    if (query.trim().isEmpty) return [];
+    final q = query.trim().toLowerCase();
+    final snap = await _db
+        .collection(AppConstants.colUsers)
+        .orderBy('nameLower')
+        .startAt([q])
+        .endAt(['$q\uf8ff'])
+        .limit(limit)
+        .get();
+    return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+  }
+}

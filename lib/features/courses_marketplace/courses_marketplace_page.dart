@@ -42,6 +42,8 @@ class CoursesMarketplacePage extends StatefulWidget {
 
 class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
   String? _category; // null = All
+  bool _searchOpen = false;
+  String _searchQuery = '';
 
   bool get _canCreate => widget.user != null;
 
@@ -52,6 +54,22 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
       body: SafeArea(
         child: Column(children: [
           _header(context),
+          if (_searchOpen)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: TextField(
+                autofocus: true,
+                onChanged: (v) => setState(() => _searchQuery = v),
+                style: AppText.bodySm.copyWith(color: C.txt),
+                decoration: InputDecoration(
+                  hintText: 'Search courses…',
+                  hintStyle: AppText.bodySm.copyWith(color: C.muted),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18, color: C.muted),
+                  filled: true, fillColor: C.surf2,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+            ),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.only(bottom: 24),
@@ -71,12 +89,12 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
                   const SizedBox(height: 24),
                   _sectionHeader('Latest from Contributors', onSeeAll: () {}),
                   const SizedBox(height: 12),
-                  _contributorFeed(context, stream: PublicCourseRepository.instance.watchLatest()),
+                  _contributorFeed(context, stream: PublicCourseRepository.instance.watchLatest(), searchQuery: _searchQuery),
                 ] else ...[
                   _sectionHeader(_category!, onSeeAll: () {}),
                   const SizedBox(height: 12),
                   _contributorFeed(context,
-                      stream: PublicCourseRepository.instance.watchByCategory(_category!)),
+                      stream: PublicCourseRepository.instance.watchByCategory(_category!), searchQuery: _searchQuery),
                 ],
                 if (_canCreate) _createCourseCta(context),
               ],
@@ -97,13 +115,18 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
             Text('Learn. Share. Grow.', style: AppText.caption.copyWith(fontSize: 12)),
           ]),
         ),
-        IconButton(icon: const Icon(Icons.search_rounded, color: C.txt2), onPressed: () {}),
+        IconButton(icon: const Icon(Icons.search_rounded, color: C.txt2),
+            onPressed: () => setState(() => _searchOpen = !_searchOpen)),
         if (widget.user != null)
           IconButton(
             icon: const Icon(Icons.notifications_outlined, color: C.txt2),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => NotificationsPage(userId: widget.user!.id))),
           ),
+        UserAvatar(
+          initials: (widget.user?.name.isNotEmpty ?? false) ? widget.user!.name[0].toUpperCase() : '?',
+          radius: 18, photoUrl: widget.user?.photoUrl,
+        ),
       ]),
     );
   }
@@ -320,7 +343,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
     );
   }
 
-  Widget _contributorFeed(BuildContext context, {required Stream<List<PublicCourse>> stream}) {
+  Widget _contributorFeed(BuildContext context, {required Stream<List<PublicCourse>> stream, String searchQuery = ''}) {
     return StreamBuilder<List<PublicCourse>>(
       stream: stream,
       builder: (context, snap) {
@@ -343,11 +366,17 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
                 style: AppText.caption.copyWith(color: C.red, fontSize: 11)),
           );
         }
-        final courses = snap.data ?? const <PublicCourse>[];
+        var courses = snap.data ?? const <PublicCourse>[];
+        if (searchQuery.isNotEmpty) {
+          final q = searchQuery.toLowerCase();
+          courses = courses.where((c) =>
+              c.title.toLowerCase().contains(q) || c.description.toLowerCase().contains(q)).toList();
+        }
         if (courses.isEmpty) {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('No courses here yet.', style: AppText.bodySm),
+            child: Text(searchQuery.isNotEmpty ? 'No courses match "$searchQuery".' : 'No courses here yet.',
+                style: AppText.bodySm),
           );
         }
         return Column(children: courses.map((c) => Padding(

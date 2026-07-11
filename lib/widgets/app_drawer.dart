@@ -23,6 +23,7 @@ import '../models/school_config.dart';
 import '../features/courses_marketplace/courses_marketplace_page.dart';
 import '../features/clubs/clubs_page.dart';
 import '../features/academic_content/academic_content_page.dart';
+import '../features/messages/messages_home_page.dart';
 import '../models/academic_content.dart';
 import '../features/magazine/magazine_feed_page.dart';
 import '../pages/notifications_page.dart';
@@ -82,8 +83,14 @@ class AppDrawer extends StatelessWidget {
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => MagazineFeedPage(user: user)));
                 }),
-                _item(context, Icons.chat_bubble_outline_rounded, 'Messages',
-                    () => _goComingSoon(context, 'Messages', Icons.chat_bubble_outline_rounded)),
+                _item(context, Icons.chat_bubble_outline_rounded, 'Messages', () {
+                  if (_isGuest) {
+                    _goSignIn(context);
+                  } else {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => MessagesHomePage(user: user!)));
+                  }
+                }),
                 const Divider(height: 24, color: C.bdr2),
                 _item(context, Icons.person_outline_rounded, 'Profile', () {
                   if (_isGuest) {
@@ -217,10 +224,6 @@ class AppDrawer extends StatelessWidget {
     );
   }
 
-  void _goComingSoon(BuildContext context, String title, IconData icon, {String? subtitle}) {
-    Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => ComingSoonPage(title: title, icon: icon, subtitle: subtitle)));
-  }
 
   void _goSignIn(BuildContext context) {
     Navigator.of(context).push(MaterialPageRoute(

@@ -49,6 +49,8 @@ class AcademicContent {
   final String subject;
   final String institutionId;
   final String uploadedBy;
+  final String uploaderName;
+  final int? fileSizeBytes;
   final DateTime uploadDate;
   final List<String> tags;
   final int views;
@@ -64,6 +66,8 @@ class AcademicContent {
     required this.subject,
     required this.institutionId,
     required this.uploadedBy,
+    this.uploaderName = 'Unknown',
+    this.fileSizeBytes,
     required this.uploadDate,
     required this.tags,
     this.views = 0,
@@ -85,6 +89,8 @@ class AcademicContent {
       subject: d['subject'] ?? '',
       institutionId: d['institutionId'] ?? '',
       uploadedBy: d['uploadedBy'] ?? '',
+      uploaderName: d['uploaderName'] ?? 'Unknown',
+      fileSizeBytes: (d['fileSizeBytes'] as num?)?.toInt(),
       uploadDate: ts is Timestamp
           ? ts.toDate()
           : DateTime.tryParse(ts?.toString() ?? '') ?? DateTime.now(),
@@ -103,6 +109,8 @@ class AcademicContent {
     'subject': subject,
     'institutionId': institutionId,
     'uploadedBy': uploadedBy,
+    'uploaderName': uploaderName,
+    'fileSizeBytes': fileSizeBytes,
     'uploadDate': Timestamp.fromDate(uploadDate),
     'tags': tags,
     'views': views,
@@ -119,6 +127,8 @@ class AcademicContent {
     String? subject,
     String? institutionId,
     String? uploadedBy,
+    String? uploaderName,
+    int? fileSizeBytes,
     DateTime? uploadDate,
     List<String>? tags,
     int? views,
@@ -133,6 +143,8 @@ class AcademicContent {
     subject: subject ?? this.subject,
     institutionId: institutionId ?? this.institutionId,
     uploadedBy: uploadedBy ?? this.uploadedBy,
+    uploaderName: uploaderName ?? this.uploaderName,
+    fileSizeBytes: fileSizeBytes ?? this.fileSizeBytes,
     uploadDate: uploadDate ?? this.uploadDate,
     tags: tags ?? this.tags,
     views: views ?? this.views,

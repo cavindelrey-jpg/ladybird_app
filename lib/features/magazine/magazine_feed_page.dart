@@ -30,6 +30,7 @@ import 'article_reader_page.dart';
 import 'article_composer_page.dart';
 import 'author_profile_page.dart';
 import 'top_writers_page.dart';
+import '../../pages/notifications_page.dart';
 
 enum _FeedTab { forYou, following, local, global }
 
@@ -208,21 +209,38 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
           onPressed: () {},
         ),
         if (_canCompose)
-          Stack(clipBehavior: Clip.none, children: [
-            IconButton(
-              icon: const Icon(Icons.leaderboard_outlined, color: C.txt2),
-              tooltip: 'Top Writers',
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const TopWritersPage())),
-            ),
-          ]),
-        if (_canCompose)
           IconButton(
-            icon: const Icon(Icons.person_outline_rounded, color: C.txt2),
-            tooltip: 'Your Articles',
+            icon: const Icon(Icons.leaderboard_outlined, color: C.txt2),
+            tooltip: 'Top Writers',
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => AuthorProfilePage(authorId: widget.user!.id, currentUser: widget.user))),
+                builder: (_) => const TopWritersPage())),
           ),
+        IconButton(
+          icon: const Icon(Icons.notifications_outlined, color: C.txt2),
+          onPressed: () {
+            if (widget.user == null) {
+              showToast(context, 'Sign in to see notifications');
+              return;
+            }
+            Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => NotificationsPage(userId: widget.user!.id)));
+          },
+        ),
+        Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: _canCompose
+                ? () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => AuthorProfilePage(authorId: widget.user!.id, currentUser: widget.user)))
+                : null,
+            child: UserAvatar(
+              initials: (widget.user?.name.isNotEmpty ?? false) ? widget.user!.name[0].toUpperCase() : '?',
+              radius: 18, photoUrl: widget.user?.photoUrl,
+            ),
+          ),
+        ),
       ]),
     );
   }

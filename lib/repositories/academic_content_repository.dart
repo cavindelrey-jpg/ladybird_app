@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/academic_content.dart';
+import '../core/constants.dart';
 import '../core/result.dart';
 
 class AcademicContentRepository {
@@ -135,6 +136,83 @@ class AcademicContentRepository {
     }
   }
 
+  // ─── Saved for Offline ──────────────────────────────────────────────────
+  // Honest scope note: this is a "saved to my list" marker, persisted in
+  // Firestore — NOT true on-device file caching yet (that needs actual
+  // local storage + download management, a separate, bigger follow-up).
+  // A saved item still requires network to open until that's built.
+
+  Stream<bool> watchIsSaved(String contentId, String userId) => _db
+      .collection(_col).doc(contentId).collection(AppConstants.colSaves).doc(userId)
+      .snapshots().map((d) => d.exists);
+
+  Future<Result<void>> toggleSave(String contentId, String userId) async {
+    try {
+      final ref = _db.collection(_col).doc(contentId).collection(AppConstants.colSaves).doc(userId);
+      final existing = await ref.get();
+      if (existing.exists) {
+        await ref.delete();
+      } else {
+        await ref.set({'savedAt': FieldValue.serverTimestamp()});
+      }
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to update saved status', e);
+    }
+  }
+
+  /// A user's saved content, newest-saved first.
+  Stream<List<AcademicContent>> watchSavedContent(String userId) {
+    return _db.collectionGroup(AppConstants.colSaves)
+        .where(FieldPath.documentId, isEqualTo: userId)
+        .snapshots()
+        .asyncMap((snap) async {
+      final ids = snap.docs.map((d) => d.reference.parent.parent?.id).whereType<String>().toList();
+      if (ids.isEmpty) return <AcademicContent>[];
+      final items = <AcademicContent>[];
+      for (final id in ids.take(30)) {
+        final doc = await _db.collection(_col).doc(id).get();
+        if (doc.exists) items.add(AcademicContent.fromFirestore(doc));
+      }
+      return items;
+    });
+  }
+
+  // ─── Recently viewed (real data — powers "Continue Learning") ──────────
+  // Deliberately no fabricated progress percentage here — this codebase
+  // has consistently avoided fake stats (the old hardcoded '87%' stat
+  // card being the clearest example), so "Continue Learning" shows real
+  // recency instead of a made-up completion number.
+
+  Future<void> recordView(String contentId, String userId) async {
+    try {
+      await _db.collection(_col).doc(contentId).collection(AppConstants.colRecentViews).doc(userId)
+          .set({'viewedAt': FieldValue.serverTimestamp()});
+    } catch (_) {
+      // best-effort — a failed recency update shouldn't block viewing the content
+    }
+  }
+
+  /// Most-recently-viewed content for this user.
+  Stream<List<AcademicContent>> watchRecentlyViewed(String userId, {int limit = 10}) {
+    return _db.collectionGroup(AppConstants.colRecentViews)
+        .where(FieldPath.documentId, isEqualTo: userId)
+        .snapshots()
+        .asyncMap((snap) async {
+      final entries = snap.docs
+          .map((d) => (d.reference.parent.parent?.id, (d.data()['viewedAt'] as Timestamp?)?.toDate()))
+          .where((e) => e.$1 != null)
+          .toList()
+        ..sort((a, b) => (b.$2 ?? DateTime(0)).compareTo(a.$2 ?? DateTime(0)));
+      final items = <AcademicContent>[];
+      for (final entry in entries.take(limit)) {
+        final doc = await _db.collection(_col).doc(entry.$1!).get();
+        if (doc.exists) items.add(AcademicContent.fromFirestore(doc));
+      }
+      return items;
+    });
+  }
+
   // ─── Storage Upload ───────────────────────────────────────────────────────
 
   /// Uploads a file to Firebase Storage. Returns download URL.
@@ -186,5 +264,24 @@ class AcademicContentRepository {
         .toList()
       ..sort();
     return subjects;
+  }
+
+  /// Real per-subject item counts — powers the Categories grid. Computed
+  /// client-side from a bounded sample, same pattern used for Courses'
+  /// Popular Topics; move to a scheduled aggregate if the library grows
+  /// into the thousands.
+  Future<Map<String, int>> subjectCountsOnce({String? institutionId}) async {
+    Query<Map<String, dynamic>> q = _db.collection(_col);
+    if (institutionId != null) {
+      q = q.where('institutionId', isEqualTo: institutionId);
+    }
+    final snap = await q.limit(500).get();
+    final counts = <String, int>{};
+    for (final doc in snap.docs) {
+      final subject = (doc.data()['subject'] as String?) ?? '';
+      if (subject.isEmpty) continue;
+      counts[subject] = (counts[subject] ?? 0) + 1;
+    }
+    return counts;
   }
 }

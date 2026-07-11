@@ -53,6 +53,7 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
         if (!_viewTracked) {
           _viewTracked = true;
           AcademicContentRepository.instance.incrementViews(item.id);
+          AcademicContentRepository.instance.recordView(item.id, widget.user.id);
         }
 
         final canEdit = widget.user.canUploadContent ||
@@ -63,6 +64,21 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
           appBar: AppBar(
             title: Text(item.contentType.label, style: AppText.title),
             actions: [
+              StreamBuilder<bool>(
+                stream: AcademicContentRepository.instance.watchIsSaved(item.id, widget.user.id),
+                builder: (context, savedSnap) {
+                  final saved = savedSnap.data ?? false;
+                  return IconButton(
+                    icon: Icon(saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                        color: saved ? C.grn : C.txt2),
+                    tooltip: saved ? 'Saved' : 'Save for offline',
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      AcademicContentRepository.instance.toggleSave(item.id, widget.user.id);
+                    },
+                  );
+                },
+              ),
               if (canEdit) ...[
                 IconButton(
                   icon: const Icon(Icons.edit_outlined),

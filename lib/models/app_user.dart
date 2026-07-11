@@ -187,7 +187,7 @@ class AppUser {
   }
 
   Map<String, dynamic> toFirestore() => {
-    'name': name, 'email': email, 'photoUrl': photoUrl,
+    'name': name, 'nameLower': name.toLowerCase(), 'email': email, 'photoUrl': photoUrl,
     'role': role.name, 'roleName': roleName,
     'accountType': accountType.name, 'status': status.name,
     'schoolId': schoolId, 'departmentId': departmentId,

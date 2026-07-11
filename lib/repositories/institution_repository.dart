@@ -149,6 +149,18 @@ class InstitutionRepository {
 
   // ─── Admin: create/update ─────────────────────────────────────────────────
 
+  /// Checks whether a school code is already taken — call before create()
+  /// so two schools never silently collide (findByCode's .limit(1) would
+  /// otherwise just return whichever one happened to match first).
+  Future<bool> codeExists(String code) async {
+    final snap = await _db
+        .collection(_col)
+        .where('schoolCode', isEqualTo: code.trim().toUpperCase())
+        .limit(1)
+        .get();
+    return snap.docs.isNotEmpty;
+  }
+
   Future<Result<String>> create(Institution institution) async {
     try {
       final ref = await _db.collection(_col).add(institution.toFirestore());

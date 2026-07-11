@@ -17,6 +17,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 import 'content_details_page.dart';
 import 'content_upload_page.dart';
+import '../../pages/notifications_page.dart';
 
 class AcademicContentPage extends StatefulWidget {
   final AppUser user;
@@ -79,7 +80,28 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: C.bg,
-      body: Column(children: [
+      body: SafeArea(
+        child: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: Row(children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Library', style: AppText.h1.copyWith(fontSize: 22)),
+                Text('Save. Study. Succeed.', style: AppText.caption.copyWith(fontSize: 12)),
+              ]),
+            ),
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined, color: C.txt2),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => NotificationsPage(userId: widget.user.id))),
+            ),
+            UserAvatar(
+              initials: widget.user.name.isEmpty ? '?' : widget.user.name[0].toUpperCase(),
+              radius: 18, photoUrl: widget.user.photoUrl,
+            ),
+          ]),
+        ),
         _SearchBar(controller: _searchCtrl, onChanged: _onSearchChanged),
         _FilterRow(
           selectedType: _typeFilter,
@@ -97,9 +119,12 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
         Expanded(
           child: _isSearching
               ? _SearchResults(loading: _searchLoading, results: _searchResults ?? [], user: widget.user)
-              : _LiveFeed(user: widget.user, typeFilter: _typeFilter, subjectFilter: _subjectFilter),
+              : (_typeFilter == null
+                  ? _LibraryDiscovery(user: widget.user)
+                  : _LiveFeed(user: widget.user, typeFilter: _typeFilter, subjectFilter: _subjectFilter)),
         ),
       ]),
+      ),
       floatingActionButton: _canUpload
           ? FloatingActionButton.extended(
               onPressed: () {
@@ -435,4 +460,302 @@ class _EmptyState extends StatelessWidget {
           style: AppText.bodySm.copyWith(color: C.muted)),
     ]),
   );
+}
+
+const _kSubjectIcons = <String, IconData>{
+  'Mathematics':      Icons.functions_rounded,
+  'Science':          Icons.science_rounded,
+  'Languages':        Icons.translate_rounded,
+  'Social Studies':   Icons.public_rounded,
+  'Computer Science': Icons.code_rounded,
+  'Arts & Literature':Icons.palette_rounded,
+  'Business':         Icons.trending_up_rounded,
+};
+
+/// Default Library view — shown when "All" is selected and there's no
+/// active search. Hero banner, Continue Learning (real recently-viewed
+/// data, no fabricated progress %), Saved for Offline (real save/bookmark
+/// list — see the honesty note on AcademicContentRepository about this
+/// not being true on-device caching yet), and Categories (real per-
+/// subject counts from the actual library, not a fixed hardcoded list).
+class _LibraryDiscovery extends StatelessWidget {
+  final AppUser user;
+  const _LibraryDiscovery({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 100),
+      children: [
+        _heroBanner(context),
+        const SizedBox(height: 20),
+        _sectionHeader('Continue Learning', onSeeAll: () {}),
+        const SizedBox(height: 12),
+        _continueLearning(context),
+        const SizedBox(height: 24),
+        _sectionHeader('Saved for Offline', onSeeAll: () {}),
+        const SizedBox(height: 12),
+        _savedForOffline(context),
+        const SizedBox(height: 24),
+        _sectionHeader('Categories', onSeeAll: null),
+        const SizedBox(height: 12),
+        _categories(context),
+      ],
+    );
+  }
+
+  Widget _sectionHeader(String title, {required VoidCallback? onSeeAll}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(children: [
+        Expanded(child: Text(title, style: AppText.h2.copyWith(fontSize: 16))),
+        if (onSeeAll != null)
+          Text('See all', style: AppText.subtitle.copyWith(color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+      ]),
+    );
+  }
+
+  Widget _heroBanner(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(Rad.lg)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Your learning\nresources in one place',
+              style: AppText.h1.copyWith(fontSize: 19, height: 1.25)),
+          const SizedBox(height: 8),
+          Text('Save content for offline use and access it anytime, anywhere.',
+              style: AppText.bodySm.copyWith(fontSize: 12.5)),
+          const SizedBox(height: 14),
+          ElevatedButton.icon(
+            onPressed: () => showToast(context,
+                'Saved items are bookmarked in your account — full on-device '
+                'offline caching is a planned upgrade, not built yet.'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: C.navy, foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            icon: const Icon(Icons.download_rounded, size: 16),
+            label: Text('How offline works', style: AppText.caption.copyWith(
+                fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _continueLearning(BuildContext context) {
+    return StreamBuilder<List<AcademicContent>>(
+      stream: AcademicContentRepository.instance.watchRecentlyViewed(user.id),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return SizedBox(
+            height: 180,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: 3,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (_, __) => const ShimmerBlock(width: 150, height: 180),
+            ),
+          );
+        }
+        final items = snap.data ?? const <AcademicContent>[];
+        if (items.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text('Open something from the Library and it\'ll show up here.', style: AppText.bodySm),
+          );
+        }
+        return SizedBox(
+          height: 180,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (_, i) => _ContinueLearningCard(item: items[i], user: user),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _savedForOffline(BuildContext context) {
+    return StreamBuilder<List<AcademicContent>>(
+      stream: AcademicContentRepository.instance.watchSavedContent(user.id),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return Column(children: List.generate(3, (_) => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Row(children: const [
+              ShimmerBlock(width: 40, height: 40, borderRadius: 8),
+              SizedBox(width: 12),
+              Expanded(child: ShimmerLine(height: 14)),
+            ]),
+          )));
+        }
+        final items = snap.data ?? const <AcademicContent>[];
+        if (items.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text('Nothing saved yet — tap the bookmark on anything to save it here.', style: AppText.bodySm),
+          );
+        }
+        return Column(children: items.map((item) => _SavedRow(item: item, user: user)).toList());
+      },
+    );
+  }
+
+  Widget _categories(BuildContext context) {
+    return FutureBuilder<Map<String, int>>(
+      future: AcademicContentRepository.instance.subjectCountsOnce(institutionId: user.schoolId),
+      builder: (context, snap) {
+        final counts = snap.data ?? const <String, int>{};
+        if (counts.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text('No subjects yet.', style: AppText.bodySm),
+          );
+        }
+        final sorted = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Wrap(
+            spacing: 10, runSpacing: 10,
+            children: sorted.map((entry) {
+              return Container(
+                width: 155,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+                child: Row(children: [
+                  Container(
+                    width: 34, height: 34,
+                    decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(9)),
+                    child: Icon(_kSubjectIcons[entry.key] ?? Icons.book_outlined, size: 17, color: C.primary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(entry.key, style: AppText.subtitle.copyWith(color: C.txt, fontSize: 12.5),
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text('${entry.value} item${entry.value == 1 ? '' : 's'}', style: AppText.caption.copyWith(fontSize: 10.5)),
+                    ]),
+                  ),
+                ]),
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ContinueLearningCard extends StatelessWidget {
+  final AcademicContent item;
+  final AppUser user;
+  const _ContinueLearningCard({required this.item, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(Rad.md),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Rad.md),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          Navigator.push(context, MaterialPageRoute(
+              builder: (_) => ContentDetailsPage(contentId: item.id, user: user)));
+        },
+        child: Container(
+          width: 150,
+          decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+          clipBehavior: Clip.antiAlias,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Stack(children: [
+              SizedBox(
+                height: 90, width: double.infinity,
+                child: (item.thumbnailUrl ?? '').isNotEmpty
+                    ? Image.network(item.thumbnailUrl!, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(color: C.surf3))
+                    : Container(color: C.surf3, child: Center(child: Text(item.contentType.emoji, style: const TextStyle(fontSize: 24)))),
+              ),
+              Positioned(
+                top: 6, left: 6,
+                child: StatusBadge(label: item.contentType.label.toUpperCase(), color: C.primary),
+              ),
+            ]),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(item.title, style: AppText.title.copyWith(fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 3),
+                Text('By ${item.uploaderName}', style: AppText.caption.copyWith(fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _SavedRow extends StatelessWidget {
+  final AcademicContent item;
+  final AppUser user;
+  const _SavedRow({required this.item, required this.user});
+
+  String _formatSize(int? bytes) {
+    if (bytes == null) return '';
+    if (bytes >= 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes >= 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '$bytes B';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => Navigator.push(context, MaterialPageRoute(
+            builder: (_) => ContentDetailsPage(contentId: item.id, user: user))),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Row(children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(8)),
+              child: Center(child: Text(item.contentType.emoji, style: const TextStyle(fontSize: 18))),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(item.title, style: AppText.title.copyWith(fontSize: 13.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text('${item.contentType.label}${item.fileSizeBytes != null ? ' · ${_formatSize(item.fileSizeBytes)}' : ''}',
+                    style: AppText.caption.copyWith(fontSize: 11)),
+              ]),
+            ),
+            Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  AcademicContentRepository.instance.toggleSave(item.id, user.id);
+                },
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(Icons.bookmark_rounded, color: C.grn, size: 20),
+                ),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
 }

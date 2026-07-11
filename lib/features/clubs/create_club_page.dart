@@ -6,6 +6,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/app_user.dart';
@@ -40,6 +41,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
   String _emoji = '🎓';
   String _category = 'General';
   bool _restrictToSchool = true;
+  bool _requiresApproval = false;
   File? _bannerFile;
   bool _saving = false;
   String? _error;
@@ -71,6 +73,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
       moderatorId: widget.user.id,
       category: _category,
       schoolId: (_isSchoolLinked && _restrictToSchool) ? widget.user.schoolId : null,
+      requiresApproval: _requiresApproval,
     );
 
     final repo = ClubRepository.instance;
@@ -92,6 +95,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
           id: newId, name: club.name, emoji: club.emoji, description: club.description,
           moderatorName: club.moderatorName, moderatorId: club.moderatorId,
           category: club.category, bannerUrl: upload.value, schoolId: club.schoolId,
+          requiresApproval: club.requiresApproval,
         ));
       }
     }
@@ -105,7 +109,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
           id: newId, name: club.name, emoji: club.emoji, description: club.description,
           moderatorName: club.moderatorName, moderatorId: club.moderatorId,
           category: club.category, bannerUrl: _bannerFile != null ? null : club.bannerUrl,
-          memberCount: 1, schoolId: club.schoolId,
+          memberCount: 1, schoolId: club.schoolId, requiresApproval: club.requiresApproval,
         ),
         user: widget.user,
       ),
@@ -127,9 +131,16 @@ class _CreateClubPageState extends State<CreateClubPage> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            GestureDetector(
-              onTap: _pickBanner,
-              child: Container(
+            Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(Rad.md),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(Rad.md),
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  _pickBanner();
+                },
+                child: Container(
                 height: 120, width: double.infinity,
                 decoration: BoxDecoration(
                   color: C.navy, borderRadius: BorderRadius.circular(Rad.md),
@@ -141,6 +152,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
                     ? const Center(child: Icon(Icons.add_photo_alternate_outlined,
                         color: Colors.white70, size: 28))
                     : null,
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -154,16 +166,24 @@ class _CreateClubPageState extends State<CreateClubPage> {
               spacing: 8, runSpacing: 8,
               children: _kEmojiSuggestions.map((e) {
                 final selected = e == _emoji;
-                return GestureDetector(
-                  onTap: () => setState(() => _emoji = e),
-                  child: Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(
-                      color: selected ? C.goldp : C.surf3,
-                      borderRadius: BorderRadius.circular(Rad.sm),
-                      border: Border.all(color: selected ? C.gold : C.bdr),
+                return Material(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(Rad.sm),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(Rad.sm),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _emoji = e);
+                    },
+                    child: Container(
+                      width: 44, height: 44,
+                      decoration: BoxDecoration(
+                        color: selected ? C.goldp : C.surf3,
+                        borderRadius: BorderRadius.circular(Rad.sm),
+                        border: Border.all(color: selected ? C.gold : C.bdr),
+                      ),
+                      child: Center(child: Text(e, style: const TextStyle(fontSize: 20))),
                     ),
-                    child: Center(child: Text(e, style: const TextStyle(fontSize: 20))),
                   ),
                 );
               }).toList(),
@@ -223,6 +243,25 @@ class _CreateClubPageState extends State<CreateClubPage> {
                 ),
               ),
             ],
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                  color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Require approval to join', style: GoogleFonts.inter(
+                    fontSize: 13.5, fontWeight: FontWeight.w600, color: C.txt)),
+                subtitle: Text(
+                    _requiresApproval
+                        ? 'People must request to join — you approve each one.'
+                        : 'Anyone can join instantly.',
+                    style: GoogleFonts.inter(fontSize: 11.5, color: C.txt2)),
+                value: _requiresApproval,
+                activeColor: C.gold,
+                onChanged: (v) => setState(() => _requiresApproval = v),
+              ),
+            ),
             if (_error != null) ...[
               const SizedBox(height: 16),
               Container(

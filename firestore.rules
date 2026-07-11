@@ -153,6 +153,16 @@ service cloud.firestore {
       allow create: if canUploadContent();
       allow update, delete: if canUploadContent() &&
         (resource.data.uploadedBy == request.auth.uid || canManageSchool());
+
+      // Saved-for-offline marker and per-user recent-view tracking —
+      // both are self-only, never touched by anyone but the owner.
+      match /saves/{userId} {
+        allow read, create, delete: if isSignedIn() && request.auth.uid == userId;
+      }
+      match /recent_views/{userId} {
+        allow read, create, update: if isSignedIn() && request.auth.uid == userId;
+        allow delete: if false;
+      }
     }
 
     // ── clubs/{clubId} ────────────────────────────────────────────────
@@ -162,6 +172,22 @@ service cloud.firestore {
     // restricted to that club's own admin/moderator, its founder, or
     // school staff — EXCEPT the memberCount field, which any member can
     // increment/decrement by joining or leaving.
+    // ── club_join_requests/{id} ────────────────────────────────────────
+    // Only relevant for approval-gated clubs. Requester and the club's
+    // own admins/moderators can see a given request; only an admin/mod
+    // of that specific club can change its status.
+    match /club_join_requests/{requestId} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+        || (isClubMember(resource.data.clubId) && clubMemberRole(resource.data.clubId) in ['admin', 'moderator'])
+      );
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() &&
+        isClubMember(resource.data.clubId) && clubMemberRole(resource.data.clubId) in ['admin', 'moderator'] &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+      allow delete: if false;
+    }
+
     match /clubs/{clubId} {
       allow read: if true;
       allow create: if isSignedIn();
@@ -255,6 +281,51 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;
       allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
       allow update: if false; // follows are create/delete only, never edited
+    }
+
+    // ── friend_requests/{id} ──────────────────────────────────────────
+    // Mutual-connection system, separate from follows above. Only the
+    // sender or recipient can see/act on a given request.
+    match /friend_requests/{requestId} {
+      allow read: if isSignedIn() &&
+        (resource.data.fromUserId == request.auth.uid || resource.data.toUserId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.fromUserId == request.auth.uid;
+      // Only the recipient can accept/decline (status is the only field that changes).
+      allow update: if isSignedIn() && resource.data.toUserId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+      allow delete: if false;
+    }
+
+    // ── friendships/{uidA_uidB} ────────────────────────────────────────
+    // Created only via acceptRequest() server-side logic (client writes
+    // it as part of the same batch as the request-status update, so this
+    // rule mirrors that: only the recipient of an accepted request can
+    // create the friendship doc, and only if they're one of its two IDs).
+    match /friendships/{pairId} {
+      allow read: if true; // friend counts are public, like followers
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.userIds;
+      allow update, delete: if false; // immutable once formed
+    }
+
+    // ── conversations/{id} ─────────────────────────────────────────────
+    match /conversations/{conversationId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+      allow create: if isSignedIn() && request.auth.uid in request.resource.data.participantIds;
+      allow update: if isSignedIn() && request.auth.uid in resource.data.participantIds;
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
+        allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid &&
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
+        // Only the readBy array may change after creation (read receipts) —
+        // anyone in the conversation can mark a message as read by them.
+        allow update: if isSignedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']);
+        allow delete: if false;
+      }
     }
 
     // ── heroSlides/{id} ───────────────────────────────────────────────

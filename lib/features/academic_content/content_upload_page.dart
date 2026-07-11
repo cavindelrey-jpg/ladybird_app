@@ -135,6 +135,8 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
       subject: _subjectCtrl.text.trim(),
       institutionId: institutionId,
       uploadedBy: widget.user.id,
+      uploaderName: widget.user.name,
+      fileSizeBytes: _contentFile != null ? await _contentFile!.length() : null,
       uploadDate: DateTime.now(),
       tags: tags,
     );

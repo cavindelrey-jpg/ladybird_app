@@ -13,6 +13,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 import '../../core/result.dart';
 import 'hero_slide_manager_page.dart';
+import 'create_institution_page.dart';
 
 class AdminPanelPage extends StatefulWidget {
   final AppUser user;
@@ -479,6 +480,16 @@ class _PlatformTab extends StatelessWidget {
               builder: (_) => HeroSlideManagerPage(createdByUid: user.id))),
           icon: const Icon(Icons.image_outlined),
           label: const Text('Manage Home Banners'),
+        ),
+        const SizedBox(height: 24),
+        Text('Schools',
+            style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const CreateInstitutionPage())),
+          icon: const Icon(Icons.add_business_outlined),
+          label: const Text('Register a School'),
         ),
         const SizedBox(height: 24),
         OutlinedButton.icon(

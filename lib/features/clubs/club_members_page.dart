@@ -49,6 +49,7 @@ class ClubMembersPage extends StatelessWidget {
         stream: ClubRepository.instance.watchUserRole(club.id, currentUser.id),
         builder: (context, myRoleSnap) {
           final myRole = myRoleSnap.data ?? ClubRole.visitor;
+          final canApprove = myRole == ClubRole.admin || myRole == ClubRole.moderator;
           return StreamBuilder<List<ClubMember>>(
             stream: ClubRepository.instance.watchMembers(club.id),
             builder: (context, snap) {
@@ -63,11 +64,22 @@ class ClubMembersPage extends StatelessWidget {
               });
               final adminCount = members.where((m) => m.role == ClubRole.admin).length;
 
-              return ListView.builder(
+              return ListView(
                 padding: const EdgeInsets.all(16),
-                itemCount: members.length,
-                itemBuilder: (context, i) {
-                  final m = members[i];
+                children: [
+                  if (canApprove) _PendingRequestsSection(club: club),
+                  for (int i = 0; i < members.length; i++)
+                    _memberTile(context, members[i], myRole, adminCount, members),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _memberTile(BuildContext context, ClubMember m, ClubRole myRole, int adminCount, List<ClubMember> members) {
                   final isSelf = m.userId == currentUser.id;
                   final canManage = _canManage(myRole, m.role);
                   final isOnlyAdmin = m.role == ClubRole.admin && adminCount <= 1;
@@ -119,13 +131,6 @@ class ClubMembersPage extends StatelessWidget {
                       ]),
                     ),
                   );
-                },
-              );
-            },
-          );
-        },
-      ),
-    );
   }
 
   /// Admins can manage anyone. Moderators can only manage regular members
@@ -155,5 +160,60 @@ class ClubMembersPage extends StatelessWidget {
     if (context.mounted) {
       showToast(context, action == 'remove' ? '${member.name} removed.' : 'Role updated.');
     }
+  }
+}
+
+/// Pending join requests, shown only to admins/moderators, above the
+/// member list. Only relevant for clubs with requiresApproval — an open
+/// club will simply never have any requests to show here.
+class _PendingRequestsSection extends StatelessWidget {
+  final Club club;
+  const _PendingRequestsSection({required this.club});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<ClubJoinRequest>>(
+      stream: ClubRepository.instance.watchPendingRequests(club.id),
+      builder: (context, snap) {
+        final requests = snap.data ?? const <ClubJoinRequest>[];
+        if (requests.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text('Join Requests', style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w800, color: C.txt)),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: C.orgb, borderRadius: BorderRadius.circular(20)),
+                child: Text('${requests.length}', style: GoogleFonts.inter(
+                    fontSize: 11, fontWeight: FontWeight.w700, color: C.org)),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            ...requests.map((r) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: ACard(child: Row(children: [
+                UserAvatar(initials: r.userName.isEmpty ? '?' : r.userName[0].toUpperCase(),
+                    radius: 18, photoUrl: r.userPhotoUrl),
+                const SizedBox(width: 10),
+                Expanded(child: Text(r.userName, style: GoogleFonts.inter(
+                    fontSize: 13.5, fontWeight: FontWeight.w600, color: C.txt))),
+                TextButton(
+                  onPressed: () => ClubRepository.instance.declineJoinRequest(r.id),
+                  child: const Text('Decline', style: TextStyle(color: C.muted)),
+                ),
+                ElevatedButton(
+                  onPressed: () => ClubRepository.instance.approveJoinRequest(r),
+                  style: ElevatedButton.styleFrom(backgroundColor: C.navy, foregroundColor: Colors.white),
+                  child: const Text('Approve'),
+                ),
+              ])),
+            )),
+            const Divider(color: C.bdr2, height: 24),
+          ]),
+        );
+      },
+    );
   }
 }

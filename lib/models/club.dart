@@ -15,6 +15,7 @@ class Club {
   final String? bannerUrl;
   final int memberCount;
   final String? schoolId;
+  final bool requiresApproval;
 
   const Club({
     required this.id,
@@ -27,6 +28,7 @@ class Club {
     this.bannerUrl,
     this.memberCount = 0,
     this.schoolId,
+    this.requiresApproval = false,
   });
 
   factory Club.fromFirestore(DocumentSnapshot doc) {
@@ -42,6 +44,7 @@ class Club {
       bannerUrl: d['bannerUrl'],
       memberCount: (d['memberCount'] as num?)?.toInt() ?? 0,
       schoolId: d['schoolId'],
+      requiresApproval: d['requiresApproval'] ?? false,
     );
   }
 
@@ -55,7 +58,60 @@ class Club {
     'bannerUrl': bannerUrl,
     'memberCount': memberCount,
     'schoolId': schoolId,
+    'requiresApproval': requiresApproval,
     'createdAt': FieldValue.serverTimestamp(),
+  };
+}
+
+enum ClubJoinRequestStatus { pending, approved, declined }
+
+/// A pending request to join an approval-gated club. Only created when
+/// Club.requiresApproval is true — open clubs skip this entirely and go
+/// straight to ClubRepository.joinClub().
+class ClubJoinRequest {
+  final String id;
+  final String clubId;
+  final String clubName;
+  final String userId;
+  final String userName;
+  final String? userPhotoUrl;
+  final ClubJoinRequestStatus status;
+  final DateTime createdAt;
+
+  const ClubJoinRequest({
+    required this.id,
+    required this.clubId,
+    required this.clubName,
+    required this.userId,
+    required this.userName,
+    this.userPhotoUrl,
+    this.status = ClubJoinRequestStatus.pending,
+    required this.createdAt,
+  });
+
+  factory ClubJoinRequest.fromFirestore(DocumentSnapshot doc) {
+    final d = doc.data() as Map<String, dynamic>? ?? {};
+    return ClubJoinRequest(
+      id: doc.id,
+      clubId: d['clubId'] ?? '',
+      clubName: d['clubName'] ?? '',
+      userId: d['userId'] ?? '',
+      userName: d['userName'] ?? '',
+      userPhotoUrl: d['userPhotoUrl'],
+      status: ClubJoinRequestStatus.values.firstWhere(
+          (s) => s.name == d['status'], orElse: () => ClubJoinRequestStatus.pending),
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toFirestore() => {
+    'clubId': clubId,
+    'clubName': clubName,
+    'userId': userId,
+    'userName': userName,
+    'userPhotoUrl': userPhotoUrl,
+    'status': status.name,
+    'createdAt': Timestamp.fromDate(createdAt),
   };
 }
 

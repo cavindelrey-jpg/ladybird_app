@@ -82,6 +82,83 @@ class ClubRepository {
     }
   }
 
+  // ── Join requests (approval-gated clubs only) ─────────────
+  // Open clubs skip all of this and call joinClub() directly — these
+  // methods only matter when Club.requiresApproval is true.
+
+  CollectionReference<Map<String, dynamic>> get _joinRequests =>
+      _db.collection(AppConstants.colClubJoinRequests);
+
+  Future<Result<void>> requestToJoin({
+    required String clubId, required String clubName,
+    required String userId, required String userName, String? userPhotoUrl,
+  }) async {
+    try {
+      final existing = await _joinRequests
+          .where('clubId', isEqualTo: clubId)
+          .where('userId', isEqualTo: userId)
+          .where('status', isEqualTo: 'pending')
+          .limit(1)
+          .get();
+      if (existing.docs.isNotEmpty) return Failure('Request already pending', null);
+
+      await _joinRequests.add(ClubJoinRequest(
+        id: '', clubId: clubId, clubName: clubName,
+        userId: userId, userName: userName, userPhotoUrl: userPhotoUrl,
+        createdAt: DateTime.now(),
+      ).toFirestore());
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to send join request', e);
+    }
+  }
+
+  /// Pending/approved/declined status of this user's most recent request
+  /// for this club — drives the "Pending" badge on My Clubs.
+  Stream<ClubJoinRequestStatus?> watchMyRequestStatus(String clubId, String userId) => _joinRequests
+      .where('clubId', isEqualTo: clubId)
+      .where('userId', isEqualTo: userId)
+      .orderBy('createdAt', descending: true)
+      .limit(1)
+      .snapshots()
+      .map((s) => s.docs.isEmpty ? null : ClubJoinRequest.fromFirestore(s.docs.first).status);
+
+  /// Pending requests for a club — for its admins/moderators to review.
+  Stream<List<ClubJoinRequest>> watchPendingRequests(String clubId) => _joinRequests
+      .where('clubId', isEqualTo: clubId)
+      .where('status', isEqualTo: 'pending')
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map(ClubJoinRequest.fromFirestore).toList());
+
+  Future<Result<void>> approveJoinRequest(ClubJoinRequest req) async {
+    try {
+      final batch = _db.batch();
+      batch.update(_joinRequests.doc(req.id), {'status': 'approved'});
+      final memberRef = _db.collection(AppConstants.colClubs).doc(req.clubId)
+          .collection(AppConstants.colMembers).doc(req.userId);
+      batch.set(memberRef, {
+        'name': req.userName, 'photoUrl': req.userPhotoUrl,
+        'role': ClubRole.member.name, 'joinedAt': FieldValue.serverTimestamp(),
+      });
+      batch.update(_db.collection(AppConstants.colClubs).doc(req.clubId),
+          {'memberCount': FieldValue.increment(1)});
+      await batch.commit();
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to approve request', e);
+    }
+  }
+
+  Future<Result<void>> declineJoinRequest(String requestId) async {
+    try {
+      await _joinRequests.doc(requestId).update({'status': 'declined'});
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to decline request', e);
+    }
+  }
+
   Future<Result<void>> leaveClub(String clubId, String userId) async {
     try {
       final batch = _db.batch();

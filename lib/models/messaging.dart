@@ -144,7 +144,7 @@ class ChatMessage {
   });
 
   factory ChatMessage.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc, String conversationId) {
-    final d = doc.data() as Map<String, dynamic>? ?? {};
+    final d = doc.data() ?? {};
     return ChatMessage(
       id: doc.id,
       conversationId: conversationId,

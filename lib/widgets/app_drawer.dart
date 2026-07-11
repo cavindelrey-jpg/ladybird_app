@@ -13,7 +13,6 @@ import '../theme/app_theme.dart';
 import '../models/app_user.dart';
 import '../models/institution.dart';
 import '../services/auth_service.dart';
-import 'coming_soon_page.dart';
 import '../pages/profile_page.dart';
 import '../pages/settings_page.dart';
 import '../features/admin/admin_panel_page.dart';

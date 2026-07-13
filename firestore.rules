@@ -101,7 +101,32 @@ service cloud.firestore {
           request.resource.data.role == resource.data.role &&
           request.resource.data.status == resource.data.status &&
           request.resource.data.schoolId == resource.data.schoolId &&
-          request.resource.data.accountType == resource.data.accountType)
+          request.resource.data.accountType == resource.data.accountType &&
+          // XP fields can't be set arbitrarily by a normal profile-edit
+          // write — only via the bounded earn/spend shapes below. This
+          // is defense-in-depth, not a full guarantee: a client calling
+          // XpRepository.awardXp() in a tight loop can still accumulate
+          // XP faster than intended, since there's no server-side rate
+          // limit without a Cloud Function. What this DOES stop is the
+          // cruder attack — directly setting xpBalance to 999999 in one
+          // write, or moving lifetimeXP and xpBalance independently.
+          (
+            (request.resource.data.xpBalance == resource.data.xpBalance &&
+             request.resource.data.lifetimeXP == resource.data.lifetimeXP)
+            ||
+            // earn: balance and lifetime move up together, capped at the
+            // highest single-answer rate (AC = 45 XP)
+            (request.resource.data.xpBalance > resource.data.xpBalance &&
+             (request.resource.data.xpBalance - resource.data.xpBalance) ==
+             (request.resource.data.lifetimeXP - resource.data.lifetimeXP) &&
+             (request.resource.data.xpBalance - resource.data.xpBalance) <= 45)
+            ||
+            // spend: balance moves down, lifetime untouched, capped at
+            // the largest defined unlock cost (full bundle = 800 XP)
+            (request.resource.data.xpBalance < resource.data.xpBalance &&
+             request.resource.data.lifetimeXP == resource.data.lifetimeXP &&
+             (resource.data.xpBalance - request.resource.data.xpBalance) <= 800)
+          ))
         || canManageUsers()
       );
       allow delete: if isSuperAdmin();
@@ -276,6 +301,28 @@ service cloud.firestore {
     // One-way follow relationships backing Magazine's Following tab.
     // Doc ID is composite (followerId_followedId) so a user can only
     // ever have one follow-doc per person they follow.
+    // ── xpTransactions/{id} ────────────────────────────────────────────
+    // Append-only ledger. Amount ceilings match the earn/spend bounds
+    // enforced on users/{uid} above — same defense-in-depth limitation
+    // applies (stops crude single-write abuse, not a determined script
+    // calling awardXp() repeatedly; that needs a Cloud Function).
+    match /xpTransactions/{id} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && (
+        (request.resource.data.type == 'earn' && request.resource.data.amount <= 45)
+        || (request.resource.data.type == 'spend' && request.resource.data.amount <= 800)
+      );
+      allow update, delete: if false;
+    }
+
+    // ── unlockedPapers/{userId_paperId} ─────────────────────────────────
+    match /unlockedPapers/{id} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid
+          && request.resource.data.unlockedVia == 'xp';
+      allow update, delete: if false;
+    }
+
     match /follows/{followId} {
       allow read: if true; // follower/following counts are public, like most social apps
       allow create: if isSignedIn() && request.resource.data.followerId == request.auth.uid;

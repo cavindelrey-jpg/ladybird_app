@@ -10,7 +10,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/app_user.dart';
 import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
+import '../../repositories/xp_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/paper_unlock_sheet.dart';
 import 'content_edit_page.dart';
 import 'content_delete_dialog.dart';
 
@@ -175,7 +177,7 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
 
                 // Download button
                 if (item.fileUrl != null)
-                  _DownloadButton(item: item),
+                  _DownloadButton(item: item, user: widget.user),
               ],
             ),
           ),
@@ -260,7 +262,8 @@ class _Tag extends StatelessWidget {
 
 class _DownloadButton extends StatefulWidget {
   final AcademicContent item;
-  const _DownloadButton({required this.item});
+  final AppUser user;
+  const _DownloadButton({required this.item, required this.user});
 
   @override
   State<_DownloadButton> createState() => _DownloadButtonState();
@@ -269,20 +272,40 @@ class _DownloadButton extends StatefulWidget {
 class _DownloadButtonState extends State<_DownloadButton> {
   bool _loading = false;
 
-  Future<void> _download() async {
-    HapticFeedback.mediumImpact();
-    setState(() => _loading = true);
+  bool get _isPastPaper => widget.item.contentType == ContentType.pastPaper;
+
+  Future<void> _openFile() async {
     final uri = Uri.tryParse(widget.item.fileUrl!);
     if (uri != null && await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
       await AcademicContentRepository.instance.incrementDownloads(widget.item.id);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open file.')),
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open file.')),
+      );
+    }
+  }
+
+  Future<void> _download() async {
+    HapticFeedback.mediumImpact();
+    setState(() => _loading = true);
+
+    // Past papers specifically are gated behind the XP/Premium unlock
+    // economy — everything else in the Library stays freely accessible.
+    if (_isPastPaper) {
+      final unlocked = await XpRepository.instance.isPaperUnlocked(widget.user, widget.item.id);
+      if (!unlocked) {
+        if (mounted) setState(() => _loading = false);
+        if (!mounted) return;
+        final nowUnlocked = await showPaperUnlockSheet(
+          context, user: widget.user, paperId: widget.item.id, paperTitle: widget.item.title,
         );
+        if (!nowUnlocked) return; // user backed out — don't open the file
+        if (mounted) setState(() => _loading = true);
       }
     }
+
+    await _openFile();
     if (mounted) setState(() => _loading = false);
   }
 
@@ -301,8 +324,9 @@ class _DownloadButtonState extends State<_DownloadButton> {
         icon: _loading
             ? const SizedBox(width: 18, height: 18,
                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : const Icon(Icons.download_rounded),
-        label: Text(_loading ? 'Opening…' : 'Download', style: AppText.button.copyWith(fontSize: 15)),
+            : Icon(_isPastPaper ? Icons.bolt_rounded : Icons.download_rounded),
+        label: Text(_loading ? 'Opening…' : (_isPastPaper ? 'Unlock / Open' : 'Download'),
+            style: AppText.button.copyWith(fontSize: 15)),
       ),
     );
   }

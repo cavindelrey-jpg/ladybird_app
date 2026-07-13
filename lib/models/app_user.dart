@@ -1,6 +1,7 @@
 // lib/models/app_user.dart
 // 6-tier role system. Fully backward-compatible with prior 4-role enum.
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum UserRole {
   guest,          // unauthenticated / restricted
@@ -56,6 +57,15 @@ class AppUser {
   /// the 4-icon Quick Access row by real usage frequency.
   final Map<String, int> quickAccessUsage;
 
+  /// Spendable XP — decreases when a past paper is unlocked via XP.
+  final int xpBalance;
+  /// Never decreases — leaderboard/rank display only, so spending XP
+  /// never hurts a student's rank.
+  final int lifetimeXP;
+  /// Resets to 0 once xpEarnedTodayDate is stale (see XpRepository).
+  final int xpEarnedToday;
+  final DateTime? xpEarnedTodayDate;
+
   const AppUser({
     required this.id,
     required this.name,
@@ -76,6 +86,10 @@ class AppUser {
     this.bio = '',
     this.educationLevel = '',
     this.quickAccessUsage = const {},
+    this.xpBalance = 0,
+    this.lifetimeXP = 0,
+    this.xpEarnedToday = 0,
+    this.xpEarnedTodayDate,
   });
 
   // ── Identity helpers ───────────────────────────────────────────────────────
@@ -173,6 +187,10 @@ class AppUser {
     bio: d['bio'] ?? '',
     educationLevel: d['educationLevel'] ?? '',
     quickAccessUsage: Map<String, int>.from(d['quickAccessUsage'] ?? {}),
+    xpBalance: (d['xpBalance'] as num?)?.toInt() ?? 0,
+    lifetimeXP: (d['lifetimeXP'] as num?)?.toInt() ?? 0,
+    xpEarnedToday: (d['xpEarnedToday'] as num?)?.toInt() ?? 0,
+    xpEarnedTodayDate: (d['xpEarnedTodayDate'] as Timestamp?)?.toDate(),
   );
 
   /// Handles both old 4-role values and new 6-role values stored in Firestore.
@@ -199,6 +217,10 @@ class AppUser {
     'bio': bio,
     'educationLevel': educationLevel,
     'quickAccessUsage': quickAccessUsage,
+    'xpBalance': xpBalance,
+    'lifetimeXP': lifetimeXP,
+    'xpEarnedToday': xpEarnedToday,
+    'xpEarnedTodayDate': xpEarnedTodayDate != null ? Timestamp.fromDate(xpEarnedTodayDate!) : null,
   };
 
   AppUser copyWith({
@@ -209,6 +231,7 @@ class AppUser {
     String? classLevel, String? subject, List<String>? courseIds,
     bool? isFirstLogin, bool? adminAccessRevoked, bool? isPremium,
     String? bio, String? educationLevel, Map<String, int>? quickAccessUsage,
+    int? xpBalance, int? lifetimeXP, int? xpEarnedToday, DateTime? xpEarnedTodayDate,
   }) => AppUser(
     id: id ?? this.id, name: name ?? this.name,
     email: email ?? this.email, photoUrl: photoUrl ?? this.photoUrl,
@@ -226,5 +249,9 @@ class AppUser {
     bio: bio ?? this.bio,
     educationLevel: educationLevel ?? this.educationLevel,
     quickAccessUsage: quickAccessUsage ?? this.quickAccessUsage,
+    xpBalance: xpBalance ?? this.xpBalance,
+    lifetimeXP: lifetimeXP ?? this.lifetimeXP,
+    xpEarnedToday: xpEarnedToday ?? this.xpEarnedToday,
+    xpEarnedTodayDate: xpEarnedTodayDate ?? this.xpEarnedTodayDate,
   );
 }

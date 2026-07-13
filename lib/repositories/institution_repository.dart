@@ -58,7 +58,11 @@ class InstitutionRepository {
 
       return Success(inst);
     } catch (e) {
-      return Failure('Connection error. Please try again.', e);
+      // Was previously a generic "Connection error" that swallowed the
+      // real exception — meaning a permission-denied (undeployed rules)
+      // and an actual network drop looked identical, making this exact
+      // failure impossible to diagnose from the UI alone. Surface it.
+      return Failure('Could not reach the school directory: $e', e);
     }
   }
 

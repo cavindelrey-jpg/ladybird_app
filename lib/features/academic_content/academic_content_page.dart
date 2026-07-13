@@ -18,6 +18,7 @@ import '../../widgets/widgets.dart';
 import 'content_details_page.dart';
 import 'content_upload_page.dart';
 import '../../pages/notifications_page.dart';
+import '../../widgets/xp_widgets.dart';
 
 class AcademicContentPage extends StatefulWidget {
   final AppUser user;
@@ -91,6 +92,8 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
                 Text('Save. Study. Succeed.', style: AppText.caption.copyWith(fontSize: 12)),
               ]),
             ),
+            XpBalanceBadge(userId: widget.user.id),
+            const SizedBox(width: 8),
             IconButton(
               icon: const Icon(Icons.notifications_outlined, color: C.txt2),
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(

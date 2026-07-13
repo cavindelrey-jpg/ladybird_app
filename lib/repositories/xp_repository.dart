@@ -1,6 +1,8 @@
 // lib/repositories/xp_repository.dart
-// Award/spend XP for the past-paper unlock economy. Both awardXp() and
-// spendXp() run inside Firestore transactions — not just spendXp as
+// Award/spend XP for the platform-wide economy (quizzes + magazine reads
+// on the earn side, past-paper/bundle unlocks on the spend side). Both
+// awardXp() and spendXp() run inside Firestore transactions — not just
+// spendXp as
 // literally specified — because the daily-cap check in awardXp has the
 // exact same read-then-write race condition spendXp does (two rapid
 // concurrent answers could both read "150/200 used today" and both
@@ -44,7 +46,12 @@ class XpRepository {
   /// [rawAmount] (or zero) if the daily cap was hit — check the returned
   /// value against [rawAmount] in the UI to show a "daily cap reached"
   /// state rather than treating every award as fully successful.
-  Future<Result<int>> awardXp(String userId, XpSource source, int rawAmount) async {
+  Future<Result<int>> awardXp(
+    String userId,
+    XpSource source,
+    int rawAmount, {
+    String? articleId,
+  }) async {
     if (rawAmount <= 0) return const Success(0);
     try {
       final awarded = await _db.runTransaction<int>((tx) async {
@@ -71,7 +78,7 @@ class XpRepository {
         final txnRef = _db.collection(AppConstants.colXpTransactions).doc();
         tx.set(txnRef, XpTransaction(
           id: '', userId: userId, type: XpTransactionType.earn,
-          source: source, amount: toAward, timestamp: now,
+          source: source, amount: toAward, articleId: articleId, timestamp: now,
         ).toFirestore());
 
         return toAward;

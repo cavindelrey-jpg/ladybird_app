@@ -45,11 +45,22 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
   void initState() {
     super.initState();
     _entryCtrl.forward();
-    // Fire once per view, don't block render on it.
-    if (!_countedRead) {
+    // Fire once per view, after a short minimum dwell time rather than
+    // immediately on open. This is a PARTIAL mitigation only — it stops
+    // pure drive-by/instant-bounce farming (open, count, close) but does
+    // nothing against someone genuinely waiting out the delay, and
+    // nothing at all against sock-puppet accounts reading for real. See
+    // recordRead()'s doc comment in MagazineRepository for the fuller
+    // picture of what is and isn't defended against here.
+    Future.delayed(const Duration(seconds: 8), () {
+      if (!mounted || _countedRead) return;
       _countedRead = true;
-      MagazineRepository.instance.incrementReads(widget.article.id);
-    }
+      MagazineRepository.instance.recordRead(
+        widget.article.id,
+        readerId: widget.currentUser?.id,
+        authorId: widget.article.authorId,
+      );
+    });
   }
 
   @override

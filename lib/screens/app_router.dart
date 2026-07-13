@@ -1,6 +1,7 @@
 // lib/screens/app_router.dart
 // Root navigator with 6-role permission system and feature-flag gated HomeShell.
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +12,7 @@ import '../theme/institution_theme_engine.dart';
 import '../theme/app_theme.dart';
 import '../features/institution/institution_splash_screen.dart';
 import '../services/auth_service.dart';
+import '../repositories/magazine_repository.dart';
 import 'login_screen.dart';
 import 'first_login_screen.dart';
 // pages
@@ -336,6 +338,17 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _tab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Recovery sweep for any magazine-read XP that was durably recorded
+    // as "owed" (see MagazineRepository.recordRead()) but never settled
+    // — e.g. this device was offline right after a reader's first visit.
+    // Fire-and-forget, cheap no-op when nothing's pending; deliberately
+    // not blocking the shell's first frame on it.
+    unawaited(MagazineRepository.instance.settlePendingXp(widget.user.id));
+  }
 
   List<_NavDef> _buildNav() {
     final u = widget.user;

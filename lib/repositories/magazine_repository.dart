@@ -2,12 +2,15 @@
 // All Firestore reads/writes for the Magazine module (articles + comments)
 // and the Top Writers leaderboard computation.
 
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import '../models/magazine_article.dart';
+import '../models/xp_transaction.dart';
 import '../core/result.dart';
 import '../core/constants.dart';
+import 'xp_repository.dart';
 
 class MagazineRepository {
   MagazineRepository._();
@@ -125,12 +128,140 @@ class MagazineRepository {
     }
   }
 
-  Future<Result<void>> incrementReads(String articleId) async {
+  /// Records a view of [articleId]. Deliberately NOT a bare increment —
+  /// this is the choke point that stops an author (or a friend acting on
+  /// their behalf) from farming XP by simply reopening the same article
+  /// over and over. Two cases:
+  ///
+  ///  - [readerId] is null (logged-out reader) or equals [authorId] (the
+  ///    author previewing their own piece): readCount still ticks up for
+  ///    the vanity metric, but no uniqueness record is kept and no XP is
+  ///    ever awarded — there's no reader identity here to gate on safely.
+  ///  - Otherwise: articles/{articleId}/readers/{readerId} existence is
+  ///    the uniqueness check. First time -> increment readCount AND write
+  ///    a pendingMagazineXp record IN THE SAME TRANSACTION as the
+  ///    uniqueness check (see below for why), then attempt to settle it
+  ///    immediately via XpRepository. Every subsequent open by the same
+  ///    reader is a no-op on readCount, XP, and the pending record.
+  ///
+  /// Known, deliberately unfixed gap: this only blocks the exact-same-
+  /// account self-read case. Nothing here stops an author from reading
+  /// their own article from a second account they control — sock-puppet
+  /// reads are indistinguishable from real ones at this layer. That
+  /// needs a platform-level signal (App Check, account-age/verification
+  /// heuristics) this repository doesn't have access to, not a client
+  /// code fix — flagging rather than pretending it's solved.
+  ///
+  /// Why a pending record instead of calling awardXp() directly: the
+  /// uniqueness-check-and-readCount-increment transaction and the
+  /// awardXp() transaction touch two different documents (this article
+  /// vs. the author's user doc) and can't be merged into one atomic
+  /// Firestore transaction. Without the pending record, a failure in
+  /// awardXp() after the read was already counted (author's user doc
+  /// briefly unreachable, connection drop, whatever) would silently lose
+  /// that XP forever — readCount goes up, author never gets paid, nothing
+  /// notices. Writing the "XP owed" fact atomically with the uniqueness
+  /// check means a failed settlement attempt is recoverable: it just
+  /// stays 'pending' until settlePendingXp() sweeps it on the author's
+  /// next session, instead of vanishing.
+  Future<Result<void>> recordRead(
+    String articleId, {
+    String? readerId,
+    required String authorId,
+  }) async {
     try {
-      await _articles.doc(articleId).update({'readCount': FieldValue.increment(1)});
+      final articleSnap = await _articles.doc(articleId).get();
+      if (!articleSnap.exists || articleSnap.data()?['published'] != true) {
+        // Unpublished/deleted/stale-link — no vanity metric, no XP.
+        return const Success(null);
+      }
+
+      if (readerId == null || readerId.isEmpty || readerId == authorId) {
+        await _articles.doc(articleId).update({'readCount': FieldValue.increment(1)});
+        return const Success(null);
+      }
+
+      final readerRef = _articles.doc(articleId).collection('readers').doc(readerId);
+      final pendingRef = _db.collection(AppConstants.colPendingMagazineXp).doc('${articleId}_$readerId');
+
+      final isNewReader = await _db.runTransaction<bool>((tx) async {
+        final existing = await tx.get(readerRef);
+        if (existing.exists) return false;
+        tx.set(readerRef, {'readAt': FieldValue.serverTimestamp()});
+        tx.update(_articles.doc(articleId), {'readCount': FieldValue.increment(1)});
+        tx.set(pendingRef, {
+          'authorId': authorId,
+          'articleId': articleId,
+          'readerId': readerId,
+          'amount': kMagazineReadXp,
+          'status': 'pending',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        return true;
+      });
+
+      // Best-effort immediate settlement. If this fails (offline, author
+      // doc briefly unreachable, etc.) the pending record above already
+      // durably captured "this XP is owed" — settlePendingXp() will pick
+      // it up later. Not awaited into the read-recording's own result:
+      // a slow/failed settlement shouldn't make the reader's own article
+      // view look like it failed.
+      if (isNewReader) {
+        unawaited(_settleOne(pendingRef.id));
+      }
       return const Success(null);
     } catch (e) {
       return Failure('Failed to record read', e);
+    }
+  }
+
+  /// Attempts to settle one pendingMagazineXp record: award the XP, then
+  /// mark it 'completed'. Safe to call more than once on the same record
+  /// (checks status first) — settlePendingXp() may re-sweep records this
+  /// method already handled if the 'completed' write itself raced.
+  Future<void> _settleOne(String pendingId) async {
+    final ref = _db.collection(AppConstants.colPendingMagazineXp).doc(pendingId);
+    try {
+      final snap = await ref.get();
+      if (!snap.exists) return;
+      final d = snap.data()!;
+      if (d['status'] != 'pending') return;
+
+      final result = await XpRepository.instance.awardXp(
+        d['authorId'] as String,
+        XpSource.magazineRead,
+        (d['amount'] as num).toInt(),
+        articleId: d['articleId'] as String?,
+      );
+      if (result is Success) {
+        await ref.update({'status': 'completed', 'settledAt': FieldValue.serverTimestamp()});
+      }
+      // On Failure, leave status == 'pending' — settlePendingXp() will
+      // retry it on the author's next session rather than losing it.
+    } catch (_) {
+      // Leave pending; next settlePendingXp() sweep retries.
+    }
+  }
+
+  /// Sweeps up to [limit] pending magazine-read XP payouts owed to
+  /// [authorId] and attempts to settle each. Call this once per app
+  /// session for the signed-in user (e.g. from HomeShell.initState) —
+  /// it's the recovery path for any award that failed at read-time (see
+  /// recordRead()'s doc comment). Cheap no-op on a clean account with
+  /// nothing pending.
+  Future<void> settlePendingXp(String authorId, {int limit = 50}) async {
+    try {
+      final snap = await _db
+          .collection(AppConstants.colPendingMagazineXp)
+          .where('authorId', isEqualTo: authorId)
+          .where('status', isEqualTo: 'pending')
+          .limit(limit)
+          .get();
+      for (final doc in snap.docs) {
+        await _settleOne(doc.id);
+      }
+    } catch (_) {
+      // Best-effort sweep — next app session tries again.
     }
   }
 

@@ -6,6 +6,12 @@ import '../theme/app_theme.dart';
 import '../models/models.dart';
 import '../services/auth_service.dart';
 import '../providers/institution_provider.dart';
+import '../features/announcements/announcements_page.dart';
+import '../features/calendar/calendar_page.dart';
+import '../features/timetable/timetable_page.dart';
+import '../features/assignments/assignments_page.dart';
+import '../features/attendance/attendance_page.dart';
+import '../pages/marks_page.dart';
 import 'profile_edit_page.dart';
 import 'settings_page.dart';
 
@@ -140,6 +146,47 @@ class ProfilePage extends StatelessWidget {
           if (user.courseIds.isNotEmpty)
             _InfoRow(Icons.auto_stories_outlined, 'Courses',
                 '${user.courseIds.length} course(s) enrolled'),
+
+          if (inst != null) ...[
+            const SizedBox(height: 24),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('School', style: GoogleFonts.sora(
+                  fontSize: 13, fontWeight: FontWeight.w700, color: C.txt2)),
+            ),
+            const SizedBox(height: 10),
+            // These used to each be their own bottom-nav tab — a school
+            // with every feature enabled ended up with 8-10 crowded tabs.
+            // Same features, same role/feature gating, just reachable
+            // from Profile now instead of the nav bar.
+            if (inst.hasFeature(InstitutionFeature.announcements))
+              _InfoRow(Icons.campaign_outlined, 'Notices', '',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => AnnouncementsPage(
+                          user: user, canPost: user.canPostAnnouncement)))),
+            if (inst.hasFeature(InstitutionFeature.events))
+              _InfoRow(Icons.calendar_month_outlined, 'Calendar', '',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => CalendarPage(user: user)))),
+            if (inst.hasFeature(InstitutionFeature.timetable))
+              _InfoRow(Icons.schedule_outlined, 'Timetable', '',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => TimetablePage(user: user)))),
+            if (inst.hasFeature(InstitutionFeature.assignments))
+              _InfoRow(Icons.assignment_outlined, 'Assignments', '',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => AssignmentsPage(user: user)))),
+            if (inst.hasFeature(InstitutionFeature.marks))
+              _InfoRow(Icons.grade_outlined, 'Grades', '',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => MarksPage(user: user)))),
+            if (inst.hasFeature(InstitutionFeature.attendance) &&
+                (user.isLecturer || user.isStudent || user.isAdmin))
+              _InfoRow(Icons.fact_check_outlined, 'Attendance', '',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => AttendancePage(user: user)))),
+          ],
+
           const SizedBox(height: 24),
           OutlinedButton.icon(
             onPressed: () => context.read<InstitutionProvider>().clear(),
@@ -168,10 +215,13 @@ class _InfoRow extends StatelessWidget {
         Icon(icon, size: 18, color: C.primary),
         const SizedBox(width: 12),
         Text(label, style: GoogleFonts.inter(fontSize: 13, color: C.txt2)),
-        const Spacer(),
-        Flexible(child: Text(value,
-            style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: C.txt),
-            textAlign: TextAlign.end)),
+        if (value.isNotEmpty) ...[
+          const Spacer(),
+          Flexible(child: Text(value,
+              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: C.txt),
+              textAlign: TextAlign.end)),
+        ] else
+          const Spacer(),
         if (onTap != null) ...[
           const SizedBox(width: 6),
           const Icon(Icons.chevron_right_rounded, size: 16, color: C.muted),

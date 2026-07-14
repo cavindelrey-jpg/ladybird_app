@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/app_user.dart';
 import '../../repositories/messaging_repository.dart';
+import '../../core/debouncer.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
@@ -21,23 +22,39 @@ class FindPeoplePage extends StatefulWidget {
 
 class _FindPeoplePageState extends State<FindPeoplePage> {
   final _searchCtrl = TextEditingController();
+  final _debouncer = Debouncer(milliseconds: 350);
   List<Map<String, dynamic>>? _results;
   bool _loading = false;
+  int _searchSeq = 0; // guards against an earlier keystroke's slower response
 
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _debouncer.dispose();
     super.dispose();
   }
 
-  Future<void> _search(String query) async {
+  void _onChanged(String query) {
     if (query.trim().isEmpty) {
-      setState(() => _results = null);
+      _debouncer.cancel();
+      setState(() { _results = null; _loading = false; });
       return;
     }
     setState(() => _loading = true);
-    final results = await MessagingRepository.instance.searchUsers(query);
-    if (mounted) setState(() { _results = results.where((r) => r['id'] != widget.user.id).toList(); _loading = false; });
+    _debouncer.run(() => _search(query));
+  }
+
+  Future<void> _search(String query) async {
+    final mySeq = ++_searchSeq;
+    final results = await MessagingRepository.instance.searchUsers(query.trim());
+    // If newer keystrokes fired more searches while this one was in
+    // flight, drop this now-stale response instead of letting it
+    // overwrite the correct, more recent results.
+    if (!mounted || mySeq != _searchSeq) return;
+    setState(() {
+      _results = results.where((r) => r['id'] != widget.user.id).toList();
+      _loading = false;
+    });
   }
 
   @override
@@ -55,7 +72,7 @@ class _FindPeoplePageState extends State<FindPeoplePage> {
           child: TextField(
             controller: _searchCtrl,
             autofocus: true,
-            onChanged: _search,
+            onChanged: _onChanged,
             style: AppText.bodySm.copyWith(color: C.txt),
             decoration: InputDecoration(
               hintText: 'Search by name…',

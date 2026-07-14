@@ -16,16 +16,11 @@ import '../repositories/magazine_repository.dart';
 import 'login_screen.dart';
 import 'first_login_screen.dart';
 // pages
-import '../features/announcements/announcements_page.dart';
 import '../features/academic_content/academic_content_page.dart';
-import '../features/timetable/timetable_page.dart';
-import '../features/attendance/attendance_page.dart';
-import '../features/assignments/assignments_page.dart';
-import '../features/calendar/calendar_page.dart';
 import '../features/courses_marketplace/courses_marketplace_page.dart';
-import '../pages/marks_page.dart';
 import '../pages/profile_page.dart';
 import '../features/dashboard/universal_home_page.dart';
+import '../features/messages/messages_home_page.dart';
 import '../widgets/app_drawer.dart';
 import '../features/onboarding/account_choice_screen.dart';
 
@@ -350,61 +345,29 @@ class _HomeShellState extends State<HomeShell> {
     unawaited(MagazineRepository.instance.settlePendingXp(widget.user.id));
   }
 
+  // The bottom nav used to add one tab per enabled institution feature
+  // (Notices, Calendar, Timetable, Assignments, Grades, Attendance, ...),
+  // so a school with everything switched on ended up with 8-10 crowded
+  // tabs. Now the bar stays fixed — Home, Courses, Library, Messages,
+  // Profile — the same shape for every account, guest or school-linked.
+  // Everything institution-specific (Notices, Calendar, Timetable,
+  // Assignments, Grades, Attendance) moved into Profile's "School"
+  // section (see ProfilePage), reachable in one tap from the avatar,
+  // plus optional Quick Access shortcuts on Home.
   List<_NavDef> _buildNav() {
     final u = widget.user;
     final i = widget.institution;
-    final nav = <_NavDef>[];
-
-    // Dashboard — always
-    nav.add(const _NavDef('Home', Icons.home_rounded, Icons.home_outlined, UserRole.guest));
-
-    // Announcements
-    if (i.hasFeature(InstitutionFeature.announcements)) {
-      nav.add(const _NavDef('Notices', Icons.campaign_rounded, Icons.campaign_outlined, UserRole.student));
-    }
-
-    // Calendar / Events
-    if (i.hasFeature(InstitutionFeature.events)) {
-      nav.add(const _NavDef('Calendar', Icons.calendar_month_rounded, Icons.calendar_month_outlined, UserRole.student));
-    }
-
-    // Courses — students, lecturers, admins
-    nav.add(const _NavDef('Courses', Icons.school_rounded, Icons.school_outlined, UserRole.student));
-
-    // Timetable
-    if (i.hasFeature(InstitutionFeature.timetable)) {
-      nav.add(const _NavDef('Timetable', Icons.schedule_rounded, Icons.schedule_outlined, UserRole.student));
-    }
-
-    // Assignments — students and above
-    if (i.hasFeature(InstitutionFeature.assignments)) {
-      nav.add(const _NavDef('Assignments', Icons.assignment_rounded, Icons.assignment_outlined, UserRole.student));
-    }
-
-    // Marks / Grades
-    if (i.hasFeature(InstitutionFeature.marks)) {
-      nav.add(const _NavDef('Grades', Icons.grade_rounded, Icons.grade_outlined, UserRole.student));
-    }
-
-    // Attendance — lecturers and students
-    if (i.hasFeature(InstitutionFeature.attendance) && (u.isLecturer || u.isStudent || u.isAdmin)) {
-      nav.add(const _NavDef('Attendance', Icons.fact_check_rounded, Icons.fact_check_outlined, UserRole.student));
-    }
-
-    // Library
-    if (i.hasFeature(InstitutionFeature.library)) {
-      nav.add(const _NavDef('Library', Icons.menu_book_rounded, Icons.menu_book_outlined, UserRole.student));
-    }
-
-    // Administration tab intentionally removed from the bottom nav for now
-    // — we're on the General UI; school-specific admin UI comes later.
-    // (superAdmin can still reach AdminPanelPage via the drawer.)
-
-    // Profile — always last
-    nav.add(const _NavDef('Profile', Icons.person_rounded, Icons.person_outlined, UserRole.guest));
+    final nav = <_NavDef>[
+      const _NavDef('Home', Icons.home_rounded, Icons.home_outlined, UserRole.guest),
+      const _NavDef('Courses', Icons.school_rounded, Icons.school_outlined, UserRole.student),
+      if (i.hasFeature(InstitutionFeature.library))
+        const _NavDef('Library', Icons.menu_book_rounded, Icons.menu_book_outlined, UserRole.student),
+      const _NavDef('Messages', Icons.chat_bubble_outline_rounded, Icons.chat_bubble_outline_rounded, UserRole.student),
+      const _NavDef('Profile', Icons.person_rounded, Icons.person_outlined, UserRole.guest),
+    ];
 
     // Filter by minimum role (privilege gate)
-    return nav.where((n) => widget.user.hasMinRole(n.minRole)).toList();
+    return nav.where((n) => u.hasMinRole(n.minRole)).toList();
   }
 
   Widget _buildPage(_NavDef def) {
@@ -420,17 +383,12 @@ class _HomeShellState extends State<HomeShell> {
           ])));
     }
     switch (def.label) {
-      case 'Home':        return UniversalHomePage(user: u);
-      case 'Notices':     return AnnouncementsPage(user: u, canPost: u.canPostAnnouncement);
-      case 'Calendar':    return CalendarPage(user: u);
-      case 'Courses':     return CoursesMarketplacePage(user: u);
-      case 'Timetable':   return TimetablePage(user: u);
-      case 'Assignments': return AssignmentsPage(user: u);
-      case 'Grades':      return MarksPage(user: u);
-      case 'Attendance':  return AttendancePage(user: u);
-      case 'Library':     return AcademicContentPage(user: u);
-      case 'Profile':     return ProfilePage(user: u, institution: widget.institution);
-      default:            return const SizedBox.shrink();
+      case 'Home':     return UniversalHomePage(user: u);
+      case 'Courses':  return CoursesMarketplacePage(user: u);
+      case 'Library':  return AcademicContentPage(user: u);
+      case 'Messages': return MessagesHomePage(user: u);
+      case 'Profile':  return ProfilePage(user: u, institution: widget.institution);
+      default:         return const SizedBox.shrink();
     }
   }
 

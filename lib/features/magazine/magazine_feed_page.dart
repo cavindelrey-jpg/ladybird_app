@@ -31,6 +31,7 @@ import 'article_composer_page.dart';
 import 'author_profile_page.dart';
 import 'top_writers_page.dart';
 import '../../pages/notifications_page.dart';
+import '../../repositories/notification_repository.dart';
 
 enum _FeedTab { forYou, following, local, global }
 
@@ -206,7 +207,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
         ),
         IconButton(
           icon: const Icon(Icons.search_rounded, color: C.txt2),
-          onPressed: () {},
+          onPressed: () => showToast(context, 'Search is coming soon.'),
         ),
         if (_canCompose)
           IconButton(
@@ -215,17 +216,35 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => const TopWritersPage())),
           ),
-        IconButton(
-          icon: const Icon(Icons.notifications_outlined, color: C.txt2),
-          onPressed: () {
-            if (widget.user == null) {
-              showToast(context, 'Sign in to see notifications');
-              return;
-            }
-            Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => NotificationsPage(userId: widget.user!.id)));
-          },
-        ),
+        widget.user == null
+            ? IconButton(
+                icon: const Icon(Icons.notifications_outlined, color: C.txt2),
+                onPressed: () => showToast(context, 'Sign in to see notifications'),
+              )
+            : StreamBuilder<int>(
+                stream: NotificationRepository.instance.watchUnreadCount(widget.user!.id),
+                builder: (context, snap) {
+                  final count = snap.data ?? 0;
+                  return Stack(clipBehavior: Clip.none, children: [
+                    IconButton(
+                      icon: const Icon(Icons.notifications_outlined, color: C.txt2),
+                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => NotificationsPage(userId: widget.user!.id))),
+                    ),
+                    if (count > 0)
+                      Positioned(
+                        top: 6, right: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          constraints: const BoxConstraints(minWidth: 16),
+                          decoration: BoxDecoration(color: C.red, borderRadius: BorderRadius.circular(8)),
+                          child: Text(count > 9 ? '9+' : '$count', textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+                        ),
+                      ),
+                  ]);
+                },
+              ),
         Material(
           color: Colors.transparent,
           shape: const CircleBorder(),
@@ -319,32 +338,41 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(Rad.lg)),
-        child: Row(children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(color: C.navy, borderRadius: BorderRadius.circular(12)),
-            child: const Icon(Icons.edit_rounded, color: C.gold, size: 20),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Share your voice with the world', style: AppText.title.copyWith(fontSize: 13.5)),
-              Text('Write and publish your ideas today.', style: AppText.caption.copyWith(fontSize: 11.5)),
-            ]),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton(
-            onPressed: () {
-              HapticFeedback.mediumImpact();
-              Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => ArticleComposerPage(user: widget.user!)));
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: C.navy, foregroundColor: C.gold,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(color: C.navy, borderRadius: BorderRadius.circular(12)),
+              child: const Icon(Icons.edit_rounded, color: C.gold, size: 20),
             ),
-            child: Text('Write a Post', style: AppText.caption.copyWith(
-                fontSize: 12, fontWeight: FontWeight.w700, color: C.gold)),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Share your voice with the world',
+                    style: AppText.title.copyWith(fontSize: 13.5),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                Text('Write and publish your ideas today.',
+                    style: AppText.caption.copyWith(fontSize: 11.5),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+              ]),
+            ),
+          ]),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                HapticFeedback.mediumImpact();
+                Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ArticleComposerPage(user: widget.user!)));
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: C.navy, foregroundColor: C.gold,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: Text('Write a Post', style: AppText.caption.copyWith(
+                  fontSize: 12, fontWeight: FontWeight.w700, color: C.gold)),
+            ),
           ),
         ]),
       ),
@@ -436,6 +464,8 @@ class _FeaturedCarouselState extends State<_FeaturedCarousel> {
                     article: items[i],
                     onTap: () => Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => ArticleReaderPage(article: items[i], currentUser: widget.user))),
+                    onOpenAuthor: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => AuthorProfilePage(authorId: items[i].authorId, currentUser: widget.user))),
                   ),
                 ),
               ),
@@ -458,7 +488,8 @@ class _FeaturedCarouselState extends State<_FeaturedCarousel> {
 class _FeaturedCard extends StatelessWidget {
   final MagazineArticle article;
   final VoidCallback onTap;
-  const _FeaturedCard({required this.article, required this.onTap});
+  final VoidCallback onOpenAuthor;
+  const _FeaturedCard({required this.article, required this.onTap, required this.onOpenAuthor});
 
   String _excerpt(String body) {
     final clean = body.replaceAll('\n', ' ').trim();
@@ -504,10 +535,19 @@ class _FeaturedCard extends StatelessWidget {
                 maxLines: 2, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 14),
             Row(children: [
-              UserAvatar(initials: article.authorName.isEmpty ? '?' : article.authorName[0].toUpperCase(),
-                  radius: 13, photoUrl: article.authorPhotoUrl),
-              const SizedBox(width: 8),
-              Text(article.authorName, style: AppText.subtitle.copyWith(color: Colors.white, fontSize: 12)),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Rad.xs),
+                  onTap: () { HapticFeedback.selectionClick(); onOpenAuthor(); },
+                  child: Row(children: [
+                    UserAvatar(initials: article.authorName.isEmpty ? '?' : article.authorName[0].toUpperCase(),
+                        radius: 13, photoUrl: article.authorPhotoUrl),
+                    const SizedBox(width: 8),
+                    Text(article.authorName, style: AppText.subtitle.copyWith(color: Colors.white, fontSize: 12)),
+                  ]),
+                ),
+              ),
               Text(' · ${(article.body.split(RegExp(r"\s+")).length / 200).ceil().clamp(1, 999)} min read',
                   style: AppText.caption.copyWith(color: Colors.white60, fontSize: 11)),
             ]),
@@ -601,7 +641,7 @@ class _ArticleListCard extends StatelessWidget {
               const Spacer(),
               _LikeButton(article: article, currentUser: currentUser),
               const SizedBox(width: 10),
-              Icon(Icons.mode_comment_outlined, size: 14, color: C.muted),
+              const Icon(Icons.mode_comment_outlined, size: 14, color: C.muted),
               const SizedBox(width: 3),
               Text('${article.commentCount}', style: AppText.caption.copyWith(fontSize: 10.5)),
             ]),
@@ -662,13 +702,13 @@ class _FeedSkeleton extends StatelessWidget {
         const ShimmerBlock(height: 200),
         const SizedBox(height: 20),
         for (int i = 0; i < 3; i++)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
+          const Padding(
+            padding: EdgeInsets.only(bottom: 12),
             child: Row(children: [
-              const ShimmerBlock(width: 84, height: 84, borderRadius: 10),
-              const SizedBox(width: 12),
+              ShimmerBlock(width: 84, height: 84, borderRadius: 10),
+              SizedBox(width: 12),
               Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   ShimmerLine(width: 60, height: 12),
                   SizedBox(height: 8),
                   ShimmerLine(height: 14),

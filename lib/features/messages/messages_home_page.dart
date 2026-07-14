@@ -14,6 +14,7 @@ import '../../repositories/follow_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 import '../../pages/notifications_page.dart';
+import '../../pages/profile_page.dart';
 import 'chat_conversation_page.dart';
 import 'find_people_page.dart';
 
@@ -64,7 +65,9 @@ class MessagesHomePage extends StatelessWidget {
               builder: (_) => NotificationsPage(userId: user.id))),
         ),
         UserAvatar(initials: user.name.isEmpty ? '?' : user.name[0].toUpperCase(),
-            radius: 18, photoUrl: user.photoUrl),
+            radius: 18, photoUrl: user.photoUrl,
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => ProfilePage(user: user)))),
       ]),
     );
   }
@@ -213,9 +216,9 @@ class MessagesHomePage extends StatelessWidget {
           stream: MessagingRepository.instance.watchConversations(user.id),
           builder: (context, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
-              return Column(children: List.generate(3, (_) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(children: const [
+              return Column(children: List.generate(3, (_) => const Padding(
+                padding: EdgeInsets.only(bottom: 10),
+                child: Row(children: [
                   ShimmerCircle(size: 44),
                   SizedBox(width: 12),
                   Expanded(child: ShimmerLine(height: 14)),
@@ -275,13 +278,13 @@ class MessagesHomePage extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('How Messaging Works', style: AppText.h2.copyWith(fontSize: 15)),
         const SizedBox(height: 12),
-        Row(children: [
+        const Row(children: [
           Expanded(child: _HowStep(icon: Icons.person_add_alt_1_rounded, step: '1. Send Request',
               text: 'Search for anyone and send a friend request.', color: C.blu, bg: C.blub)),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(child: _HowStep(icon: Icons.people_alt_rounded, step: '2. They Accept',
               text: 'Only when they accept can you start chatting.', color: C.pur, bg: C.purb)),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(child: _HowStep(icon: Icons.chat_bubble_rounded, step: '3. Start Conversation',
               text: "Message freely once you're connected.", color: C.grn, bg: C.grnb)),
         ]),

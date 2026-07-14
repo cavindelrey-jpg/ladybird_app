@@ -60,7 +60,9 @@ import '../courses/courses_page.dart';
 import '../clubs/clubs_page.dart';
 import '../academic_content/academic_content_page.dart';
 import '../magazine/magazine_feed_page.dart';
+import '../magazine/author_profile_page.dart';
 import '../../pages/notifications_page.dart';
+import '../../pages/profile_page.dart';
 import '../admin/hero_slide_manager_page.dart';
 
 class UniversalHomePage extends StatefulWidget {
@@ -92,13 +94,14 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             const SizedBox(height: 20),
             _bannerCarousel(),
             const SizedBox(height: 24),
-            _sectionHeader('Quick Access', onViewAll: () {}),
+            _sectionHeader('Quick Access',
+                onViewAll: () => showToast(context, 'Tap a tile above — more will appear here as you use them.')),
             const SizedBox(height: 12),
             _quickAccessGrid(context),
             const SizedBox(height: 24),
             _upcomingAndAnnouncements(),
             const SizedBox(height: 24),
-            _sectionHeader('Recommended for You', onViewAll: () {}),
+            _sectionHeader('Recommended for You', onViewAll: () => _open(context, const _LibraryDest())),
             const SizedBox(height: 12),
             _recommendedRow(),
           ],
@@ -117,7 +120,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           onPressed: () => Scaffold.of(ctx).openDrawer(),
         )),
         const SizedBox(width: 4),
-        AcademiaLogo(size: 34),
+        const AcademiaLogo(size: 34),
         const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -129,7 +132,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         ),
         IconButton(
           icon: const Icon(Icons.search_rounded, color: C.txt2),
-          onPressed: () {},
+          onPressed: () => showToast(context, 'Search is coming soon.'),
         ),
         Stack(clipBehavior: Clip.none, children: [
           IconButton(
@@ -165,7 +168,14 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18),
       child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-        _avatar(),
+        _isGuest
+            ? _avatar()
+            : InkWell(
+                borderRadius: BorderRadius.circular(32),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ProfilePage(user: _u!))),
+                child: _avatar(),
+              ),
         const SizedBox(width: 14),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -201,7 +211,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         shape: BoxShape.circle,
         border: Border.all(color: C.bdr, width: 1.5),
       ),
-      child: Icon(Icons.person_rounded, size: 34, color: C.muted),
+      child: const Icon(Icons.person_rounded, size: 34, color: C.muted),
     );
   }
 
@@ -499,7 +509,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             for (int i = 0; i < 2; i++)
               Padding(
                 padding: EdgeInsets.only(bottom: i == 0 ? 14 : 0),
-                child: Row(children: const [
+                child: const Row(children: [
                   ShimmerCircle(size: 32),
                   SizedBox(width: 12),
                   Expanded(child: ShimmerLine(height: 13)),
@@ -526,28 +536,33 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _topWriterRow({required int rank, required TopWriterEntry entry}) {
-    return Row(children: [
-      Container(
-        width: 32, height: 32,
-        decoration: BoxDecoration(color: C.goldp, shape: BoxShape.circle),
-        alignment: Alignment.center,
-        child: Text('#$rank', style: AppText.subtitle.copyWith(
-            fontSize: 12, fontWeight: FontWeight.w800, color: C.gold)),
-      ),
-      const SizedBox(width: 12),
-      UserAvatar(
-        initials: entry.authorName.trim().isEmpty ? '?' : entry.authorName.trim()[0].toUpperCase(),
-        photoUrl: entry.authorPhotoUrl,
-        radius: 16,
-      ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(entry.authorName, style: AppText.subtitle.copyWith(color: C.txt, fontSize: 12.5)),
-          Text('${entry.totalReads} reads · ${entry.totalComments} comments', style: AppText.caption),
-        ]),
-      ),
-    ]);
+    return InkWell(
+      borderRadius: BorderRadius.circular(Rad.sm),
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => AuthorProfilePage(authorId: entry.authorId, currentUser: _u))),
+      child: Row(children: [
+        Container(
+          width: 32, height: 32,
+          decoration: const BoxDecoration(color: C.goldp, shape: BoxShape.circle),
+          alignment: Alignment.center,
+          child: Text('#$rank', style: AppText.subtitle.copyWith(
+              fontSize: 12, fontWeight: FontWeight.w800, color: C.gold)),
+        ),
+        const SizedBox(width: 12),
+        UserAvatar(
+          initials: entry.authorName.trim().isEmpty ? '?' : entry.authorName.trim()[0].toUpperCase(),
+          photoUrl: entry.authorPhotoUrl,
+          radius: 16,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(entry.authorName, style: AppText.subtitle.copyWith(color: C.txt, fontSize: 12.5)),
+            Text('${entry.totalReads} reads · ${entry.totalComments} comments', style: AppText.caption),
+          ]),
+        ),
+      ]),
+    );
   }
 
   // Real Firestore announcements — zero mock rows. Empty state instead.

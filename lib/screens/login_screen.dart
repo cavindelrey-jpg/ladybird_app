@@ -53,8 +53,18 @@ class _LoginScreenState extends State<LoginScreen>
       if (!mounted) return;
       if (user == null) {
         setState(() { _error = 'Account not found. Check your credentials.'; _loading = false; });
+        return;
       }
-      // AppRouter stream takes over on success.
+      // AppRouter's root StreamBuilder swaps the underlying screen on auth
+      // change, but when LoginScreen was reached via Navigator.push (e.g.
+      // the drawer's "Sign In" entry for guests) that pushed route stays on
+      // top and never dismisses itself — pop it so the updated screen
+      // underneath becomes visible instead of leaving the spinner stuck.
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      } else {
+        setState(() => _loading = false);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {

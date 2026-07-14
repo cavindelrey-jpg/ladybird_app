@@ -43,7 +43,10 @@ dependencies:
   csv: ^8.0.0
   excel: ^4.0.6
   win32: ^5.5.0                    # Now perfectly unifies file_picker, share_plus, and flutter_quill
-  google_sign_in: ^7.2.0
+  google_sign_in: ^6.3.0
+  video_player: ^2.11.1
+  chewie: ^1.14.1
+  pdfx: ^2.9.2
 
 dev_dependencies:
   flutter_test:

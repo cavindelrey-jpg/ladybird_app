@@ -166,7 +166,13 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                         padding: const EdgeInsets.only(bottom: 14),
                         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           UserAvatar(initials: cm.authorName.isEmpty ? '?' : cm.authorName[0].toUpperCase(),
-                              radius: 14, photoUrl: cm.authorPhotoUrl),
+                              radius: 14, photoUrl: cm.authorPhotoUrl,
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => CourseCreatorProfilePage(
+                                        creatorId: cm.authorId, currentUser: widget.currentUser)));
+                              }),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

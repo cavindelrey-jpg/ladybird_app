@@ -11,7 +11,7 @@ class AuthService {
 
   final fb.FirebaseAuth _auth = fb.FirebaseAuth.instance;
   final FirebaseFirestore _db  = FirebaseFirestore.instance;
-  final GoogleSignIn _google = GoogleSignIn.instance;
+  final GoogleSignIn _google = GoogleSignIn();
 
   fb.User? get firebaseUser   => _auth.currentUser;
   Stream<fb.User?> get authStateChanges => _auth.authStateChanges();
@@ -70,9 +70,14 @@ class AuthService {
   }
 
   Future<AppUser?> signIn({required String email, required String password}) async {
-    final cred = await _auth.signInWithEmailAndPassword(email: email, password: password);
+    final cred = await _auth
+        .signInWithEmailAndPassword(email: email, password: password)
+        .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
+            'Sign in is taking too long. Check your connection and try again.'));
     final uid  = cred.user!.uid;
-    final doc  = await _db.collection(AppConstants.colUsers).doc(uid).get();
+    final doc  = await _db.collection(AppConstants.colUsers).doc(uid).get()
+        .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
+            'Could not load your account. Check your connection and try again.'));
     if (!doc.exists) return null;
     final user = AppUser.fromFirestore(uid, doc.data()!);
     if (user.status == AccountStatus.suspended) {
@@ -100,14 +105,12 @@ class AuthService {
   /// cancels the picker — that's a normal outcome, not an error, so the
   /// caller should just stay on the current screen.
   Future<AppUser?> signInWithGoogle() async {
-    await _google.initialize();
-    final googleUser = await _google.authenticate();
+    final googleUser = await _google.signIn();
+    if (googleUser == null) return null; // user cancelled the picker
 
-    // FIXED: Removed 'await' as .authentication is now a normal synchronous getter
-    final googleAuth = googleUser.authentication;
-
-    // FIXED: Removed 'accessToken' as 'idToken' is all Firebase needs for auth here
+    final googleAuth = await googleUser.authentication;
     final credential = fb.GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
     return signInWithGoogleCredential(credential);

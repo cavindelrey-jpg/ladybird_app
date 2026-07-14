@@ -461,26 +461,33 @@ class UserAvatar extends StatelessWidget {
   final Color? bg;
   final Color? fg;
   final String? photoUrl;
+  final VoidCallback? onTap;
   const UserAvatar({
     super.key, required this.initials, this.radius = 20,
-    this.bg, this.fg, this.photoUrl,
+    this.bg, this.fg, this.photoUrl, this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (photoUrl != null) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundImage: NetworkImage(photoUrl!),
-        onBackgroundImageError: (_, __) {},
-      );
-    }
-    return CircleAvatar(
-      radius: radius,
-      backgroundColor: bg ?? C.primaryBg,
-      child: Text(initials, style: TextStyle(
-          fontSize: radius * 0.6, fontWeight: FontWeight.w700,
-          color: fg ?? C.primary)),
+    final avatar = photoUrl != null
+        ? CircleAvatar(
+            radius: radius,
+            backgroundImage: NetworkImage(photoUrl!),
+            onBackgroundImageError: (_, __) {},
+          )
+        : CircleAvatar(
+            radius: radius,
+            backgroundColor: bg ?? C.primaryBg,
+            child: Text(initials, style: TextStyle(
+                fontSize: radius * 0.6, fontWeight: FontWeight.w700,
+                color: fg ?? C.primary)),
+          );
+    if (onTap == null) return avatar;
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(onTap: onTap, child: avatar),
     );
   }
 }

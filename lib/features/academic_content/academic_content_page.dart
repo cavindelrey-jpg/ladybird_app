@@ -18,6 +18,7 @@ import '../../widgets/widgets.dart';
 import 'content_details_page.dart';
 import 'content_upload_page.dart';
 import '../../pages/notifications_page.dart';
+import '../../pages/profile_page.dart';
 import '../../widgets/xp_widgets.dart';
 
 class AcademicContentPage extends StatefulWidget {
@@ -102,6 +103,8 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
             UserAvatar(
               initials: widget.user.name.isEmpty ? '?' : widget.user.name[0].toUpperCase(),
               radius: 18, photoUrl: widget.user.photoUrl,
+              onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => ProfilePage(user: widget.user))),
             ),
           ]),
         ),
@@ -331,14 +334,14 @@ class _ContentGridSkeleton extends StatelessWidget {
       itemBuilder: (_, __) => Container(
         decoration: BoxDecoration(
             color: C.surf, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.bdr)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const ClipRRect(
+        child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          ClipRRect(
             borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
             child: AspectRatio(aspectRatio: 16 / 9, child: ShimmerBlock(borderRadius: 0)),
           ),
           Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+            padding: EdgeInsets.all(10),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               ShimmerLine(width: 60, height: 14),
               SizedBox(height: 8),
               ShimmerLine(height: 12),
@@ -590,9 +593,9 @@ class _LibraryDiscovery extends StatelessWidget {
       stream: AcademicContentRepository.instance.watchSavedContent(user.id),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return Column(children: List.generate(3, (_) => Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            child: Row(children: const [
+          return Column(children: List.generate(3, (_) => const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Row(children: [
               ShimmerBlock(width: 40, height: 40, borderRadius: 8),
               SizedBox(width: 12),
               Expanded(child: ShimmerLine(height: 14)),

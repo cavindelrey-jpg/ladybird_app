@@ -1,15 +1,19 @@
 // lib/features/magazine/article_reader_page.dart
 // Full article render, author byline, comment thread, read counter fired
-// once per view. Body renders as plain paragraphs — see the composer's
-// header comment for the block-editor upgrade path.
+// once per view. Body renders as rich Quill content (inline images,
+// formatting) when bodyDelta is present; old plain-text articles fall
+// back to `body` rendered as a single paragraph.
 //
 // Design pass: reading text now uses AppText.body (15px / 1.65 line
 // height) instead of a tight 1.7-height inline style picked ad hoc — this
 // is the single biggest lever on whether reading here feels like Substack
 // or a form. Whole page fades in on open rather than popping in flat.
 
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import '../../models/app_user.dart';
 import '../../models/magazine_article.dart';
 import '../../repositories/magazine_repository.dart';
@@ -160,7 +164,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
               const SizedBox(height: 20),
               const Divider(color: C.bdr2),
               const SizedBox(height: 20),
-              Text(a.body, style: AppText.body),
+              _ArticleBody(article: a),
               const SizedBox(height: 32),
               const Divider(color: C.bdr2),
               const SizedBox(height: 16),
@@ -212,7 +216,12 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
                     padding: const EdgeInsets.only(bottom: 14),
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       UserAvatar(initials: c.authorName.isEmpty ? '?' : c.authorName[0].toUpperCase(),
-                          radius: 14, photoUrl: c.authorPhotoUrl),
+                          radius: 14, photoUrl: c.authorPhotoUrl,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) => AuthorProfilePage(authorId: c.authorId, currentUser: widget.currentUser)));
+                          }),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -238,4 +247,37 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
 
   static const _months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   String _formatDate(DateTime dt) => '${_months[dt.month - 1]} ${dt.day}, ${dt.year}';
+}
+
+class _ArticleBody extends StatelessWidget {
+  final MagazineArticle article;
+  const _ArticleBody({required this.article});
+
+  @override
+  Widget build(BuildContext context) {
+    final deltaJson = article.bodyDelta;
+    if (deltaJson == null || deltaJson.isEmpty) {
+      return Text(article.body, style: AppText.body);
+    }
+    quill.QuillController controller;
+    try {
+      final doc = quill.Document.fromJson(jsonDecode(deltaJson));
+      controller = quill.QuillController(
+        document: doc,
+        selection: const TextSelection.collapsed(offset: 0),
+        readOnly: true,
+      );
+    } catch (_) {
+      return Text(article.body, style: AppText.body);
+    }
+
+    return quill.QuillEditor.basic(
+      controller: controller,
+      config: quill.QuillEditorConfig(
+        showCursor: false,
+        autoFocus: false,
+        embedBuilders: FlutterQuillEmbeds.editorBuilders(),
+      ),
+    );
+  }
 }

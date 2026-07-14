@@ -15,6 +15,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/paper_unlock_sheet.dart';
 import 'content_edit_page.dart';
 import 'content_delete_dialog.dart';
+import 'content_viewer_page.dart';
 
 class ContentDetailsPage extends StatefulWidget {
   final String contentId;
@@ -273,8 +274,25 @@ class _DownloadButtonState extends State<_DownloadButton> {
   bool _loading = false;
 
   bool get _isPastPaper => widget.item.contentType == ContentType.pastPaper;
+  ViewableFileKind? get _viewableKind => viewableKindFor(widget.item.fileUrl!);
 
   Future<void> _openFile() async {
+    // Images, PDFs, and video render in-app instead of handing off to
+    // whatever external app the OS picks. Office documents/archives have
+    // no practical in-app renderer, so those still open externally.
+    final kind = _viewableKind;
+    if (kind != null) {
+      await AcademicContentRepository.instance.incrementDownloads(widget.item.id);
+      if (!mounted) return;
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => ContentViewerPage(
+          fileUrl: widget.item.fileUrl!,
+          title: widget.item.title,
+          kind: kind,
+        ),
+      ));
+      return;
+    }
     final uri = Uri.tryParse(widget.item.fileUrl!);
     if (uri != null && await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -324,8 +342,13 @@ class _DownloadButtonState extends State<_DownloadButton> {
         icon: _loading
             ? const SizedBox(width: 18, height: 18,
                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : Icon(_isPastPaper ? Icons.bolt_rounded : Icons.download_rounded),
-        label: Text(_loading ? 'Opening…' : (_isPastPaper ? 'Unlock / Open' : 'Download'),
+            : Icon(_isPastPaper
+                ? Icons.bolt_rounded
+                : (_viewableKind != null ? Icons.visibility_rounded : Icons.download_rounded)),
+        label: Text(
+            _loading
+                ? 'Opening…'
+                : (_isPastPaper ? 'Unlock / Open' : (_viewableKind != null ? 'View' : 'Download')),
             style: AppText.button.copyWith(fontSize: 15)),
       ),
     );

@@ -17,6 +17,7 @@ import '../../repositories/public_course_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 import '../../pages/notifications_page.dart';
+import '../../pages/profile_page.dart';
 import 'course_reader_page.dart';
 import 'course_composer_page.dart';
 import 'course_creator_profile_page.dart';
@@ -79,19 +80,23 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
                 _categoryChips(),
                 const SizedBox(height: 20),
                 if (_category == null) ...[
-                  _sectionHeader('Featured Courses', onSeeAll: () {}),
+                  _sectionHeader('Featured Courses',
+                      onSeeAll: () => showToast(context, 'A dedicated Featured page is coming soon.')),
                   const SizedBox(height: 12),
                   _featuredRow(context),
                   const SizedBox(height: 24),
-                  _sectionHeader('Popular Topics', onSeeAll: () {}),
+                  _sectionHeader('Popular Topics',
+                      onSeeAll: () => showToast(context, 'Tap any topic above to browse it.')),
                   const SizedBox(height: 12),
                   _popularTopics(),
                   const SizedBox(height: 24),
-                  _sectionHeader('Latest from Contributors', onSeeAll: () {}),
+                  _sectionHeader('Latest from Contributors',
+                      onSeeAll: () => showToast(context, 'Scroll down for more — a dedicated feed is coming soon.')),
                   const SizedBox(height: 12),
                   _contributorFeed(context, stream: PublicCourseRepository.instance.watchLatest(), searchQuery: _searchQuery),
                 ] else ...[
-                  _sectionHeader(_category!, onSeeAll: () {}),
+                  _sectionHeader(_category!,
+                      onSeeAll: () => showToast(context, 'Scroll down for more — a dedicated feed is coming soon.')),
                   const SizedBox(height: 12),
                   _contributorFeed(context,
                       stream: PublicCourseRepository.instance.watchByCategory(_category!), searchQuery: _searchQuery),
@@ -126,6 +131,8 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
         UserAvatar(
           initials: (widget.user?.name.isNotEmpty ?? false) ? widget.user!.name[0].toUpperCase() : '?',
           radius: 18, photoUrl: widget.user?.photoUrl,
+          onTap: widget.user == null ? null : () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => ProfilePage(user: widget.user!))),
         ),
       ]),
     );
@@ -166,7 +173,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
             ),
             const SizedBox(width: 10),
             OutlinedButton.icon(
-              onPressed: () {},
+              onPressed: () => showToast(context, 'A walkthrough is coming soon.'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.white,
                 side: const BorderSide(color: Colors.white54),
@@ -286,6 +293,8 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
               currentUser: widget.user,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => CourseReaderPage(course: courses[i], currentUser: widget.user))),
+              onOpenCreator: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => CourseCreatorProfilePage(creatorId: courses[i].creatorId, currentUser: widget.user))),
             ),
           ),
         );
@@ -348,12 +357,12 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
       stream: stream,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return Column(children: List.generate(3, (_) => Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          return Column(children: List.generate(3, (_) => const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Row(children: [
-              const ShimmerBlock(width: 84, height: 84, borderRadius: 10),
-              const SizedBox(width: 12),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+              ShimmerBlock(width: 84, height: 84, borderRadius: 10),
+              SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 ShimmerLine(height: 14), SizedBox(height: 8), ShimmerLine(width: 120, height: 12),
               ])),
             ]),
@@ -422,7 +431,11 @@ class _FeaturedCourseCard extends StatelessWidget {
   final PublicCourse course;
   final AppUser? currentUser;
   final VoidCallback onTap;
-  const _FeaturedCourseCard({required this.course, required this.currentUser, required this.onTap});
+  final VoidCallback onOpenCreator;
+  const _FeaturedCourseCard({
+    required this.course, required this.currentUser,
+    required this.onTap, required this.onOpenCreator,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -465,13 +478,20 @@ class _FeaturedCourseCard extends StatelessWidget {
                 Text(course.description, style: AppText.caption.copyWith(fontSize: 11),
                     maxLines: 2, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 8),
-                Row(children: [
-                  UserAvatar(initials: course.creatorName.isEmpty ? '?' : course.creatorName[0].toUpperCase(),
-                      radius: 8, photoUrl: course.creatorPhotoUrl),
-                  const SizedBox(width: 5),
-                  Expanded(child: Text('By ${course.creatorName}', style: AppText.caption.copyWith(fontSize: 10),
-                      maxLines: 1, overflow: TextOverflow.ellipsis)),
-                ]),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(Rad.xs),
+                    onTap: () { HapticFeedback.selectionClick(); onOpenCreator(); },
+                    child: Row(children: [
+                      UserAvatar(initials: course.creatorName.isEmpty ? '?' : course.creatorName[0].toUpperCase(),
+                          radius: 8, photoUrl: course.creatorPhotoUrl),
+                      const SizedBox(width: 5),
+                      Expanded(child: Text('By ${course.creatorName}', style: AppText.caption.copyWith(fontSize: 10),
+                          maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    ]),
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Row(children: [
                   const Icon(Icons.star_rounded, size: 13, color: C.gold),

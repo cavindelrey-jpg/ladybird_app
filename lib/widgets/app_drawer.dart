@@ -144,7 +144,17 @@ class AppDrawer extends StatelessWidget {
             begin: Alignment.topLeft, end: Alignment.bottomRight),
       ),
       child: Row(children: [
-        _avatar(),
+        _isGuest
+            ? _avatar()
+            : InkWell(
+                borderRadius: BorderRadius.circular(24),
+                onTap: () {
+                  Navigator.of(context).pop(); // close the drawer first
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ProfilePage(user: user!, institution: institution)));
+                },
+                child: _avatar(),
+              ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

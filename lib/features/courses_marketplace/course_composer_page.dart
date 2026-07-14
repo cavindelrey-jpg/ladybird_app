@@ -5,6 +5,7 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -90,7 +91,11 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
 
     setState(() => _importing = true);
     try {
-      final parsed = DocxParser.parse(bytes);
+      // Zip-decode + XML-parse is CPU-bound and was previously running
+      // straight on the UI isolate — a large .docx froze the whole app
+      // (no frames, no input) until it finished. compute() runs it on a
+      // background isolate instead.
+      final parsed = await compute(DocxParser.parse, bytes);
       final delta = quill.Document.fromJson(jsonDecode(parsed.deltaJson));
       setState(() {
         _quillCtrl.document = delta;

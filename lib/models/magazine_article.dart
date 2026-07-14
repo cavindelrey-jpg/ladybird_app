@@ -17,6 +17,13 @@ class MagazineArticle {
   String title;
   String body;
 
+  /// Rich-text body as a Quill Delta (JSON-encoded), carrying inline
+  /// formatting and embedded images. `body` stays in sync as the delta's
+  /// plain text whenever the rich content is saved — used for
+  /// excerpts/search — and readers with an old plain-text article (no
+  /// delta yet) just see `body` rendered as-is.
+  String? bodyDelta;
+
   String? thumbnailUrl;    // author-supplied cover image
   String? cachedThumbnailPath;
 
@@ -44,6 +51,7 @@ class MagazineArticle {
     this.authorPhotoUrl,
     required this.title,
     required this.body,
+    this.bodyDelta,
     this.thumbnailUrl,
     this.cachedThumbnailPath,
     this.category = 'Essay',
@@ -66,6 +74,7 @@ class MagazineArticle {
       authorPhotoUrl: d['authorPhotoUrl'],
       title: d['title'] ?? '',
       body: d['body'] ?? '',
+      bodyDelta: d['bodyDelta'],
       thumbnailUrl: d['thumbnailUrl'],
       category: d['category'] ?? 'Essay',
       schoolId: d['schoolId'],
@@ -84,6 +93,7 @@ class MagazineArticle {
         'authorPhotoUrl': authorPhotoUrl,
         'title': title,
         'body': body,
+        'bodyDelta': bodyDelta,
         'thumbnailUrl': thumbnailUrl,
         'category': category,
         'schoolId': schoolId,

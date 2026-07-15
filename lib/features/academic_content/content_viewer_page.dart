@@ -1,18 +1,23 @@
 // lib/features/academic_content/content_viewer_page.dart
-// Renders an uploaded file in-app: images (pinch-zoom), PDFs (pdfx), and
-// video (chewie/video_player). Office documents and archives have no
-// practical in-app renderer, so those fall back to the external-app flow
-// the caller already has.
+// Renders an uploaded file in-app: images (pinch-zoom), PDFs (pdfx),
+// video (chewie/video_player), and Word documents (.docx, via the same
+// DocxParser the Course composer's importer uses, rendered read-only in
+// Quill). Other office formats and archives have no practical in-app
+// renderer, so those still fall back to the external-app flow the
+// caller already has.
 
-import 'dart:typed_data';
+import 'dart:convert';
 import 'package:chewie/chewie.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:http/http.dart' as http;
 import 'package:pdfx/pdfx.dart';
 import 'package:video_player/video_player.dart';
+import '../../core/docx_parser.dart';
 import '../../theme/app_theme.dart';
 
-enum ViewableFileKind { image, pdf, video }
+enum ViewableFileKind { image, pdf, video, docx }
 
 /// Maps a file's extension to a kind this viewer can render, or null if
 /// it should fall back to opening externally.
@@ -22,9 +27,11 @@ ViewableFileKind? viewableKindFor(String url) {
   const imageExts = {'png', 'jpg', 'jpeg', 'gif', 'webp'};
   const pdfExts = {'pdf'};
   const videoExts = {'mp4', 'mov', 'avi', 'm4v'};
+  const docxExts = {'docx'};
   if (imageExts.contains(ext)) return ViewableFileKind.image;
   if (pdfExts.contains(ext)) return ViewableFileKind.pdf;
   if (videoExts.contains(ext)) return ViewableFileKind.video;
+  if (docxExts.contains(ext)) return ViewableFileKind.docx;
   return null;
 }
 
@@ -56,6 +63,7 @@ class ContentViewerPage extends StatelessWidget {
         ViewableFileKind.image => _ImageViewer(url: fileUrl),
         ViewableFileKind.pdf => _PdfViewer(url: fileUrl),
         ViewableFileKind.video => _VideoViewer(url: fileUrl),
+        ViewableFileKind.docx => _DocxViewer(url: fileUrl),
       },
     );
   }
@@ -176,5 +184,83 @@ class _VideoViewerState extends State<_VideoViewer> {
       return const Center(child: CircularProgressIndicator(color: Colors.white));
     }
     return Center(child: Chewie(controller: _chewieCtrl!));
+  }
+}
+
+class _DocxViewer extends StatefulWidget {
+  final String url;
+  const _DocxViewer({required this.url});
+
+  @override
+  State<_DocxViewer> createState() => _DocxViewerState();
+}
+
+class _DocxViewerState extends State<_DocxViewer> {
+  quill.QuillController? _controller;
+  List<String> _warnings = const [];
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final resp = await http.get(Uri.parse(widget.url)).timeout(const Duration(seconds: 30));
+      if (resp.statusCode >= 400) throw Exception('Server returned ${resp.statusCode}');
+      // Zip-decode + XML-parse is CPU-bound — same reason the Course
+      // composer's .docx importer runs this via compute() rather than
+      // blocking the UI isolate.
+      final parsed = await compute(DocxParser.parse, resp.bodyBytes);
+      final doc = quill.Document.fromJson(jsonDecode(parsed.deltaJson));
+      if (!mounted) return;
+      setState(() {
+        _controller = quill.QuillController(
+            document: doc, selection: const TextSelection.collapsed(offset: 0), readOnly: true);
+        _warnings = parsed.warnings;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Could not open this document: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(_error!, textAlign: TextAlign.center),
+        ),
+      );
+    }
+    final controller = _controller;
+    if (controller == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return Column(children: [
+      if (_warnings.isNotEmpty)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          color: C.goldp,
+          child: Text(_warnings.join(' '), style: AppText.caption.copyWith(color: C.gold)),
+        ),
+      Expanded(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            quill.QuillEditor.basic(
+              controller: controller,
+              config: const quill.QuillEditorConfig(
+                showCursor: false, autoFocus: false, placeholder: '',
+              ),
+            ),
+          ],
+        ),
+      ),
+    ]);
   }
 }

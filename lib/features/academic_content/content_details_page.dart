@@ -277,9 +277,10 @@ class _DownloadButtonState extends State<_DownloadButton> {
   ViewableFileKind? get _viewableKind => viewableKindFor(widget.item.fileUrl!);
 
   Future<void> _openFile() async {
-    // Images, PDFs, and video render in-app instead of handing off to
-    // whatever external app the OS picks. Office documents/archives have
-    // no practical in-app renderer, so those still open externally.
+    // Images, PDFs, video, and .docx render in-app instead of handing off
+    // to whatever external app the OS picks. Other office formats and
+    // archives have no practical in-app renderer, so those still open
+    // externally.
     final kind = _viewableKind;
     if (kind != null) {
       await AcademicContentRepository.instance.incrementDownloads(widget.item.id);

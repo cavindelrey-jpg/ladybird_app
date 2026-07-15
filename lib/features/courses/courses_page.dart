@@ -145,8 +145,17 @@ class CoursesPage extends StatelessWidget {
             );
             final r = await CourseRepository.instance.create(c);
             if (!dCtx.mounted) return;
+            if (r is Failure) {
+              // Previously this fell through to Navigator.pop() either way,
+              // so a failed save silently closed the sheet with no error
+              // and the typed course was lost. Now it stays open, shows
+              // what actually went wrong, and lets you retry.
+              setM(() => saving = false);
+              showToast(dCtx, (r as Failure).message, isError: true);
+              return;
+            }
             Navigator.pop(dCtx);
-            if (r is Success && ctx.mounted) showToast(ctx, '✅ Course created');
+            if (ctx.mounted) showToast(ctx, '✅ Course created');
           }),
         ])),
       )),

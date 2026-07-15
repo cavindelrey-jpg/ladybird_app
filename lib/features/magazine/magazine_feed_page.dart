@@ -190,7 +190,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
   Widget _header(BuildContext context) {
     final canPop = Navigator.of(context).canPop();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 4, 16, 8),
+      padding: const EdgeInsets.fromLTRB(8, 14, 16, 8),
       child: Row(children: [
         if (canPop)
           IconButton(

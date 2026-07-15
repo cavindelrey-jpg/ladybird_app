@@ -8,11 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/models.dart';
 import '../models/public_course.dart';
-import '../models/magazine_article.dart';
 import '../repositories/public_course_repository.dart';
 import '../repositories/magazine_repository.dart';
 import '../theme/app_theme.dart';
-import '../widgets/widgets.dart';
 import '../features/courses_marketplace/course_reader_page.dart';
 import '../features/magazine/article_reader_page.dart';
 
@@ -46,7 +44,7 @@ class _BookmarksPageState extends State<BookmarksPage> with SingleTickerProvider
             if (!snap.hasData) return const Center(child: CircularProgressIndicator());
             final courses = snap.data!;
             if (courses.isEmpty) {
-              return _Empty(icon: Icons.bookmark_border_rounded, text: 'No saved courses yet.');
+              return const _Empty(icon: Icons.bookmark_border_rounded, text: 'No saved courses yet.');
             }
             return ListView.separated(
               padding: const EdgeInsets.all(16),
@@ -69,7 +67,7 @@ class _BookmarksPageState extends State<BookmarksPage> with SingleTickerProvider
             if (!snap.hasData) return const Center(child: CircularProgressIndicator());
             final articles = snap.data!;
             if (articles.isEmpty) {
-              return _Empty(icon: Icons.bookmark_border_rounded, text: 'No saved articles yet.');
+              return const _Empty(icon: Icons.bookmark_border_rounded, text: 'No saved articles yet.');
             }
             return ListView.separated(
               padding: const EdgeInsets.all(16),

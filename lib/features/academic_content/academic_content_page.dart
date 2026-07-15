@@ -85,7 +85,7 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
       body: SafeArea(
         child: Column(children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
           child: Row(children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

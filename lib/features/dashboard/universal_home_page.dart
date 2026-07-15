@@ -63,6 +63,8 @@ import '../magazine/magazine_feed_page.dart';
 import '../magazine/author_profile_page.dart';
 import '../../pages/notifications_page.dart';
 import '../../repositories/notification_repository.dart';
+import '../magazine/top_writers_page.dart';
+import '../announcements/announcements_page.dart';
 import '../../pages/profile_page.dart';
 import '../admin/hero_slide_manager_page.dart';
 
@@ -114,7 +116,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   // ── Top bar: menu (drawer), search, notifications ──────────────────────
   Widget _topBar(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 4, 18, 0),
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
       child: Row(children: [
         Builder(builder: (ctx) => IconButton(
           icon: const Icon(Icons.menu_rounded, color: C.txt),
@@ -500,9 +502,13 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18),
       child: Column(children: [
-        _panelCard(title: 'Top Writers', child: _topWritersPanel()),
+        _panelCard(title: 'Top Writers', child: _topWritersPanel(),
+            onViewAll: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const TopWritersPage()))),
         const SizedBox(height: 16),
-        _panelCard(title: 'Recent Announcements', child: _announcementsPanel()),
+        _panelCard(title: 'Recent Announcements', child: _announcementsPanel(),
+            onViewAll: _isGuest ? null : () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => AnnouncementsPage(user: _u!, canPost: _u!.canPostAnnouncement)))),
       ]),
     );
   }
@@ -650,7 +656,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  Widget _panelCard({required String title, required Widget child}) {
+  Widget _panelCard({required String title, required Widget child, VoidCallback? onViewAll}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -661,7 +667,16 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text(title, style: AppText.title.copyWith(fontSize: 14, fontWeight: FontWeight.w800))),
-          Text('View All', style: AppText.subtitle.copyWith(color: C.primary, fontWeight: FontWeight.w700, fontSize: 11)),
+          if (onViewAll != null)
+            InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: onViewAll,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Text('View All', style: AppText.subtitle.copyWith(
+                    color: C.primary, fontWeight: FontWeight.w700, fontSize: 11)),
+              ),
+            ),
         ]),
         const SizedBox(height: 12),
         child,

@@ -7,6 +7,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
 import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
 import 'providers/institution_provider.dart';
@@ -79,6 +81,21 @@ class AcademiaApp extends StatelessWidget {
           }),
         ),
         home: const _MaintenanceGate(),
+        // Missing entirely before this fix — flutter_quill's toolbar
+        // buttons (used in both the Article and Course composers) call
+        // FlutterQuillLocalizations.of(context) internally, and throw an
+        // UnimplementedError the instant they try to build without this
+        // delegate registered. That's what made "Write a Post" and
+        // "Create Course" appear to do nothing: the push happened, but
+        // the composer's toolbar threw on its very first frame, in a
+        // tight repeating loop, so the screen never finished rendering.
+        localizationsDelegates: const [
+          FlutterQuillLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [Locale('en')],
         builder: (ctx, child) => child ?? const SizedBox.shrink(),
       ),
     );

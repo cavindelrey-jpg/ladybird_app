@@ -62,6 +62,7 @@ import '../academic_content/academic_content_page.dart';
 import '../magazine/magazine_feed_page.dart';
 import '../magazine/author_profile_page.dart';
 import '../../pages/notifications_page.dart';
+import '../../repositories/notification_repository.dart';
 import '../../pages/profile_page.dart';
 import '../admin/hero_slide_manager_page.dart';
 
@@ -149,14 +150,22 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             },
           ),
           if (!_isGuest)
-            Positioned(
-              top: 8, right: 6,
-              child: Container(
-                width: 16, height: 16,
-                decoration: const BoxDecoration(color: C.gold, shape: BoxShape.circle),
-                alignment: Alignment.center,
-                child: Text('3', style: AppText.label.copyWith(fontSize: 9, color: C.navy)),
-              ),
+            StreamBuilder<int>(
+              stream: NotificationRepository.instance.watchUnreadCount(_u!.id),
+              builder: (context, snap) {
+                final count = snap.data ?? 0;
+                if (count == 0) return const SizedBox.shrink();
+                return Positioned(
+                  top: 6, right: 6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    constraints: const BoxConstraints(minWidth: 16),
+                    decoration: BoxDecoration(color: C.red, borderRadius: BorderRadius.circular(8)),
+                    child: Text(count > 9 ? '9+' : '$count', textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+                  ),
+                );
+              },
             ),
         ]),
       ]),

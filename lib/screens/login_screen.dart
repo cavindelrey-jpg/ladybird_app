@@ -191,7 +191,7 @@ class _LoginScreenState extends State<LoginScreen>
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const SizedBox(height: 20),
                     // Logo
-                    AcademiaLogo(size: 52),
+                    const AcademiaLogo(size: 52),
                     const SizedBox(height: 28),
 
                     // School name + motto

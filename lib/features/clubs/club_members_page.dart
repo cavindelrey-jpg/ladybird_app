@@ -125,7 +125,7 @@ class ClubMembersPage extends StatelessWidget {
                         else if (isOnlyAdmin && !isSelf)
                           const Padding(
                             padding: EdgeInsets.only(right: 4),
-                            child: Tooltip(message: "Club needs at least one admin",
+                            child: Tooltip(message: 'Club needs at least one admin',
                                 child: Icon(Icons.shield_outlined, size: 16, color: C.muted)),
                           ),
                       ]),

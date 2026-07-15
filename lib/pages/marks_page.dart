@@ -96,7 +96,7 @@ class _LecturerMarksViewState extends State<_LecturerMarksView> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _Label('1. Find Student'),
+          const _Label('1. Find Student'),
           const SizedBox(height: 8),
           if (_selectedStudent != null) ...[
             _SelectedStudentChip(
@@ -145,7 +145,7 @@ class _LecturerMarksViewState extends State<_LecturerMarksView> {
             ],
           ],
 
-          _Label('2. Sequence'),
+          const _Label('2. Sequence'),
           const SizedBox(height: 8),
           SizedBox(height: 38, child: ListView.builder(
             scrollDirection: Axis.horizontal,
@@ -171,10 +171,10 @@ class _LecturerMarksViewState extends State<_LecturerMarksView> {
           )),
           const SizedBox(height: 20),
 
-          _Label('3. Subject'),
+          const _Label('3. Subject'),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: _selectedSubject,
+            initialValue: _selectedSubject,
             items: MarksRepository.commonSubjects.map((s) =>
                 DropdownMenuItem(value: s, child: Text(s))).toList(),
             onChanged: (v) => setState(() => _selectedSubject = v),
@@ -182,7 +182,7 @@ class _LecturerMarksViewState extends State<_LecturerMarksView> {
           ),
           const SizedBox(height: 20),
 
-          _Label('4. Score'),
+          const _Label('4. Score'),
           const SizedBox(height: 8),
           Row(children: [
             Expanded(child: TextField(

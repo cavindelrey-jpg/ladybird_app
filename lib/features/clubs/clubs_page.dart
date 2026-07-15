@@ -257,9 +257,9 @@ class _ClubsSkeleton extends StatelessWidget {
         const ShimmerLine(width: 100, height: 24),
         const SizedBox(height: 20),
         for (int i = 0; i < 3; i++)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Row(children: const [
+          const Padding(
+            padding: EdgeInsets.only(bottom: 10),
+            child: Row(children: [
               ShimmerCircle(size: 44),
               SizedBox(width: 12),
               Expanded(child: ShimmerLine(height: 14)),

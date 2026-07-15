@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import 'dart:convert';
@@ -125,7 +126,9 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                   const Divider(color: C.bdr2),
                   const SizedBox(height: 20),
                   _CourseBody(course: course),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
+                  _CourseActionRow(course: course, currentUser: widget.currentUser),
+                  const SizedBox(height: 24),
                   const Divider(color: C.bdr2),
                   const SizedBox(height: 16),
                   Text('Comments (${course.commentCount})', style: AppText.h2.copyWith(fontSize: 15)),
@@ -165,14 +168,13 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                       return Column(children: comments.map((cm) => Padding(
                         padding: const EdgeInsets.only(bottom: 14),
                         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          UserAvatar(initials: cm.authorName.isEmpty ? '?' : cm.authorName[0].toUpperCase(),
-                              radius: 14, photoUrl: cm.authorPhotoUrl,
-                              onTap: () {
-                                HapticFeedback.selectionClick();
-                                Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => CourseCreatorProfilePage(
-                                        creatorId: cm.authorId, currentUser: widget.currentUser)));
-                              }),
+                          GestureDetector(
+                            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) => CourseCreatorProfilePage(
+                                    creatorId: cm.authorId, currentUser: widget.currentUser))),
+                            child: UserAvatar(initials: cm.authorName.isEmpty ? '?' : cm.authorName[0].toUpperCase(),
+                                radius: 14, photoUrl: cm.authorPhotoUrl),
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -282,6 +284,92 @@ class _CourseBody extends StatelessWidget {
         autoFocus: false,
         placeholder: 'Course content…',
         embedBuilders: FlutterQuillEmbeds.editorBuilders(),
+      ),
+    );
+  }
+}
+// ── Like / Bookmark / Share ─────────────────────────────────
+// Same story as Magazine: toggleLike/toggleBookmark already existed in
+// PublicCourseRepository but nothing in this reader ever called them.
+class _CourseActionRow extends StatelessWidget {
+  final PublicCourse course;
+  final AppUser? currentUser;
+  const _CourseActionRow({required this.course, required this.currentUser});
+
+  @override
+  Widget build(BuildContext context) {
+    final u = currentUser;
+    final repo = PublicCourseRepository.instance;
+    return Row(children: [
+      if (u == null)
+        Text('Sign in to like or save this course.', style: AppText.bodySm)
+      else ...[
+        StreamBuilder<bool>(
+          stream: repo.watchIsLiked(course.id, u.id),
+          builder: (context, snap) {
+            final liked = snap.data ?? false;
+            return _CourseActionChip(
+              icon: liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              color: liked ? C.red : C.txt2,
+              label: '${course.likeCount}',
+              onTap: () {
+                HapticFeedback.selectionClick();
+                repo.toggleLike(course.id, u.id);
+              },
+            );
+          },
+        ),
+        const SizedBox(width: 18),
+        StreamBuilder<bool>(
+          stream: repo.watchIsBookmarked(course.id, u.id),
+          builder: (context, snap) {
+            final saved = snap.data ?? false;
+            return _CourseActionChip(
+              icon: saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+              color: saved ? C.gold : C.txt2,
+              label: saved ? 'Saved' : 'Save',
+              onTap: () {
+                HapticFeedback.selectionClick();
+                repo.toggleBookmark(course.id, u.id);
+              },
+            );
+          },
+        ),
+      ],
+      const Spacer(),
+      _CourseActionChip(
+        icon: Icons.share_outlined, color: C.txt2, label: 'Share',
+        onTap: () {
+          HapticFeedback.selectionClick();
+          Share.share('${course.title}\n\nRead it on Academia.');
+        },
+      ),
+    ]);
+  }
+}
+
+class _CourseActionChip extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback onTap;
+  const _CourseActionChip({required this.icon, required this.color, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Rad.sm),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 20, color: color),
+            const SizedBox(width: 6),
+            Text(label, style: AppText.bodySm.copyWith(color: color, fontWeight: FontWeight.w600)),
+          ]),
+        ),
       ),
     );
   }

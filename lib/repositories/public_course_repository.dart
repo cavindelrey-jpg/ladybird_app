@@ -9,6 +9,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../models/public_course.dart';
 import '../core/constants.dart';
 import '../core/result.dart';
+import 'engagement_helper.dart';
 
 class PublicCourseRepository {
   PublicCourseRepository._();
@@ -80,7 +81,9 @@ class PublicCourseRepository {
 
   Future<Result<String>> create(PublicCourse course) async {
     try {
-      final ref = await _courses.add(course.toFirestore());
+      final ref = await _courses.add(course.toFirestore())
+          .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
+              'Saving is taking too long. Check your connection and try again.'));
       return Success(ref.id);
     } catch (e) {
       return Failure('Failed to create course', e);
@@ -89,7 +92,9 @@ class PublicCourseRepository {
 
   Future<Result<void>> update(PublicCourse course) async {
     try {
-      await _courses.doc(course.id).set(course.toFirestore(), SetOptions(merge: true));
+      await _courses.doc(course.id).set(course.toFirestore(), SetOptions(merge: true))
+          .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
+              'Saving is taking too long. Check your connection and try again.'));
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update course', e);
@@ -108,7 +113,9 @@ class PublicCourseRepository {
   Future<Result<String>> uploadCover({required String courseId, required File imageFile}) async {
     try {
       final ref = FirebaseStorage.instance.ref('course_covers/$courseId.jpg');
-      await ref.putFile(imageFile);
+      await ref.putFile(imageFile)
+          .timeout(const Duration(seconds: 60), onTimeout: () => throw Exception(
+              'Image upload is taking too long. Check your connection and try again.'));
       return Success(await ref.getDownloadURL());
     } catch (e) {
       return Failure('Failed to upload cover image', e);
@@ -170,27 +177,12 @@ class PublicCourseRepository {
 
   // ── Bookmarks (save to my list — not offline caching, just a marker) ──
 
-  Stream<bool> watchIsBookmarked(String courseId, String userId) => _courses
-      .doc(courseId)
-      .collection(AppConstants.colBookmarks)
-      .doc(userId)
-      .snapshots()
-      .map((d) => d.exists);
+  Stream<bool> watchIsBookmarked(String courseId, String userId) => EngagementHelper.watchIsSet(
+      parentCollection: _courses, docId: courseId, subcollection: AppConstants.colBookmarks, userId: userId);
 
-  Future<Result<void>> toggleBookmark(String courseId, String userId) async {
-    try {
-      final ref = _courses.doc(courseId).collection(AppConstants.colBookmarks).doc(userId);
-      final existing = await ref.get();
-      if (existing.exists) {
-        await ref.delete();
-      } else {
-        await ref.set({'savedAt': FieldValue.serverTimestamp()});
-      }
-      return const Success(null);
-    } catch (e) {
-      return Failure('Failed to update bookmark', e);
-    }
-  }
+  Future<Result<void>> toggleBookmark(String courseId, String userId) => EngagementHelper.togglePresence(
+      parentCollection: _courses, docId: courseId, subcollection: AppConstants.colBookmarks,
+      userId: userId, failureMessage: 'Failed to update bookmark');
 
   /// A user's bookmarked courses — powers "My Saved Courses". Uses a
   /// collection-group query since bookmarks live per-course.
@@ -216,31 +208,12 @@ class PublicCourseRepository {
 
   // ── Likes (same shape as Magazine's) ──────────────────────
 
-  Stream<bool> watchIsLiked(String courseId, String userId) => _courses
-      .doc(courseId)
-      .collection(AppConstants.colLikes)
-      .doc(userId)
-      .snapshots()
-      .map((d) => d.exists);
+  Stream<bool> watchIsLiked(String courseId, String userId) => EngagementHelper.watchIsSet(
+      parentCollection: _courses, docId: courseId, subcollection: AppConstants.colLikes, userId: userId);
 
-  Future<Result<void>> toggleLike(String courseId, String userId) async {
-    try {
-      final likeRef = _courses.doc(courseId).collection(AppConstants.colLikes).doc(userId);
-      final existing = await likeRef.get();
-      final batch = _db.batch();
-      if (existing.exists) {
-        batch.delete(likeRef);
-        batch.update(_courses.doc(courseId), {'likeCount': FieldValue.increment(-1)});
-      } else {
-        batch.set(likeRef, {'createdAt': FieldValue.serverTimestamp()});
-        batch.update(_courses.doc(courseId), {'likeCount': FieldValue.increment(1)});
-      }
-      await batch.commit();
-      return const Success(null);
-    } catch (e) {
-      return Failure('Failed to update like', e);
-    }
-  }
+  Future<Result<void>> toggleLike(String courseId, String userId) => EngagementHelper.toggleWithCounter(
+      db: _db, parentCollection: _courses, docId: courseId, subcollection: AppConstants.colLikes,
+      userId: userId, counterField: 'likeCount', failureMessage: 'Failed to update like');
 
   // ── Comments ───────────────────────────────────────────────
 

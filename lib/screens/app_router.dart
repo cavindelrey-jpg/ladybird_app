@@ -20,7 +20,7 @@ import '../features/academic_content/academic_content_page.dart';
 import '../features/courses_marketplace/courses_marketplace_page.dart';
 import '../pages/profile_page.dart';
 import '../features/dashboard/universal_home_page.dart';
-import '../features/messages/messages_home_page.dart';
+import '../features/magazine/magazine_feed_page.dart';
 import '../widgets/app_drawer.dart';
 import '../features/onboarding/account_choice_screen.dart';
 
@@ -359,10 +359,10 @@ class _HomeShellState extends State<HomeShell> {
     final i = widget.institution;
     final nav = <_NavDef>[
       const _NavDef('Home', Icons.home_rounded, Icons.home_outlined, UserRole.guest),
-      const _NavDef('Courses', Icons.school_rounded, Icons.school_outlined, UserRole.student),
       if (i.hasFeature(InstitutionFeature.library))
         const _NavDef('Library', Icons.menu_book_rounded, Icons.menu_book_outlined, UserRole.student),
-      const _NavDef('Messages', Icons.chat_bubble_outline_rounded, Icons.chat_bubble_outline_rounded, UserRole.student),
+      const _NavDef('Magazine', Icons.auto_stories_rounded, Icons.auto_stories_outlined, UserRole.guest),
+      const _NavDef('Courses', Icons.school_rounded, Icons.school_outlined, UserRole.student),
       const _NavDef('Profile', Icons.person_rounded, Icons.person_outlined, UserRole.guest),
     ];
 
@@ -384,9 +384,9 @@ class _HomeShellState extends State<HomeShell> {
     }
     switch (def.label) {
       case 'Home':     return UniversalHomePage(user: u);
-      case 'Courses':  return CoursesMarketplacePage(user: u);
       case 'Library':  return AcademicContentPage(user: u);
-      case 'Messages': return MessagesHomePage(user: u);
+      case 'Magazine': return MagazineFeedPage(user: u);
+      case 'Courses':  return CoursesMarketplacePage(user: u);
       case 'Profile':  return ProfilePage(user: u, institution: widget.institution);
       default:         return const SizedBox.shrink();
     }

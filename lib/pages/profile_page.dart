@@ -13,6 +13,7 @@ import '../features/assignments/assignments_page.dart';
 import '../features/attendance/attendance_page.dart';
 import '../pages/marks_page.dart';
 import 'profile_edit_page.dart';
+import 'bookmarks_page.dart';
 import 'settings_page.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -146,6 +147,11 @@ class ProfilePage extends StatelessWidget {
           if (user.courseIds.isNotEmpty)
             _InfoRow(Icons.auto_stories_outlined, 'Courses',
                 '${user.courseIds.length} course(s) enrolled'),
+
+          const SizedBox(height: 10),
+          _InfoRow(Icons.bookmark_border_rounded, 'My Bookmarks', '',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => BookmarksPage(user: user)))),
 
           if (inst != null) ...[
             const SizedBox(height: 24),

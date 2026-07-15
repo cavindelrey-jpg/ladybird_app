@@ -87,7 +87,7 @@ class _LecView extends StatelessWidget {
           Text('New Assignment', style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700)),
           const SizedBox(height: 14),
           DropdownButtonFormField<Course>(
-            value: course,
+            initialValue: course,
             decoration: const InputDecoration(labelText: 'Course *'),
             items: courses.map((c) =>
                 DropdownMenuItem(value: c, child: Text(c.name))).toList(),
@@ -200,8 +200,10 @@ class _SubsPage extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           final subs = snap.data ?? [];
-          if (subs.isEmpty) return Center(
-              child: Text('No submissions yet', style: GoogleFonts.inter(color: C.muted)));
+          if (subs.isEmpty) {
+            return Center(
+                child: Text('No submissions yet', style: GoogleFonts.inter(color: C.muted)));
+          }
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: subs.length,

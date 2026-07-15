@@ -134,7 +134,7 @@ class _TimetablePageState extends State<TimetablePage> {
           ]),
           const SizedBox(height: 10),
           DropdownButtonFormField<int>(
-            value: day,
+            initialValue: day,
             decoration: const InputDecoration(labelText: 'Day'),
             items: List.generate(5, (i) => DropdownMenuItem(
                 value: i + 1, child: Text(_days[i]))),
@@ -196,12 +196,12 @@ class _SlotCard extends StatelessWidget {
                 style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: C.txt)),
             const SizedBox(height: 4),
             Row(children: [
-              Icon(Icons.access_time_rounded, size: 13, color: C.muted),
+              const Icon(Icons.access_time_rounded, size: 13, color: C.muted),
               const SizedBox(width: 4),
               Text('${slot.startTime}–${slot.endTime}',
                   style: GoogleFonts.inter(fontSize: 12, color: C.muted)),
               const SizedBox(width: 12),
-              Icon(Icons.location_on_outlined, size: 13, color: C.muted),
+              const Icon(Icons.location_on_outlined, size: 13, color: C.muted),
               const SizedBox(width: 4),
               Text(slot.venue, style: GoogleFonts.inter(fontSize: 12, color: C.muted)),
             ]),

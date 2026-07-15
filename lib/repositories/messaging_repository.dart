@@ -40,10 +40,10 @@ class MessagingRepository {
     required String fromUserRoleLabel,
     required String toUserId,
   }) async {
-    if (fromUserId == toUserId) return Failure('You can\'t friend yourself', null);
+    if (fromUserId == toUserId) return const Failure('You can\'t friend yourself', null);
     try {
       final alreadyFriends = await isFriend(fromUserId, toUserId);
-      if (alreadyFriends) return Failure('You\'re already friends', null);
+      if (alreadyFriends) return const Failure('You\'re already friends', null);
 
       // Don't stack duplicate pending requests between the same pair.
       final existing = await _requests
@@ -52,7 +52,7 @@ class MessagingRepository {
           .where('status', isEqualTo: 'pending')
           .limit(1)
           .get();
-      if (existing.docs.isNotEmpty) return Failure('Request already sent', null);
+      if (existing.docs.isNotEmpty) return const Failure('Request already sent', null);
 
       await _requests.add(FriendRequest(
         id: '', fromUserId: fromUserId, fromUserName: fromUserName,
@@ -128,7 +128,7 @@ class MessagingRepository {
   }) async {
     try {
       if (!await isFriend(userAId, userBId)) {
-        return Failure('You need to be friends to message each other', null);
+        return const Failure('You need to be friends to message each other', null);
       }
       final existing = await _conversations
           .where('participantIds', arrayContains: userAId)

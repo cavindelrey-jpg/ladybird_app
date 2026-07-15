@@ -176,7 +176,7 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Content type selector
-              _SectionLabel('Content Type'),
+              const _SectionLabel('Content Type'),
               const SizedBox(height: 10),
               _ContentTypeGrid(
                 selected: _type,
@@ -185,7 +185,7 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
               const SizedBox(height: 20),
 
               // Title
-              _SectionLabel('Title *'),
+              const _SectionLabel('Title *'),
               const SizedBox(height: 8),
               _Field(
                 controller: _titleCtrl,
@@ -196,7 +196,7 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
               const SizedBox(height: 16),
 
               // Subject
-              _SectionLabel('Subject *'),
+              const _SectionLabel('Subject *'),
               const SizedBox(height: 8),
               _Field(
                 controller: _subjectCtrl,
@@ -207,7 +207,7 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
               const SizedBox(height: 16),
 
               // Description
-              _SectionLabel('Description'),
+              const _SectionLabel('Description'),
               const SizedBox(height: 8),
               _Field(
                 controller: _descCtrl,
@@ -217,7 +217,7 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
               const SizedBox(height: 16),
 
               // Tags
-              _SectionLabel('Tags (comma separated)'),
+              const _SectionLabel('Tags (comma separated)'),
               const SizedBox(height: 8),
               _Field(
                 controller: _tagsCtrl,
@@ -226,7 +226,7 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
               const SizedBox(height: 20),
 
               // Content file picker
-              _SectionLabel('Content File *'),
+              const _SectionLabel('Content File *'),
               const SizedBox(height: 8),
               _FilePicker(
                 label: _contentFileName ?? 'Choose file…',
@@ -237,7 +237,7 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
               const SizedBox(height: 16),
 
               // Thumbnail picker
-              _SectionLabel('Thumbnail (optional)'),
+              const _SectionLabel('Thumbnail (optional)'),
               const SizedBox(height: 8),
               _ThumbnailPicker(
                 file: _thumbnailFile,

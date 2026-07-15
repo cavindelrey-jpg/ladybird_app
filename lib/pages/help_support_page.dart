@@ -26,7 +26,7 @@ const _faqs = [
       'papers across every subject, instead of the limited free preview.'),
   _Faq('How do I pay for Premium?',
       'Payment is via MTN Mobile Money or Orange Money, right in the app, '
-      "on the Premium unlock screen."),
+      'on the Premium unlock screen.'),
   _Faq('Can I use Academia without a school?',
       'Yes — create an independent account to access the Content Library, '
       'Past Questions, Clubs, and (soon) the Academia Magazine without being '

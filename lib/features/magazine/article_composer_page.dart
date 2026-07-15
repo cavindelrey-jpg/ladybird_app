@@ -2,12 +2,10 @@
 // Create/edit an article: title, cover image, category, body, draft vs
 // published.
 //
-// Body is a real flutter_quill rich-text editor — bold/italic/headings/
-// lists/inline images — mirroring the Courses composer, not just a plain
-// TextField with a separate cover-image picker. MagazineArticle.body
-// stays populated with the delta's plain text (used for excerpts/search);
-// bodyDelta carries the actual rich content or is null for old
-// plain-text articles, which the reader falls back to `body` for.
+// Body is a real rich-text editor (flutter_quill) so writers can embed
+// images inline within the text — not just a single cover-image field —
+// mirroring the same flutter_quill_extensions wiring already used by
+// CourseComposerPage/CourseReaderPage.
 
 import 'dart:convert';
 import 'dart:io';
@@ -41,6 +39,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
   late final quill.QuillController _quillCtrl = _initQuillController();
   final _editorFocusNode = FocusNode();
   final _editorScrollCtrl = ScrollController();
+
   File? _pickedCover;
   bool _saving = false;
   String? _error;
@@ -211,89 +210,89 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-          Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(Rad.md),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(Rad.md),
-              onTap: _pickCover,
-              child: Container(
-                height: 150, width: double.infinity,
-                decoration: BoxDecoration(
-                  color: C.navy, borderRadius: BorderRadius.circular(Rad.md),
-                  image: _pickedCover != null
-                      ? DecorationImage(image: FileImage(_pickedCover!), fit: BoxFit.cover)
-                      : (widget.existing?.thumbnailUrl != null
-                          ? DecorationImage(image: NetworkImage(widget.existing!.thumbnailUrl!), fit: BoxFit.cover)
-                          : null),
-                ),
-                child: (_pickedCover == null && widget.existing?.thumbnailUrl == null)
-                    ? const Center(child: Icon(Icons.add_photo_alternate_outlined, color: Colors.white70, size: 32))
-                    : null,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8, runSpacing: 8,
-            children: kArticleCategories.map((cat) {
-              final active = cat == _category;
-              return Material(
+              Material(
                 color: Colors.transparent,
+                borderRadius: BorderRadius.circular(Rad.md),
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () {
-                    HapticFeedback.selectionClick();
-                    setState(() => _category = cat);
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  borderRadius: BorderRadius.circular(Rad.md),
+                  onTap: _pickCover,
+                  child: Container(
+                    height: 150, width: double.infinity,
                     decoration: BoxDecoration(
-                      color: active ? C.primary : C.surf2,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: active ? C.primary : C.bdr),
+                      color: C.navy, borderRadius: BorderRadius.circular(Rad.md),
+                      image: _pickedCover != null
+                          ? DecorationImage(image: FileImage(_pickedCover!), fit: BoxFit.cover)
+                          : (widget.existing?.thumbnailUrl != null
+                              ? DecorationImage(image: NetworkImage(widget.existing!.thumbnailUrl!), fit: BoxFit.cover)
+                              : null),
                     ),
-                    child: Text(cat, style: AppText.caption.copyWith(
-                        fontSize: 12, fontWeight: FontWeight.w700,
-                        color: active ? Colors.white : C.txt2)),
+                    child: (_pickedCover == null && widget.existing?.thumbnailUrl == null)
+                        ? const Center(child: Icon(Icons.add_photo_alternate_outlined, color: Colors.white70, size: 32))
+                        : null,
                   ),
                 ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _titleCtrl,
-            style: AppText.h1,
-            decoration: const InputDecoration(hintText: 'Title', border: InputBorder.none),
-          ),
-          const Divider(color: C.bdr2),
-          const SizedBox(height: 12),
-          Container(
-            constraints: const BoxConstraints(minHeight: 280),
-            decoration: BoxDecoration(
-                color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr)),
-            padding: const EdgeInsets.all(8),
-            child: quill.QuillEditor.basic(
-              controller: _quillCtrl,
-              focusNode: _editorFocusNode,
-              scrollController: _editorScrollCtrl,
-              config: quill.QuillEditorConfig(
-                placeholder: 'Tell your story…',
-                embedBuilders: FlutterQuillEmbeds.editorBuilders(),
               ),
-            ),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(Rad.sm)),
-              child: Text(_error!, style: AppText.bodySm.copyWith(color: C.red)),
-            ),
-          ],
-          const SizedBox(height: 100),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8, runSpacing: 8,
+                children: kArticleCategories.map((cat) {
+                  final active = cat == _category;
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _category = cat);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: active ? C.primary : C.surf2,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: active ? C.primary : C.bdr),
+                        ),
+                        child: Text(cat, style: AppText.caption.copyWith(
+                            fontSize: 12, fontWeight: FontWeight.w700,
+                            color: active ? Colors.white : C.txt2)),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _titleCtrl,
+                style: AppText.h1,
+                decoration: const InputDecoration(hintText: 'Title', border: InputBorder.none),
+              ),
+              const Divider(color: C.bdr2),
+              const SizedBox(height: 12),
+              Container(
+                constraints: const BoxConstraints(minHeight: 280),
+                decoration: BoxDecoration(
+                    color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr)),
+                padding: const EdgeInsets.all(8),
+                child: quill.QuillEditor.basic(
+                  controller: _quillCtrl,
+                  focusNode: _editorFocusNode,
+                  scrollController: _editorScrollCtrl,
+                  config: quill.QuillEditorConfig(
+                    placeholder: 'Tell your story…',
+                    embedBuilders: FlutterQuillEmbeds.editorBuilders(),
+                  ),
+                ),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(Rad.sm)),
+                  child: Text(_error!, style: AppText.bodySm.copyWith(color: C.red)),
+                ),
+              ],
+              const SizedBox(height: 100),
             ],
           ),
         ),
@@ -307,7 +306,9 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
                 imageButtonOptions: QuillToolbarImageButtonOptions(
                   imageButtonConfig: QuillToolbarImageConfig(
                     onRequestPickImage: (context) async {
-                      final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+                      final picked = await ImagePicker().pickImage(
+                        source: ImageSource.gallery,
+                      );
                       if (picked == null) return null;
                       return _onEmbedImagePick(File(picked.path));
                     },

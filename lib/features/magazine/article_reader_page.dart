@@ -1,8 +1,9 @@
 // lib/features/magazine/article_reader_page.dart
 // Full article render, author byline, comment thread, read counter fired
-// once per view. Body renders as rich Quill content (inline images,
-// formatting) when bodyDelta is present; old plain-text articles fall
-// back to `body` rendered as a single paragraph.
+// once per view. Body renders the Quill rich-text delta (with inline
+// images) when present, via read-only QuillEditor with the same embed
+// builders the composer uses — falls back to plain paragraphs for
+// older articles saved before rich text existed.
 //
 // Design pass: reading text now uses AppText.body (15px / 1.65 line
 // height) instead of a tight 1.7-height inline style picked ad hoc — this
@@ -12,6 +13,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import '../../models/app_user.dart';
@@ -154,7 +156,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
                         Text(_formatDate(a.createdAt), style: AppText.caption),
                       ]),
                       const Spacer(),
-                      Icon(Icons.visibility_outlined, size: 15, color: C.muted),
+                      const Icon(Icons.visibility_outlined, size: 15, color: C.muted),
                       const SizedBox(width: 4),
                       Text('${a.readCount}', style: AppText.caption),
                     ]),
@@ -165,7 +167,9 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
               const Divider(color: C.bdr2),
               const SizedBox(height: 20),
               _ArticleBody(article: a),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
+              _ActionRow(article: a, currentUser: widget.currentUser),
+              const SizedBox(height: 24),
               const Divider(color: C.bdr2),
               const SizedBox(height: 16),
               Text('Comments (${a.commentCount})', style: AppText.h2.copyWith(fontSize: 15)),
@@ -215,13 +219,12 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
                   return Column(children: comments.map((c) => Padding(
                     padding: const EdgeInsets.only(bottom: 14),
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      UserAvatar(initials: c.authorName.isEmpty ? '?' : c.authorName[0].toUpperCase(),
-                          radius: 14, photoUrl: c.authorPhotoUrl,
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            Navigator.of(context).push(MaterialPageRoute(
-                                builder: (_) => AuthorProfilePage(authorId: c.authorId, currentUser: widget.currentUser)));
-                          }),
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => AuthorProfilePage(authorId: c.authorId, currentUser: widget.currentUser))),
+                        child: UserAvatar(initials: c.authorName.isEmpty ? '?' : c.authorName[0].toUpperCase(),
+                            radius: 14, photoUrl: c.authorPhotoUrl),
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -249,6 +252,9 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
   String _formatDate(DateTime dt) => '${_months[dt.month - 1]} ${dt.day}, ${dt.year}';
 }
 
+/// Renders the article body. Prefers the Quill delta (so inline images
+/// embedded in the text show up in place); falls back to plain paragraphs
+/// for articles saved before rich text existed or if the delta is corrupt.
 class _ArticleBody extends StatelessWidget {
   final MagazineArticle article;
   const _ArticleBody({required this.article});
@@ -276,7 +282,95 @@ class _ArticleBody extends StatelessWidget {
       config: quill.QuillEditorConfig(
         showCursor: false,
         autoFocus: false,
+        placeholder: '',
         embedBuilders: FlutterQuillEmbeds.editorBuilders(),
+      ),
+    );
+  }
+}
+
+// ── Like / Bookmark / Share ─────────────────────────────────
+// Like and bookmark backends already existed in MagazineRepository but
+// were never wired to any UI — real working code nobody could reach.
+class _ActionRow extends StatelessWidget {
+  final MagazineArticle article;
+  final AppUser? currentUser;
+  const _ActionRow({required this.article, required this.currentUser});
+
+  @override
+  Widget build(BuildContext context) {
+    final u = currentUser;
+    final repo = MagazineRepository.instance;
+    return Row(children: [
+      if (u == null)
+        Text('Sign in to like or save this article.', style: AppText.caption)
+      else ...[
+        StreamBuilder<bool>(
+          stream: repo.watchIsLiked(article.id, u.id),
+          builder: (context, snap) {
+            final liked = snap.data ?? false;
+            return _ActionChip(
+              icon: liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              color: liked ? C.red : C.txt2,
+              label: '${article.likeCount}',
+              onTap: () {
+                HapticFeedback.selectionClick();
+                repo.toggleLike(article.id, u.id);
+              },
+            );
+          },
+        ),
+        const SizedBox(width: 18),
+        StreamBuilder<bool>(
+          stream: repo.watchIsBookmarked(article.id, u.id),
+          builder: (context, snap) {
+            final saved = snap.data ?? false;
+            return _ActionChip(
+              icon: saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+              color: saved ? C.gold : C.txt2,
+              label: saved ? 'Saved' : 'Save',
+              onTap: () {
+                HapticFeedback.selectionClick();
+                repo.toggleBookmark(article.id, u.id);
+              },
+            );
+          },
+        ),
+      ],
+      const Spacer(),
+      _ActionChip(
+        icon: Icons.share_outlined, color: C.txt2, label: 'Share',
+        onTap: () {
+          HapticFeedback.selectionClick();
+          Share.share('${article.title}\n\nRead it on Academia Magazine.');
+        },
+      ),
+    ]);
+  }
+}
+
+class _ActionChip extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback onTap;
+  const _ActionChip({required this.icon, required this.color, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Rad.sm),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 20, color: color),
+            const SizedBox(width: 6),
+            Text(label, style: AppText.caption.copyWith(color: color, fontWeight: FontWeight.w600)),
+          ]),
+        ),
       ),
     );
   }

@@ -100,7 +100,7 @@ class ClubRepository {
           .where('status', isEqualTo: 'pending')
           .limit(1)
           .get();
-      if (existing.docs.isNotEmpty) return Failure('Request already pending', null);
+      if (existing.docs.isNotEmpty) return const Failure('Request already pending', null);
 
       await _joinRequests.add(ClubJoinRequest(
         id: '', clubId: clubId, clubName: clubName,

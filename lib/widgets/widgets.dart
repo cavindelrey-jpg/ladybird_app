@@ -434,7 +434,7 @@ class AnnCard extends StatelessWidget {
           StatusBadge(label: tag, color: accent),
           if (urgent) ...[
             const SizedBox(width: 8),
-            StatusBadge(label: 'URGENT', color: C.red, bg: C.redb),
+            const StatusBadge(label: 'URGENT', color: C.red, bg: C.redb),
           ],
           const Spacer(),
           Text(date, style: GoogleFonts.inter(fontSize: 11, color: C.muted)),

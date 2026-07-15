@@ -86,8 +86,11 @@ class _LecturerViewState extends State<_LecturerView> {
     final r = await AttendanceRepository.instance.markBatch(schoolId: _sid, records: records);
     setState(() => _saving = false);
     if (!mounted) return;
-    if (r is Success) showToast(context, '✅ Attendance saved');
-    else showToast(context, '❌ ${(r as Failure).message}');
+    if (r is Success) {
+      showToast(context, '✅ Attendance saved');
+    } else {
+      showToast(context, '❌ ${(r as Failure).message}');
+    }
   }
 
   @override
@@ -108,7 +111,7 @@ class _LecturerViewState extends State<_LecturerView> {
           : Column(children: [
               Container(color: C.surf, padding: const EdgeInsets.all(16), child: Column(children: [
                 DropdownButtonFormField<Course>(
-                  value: _course,
+                  initialValue: _course,
                   decoration: const InputDecoration(labelText: 'Course'),
                   items: _courses.map((c) =>
                       DropdownMenuItem(value: c, child: Text(c.name))).toList(),

@@ -62,7 +62,7 @@ class NotificationsPage extends StatelessWidget {
             return const EmptyState(
               icon: Icons.notifications_none_rounded,
               title: 'No notifications yet',
-              subtitle: "Announcements, comments, and replies will show up here.",
+              subtitle: 'Announcements, comments, and replies will show up here.',
             );
           }
           return ListView.builder(
@@ -95,7 +95,7 @@ class NotificationsPage extends StatelessWidget {
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Container(
                         width: 36, height: 36,
-                        decoration: BoxDecoration(color: C.surf3, shape: BoxShape.circle),
+                        decoration: const BoxDecoration(color: C.surf3, shape: BoxShape.circle),
                         child: Icon(_iconFor(n.type), size: 18, color: C.primary),
                       ),
                       const SizedBox(width: 12),

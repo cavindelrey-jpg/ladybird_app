@@ -11,6 +11,7 @@ import '../models/xp_transaction.dart';
 import '../core/result.dart';
 import '../core/constants.dart';
 import 'xp_repository.dart';
+import 'engagement_helper.dart';
 
 class MagazineRepository {
   MagazineRepository._();
@@ -87,7 +88,9 @@ class MagazineRepository {
 
   Future<Result<String>> publish(MagazineArticle article) async {
     try {
-      final ref = await _articles.add(article.toFirestore());
+      final ref = await _articles.add(article.toFirestore())
+          .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
+              'Publishing is taking too long. Check your connection and try again.'));
       return Success(ref.id);
     } catch (e) {
       return Failure('Failed to publish article', e);
@@ -96,7 +99,9 @@ class MagazineRepository {
 
   Future<Result<void>> update(MagazineArticle article) async {
     try {
-      await _articles.doc(article.id).set(article.toFirestore(), SetOptions(merge: true));
+      await _articles.doc(article.id).set(article.toFirestore(), SetOptions(merge: true))
+          .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
+              'Saving is taking too long. Check your connection and try again.'));
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update article', e);
@@ -120,7 +125,9 @@ class MagazineRepository {
   }) async {
     try {
       final ref = FirebaseStorage.instance.ref('magazine_thumbnails/$articleId.jpg');
-      await ref.putFile(imageFile);
+      await ref.putFile(imageFile)
+          .timeout(const Duration(seconds: 60), onTimeout: () => throw Exception(
+              'Image upload is taking too long. Check your connection and try again.'));
       final url = await ref.getDownloadURL();
       return Success(url);
     } catch (e) {
@@ -269,31 +276,42 @@ class MagazineRepository {
   // articles/{id}/likes/{userId} — existence of the doc == liked.
   // likeCount on the article doc is denormalized for fast card display.
 
-  Stream<bool> watchIsLiked(String articleId, String userId) => _articles
-      .doc(articleId)
-      .collection(AppConstants.colLikes)
-      .doc(userId)
-      .snapshots()
-      .map((d) => d.exists);
+  // ── Bookmarks ──────────────────────────────────────────────
 
-  Future<Result<void>> toggleLike(String articleId, String userId) async {
-    try {
-      final likeRef = _articles.doc(articleId).collection(AppConstants.colLikes).doc(userId);
-      final existing = await likeRef.get();
-      final batch = _db.batch();
-      if (existing.exists) {
-        batch.delete(likeRef);
-        batch.update(_articles.doc(articleId), {'likeCount': FieldValue.increment(-1)});
-      } else {
-        batch.set(likeRef, {'createdAt': FieldValue.serverTimestamp()});
-        batch.update(_articles.doc(articleId), {'likeCount': FieldValue.increment(1)});
+  Stream<bool> watchIsBookmarked(String articleId, String userId) => EngagementHelper.watchIsSet(
+      parentCollection: _articles, docId: articleId, subcollection: AppConstants.colBookmarks, userId: userId);
+
+  Future<Result<void>> toggleBookmark(String articleId, String userId) => EngagementHelper.togglePresence(
+      parentCollection: _articles, docId: articleId, subcollection: AppConstants.colBookmarks,
+      userId: userId, failureMessage: 'Failed to update bookmark');
+
+  /// A user's bookmarked articles — powers "My Bookmarks".
+  Stream<List<MagazineArticle>> watchBookmarkedArticles(String userId) {
+    return _db
+        .collectionGroup(AppConstants.colBookmarks)
+        .where(FieldPath.documentId, isEqualTo: userId)
+        .snapshots()
+        .asyncMap((snap) async {
+      final articleIds = snap.docs
+          .map((d) => d.reference.parent.parent?.id)
+          .whereType<String>()
+          .toList();
+      if (articleIds.isEmpty) return <MagazineArticle>[];
+      final articles = <MagazineArticle>[];
+      for (final id in articleIds.take(30)) {
+        final doc = await _articles.doc(id).get();
+        if (doc.exists) articles.add(MagazineArticle.fromFirestore(doc));
       }
-      await batch.commit();
-      return const Success(null);
-    } catch (e) {
-      return Failure('Failed to update like', e);
-    }
+      return articles;
+    });
   }
+
+  Stream<bool> watchIsLiked(String articleId, String userId) => EngagementHelper.watchIsSet(
+      parentCollection: _articles, docId: articleId, subcollection: AppConstants.colLikes, userId: userId);
+
+  Future<Result<void>> toggleLike(String articleId, String userId) => EngagementHelper.toggleWithCounter(
+      db: _db, parentCollection: _articles, docId: articleId, subcollection: AppConstants.colLikes,
+      userId: userId, counterField: 'likeCount', failureMessage: 'Failed to update like');
 
   // ── Comments ───────────────────────────────────────────
 

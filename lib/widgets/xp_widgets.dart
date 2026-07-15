@@ -76,7 +76,7 @@ class XpCapProgressBar extends StatelessWidget {
           ),
           if (capped) ...[
             const SizedBox(height: 4),
-            Text("Daily cap reached — more XP tomorrow.", style: AppText.caption.copyWith(fontSize: 10.5, color: C.org)),
+            Text('Daily cap reached — more XP tomorrow.', style: AppText.caption.copyWith(fontSize: 10.5, color: C.org)),
           ],
         ]);
       },

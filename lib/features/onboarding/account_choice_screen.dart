@@ -31,7 +31,7 @@ class AccountChoiceScreen extends StatelessWidget {
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            AcademiaLogo(size: 52),
+            const AcademiaLogo(size: 52),
             const SizedBox(height: 20),
             Text('Create your account',
                 style: GoogleFonts.sora(fontSize: 24, fontWeight: FontWeight.w800, color: C.txt)),
@@ -77,8 +77,8 @@ class AccountChoiceScreen extends StatelessWidget {
               iconOnDark: true,
               title: 'Student — My School',
               subtitle: "Enter your school's code. Academia re-skins to "
-                  "your institution — its name, logo, courses, timetable, "
-                  "and announcements.",
+                  'your institution — its name, logo, courses, timetable, '
+                  'and announcements.',
               badge: 'SCHOOL CODE',
               badgeColor: C.navy,
               badgeBg: C.surf3,

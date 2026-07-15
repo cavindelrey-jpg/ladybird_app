@@ -15,13 +15,16 @@ class MagazineArticle {
   final String authorName;
   final String? authorPhotoUrl; // null -> generic thumbnail in the UI
   String title;
+
+  /// Plain-text body — kept as a fallback/derived value for card excerpts,
+  /// search, and feed previews. Always regenerated from bodyDelta's plain
+  /// text whenever the rich content is saved; never edited directly once
+  /// bodyDelta exists.
   String body;
 
-  /// Rich-text body as a Quill Delta (JSON-encoded), carrying inline
-  /// formatting and embedded images. `body` stays in sync as the delta's
-  /// plain text whenever the rich content is saved — used for
-  /// excerpts/search — and readers with an old plain-text article (no
-  /// delta yet) just see `body` rendered as-is.
+  /// Rich content as a Quill Delta, JSON-encoded. Null/empty means this
+  /// article predates rich text and only has plain `body` — the reader
+  /// falls back to rendering that as plain text in that case.
   String? bodyDelta;
 
   String? thumbnailUrl;    // author-supplied cover image

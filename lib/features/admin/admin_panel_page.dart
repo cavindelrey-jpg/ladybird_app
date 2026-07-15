@@ -124,8 +124,10 @@ class _UsersTabState extends State<_UsersTab> {
                 u.name.toLowerCase().contains(_search.toLowerCase()) ||
                 u.email.toLowerCase().contains(_search.toLowerCase())).toList();
             }
-            if (users.isEmpty) return Center(
-                child: Text('No users found', style: GoogleFonts.inter(color: C.muted)));
+            if (users.isEmpty) {
+              return Center(
+                  child: Text('No users found', style: GoogleFonts.inter(color: C.muted)));
+            }
             return ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: users.length,
@@ -326,7 +328,7 @@ class _SeatsTabState extends State<_SeatsTab> with SingleTickerProviderStateMixi
         title: Text('Create Seats', style: GoogleFonts.sora(fontWeight: FontWeight.w700)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           DropdownButtonFormField<String>(
-            value: cls, decoration: const InputDecoration(labelText: 'Class Level'),
+            initialValue: cls, decoration: const InputDecoration(labelText: 'Class Level'),
             items: _classes.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
             onChanged: (v) => setD(() => cls = v ?? cls),
           ),
@@ -366,8 +368,10 @@ class _SeatList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (seats.isEmpty) return Center(
-        child: Text('No seats', style: GoogleFonts.inter(color: C.muted)));
+    if (seats.isEmpty) {
+      return Center(
+          child: Text('No seats', style: GoogleFonts.inter(color: C.muted)));
+    }
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
       itemCount: seats.length,

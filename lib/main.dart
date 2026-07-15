@@ -2,7 +2,9 @@
 // Academia entry point.
 // Initialises Firebase, remote config, and analytics before painting a frame.
 
+import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -13,29 +15,51 @@ import 'services/analytics_service.dart';
 import 'services/config_service.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  // runZonedGuarded catches errors that occur outside Flutter's own build/
+  // layout/paint pipeline (async gaps, timers, stream callbacks) — those
+  // never reach FlutterError.onError on their own, so without this they'd
+  // silently vanish from Crashlytics entirely.
+  await runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase init
-  await Firebase.initializeApp();
+    // Global error boundary — catches widget build errors in release so a
+    // crashing subtree shows a visible fallback instead of going blank/black.
+    // Set once here rather than in MaterialApp's builder (which reruns on
+    // every rebuild of the app).
+    ErrorWidget.builder = (details) => _ErrorFallback(details: details);
 
-  // Remote config (non-blocking — uses defaults if Firestore is unavailable)
-  await ConfigService.instance.initialize();
+    // Firebase init
+    await Firebase.initializeApp();
 
-  // Status bar style
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.dark,
-    systemNavigationBarColor: Colors.white,
-    systemNavigationBarIconBrightness: Brightness.dark,
-  ));
+    // Route Flutter framework errors (build/layout/paint) to Crashlytics as
+    // fatal, instead of just printing to console and moving on.
+    FlutterError.onError = (details) {
+      FlutterError.presentError(details);
+      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+    };
 
-  // Lock to portrait on phones; allow landscape on tablets
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+    // Remote config (non-blocking — uses defaults if Firestore is unavailable)
+    await ConfigService.instance.initialize();
 
-  runApp(const AcademiaApp());
+    // Status bar style
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.dark,
+      systemNavigationBarColor: Colors.white,
+      systemNavigationBarIconBrightness: Brightness.dark,
+    ));
+
+    // Lock to portrait on phones; allow landscape on tablets
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+
+    runApp(const AcademiaApp());
+  }, (error, stack) {
+    // Anything not caught above (async errors, isolate-level) lands here.
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+  });
 }
 
 class AcademiaApp extends StatelessWidget {
@@ -55,11 +79,7 @@ class AcademiaApp extends StatelessWidget {
           }),
         ),
         home: const _MaintenanceGate(),
-        builder: (ctx, child) {
-          // Global error boundary — catches widget build errors in release.
-          ErrorWidget.builder = (details) => _ErrorFallback(details: details);
-          return child ?? const SizedBox.shrink();
-        },
+        builder: (ctx, child) => child ?? const SizedBox.shrink(),
       ),
     );
   }
@@ -93,8 +113,8 @@ class _MaintenanceScreen extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.construction_rounded, size: 64, color: C.gold),
             const SizedBox(height: 20),
-            Text('Under Maintenance',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
+            const Text('Under Maintenance',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
                     color: Colors.white)),
             const SizedBox(height: 12),
             Text(message,

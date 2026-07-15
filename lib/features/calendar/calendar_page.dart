@@ -102,7 +102,7 @@ class CalendarPage extends StatelessWidget {
               decoration: const InputDecoration(labelText: 'Description')),
           const SizedBox(height: 10),
           DropdownButtonFormField<CalendarEventType>(
-            value: type,
+            initialValue: type,
             decoration: const InputDecoration(labelText: 'Type'),
             items: CalendarEventType.values.map((t) =>
                 DropdownMenuItem(value: t, child: Text(_typeLabels[t] ?? t.name))).toList(),

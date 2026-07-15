@@ -27,7 +27,7 @@ class FollowRepository {
 
   Future<Result<void>> follow(String followerId, String followedId) async {
     if (followerId == followedId) {
-      return Failure('You can\'t follow yourself', null);
+      return const Failure('You can\'t follow yourself', null);
     }
     try {
       await _follows.doc(_docId(followerId, followedId)).set({

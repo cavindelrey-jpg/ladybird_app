@@ -29,7 +29,9 @@ class CourseRepository {
 
   Future<Result<String>> create(Course c) async {
     try {
-      final ref = await _col(c.schoolId).add(c.toFirestore());
+      final ref = await _col(c.schoolId).add(c.toFirestore())
+          .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
+              'Saving is taking too long. Check your connection and try again.'));
       return Success(ref.id);
     } catch (e) { return Failure('Failed to create course', e); }
   }
@@ -40,7 +42,9 @@ class CourseRepository {
       // editing a course doesn't silently overwrite its original creation
       // date (which sorting/audit trails may rely on).
       final data = c.toFirestore()..remove('createdAt');
-      await _col(c.schoolId).doc(c.id).update(data);
+      await _col(c.schoolId).doc(c.id).update(data)
+          .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
+              'Saving is taking too long. Check your connection and try again.'));
       return const Success(null);
     } catch (e) { return Failure('Failed to update course', e); }
   }

@@ -116,7 +116,7 @@ class _ComposeAnnouncementPageState extends State<ComposeAnnouncementPage> {
               Switch(
                 value: _urgent,
                 onChanged: (v) => setState(() => _urgent = v),
-                activeColor: C.red,
+                activeThumbColor: C.red,
               ),
             ]),
           ),

@@ -102,7 +102,7 @@ class _LeaderboardSkeleton extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
               color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
-          child: Row(children: const [
+          child: const Row(children: [
             ShimmerCircle(size: 18),
             SizedBox(width: 8),
             ShimmerCircle(size: 36),

@@ -111,7 +111,7 @@ class _NotificationPreferencesPageState extends State<NotificationPreferencesPag
         title: Text(title, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: C.txt)),
         subtitle: Text(subtitle, style: GoogleFonts.inter(fontSize: 12, color: C.txt2)),
         value: value,
-        activeColor: C.gold,
+        activeThumbColor: C.gold,
         onChanged: onChanged,
       ),
     );

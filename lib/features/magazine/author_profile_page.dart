@@ -104,11 +104,11 @@ class AuthorProfilePage extends StatelessWidget {
                         ]),
                         const SizedBox(height: 6),
                         Row(children: [
-                          Icon(Icons.visibility_outlined, size: 13, color: C.muted),
+                          const Icon(Icons.visibility_outlined, size: 13, color: C.muted),
                           const SizedBox(width: 3),
                           Text('${a.readCount}', style: AppText.caption),
                           const SizedBox(width: 10),
-                          Icon(Icons.mode_comment_outlined, size: 13, color: C.muted),
+                          const Icon(Icons.mode_comment_outlined, size: 13, color: C.muted),
                           const SizedBox(width: 3),
                           Text('${a.commentCount}', style: AppText.caption),
                         ]),
@@ -185,10 +185,10 @@ class _AuthorSkeleton extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Row(children: [
-          const ShimmerCircle(size: 52),
-          const SizedBox(width: 14),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+        const Row(children: [
+          ShimmerCircle(size: 52),
+          SizedBox(width: 14),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             ShimmerLine(width: 120, height: 16),
             SizedBox(height: 6),
             ShimmerLine(width: 70, height: 12),

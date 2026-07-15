@@ -23,7 +23,7 @@ class AboutAcademiaPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Center(child: const AcademiaLogo(size: 72)),
+          const Center(child: AcademiaLogo(size: 72)),
           const SizedBox(height: 16),
           Center(
             child: Text(AppConstants.appName, style: GoogleFonts.sora(

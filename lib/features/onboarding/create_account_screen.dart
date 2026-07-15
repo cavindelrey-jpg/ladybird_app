@@ -126,8 +126,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               Text(
                 widget.isPremium
                     ? "Create your identity first — you'll pay via MoMo or "
-                      "Orange Money on the next step."
-                    : "Just a name, email, and password. No payment needed.",
+                      'Orange Money on the next step.'
+                    : 'Just a name, email, and password. No payment needed.',
                 style: GoogleFonts.inter(fontSize: 13, color: C.txt2),
               ),
               const SizedBox(height: 28),

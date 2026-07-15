@@ -69,7 +69,7 @@ class _PaperUnlockSheetContentState extends State<_PaperUnlockSheetContent> {
           const SizedBox(height: 20),
           Container(
             width: 56, height: 56,
-            decoration: BoxDecoration(color: C.goldp, shape: BoxShape.circle),
+            decoration: const BoxDecoration(color: C.goldp, shape: BoxShape.circle),
             child: const Icon(Icons.lock_outline_rounded, color: C.gold, size: 26),
           ),
           const SizedBox(height: 14),

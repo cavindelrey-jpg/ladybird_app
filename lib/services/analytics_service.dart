@@ -1,10 +1,12 @@
 // lib/services/analytics_service.dart
 // Analytics, audit logging, and crash reporting hooks.
 // Designed as thin wrappers so you can swap providers without touching feature code.
-// Currently logs to Firestore audit trail + console. Wire Firebase Analytics /
-// Crashlytics calls in the TODO stubs when the Flutter plugins are added.
+// Logs to Firestore audit trail + console + real Firebase Analytics/Crashlytics.
+// Requires firebase_analytics and firebase_crashlytics in pubspec.yaml.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import '../models/app_user.dart';
 import '../core/constants.dart';
@@ -39,6 +41,8 @@ class AnalyticsService {
   AnalyticsService._();
   static final AnalyticsService instance = AnalyticsService._();
 
+  final FirebaseAnalytics _fa = FirebaseAnalytics.instance;
+
   AppUser? _currentUser;
   String? _institutionId;
 
@@ -46,18 +50,20 @@ class AnalyticsService {
   void setUser(AppUser user, {String? institutionId}) {
     _currentUser = user;
     _institutionId = institutionId;
-    // TODO: FirebaseAnalytics.instance.setUserId(id: user.id);
-    // TODO: FirebaseAnalytics.instance.setUserProperty(name: 'role', value: user.role.name);
+    _fa.setUserId(id: user.id);
+    _fa.setUserProperty(name: 'role', value: user.role.name);
     debugPrint('[Analytics] User context set: ${user.id} (${user.role.name})');
   }
 
   void clearUser() {
     _currentUser = null;
     _institutionId = null;
-    // TODO: FirebaseAnalytics.instance.setUserId(id: null);
+    _fa.setUserId(id: null);
   }
 
   /// Track a named event with optional parameters.
+  /// Firebase Analytics param values must be String/num/bool — non-string
+  /// values are stringified so callers can pass anything without crashing.
   void track(AcademiaEvent event, {Map<String, dynamic>? params}) {
     final payload = {
       'event': event.name,
@@ -70,16 +76,16 @@ class AnalyticsService {
 
     debugPrint('[Analytics] ${event.name}: $payload');
 
-    // TODO: FirebaseAnalytics.instance.logEvent(
-    //   name: event.name,
-    //   parameters: params?.map((k, v) => MapEntry(k, v.toString())),
-    // );
+    _fa.logEvent(
+      name: event.name,
+      parameters: params?.map((k, v) => MapEntry(k, v is num || v is bool ? v : v.toString())),
+    );
   }
 
   /// Track screen/page view.
   void trackScreen(String screenName) {
     debugPrint('[Analytics] Screen: $screenName');
-    // TODO: FirebaseAnalytics.instance.logScreenView(screenName: screenName);
+    _fa.logScreenView(screenName: screenName);
     track(AcademiaEvent.pageViewed, params: {'screen': screenName});
   }
 }
@@ -147,27 +153,28 @@ class CrashService {
   CrashService._();
   static final CrashService instance = CrashService._();
 
+  final FirebaseCrashlytics _fc = FirebaseCrashlytics.instance;
+
   /// Record a non-fatal error.
   void recordError(dynamic error, StackTrace? stack, {String? context}) {
     debugPrint('[Crash] Non-fatal: $error\n  Context: $context\n  $stack');
-    // TODO: FirebaseCrashlytics.instance.recordError(error, stack,
-    //     reason: context, fatal: false);
+    _fc.recordError(error, stack, reason: context, fatal: false);
   }
 
   /// Record a fatal error (app would crash without this).
   void recordFatal(dynamic error, StackTrace? stack) {
     debugPrint('[Crash] FATAL: $error\n$stack');
-    // TODO: FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    _fc.recordError(error, stack, fatal: true);
   }
 
   /// Set user identifier for crash reports.
   void setUser(String userId) {
-    // TODO: FirebaseCrashlytics.instance.setUserIdentifier(userId);
+    _fc.setUserIdentifier(userId);
   }
 
   /// Add a breadcrumb string to the crash report.
   void log(String message) {
     debugPrint('[Crash] Breadcrumb: $message');
-    // TODO: FirebaseCrashlytics.instance.log(message);
+    _fc.log(message);
   }
 }

@@ -158,6 +158,29 @@ class MessagingRepository {
       .snapshots()
       .map((s) => s.docs.map(Conversation.fromFirestore).toList());
 
+  /// Single conversation doc — backs the typing indicator and anything
+  /// else the chat screen needs from the conversation itself rather than
+  /// its message subcollection.
+  Stream<Conversation?> watchConversation(String conversationId) => _conversations
+      .doc(conversationId)
+      .snapshots()
+      .map((d) => d.exists ? Conversation.fromFirestore(d) : null);
+
+  /// Records that [userId] is actively typing in [conversationId]. Call
+  /// sites should throttle this (e.g. at most once every couple seconds
+  /// per keystroke burst) — it's one small field write, not a message.
+  /// There's no matching "stopped typing" call: readers treat any
+  /// timestamp older than a few seconds as stale (see Conversation.typingAt).
+  Future<void> setTyping(String conversationId, String userId) async {
+    try {
+      await _conversations.doc(conversationId)
+          .set({'typingAt': {userId: FieldValue.serverTimestamp()}}, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // best-effort — a missed typing ping is invisible, not worth surfacing
+    }
+  }
+
   Stream<List<ChatMessage>> watchMessages(String conversationId) => _conversations
       .doc(conversationId)
       .collection(AppConstants.colMessages)

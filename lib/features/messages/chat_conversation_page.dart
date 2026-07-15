@@ -9,6 +9,7 @@
 // avoided elsewhere (the fake stat card, the fake recommendations).
 // Left out rather than faked; a real follow-up, not done here.
 
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,6 +19,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/app_user.dart';
 import '../../models/messaging.dart';
 import '../../repositories/messaging_repository.dart';
+import '../../services/link_preview_service.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
@@ -42,14 +44,41 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   final _scrollCtrl = ScrollController();
   bool _sending = false;
 
+  bool _otherTyping = false;
+  DateTime? _lastTypingPing;
+  Timer? _typingHideTimer;
+  StreamSubscription<Conversation?>? _convSub;
+
   @override
   void initState() {
     super.initState();
     MessagingRepository.instance.markConversationRead(widget.conversationId, widget.currentUser.id);
+    _convSub = MessagingRepository.instance.watchConversation(widget.conversationId).listen(_onConversation);
+  }
+
+  void _onConversation(Conversation? conv) {
+    if (conv == null || !mounted) return;
+    final typedAt = conv.typingAt[widget.otherUserId];
+    final isFresh = typedAt != null && DateTime.now().difference(typedAt) < const Duration(seconds: 5);
+    if (!isFresh) return;
+    setState(() => _otherTyping = true);
+    _typingHideTimer?.cancel();
+    _typingHideTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) setState(() => _otherTyping = false);
+    });
+  }
+
+  void _onTextChanged(String _) {
+    final now = DateTime.now();
+    if (_lastTypingPing != null && now.difference(_lastTypingPing!) < const Duration(seconds: 2)) return;
+    _lastTypingPing = now;
+    MessagingRepository.instance.setTyping(widget.conversationId, widget.currentUser.id);
   }
 
   @override
   void dispose() {
+    _convSub?.cancel();
+    _typingHideTimer?.cancel();
     _textCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
@@ -126,8 +155,14 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
           UserAvatar(initials: widget.otherUserName.isEmpty ? '?' : widget.otherUserName[0].toUpperCase(),
               radius: 18, photoUrl: widget.otherUserPhoto),
           const SizedBox(width: 10),
-          Expanded(child: Text(widget.otherUserName, style: AppText.title.copyWith(fontSize: 15),
-              maxLines: 1, overflow: TextOverflow.ellipsis)),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(widget.otherUserName, style: AppText.title.copyWith(fontSize: 15),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              if (_otherTyping)
+                Text('typing…', style: AppText.caption.copyWith(fontSize: 11, color: C.primary)),
+            ]),
+          ),
         ]),
         actions: [
           IconButton(icon: const Icon(Icons.call_outlined, color: C.txt2),
@@ -160,14 +195,31 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
                   _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
                 }
               });
+              // Interleave a date separator whenever the calendar day
+              // changes, so a long thread doesn't read as one undated wall.
+              final items = <Object>[];
+              DateTime? lastDay;
+              for (final m in messages) {
+                final day = DateTime(m.sentAt.year, m.sentAt.month, m.sentAt.day);
+                if (lastDay == null || day != lastDay) {
+                  items.add(day);
+                  lastDay = day;
+                }
+                items.add(m);
+              }
               return ListView.builder(
                 controller: _scrollCtrl,
                 padding: const EdgeInsets.all(16),
-                itemCount: messages.length,
-                itemBuilder: (_, i) => _MessageBubble(
-                  message: messages[i], isMe: messages[i].senderId == widget.currentUser.id,
-                  otherUserId: widget.otherUserId,
-                ),
+                itemCount: items.length,
+                itemBuilder: (_, i) {
+                  final item = items[i];
+                  if (item is DateTime) return _DateSeparator(date: item);
+                  final m = item as ChatMessage;
+                  return _MessageBubble(
+                    message: m, isMe: m.senderId == widget.currentUser.id,
+                    otherUserId: widget.otherUserId,
+                  );
+                },
               );
             },
           ),
@@ -196,6 +248,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
                   color: C.surf, borderRadius: BorderRadius.circular(24), border: Border.all(color: C.bdr)),
               child: TextField(
                 controller: _textCtrl,
+                onChanged: _onTextChanged,
                 style: AppText.bodySm.copyWith(color: C.txt),
                 minLines: 1, maxLines: 4,
                 decoration: InputDecoration(
@@ -239,6 +292,35 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   }
 }
 
+class _DateSeparator extends StatelessWidget {
+  final DateTime date;
+  const _DateSeparator({required this.date});
+
+  String _label() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    if (date == today) return 'Today';
+    if (date == yesterday) return 'Yesterday';
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(color: C.surf2, borderRadius: BorderRadius.circular(20)),
+          child: Text(_label(), style: AppText.caption.copyWith(fontSize: 10.5, fontWeight: FontWeight.w700)),
+        ),
+      ),
+    );
+  }
+}
+
 class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMe;
@@ -252,9 +334,12 @@ class _MessageBubble extends StatelessWidget {
     return '$h:$min $ampm';
   }
 
+  String? get _linkUrl => LinkPreviewService.instance.firstUrl(message.text);
+
   @override
   Widget build(BuildContext context) {
     final read = message.readBy.contains(otherUserId);
+    final linkUrl = _linkUrl;
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -304,6 +389,7 @@ class _MessageBubble extends StatelessWidget {
             if ((message.imageUrl ?? message.videoUrl ?? message.fileUrl ?? '').isNotEmpty) const SizedBox(height: 8),
             Text(message.text, style: AppText.bodySm.copyWith(color: C.txt, fontSize: 14)),
           ],
+          if (linkUrl != null) _LinkPreviewCard(url: linkUrl),
           const SizedBox(height: 4),
           Row(mainAxisSize: MainAxisSize.min, children: [
             Text(_formatTime(message.sentAt), style: AppText.caption.copyWith(fontSize: 10)),
@@ -313,6 +399,84 @@ class _MessageBubble extends StatelessWidget {
             ],
           ]),
         ]),
+      ),
+    );
+  }
+}
+
+/// Fetched once per widget instance (LinkPreviewService.instance caches by
+/// URL besides), so scrolling the message list back and forth doesn't
+/// refetch a link already resolved earlier in the session.
+class _LinkPreviewCard extends StatefulWidget {
+  final String url;
+  const _LinkPreviewCard({required this.url});
+
+  @override
+  State<_LinkPreviewCard> createState() => _LinkPreviewCardState();
+}
+
+class _LinkPreviewCardState extends State<_LinkPreviewCard> {
+  LinkPreviewData? _data;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final data = await LinkPreviewService.instance.fetch(widget.url);
+    if (mounted) setState(() { _data = data; _loaded = true; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) {
+      return Container(
+        margin: const EdgeInsets.only(top: 8),
+        height: 40,
+        decoration: BoxDecoration(color: C.surf3, borderRadius: BorderRadius.circular(10)),
+        alignment: Alignment.center,
+        child: const SizedBox(width: 16, height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2, color: C.muted)),
+      );
+    }
+    final data = _data;
+    if (data == null) return const SizedBox.shrink();
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => launchUrl(Uri.parse(widget.url), mode: LaunchMode.externalApplication),
+        child: Container(
+          margin: const EdgeInsets.only(top: 8),
+          clipBehavior: Clip.hardEdge,
+          decoration: BoxDecoration(
+              color: C.surf3, borderRadius: BorderRadius.circular(10), border: Border.all(color: C.bdr)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if ((data.imageUrl ?? '').isNotEmpty)
+              Image.network(data.imageUrl!, height: 110, width: double.infinity, fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if ((data.title ?? '').isNotEmpty)
+                  Text(data.title!, maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: AppText.bodySm.copyWith(fontSize: 12.5, fontWeight: FontWeight.w700, color: C.txt)),
+                if ((data.description ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(data.description!, maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: AppText.caption.copyWith(fontSize: 11)),
+                ],
+                const SizedBox(height: 3),
+                Text(Uri.tryParse(widget.url)?.host ?? widget.url,
+                    style: AppText.caption.copyWith(fontSize: 10, color: C.muted)),
+              ]),
+            ),
+          ]),
+        ),
       ),
     );
   }

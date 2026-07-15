@@ -77,6 +77,13 @@ class Conversation {
   final DateTime lastMessageAt;
   final Map<String, int> unreadCount; // per participant
 
+  /// userId -> last time they typed a keystroke in this conversation.
+  /// No explicit "stopped typing" write — the UI treats an entry older
+  /// than a few seconds as no-longer-typing, so this stays a single cheap
+  /// field on the existing conversation doc rather than a new collection
+  /// or a steady stream of "stopped" writes.
+  final Map<String, DateTime> typingAt;
+
   const Conversation({
     required this.id,
     required this.participantIds,
@@ -86,10 +93,15 @@ class Conversation {
     this.lastMessageSenderId,
     required this.lastMessageAt,
     this.unreadCount = const {},
+    this.typingAt = const {},
   });
 
   factory Conversation.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data() ?? {};
+    final typing = <String, DateTime>{};
+    (d['typingAt'] as Map<String, dynamic>? ?? {}).forEach((uid, ts) {
+      if (ts is Timestamp) typing[uid] = ts.toDate();
+    });
     return Conversation(
       id: doc.id,
       participantIds: List<String>.from(d['participantIds'] ?? []),
@@ -99,6 +111,7 @@ class Conversation {
       lastMessageSenderId: d['lastMessageSenderId'],
       lastMessageAt: (d['lastMessageAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       unreadCount: Map<String, int>.from(d['unreadCount'] ?? {}),
+      typingAt: typing,
     );
   }
 

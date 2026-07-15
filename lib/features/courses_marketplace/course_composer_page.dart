@@ -3,6 +3,7 @@
 // (flutter_quill) instead of a plain TextField, so bold/italic/headings/
 // lists/inline images are all real formatting, not just typed characters.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -33,14 +34,27 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
   late final _titleCtrl = TextEditingController(text: widget.existing?.title ?? '');
   late final _descCtrl = TextEditingController(text: widget.existing?.description ?? '');
   late String _category = widget.existing?.category ?? kCourseCategories.first;
+  late List<String> _tags = List<String>.from(widget.existing?.tags ?? const []);
   late final quill.QuillController _quillCtrl = _initQuillController();
   final _editorFocusNode = FocusNode();
   final _editorScrollCtrl = ScrollController();
 
+  /// The course this composer is persisting to — see the identical field on
+  /// ArticleComposerPage for why this has to be mutable state rather than a
+  /// value rebuilt from `widget.existing` on every save.
+  late PublicCourse _workingCourse = widget.existing ?? PublicCourse(
+    id: '', creatorId: widget.user.id, creatorName: widget.user.name,
+    creatorPhotoUrl: widget.user.photoUrl, title: '',
+  );
+
   File? _pickedCover;
   bool _saving = false;
+  bool _autoSaving = false;
   bool _importing = false;
   String? _error;
+  DateTime? _lastAutoSavedAt;
+  String _lastAutoSaveSignature = '';
+  Timer? _autoSaveTimer;
 
   bool get _isNew => widget.existing == null;
   bool get _canImportDocx => widget.user.isSuperAdmin;
@@ -62,7 +76,14 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _autoSaveTimer = Timer.periodic(const Duration(seconds: 45), (_) => _autoSaveDraft());
+  }
+
+  @override
   void dispose() {
+    _autoSaveTimer?.cancel();
     _titleCtrl.dispose();
     _descCtrl.dispose();
     _quillCtrl.dispose();
@@ -121,50 +142,81 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     HapticFeedback.mediumImpact();
     setState(() { _saving = true; _error = null; });
 
-    final repo = PublicCourseRepository.instance;
-    var course = widget.existing ?? PublicCourse(
-      id: '', creatorId: widget.user.id, creatorName: widget.user.name,
-      creatorPhotoUrl: widget.user.photoUrl, title: '',
-    );
-    course.title = _titleCtrl.text.trim();
-    course.description = _descCtrl.text.trim();
-    course.body = plainText;
-    course.bodyDelta = jsonEncode(_quillCtrl.document.toDelta().toJson());
-    course.category = _category;
-    course.published = publish;
+    final ok = await _persist(publish: publish);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (!ok) return;
 
-    if (_isNew) {
-      final result = await repo.create(course);
+    showToast(context, publish ? 'Course published.' : 'Draft saved.');
+    Navigator.of(context).pop();
+  }
+
+  /// Periodic silent save so in-progress work survives a crash/kill —
+  /// deliberately never flips `published` (only the explicit Save
+  /// Draft/Publish buttons do that), so autosaving mid-edit can't
+  /// accidentally unpublish an already-live course.
+  Future<void> _autoSaveDraft() async {
+    if (_saving || _autoSaving) return;
+    final plainText = _quillCtrl.document.toPlainText().trim();
+    final title = _titleCtrl.text.trim();
+    if (title.isEmpty && plainText.isEmpty) return;
+
+    final signature = '$title|${_descCtrl.text.trim()}|$plainText|$_category|${_tags.join(",")}';
+    if (signature == _lastAutoSaveSignature) return;
+
+    _autoSaving = true;
+    final ok = await _persist(publish: _workingCourse.published);
+    _autoSaving = false;
+    if (!mounted || !ok) return;
+    _lastAutoSaveSignature = signature;
+    setState(() => _lastAutoSavedAt = DateTime.now());
+  }
+
+  /// Shared create-or-update path for both the manual Save/Publish buttons
+  /// and the autosave timer. Mutates `_workingCourse` in place.
+  Future<bool> _persist({required bool publish}) async {
+    final repo = PublicCourseRepository.instance;
+    _workingCourse.title = _titleCtrl.text.trim();
+    _workingCourse.description = _descCtrl.text.trim();
+    _workingCourse.body = _quillCtrl.document.toPlainText().trim();
+    _workingCourse.bodyDelta = jsonEncode(_quillCtrl.document.toDelta().toJson());
+    _workingCourse.category = _category;
+    _workingCourse.tags = _tags;
+    _workingCourse.published = publish;
+
+    if (_workingCourse.id.isEmpty) {
+      final result = await repo.create(_workingCourse);
       if (result is Failure<String>) {
-        setState(() { _error = result.message; _saving = false; });
-        return;
+        if (mounted) setState(() => _error = result.message);
+        return false;
       }
-      course = PublicCourse(
+      _workingCourse = PublicCourse(
         id: (result as Success<String>).value,
-        creatorId: course.creatorId, creatorName: course.creatorName,
-        creatorPhotoUrl: course.creatorPhotoUrl,
-        title: course.title, description: course.description,
-        body: course.body, bodyDelta: course.bodyDelta,
-        category: course.category, published: course.published,
+        creatorId: _workingCourse.creatorId, creatorName: _workingCourse.creatorName,
+        creatorPhotoUrl: _workingCourse.creatorPhotoUrl,
+        title: _workingCourse.title, description: _workingCourse.description,
+        body: _workingCourse.body, bodyDelta: _workingCourse.bodyDelta,
+        category: _workingCourse.category, tags: _workingCourse.tags,
+        coverImageUrl: _workingCourse.coverImageUrl,
+        published: _workingCourse.published,
       );
     }
 
     if (_pickedCover != null) {
-      final upload = await repo.uploadCover(courseId: course.id, imageFile: _pickedCover!);
-      if (upload is Success<String>) course.coverImageUrl = upload.value;
+      final upload = await repo.uploadCover(courseId: _workingCourse.id, imageFile: _pickedCover!);
+      if (upload is Success<String>) {
+        _workingCourse.coverImageUrl = upload.value;
+        _pickedCover = null; // consumed — don't re-upload the same file every autosave tick
+      }
     }
 
-    final saveResult = await repo.update(course);
-
-    if (!mounted) return;
-    setState(() => _saving = false);
+    final saveResult = await repo.update(_workingCourse);
     if (saveResult is Failure) {
-      setState(() => _error = (saveResult as Failure<String>).message);
-      return;
+      final message = saveResult.message;
+      if (mounted) setState(() => _error = message);
+      return false;
     }
-
-    showToast(context, publish ? 'Course published.' : 'Draft saved.');
-    Navigator.of(context).pop();
+    return true;
   }
 
   Future<void> _delete() async {
@@ -289,6 +341,12 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                   );
                 }).toList(),
               ),
+              const SizedBox(height: 14),
+              TagMultiSelect(
+                selected: _tags,
+                suggestions: kCourseTags,
+                onChanged: (next) => setState(() => _tags = next),
+              ),
               const SizedBox(height: 20),
               TextField(
                 controller: _titleCtrl, style: AppText.h1,
@@ -362,16 +420,24 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
           top: false,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-            child: Row(children: [
-              Expanded(
-                child: SecondaryBtn(label: 'Save Draft',
-                    onTap: _saving ? () {} : () => _save(publish: false)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: PrimaryBtn(label: 'Publish', loading: _saving,
-                    onTap: () => _save(publish: true)),
-              ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (_lastAutoSavedAt != null) ...[
+                Text('Autosaved ${_lastAutoSavedAt!.hour.toString().padLeft(2, '0')}:'
+                    '${_lastAutoSavedAt!.minute.toString().padLeft(2, '0')}',
+                    style: AppText.caption.copyWith(fontSize: 10.5, color: C.muted)),
+                const SizedBox(height: 6),
+              ],
+              Row(children: [
+                Expanded(
+                  child: SecondaryBtn(label: 'Save Draft',
+                      onTap: _saving ? () {} : () => _save(publish: false)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: PrimaryBtn(label: 'Publish', loading: _saving,
+                      onTap: () => _save(publish: true)),
+                ),
+              ]),
             ]),
           ),
         ),

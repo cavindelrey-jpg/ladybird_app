@@ -7,6 +7,7 @@
 // mirroring the same flutter_quill_extensions wiring already used by
 // CourseComposerPage/CourseReaderPage.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -36,13 +37,30 @@ class ArticleComposerPage extends StatefulWidget {
 class _ArticleComposerPageState extends State<ArticleComposerPage> {
   late final _titleCtrl = TextEditingController(text: widget.existing?.title ?? '');
   late String _category = widget.existing?.category ?? kArticleCategories.first;
+  late List<String> _tags = List<String>.from(widget.existing?.tags ?? const []);
   late final quill.QuillController _quillCtrl = _initQuillController();
   final _editorFocusNode = FocusNode();
   final _editorScrollCtrl = ScrollController();
 
+  /// The article this composer is persisting to. Starts as `widget.existing`
+  /// when editing, or a blank unsaved article when writing new — but once
+  /// autosave (or a manual Save Draft) creates the Firestore doc for a new
+  /// article, this is replaced with the id-bearing copy so every subsequent
+  /// save (autosave or manual) updates that same doc instead of creating a
+  /// new one each time.
+  late MagazineArticle _workingArticle = widget.existing ?? MagazineArticle(
+    id: '', authorId: widget.user.id, authorName: widget.user.name,
+    authorPhotoUrl: widget.user.photoUrl, title: '', body: '',
+    schoolId: widget.user.schoolId,
+  );
+
   File? _pickedCover;
   bool _saving = false;
+  bool _autoSaving = false;
   String? _error;
+  DateTime? _lastAutoSavedAt;
+  String _lastAutoSaveSignature = '';
+  Timer? _autoSaveTimer;
 
   bool get _isNew => widget.existing == null;
 
@@ -63,7 +81,14 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _autoSaveTimer = Timer.periodic(const Duration(seconds: 45), (_) => _autoSaveDraft());
+  }
+
+  @override
   void dispose() {
+    _autoSaveTimer?.cancel();
     _titleCtrl.dispose();
     _quillCtrl.dispose();
     _editorFocusNode.dispose();
@@ -94,60 +119,90 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
     HapticFeedback.mediumImpact();
     setState(() { _saving = true; _error = null; });
 
-    final repo = MagazineRepository.instance;
-    final wasAlreadyPublished = widget.existing?.published ?? false;
-    var article = widget.existing ?? MagazineArticle(
-      id: '', authorId: widget.user.id, authorName: widget.user.name,
-      authorPhotoUrl: widget.user.photoUrl, title: '', body: '',
-      schoolId: widget.user.schoolId,
-    );
-    article.title = _titleCtrl.text.trim();
-    article.body = plainText;
-    article.bodyDelta = jsonEncode(_quillCtrl.document.toDelta().toJson());
-    article.category = _category;
-    article.published = publish;
-
-    if (_isNew) {
-      final result = await repo.publish(article);
-      if (result is Failure<String>) {
-        setState(() { _error = result.message; _saving = false; });
-        return;
-      }
-      // article.id is final — rebuild with the id Firestore assigned.
-      article = MagazineArticle(
-        id: (result as Success<String>).value,
-        authorId: article.authorId, authorName: article.authorName,
-        authorPhotoUrl: article.authorPhotoUrl,
-        title: article.title, body: article.body, bodyDelta: article.bodyDelta,
-        category: article.category, schoolId: article.schoolId,
-        thumbnailUrl: article.thumbnailUrl,
-        published: article.published,
-      );
-    }
-
-    if (_pickedCover != null) {
-      final uploadResult = await repo.uploadThumbnail(articleId: article.id, imageFile: _pickedCover!);
-      if (uploadResult is Success<String>) {
-        article.thumbnailUrl = uploadResult.value;
-      }
-    }
-
-    final saveResult = await repo.update(article);
+    final wasAlreadyPublished = _workingArticle.published;
+    final ok = await _persist(publish: publish);
     if (!mounted) return;
     setState(() => _saving = false);
-    if (saveResult is Failure) {
-      setState(() => _error = (saveResult).message);
-      return;
-    }
+    if (!ok) return;
 
     // Notify followers on the transition into "published" — not on every
     // draft save, and not a second time if it was already published.
     if (publish && !wasAlreadyPublished) {
-      _notifyFollowers(article);
+      _notifyFollowers(_workingArticle);
     }
 
     showToast(context, publish ? 'Article published.' : 'Draft saved.');
     Navigator.of(context).pop();
+  }
+
+  /// Periodic silent save so in-progress work survives a crash/kill —
+  /// deliberately never flips `published` (only the explicit Save
+  /// Draft/Publish buttons do that), so autosaving mid-edit can't
+  /// accidentally unpublish an already-live article.
+  Future<void> _autoSaveDraft() async {
+    if (_saving || _autoSaving) return;
+    final plainText = _quillCtrl.document.toPlainText().trim();
+    final title = _titleCtrl.text.trim();
+    if (title.isEmpty && plainText.isEmpty) return;
+
+    final signature = '$title|$plainText|$_category|${_tags.join(",")}';
+    if (signature == _lastAutoSaveSignature) return;
+
+    _autoSaving = true;
+    final ok = await _persist(publish: _workingArticle.published);
+    _autoSaving = false;
+    if (!mounted || !ok) return;
+    _lastAutoSaveSignature = signature;
+    setState(() => _lastAutoSavedAt = DateTime.now());
+  }
+
+  /// Shared create-or-update path for both the manual Save/Publish buttons
+  /// and the autosave timer. Mutates `_workingArticle` in place.
+  Future<bool> _persist({required bool publish}) async {
+    final repo = MagazineRepository.instance;
+    _workingArticle.title = _titleCtrl.text.trim();
+    _workingArticle.body = _quillCtrl.document.toPlainText().trim();
+    _workingArticle.bodyDelta = jsonEncode(_quillCtrl.document.toDelta().toJson());
+    _workingArticle.category = _category;
+    _workingArticle.tags = _tags;
+    _workingArticle.published = publish;
+
+    if (_workingArticle.id.isEmpty) {
+      final result = await repo.publish(_workingArticle);
+      if (result is Failure<String>) {
+        if (mounted) setState(() => _error = result.message);
+        return false;
+      }
+      // id is final — rebuild with the id Firestore assigned.
+      _workingArticle = MagazineArticle(
+        id: (result as Success<String>).value,
+        authorId: _workingArticle.authorId, authorName: _workingArticle.authorName,
+        authorPhotoUrl: _workingArticle.authorPhotoUrl,
+        title: _workingArticle.title, body: _workingArticle.body,
+        bodyDelta: _workingArticle.bodyDelta,
+        category: _workingArticle.category, tags: _workingArticle.tags,
+        schoolId: _workingArticle.schoolId,
+        thumbnailUrl: _workingArticle.thumbnailUrl,
+        published: _workingArticle.published,
+      );
+    }
+
+    if (_pickedCover != null) {
+      final uploadResult = await repo.uploadThumbnail(
+          articleId: _workingArticle.id, imageFile: _pickedCover!);
+      if (uploadResult is Success<String>) {
+        _workingArticle.thumbnailUrl = uploadResult.value;
+        _pickedCover = null; // consumed — don't re-upload the same file every autosave tick
+      }
+    }
+
+    final saveResult = await repo.update(_workingArticle);
+    if (saveResult is Failure) {
+      final message = saveResult.message;
+      if (mounted) setState(() => _error = message);
+      return false;
+    }
+    return true;
   }
 
   /// Best-effort fan-out — never blocks the publish success path. Fine at
@@ -261,6 +316,12 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
                   );
                 }).toList(),
               ),
+              const SizedBox(height: 14),
+              TagMultiSelect(
+                selected: _tags,
+                suggestions: kArticleTags,
+                onChanged: (next) => setState(() => _tags = next),
+              ),
               const SizedBox(height: 20),
               TextField(
                 controller: _titleCtrl,
@@ -326,21 +387,29 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
           top: false,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-            child: Row(children: [
-              Expanded(
-                child: SecondaryBtn(
-                  label: 'Save Draft',
-                  onTap: _saving ? () {} : () => _save(publish: false),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (_lastAutoSavedAt != null) ...[
+                Text('Autosaved ${_lastAutoSavedAt!.hour.toString().padLeft(2, '0')}:'
+                    '${_lastAutoSavedAt!.minute.toString().padLeft(2, '0')}',
+                    style: AppText.caption.copyWith(fontSize: 10.5, color: C.muted)),
+                const SizedBox(height: 6),
+              ],
+              Row(children: [
+                Expanded(
+                  child: SecondaryBtn(
+                    label: 'Save Draft',
+                    onTap: _saving ? () {} : () => _save(publish: false),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: PrimaryBtn(
-                  label: 'Publish',
-                  loading: _saving,
-                  onTap: () => _save(publish: true),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: PrimaryBtn(
+                    label: 'Publish',
+                    loading: _saving,
+                    onTap: () => _save(publish: true),
+                  ),
                 ),
-              ),
+              ]),
             ]),
           ),
         ),

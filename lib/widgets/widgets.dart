@@ -620,3 +620,114 @@ class GradientCard extends StatelessWidget {
     );
   }
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// TAG MULTI-SELECT (composer chips — Magazine + Course share this)
+// ════════════════════════════════════════════════════════════════════════════
+
+/// Multi-select tag chips with a suggested-list `+` picker and free-text
+/// custom entry. Used by both the Magazine and Course composers, in
+/// addition to their existing single-select category chips.
+class TagMultiSelect extends StatelessWidget {
+  final List<String> selected;
+  final List<String> suggestions;
+  final ValueChanged<List<String>> onChanged;
+  const TagMultiSelect({
+    super.key, required this.selected, required this.suggestions, required this.onChanged,
+  });
+
+  void _toggle(String tag) {
+    final next = List<String>.from(selected);
+    if (next.contains(tag)) {
+      next.remove(tag);
+    } else {
+      next.add(tag);
+    }
+    onChanged(next);
+  }
+
+  Future<void> _addCustom(BuildContext context) async {
+    final ctrl = TextEditingController();
+    final tag = await showDialog<String>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('Add a tag'),
+        content: TextField(
+          controller: ctrl, autofocus: true,
+          decoration: const InputDecoration(hintText: 'e.g. Exam Prep'),
+          onSubmitted: (v) => Navigator.pop(dCtx, v.trim()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dCtx, ctrl.text.trim()), child: const Text('Add')),
+        ],
+      ),
+    );
+    if (tag != null && tag.isNotEmpty && !selected.contains(tag)) {
+      onChanged([...selected, tag]);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Suggested tags first, then any already-selected custom tags not in
+    // the suggested list, so a previously typed custom tag still shows up
+    // (and can be un-toggled) after the composer reopens.
+    final allChips = [...suggestions, ...selected.where((t) => !suggestions.contains(t))];
+    return Wrap(
+      spacing: 8, runSpacing: 8,
+      children: [
+        ...allChips.map((tag) {
+          final active = selected.contains(tag);
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                _toggle(tag);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: active ? C.goldp : C.surf2,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: active ? C.gold : C.bdr),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (active) ...[
+                    const Icon(Icons.check_rounded, size: 13, color: C.gold),
+                    const SizedBox(width: 3),
+                  ],
+                  Text(tag, style: AppText.caption.copyWith(
+                      fontSize: 11.5, fontWeight: FontWeight.w700,
+                      color: active ? C.gold : C.txt2)),
+                ]),
+              ),
+            ),
+          );
+        }),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () => _addCustom(context),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: C.surf2, borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: C.bdr, style: BorderStyle.solid),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.add_rounded, size: 14, color: C.txt2),
+                const SizedBox(width: 2),
+                Text('Add tag', style: AppText.caption.copyWith(fontSize: 11.5, color: C.txt2)),
+              ]),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

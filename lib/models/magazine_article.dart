@@ -36,6 +36,12 @@ class MagazineArticle {
   /// suggested picker list in the composer.
   String category;
 
+  /// Free-text multi-select tags, in addition to the single `category` —
+  /// finer-grained than category (e.g. an Essay article might be tagged
+  /// 'GCE A-Level' and 'Exam Prep'). See kArticleTags for the suggested
+  /// picker list; custom tags are allowed too.
+  List<String> tags;
+
   /// Author's schoolId at time of publish (nullable — independent users
   /// have none). Backs the "Local Feed" tab; "Global Feed" ignores it.
   final String? schoolId;
@@ -58,6 +64,7 @@ class MagazineArticle {
     this.thumbnailUrl,
     this.cachedThumbnailPath,
     this.category = 'Essay',
+    List<String>? tags,
     this.schoolId,
     this.readCount = 0,
     this.commentCount = 0,
@@ -65,7 +72,8 @@ class MagazineArticle {
     this.published = true,
     DateTime? createdAt,
     DateTime? updatedAt,
-  })  : createdAt = createdAt ?? DateTime.now(),
+  })  : tags = tags ?? [],
+        createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
   factory MagazineArticle.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -80,6 +88,7 @@ class MagazineArticle {
       bodyDelta: d['bodyDelta'],
       thumbnailUrl: d['thumbnailUrl'],
       category: d['category'] ?? 'Essay',
+      tags: List<String>.from(d['tags'] ?? const []),
       schoolId: d['schoolId'],
       readCount: d['readCount'] ?? 0,
       commentCount: d['commentCount'] ?? 0,
@@ -99,6 +108,7 @@ class MagazineArticle {
         'bodyDelta': bodyDelta,
         'thumbnailUrl': thumbnailUrl,
         'category': category,
+        'tags': tags,
         'schoolId': schoolId,
         'readCount': readCount,
         'commentCount': commentCount,
@@ -112,6 +122,13 @@ class MagazineArticle {
 /// Suggested category picker options for the composer. Free-text under
 /// the hood, but a fixed list keeps the tags visually consistent.
 const kArticleCategories = ['Essay', 'Opinion', 'Story', 'News', 'Guide', 'Interview'];
+
+/// Suggested tag picker options — free-text under the hood (see `tags` on
+/// MagazineArticle), same pattern as kArticleCategories.
+const kArticleTags = [
+  'GCE O-Level', 'GCE A-Level', 'Study Tips', 'Exam Prep', 'Career Advice',
+  'Campus Life', 'Technology', 'Motivation', 'Culture', 'Trending',
+];
 
 class ArticleComment {
   final String id;

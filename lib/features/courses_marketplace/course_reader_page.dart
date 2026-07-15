@@ -93,6 +93,12 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                     ),
                   const SizedBox(height: 16),
                   StatusBadge(label: course.category, color: C.primary),
+                  if (course.tags.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(spacing: 6, runSpacing: 6, children: course.tags
+                        .map((t) => StatusBadge(label: t, color: C.gold, bg: C.goldp))
+                        .toList()),
+                  ],
                   const SizedBox(height: 12),
                   Text(course.title, style: AppText.h1),
                   const SizedBox(height: 8),

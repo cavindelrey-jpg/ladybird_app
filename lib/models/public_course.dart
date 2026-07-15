@@ -37,6 +37,11 @@ class PublicCourse {
   String? bodyDelta;
 
   String category;
+
+  /// Free-text multi-select tags, in addition to the single `category` —
+  /// see kCourseTags for the suggested picker list; custom tags allowed.
+  List<String> tags;
+
   String? coverImageUrl;
   bool published;
 
@@ -59,6 +64,7 @@ class PublicCourse {
     this.body = '',
     this.bodyDelta,
     this.category = 'Mathematics',
+    List<String>? tags,
     this.coverImageUrl,
     this.published = true,
     this.enrolledCount = 0,
@@ -68,7 +74,8 @@ class PublicCourse {
     this.commentCount = 0,
     DateTime? createdAt,
     DateTime? updatedAt,
-  })  : createdAt = createdAt ?? DateTime.now(),
+  })  : tags = tags ?? [],
+        createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
   factory PublicCourse.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -83,6 +90,7 @@ class PublicCourse {
       body: d['body'] ?? '',
       bodyDelta: d['bodyDelta'],
       category: d['category'] ?? 'Mathematics',
+      tags: List<String>.from(d['tags'] ?? const []),
       coverImageUrl: d['coverImageUrl'],
       published: d['published'] ?? true,
       enrolledCount: d['enrolledCount'] ?? 0,
@@ -104,6 +112,7 @@ class PublicCourse {
         'body': body,
         'bodyDelta': bodyDelta,
         'category': category,
+        'tags': tags,
         'coverImageUrl': coverImageUrl,
         'published': published,
         'enrolledCount': enrolledCount,
@@ -119,6 +128,13 @@ class PublicCourse {
 const kCourseCategories = [
   'Mathematics', 'Science', 'Languages', 'Computer Science',
   'Arts', 'Business', 'Social Studies', 'Other',
+];
+
+/// Suggested tag picker options — free-text under the hood (see `tags` on
+/// PublicCourse), same pattern as kCourseCategories.
+const kCourseTags = [
+  'GCE O-Level', 'GCE A-Level', 'Beginner', 'Intermediate', 'Advanced',
+  'Exam Prep', 'Past Papers', 'Practical',
 ];
 
 class CourseComment {

@@ -134,6 +134,11 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
                   child: Image.network(a.thumbnailUrl!, height: 200, width: double.infinity, fit: BoxFit.cover),
                 ),
               const SizedBox(height: 20),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                StatusBadge(label: a.category, color: C.primary),
+                ...a.tags.map((t) => StatusBadge(label: t, color: C.gold, bg: C.goldp)),
+              ]),
+              const SizedBox(height: 10),
               Text(a.title, style: AppText.h1),
               const SizedBox(height: 16),
               Material(

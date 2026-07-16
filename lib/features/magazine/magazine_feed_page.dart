@@ -134,6 +134,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
         child: Column(children: [
           _header(context),
           _tabRow(),
+          const SizedBox(height: 16),
           Expanded(
             child: StreamBuilder<List<MagazineArticle>>(
               stream: _streamForTab(),

@@ -1,14 +1,29 @@
 // lib/features/courses_marketplace/course_creator_profile_page.dart
 // A course creator's published (and, on your own profile, draft) courses.
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../core/constants.dart';
 import '../../models/app_user.dart';
+import '../../models/institution.dart';
 import '../../models/public_course.dart';
+import '../../repositories/follow_repository.dart';
+import '../../repositories/institution_repository.dart';
 import '../../repositories/public_course_repository.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 import 'course_reader_page.dart';
 import 'course_composer_page.dart';
+
+/// One-time-ish lookup of the full user profile (for bio/institution) —
+/// the header's name/photo already come from PublicCourse, so this only
+/// backs the extra stat fields.
+Stream<AppUser?> _watchCreatorUser(String creatorId) => FirebaseFirestore.instance
+    .collection(AppConstants.colUsers)
+    .doc(creatorId)
+    .snapshots()
+    .map((d) => d.exists ? AppUser.fromFirestore(d.id, d.data()!) : null);
 
 class CourseCreatorProfilePage extends StatelessWidget {
   final String creatorId;
@@ -32,6 +47,11 @@ class CourseCreatorProfilePage extends StatelessWidget {
           if (snap.connectionState == ConnectionState.waiting) {
             return const LoadingView();
           }
+          if (snap.hasError) {
+            CrashService.instance.recordError(snap.error, snap.stackTrace,
+                context: 'CourseCreatorProfilePage.watchByCreator($creatorId)');
+            return ErrorView(message: "Couldn't load this profile — ${snap.error}");
+          }
           var courses = snap.data ?? const <PublicCourse>[];
           if (!_isOwnProfile) courses = courses.where((c) => c.published).toList();
           if (courses.isEmpty) {
@@ -49,12 +69,60 @@ class CourseCreatorProfilePage extends StatelessWidget {
                 UserAvatar(initials: headerName.isEmpty ? '?' : headerName[0].toUpperCase(),
                     radius: 26, photoUrl: courses.first.creatorPhotoUrl),
                 const SizedBox(width: 14),
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(headerName, style: AppText.h2),
-                  Text('${courses.length} course${courses.length == 1 ? '' : 's'}', style: AppText.bodySm),
-                ]),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(headerName, style: AppText.h2),
+                    Row(children: [
+                      Text('${courses.length} course${courses.length == 1 ? '' : 's'}', style: AppText.bodySm),
+                      Text('  ·  ', style: AppText.bodySm),
+                      StreamBuilder<int>(
+                        stream: FollowRepository.instance.watchFollowerCount(creatorId),
+                        builder: (context, s) => Text(
+                            '${s.data ?? 0} follower${(s.data ?? 0) == 1 ? '' : 's'}',
+                            style: AppText.bodySm),
+                      ),
+                      Text('  ·  ', style: AppText.bodySm),
+                      StreamBuilder<int>(
+                        stream: FollowRepository.instance.watchFollowingCount(creatorId),
+                        builder: (context, s) => Text(
+                            '${s.data ?? 0} following', style: AppText.bodySm),
+                      ),
+                    ]),
+                  ]),
+                ),
               ]),
-              const SizedBox(height: 20),
+              StreamBuilder<AppUser?>(
+                stream: _watchCreatorUser(creatorId),
+                builder: (context, s) {
+                  final u = s.data;
+                  if (u == null || (u.bio.isEmpty && u.schoolId == null)) {
+                    return const SizedBox(height: 20);
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 10, bottom: 20),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      if (u.bio.isNotEmpty)
+                        Text(u.bio, style: AppText.bodySm.copyWith(height: 1.4)),
+                      if (u.schoolId != null)
+                        Padding(
+                          padding: EdgeInsets.only(top: u.bio.isNotEmpty ? 8 : 0),
+                          child: StreamBuilder<Institution?>(
+                            stream: InstitutionRepository.instance.watch(u.schoolId!),
+                            builder: (context, inst) {
+                              final name = inst.data?.schoolName;
+                              if (name == null || name.isEmpty) return const SizedBox.shrink();
+                              return Row(children: [
+                                const Icon(Icons.school_outlined, size: 14, color: C.muted),
+                                const SizedBox(width: 4),
+                                Text(name, style: AppText.caption.copyWith(fontSize: 12)),
+                              ]);
+                            },
+                          ),
+                        ),
+                    ]),
+                  );
+                },
+              ),
               ...courses.map((c) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: ACard(

@@ -3,16 +3,30 @@
 // (with a DRAFT badge) alongside published work; viewing someone else's
 // profile shows only what's published.
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/constants.dart';
 import '../../models/app_user.dart';
+import '../../models/institution.dart';
 import '../../models/magazine_article.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../repositories/follow_repository.dart';
+import '../../repositories/institution_repository.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 import 'article_reader_page.dart';
 import 'article_composer_page.dart';
+
+/// One-time-ish lookup of the full user profile (for bio/institution) —
+/// the article-derived header fields (name/photo) already come from
+/// MagazineArticle, so this only backs the extra stat fields.
+Stream<AppUser?> _watchAuthorUser(String authorId) => FirebaseFirestore.instance
+    .collection(AppConstants.colUsers)
+    .doc(authorId)
+    .snapshots()
+    .map((d) => d.exists ? AppUser.fromFirestore(d.id, d.data()!) : null);
 
 class AuthorProfilePage extends StatelessWidget {
   final String authorId;
@@ -35,6 +49,11 @@ class AuthorProfilePage extends StatelessWidget {
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const _AuthorSkeleton();
+          }
+          if (snap.hasError) {
+            CrashService.instance.recordError(snap.error, snap.stackTrace,
+                context: 'AuthorProfilePage.watchByAuthor($authorId)');
+            return ErrorView(message: "Couldn't load this profile — ${snap.error}");
           }
           var articles = snap.data ?? const <MagazineArticle>[];
           if (!_isOwnProfile) {
@@ -63,22 +82,57 @@ class AuthorProfilePage extends StatelessWidget {
                     Row(children: [
                       Text('${articles.length} article${articles.length == 1 ? '' : 's'}',
                           style: AppText.bodySm),
-                      if (!_isOwnProfile) ...[
-                        Text('  ·  ', style: AppText.bodySm),
-                        StreamBuilder<int>(
-                          stream: FollowRepository.instance.watchFollowerCount(authorId),
-                          builder: (context, s) => Text(
-                              '${s.data ?? 0} follower${(s.data ?? 0) == 1 ? '' : 's'}',
-                              style: AppText.bodySm),
-                        ),
-                      ],
+                      Text('  ·  ', style: AppText.bodySm),
+                      StreamBuilder<int>(
+                        stream: FollowRepository.instance.watchFollowerCount(authorId),
+                        builder: (context, s) => Text(
+                            '${s.data ?? 0} follower${(s.data ?? 0) == 1 ? '' : 's'}',
+                            style: AppText.bodySm),
+                      ),
+                      Text('  ·  ', style: AppText.bodySm),
+                      StreamBuilder<int>(
+                        stream: FollowRepository.instance.watchFollowingCount(authorId),
+                        builder: (context, s) => Text(
+                            '${s.data ?? 0} following', style: AppText.bodySm),
+                      ),
                     ]),
                   ]),
                 ),
                 if (!_isOwnProfile && currentUser != null)
                   _FollowButton(currentUserId: currentUser!.id, authorId: authorId),
               ]),
-              const SizedBox(height: 20),
+              StreamBuilder<AppUser?>(
+                stream: _watchAuthorUser(authorId),
+                builder: (context, s) {
+                  final u = s.data;
+                  if (u == null || (u.bio.isEmpty && u.schoolId == null)) {
+                    return const SizedBox(height: 20);
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 10, bottom: 20),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      if (u.bio.isNotEmpty)
+                        Text(u.bio, style: AppText.bodySm.copyWith(height: 1.4)),
+                      if (u.schoolId != null)
+                        Padding(
+                          padding: EdgeInsets.only(top: u.bio.isNotEmpty ? 8 : 0),
+                          child: StreamBuilder<Institution?>(
+                            stream: InstitutionRepository.instance.watch(u.schoolId!),
+                            builder: (context, inst) {
+                              final name = inst.data?.schoolName;
+                              if (name == null || name.isEmpty) return const SizedBox.shrink();
+                              return Row(children: [
+                                const Icon(Icons.school_outlined, size: 14, color: C.muted),
+                                const SizedBox(width: 4),
+                                Text(name, style: AppText.caption.copyWith(fontSize: 12)),
+                              ]);
+                            },
+                          ),
+                        ),
+                    ]),
+                  );
+                },
+              ),
               ...articles.map((a) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: ACard(

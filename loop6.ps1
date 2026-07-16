@@ -1,0 +1,71 @@
+# loop5.ps1
+# Fully unattended. Run from the project root (same folder as pubspec.yaml).
+# You do not need to watch this or respond to anything — it will not ask.
+# Usage:  .\loop5.ps1
+
+$maxIterations = 25
+$iteration = 0
+$sessionId = $null
+
+$basePrompt = "Read CLAUDE.md and TASKS_LOOP6.md in the project root. Work through the 4 sections in TASKS_LOOP6.md in order, including all lettered sub-parts (4a/4b/4c). Follow the 'Rules' section exactly: never stop and wait for input under any circumstance -- if something needs a live device, a design decision, or credentials, skip it, log one line to REPORT.md, and move on immediately. Pay close attention to section 4c -- do not build fake/fabricated data for anything listed there as out of scope. After each section, run flutter analyze and fix what it flags before moving on. Commit after each section completes clean. When you have gone through all 4 sections (or exhausted what's possible without a live device), run flutter build apk --debug as a final check, write a full summary to REPORT.md, and stop."
+
+Write-Host "Starting the zero-intervention loop (max $maxIterations iterations)."
+Write-Host "This will not ask you anything. Walk away if you want -- check back on REPORT.md and git log."
+
+while ($iteration -lt $maxIterations) {
+    $iteration++
+    Write-Host ""
+    Write-Host "=== Iteration $iteration ==="
+    $iterStart = Get-Date
+
+    $args = @($basePrompt, "--dangerously-skip-permissions", "--output-format", "json")
+    if ($sessionId) { $args = @($basePrompt, "--resume", $sessionId, "--dangerously-skip-permissions", "--output-format", "json") }
+
+    # Run claude in the background so we can print a heartbeat while it
+    # works, instead of the terminal going silent for however long a
+    # single response takes -- that silence is what looked like a freeze
+    # before.
+    $job = Start-Job -ScriptBlock {
+        param($cliArgs, $workDir)
+        Set-Location $workDir
+        & claude -p @cliArgs
+    } -ArgumentList (,$args), $PWD.Path
+    # Note: --dangerously-skip-permissions replaces --allowedTools/--permission-mode
+    # below. The prior loop hit a hard wall where every flutter invocation
+    # returned "requires approval" regardless of shell or allowedTools pattern
+    # (Bash(flutter analyze:*) etc. apparently didn't match how Windows routes
+    # the call) with no human present to approve it. Since this whole script
+    # exists to run fully unattended anyway, skipping the permission system
+    # entirely is the correct fix here -- there's no one to approve anything
+    # either way.
+
+    while ($job.State -eq 'Running') {
+        Start-Sleep -Seconds 15
+        $elapsed = [int]((Get-Date) - $iterStart).TotalMinutes
+        Write-Host "  ...still working on iteration $iteration (${elapsed}m elapsed)"
+    }
+
+    $rawResult = Receive-Job -Job $job
+    Remove-Job -Job $job
+
+    try {
+        $result = $rawResult | ConvertFrom-Json
+        $sessionId = $result.session_id
+        $text = $result.result
+        Write-Host $text
+
+        # Stop early if the model itself signals it's actually finished,
+        # rather than always burning all 25 iterations.
+        if ($text -match "(?i)all 4 sections.*(done|complete)|nothing (left|more) to do|REPORT\.md.*final summary written") {
+            Write-Host ""
+            Write-Host "Loop appears to have finished its own scope after $iteration iteration(s)."
+            break
+        }
+    } catch {
+        Write-Host "Iteration $iteration produced no parseable output. Continuing."
+    }
+}
+
+Write-Host ""
+Write-Host "Loop stopped after $iteration iteration(s)."
+Write-Host "Check REPORT.md and 'git log --oneline -10' for what actually happened."

@@ -215,27 +215,40 @@ class AcademicContentRepository {
 
   // ─── Storage Upload ───────────────────────────────────────────────────────
 
-  /// Uploads a file to Firebase Storage. Returns download URL.
+  /// Uploads a file to Firebase Storage. Returns download URL. Times out
+  /// instead of hanging forever on a dead connection and retries once —
+  /// large video files on a slow/flaky connection previously had no
+  /// recovery path beyond the user manually restarting the whole form.
   Future<Result<String>> uploadFile({
     required File file,
     required String folder,        // e.g. 'content_files' or 'thumbnails'
     required String institutionId,
     void Function(double)? onProgress,
+    int attempt = 1,
   }) async {
     try {
       final ext = file.path.split('.').last;
       final name = '${DateTime.now().millisecondsSinceEpoch}.$ext';
       final ref = _storage.ref('$folder/$institutionId/$name');
       final task = ref.putFile(file);
-      task.snapshotEvents.listen((snap) {
-        final progress = snap.bytesTransferred / snap.totalBytes;
-        onProgress?.call(progress);
+      final sub = task.snapshotEvents.listen((snap) {
+        if (snap.totalBytes > 0) {
+          onProgress?.call(snap.bytesTransferred / snap.totalBytes);
+        }
       });
-      final snapshot = await task;
+      final snapshot = await task.timeout(const Duration(minutes: 5));
+      await sub.cancel();
       final url = await snapshot.ref.getDownloadURL();
       return Success(url);
     } catch (e) {
-      return Failure('Upload failed', e);
+      if (attempt < 2) {
+        onProgress?.call(0);
+        return uploadFile(
+          file: file, folder: folder, institutionId: institutionId,
+          onProgress: onProgress, attempt: attempt + 1,
+        );
+      }
+      return Failure('Upload failed — check your connection and try again', e);
     }
   }
 

@@ -281,31 +281,59 @@ class MessagingRepository {
     }
   }
 
-  Future<Result<String>> uploadChatMedia({required String conversationId, required File file, required bool isVideo}) async {
-    try {
-      final ext = isVideo ? 'mp4' : 'jpg';
-      final ref = FirebaseStorage.instance
-          .ref('chat_media/$conversationId/${DateTime.now().millisecondsSinceEpoch}.$ext');
-      await ref.putFile(file);
-      return Success(await ref.getDownloadURL());
-    } catch (e) {
-      return Failure('Failed to upload media', e);
-    }
+  Future<Result<String>> uploadChatMedia({
+    required String conversationId,
+    required File file,
+    required bool isVideo,
+    void Function(double)? onProgress,
+  }) async {
+    final ext = isVideo ? 'mp4' : 'jpg';
+    final ref = FirebaseStorage.instance
+        .ref('chat_media/$conversationId/${DateTime.now().millisecondsSinceEpoch}.$ext');
+    return _uploadWithRetry(ref, file, onProgress);
   }
 
   /// General file attachments — any type (PDF, docx, etc.), not just
   /// photo/video. Keeps the original filename in Storage so it downloads
   /// with a sensible name rather than a bare timestamp.
   Future<Result<String>> uploadChatFile({
-    required String conversationId, required File file, required String fileName,
+    required String conversationId,
+    required File file,
+    required String fileName,
+    void Function(double)? onProgress,
+  }) async {
+    final ref = FirebaseStorage.instance
+        .ref('chat_files/$conversationId/${DateTime.now().millisecondsSinceEpoch}_$fileName');
+    return _uploadWithRetry(ref, file, onProgress);
+  }
+
+  /// Shared upload path for chat attachments: reports real progress via
+  /// [onProgress] (UploadTask.snapshotEvents), times out instead of
+  /// hanging forever on a dead connection, and retries once on failure —
+  /// slow/flaky mobile connections were previously either a silent hang
+  /// or a one-shot failure with no automatic recovery.
+  Future<Result<String>> _uploadWithRetry(
+    Reference ref,
+    File file,
+    void Function(double)? onProgress, {
+    int attempt = 1,
   }) async {
     try {
-      final ref = FirebaseStorage.instance
-          .ref('chat_files/$conversationId/${DateTime.now().millisecondsSinceEpoch}_$fileName');
-      await ref.putFile(file);
-      return Success(await ref.getDownloadURL());
+      final task = ref.putFile(file);
+      final sub = task.snapshotEvents.listen((snap) {
+        if (snap.totalBytes > 0) {
+          onProgress?.call(snap.bytesTransferred / snap.totalBytes);
+        }
+      });
+      final snapshot = await task.timeout(const Duration(minutes: 5));
+      await sub.cancel();
+      return Success(await snapshot.ref.getDownloadURL());
     } catch (e) {
-      return Failure('Failed to upload file', e);
+      if (attempt < 2) {
+        onProgress?.call(0);
+        return _uploadWithRetry(ref, file, onProgress, attempt: attempt + 1);
+      }
+      return Failure('Upload failed — check your connection and try again', e);
     }
   }
 

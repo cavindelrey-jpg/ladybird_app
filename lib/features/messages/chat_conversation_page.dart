@@ -43,6 +43,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   final _textCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   bool _sending = false;
+  double? _uploadProgress;
 
   bool _otherTyping = false;
   DateTime? _lastTypingPing;
@@ -102,9 +103,15 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         ? await picker.pickVideo(source: ImageSource.gallery)
         : await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (picked == null) return;
-    setState(() => _sending = true);
+    await _uploadAndSendMedia(File(picked.path), isVideo);
+  }
+
+  Future<void> _uploadAndSendMedia(File file, bool isVideo) async {
+    setState(() { _sending = true; _uploadProgress = 0; });
     final upload = await MessagingRepository.instance.uploadChatMedia(
-        conversationId: widget.conversationId, file: File(picked.path), isVideo: isVideo);
+      conversationId: widget.conversationId, file: file, isVideo: isVideo,
+      onProgress: (p) { if (mounted) setState(() => _uploadProgress = p); },
+    );
     if (upload is Success<String>) {
       await MessagingRepository.instance.sendMessage(
         conversationId: widget.conversationId,
@@ -113,9 +120,9 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         videoUrl: isVideo ? upload.value : null,
       );
     } else if (mounted) {
-      showToast(context, 'Failed to send — try again.', isError: true);
+      _showUploadFailedSnackBar(() => _uploadAndSendMedia(file, isVideo));
     }
-    if (mounted) setState(() => _sending = false);
+    if (mounted) setState(() { _sending = false; _uploadProgress = null; });
   }
 
   /// General file attachment — any type, not just photo/video.
@@ -128,19 +135,37 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       if (mounted) showToast(context, 'Could not read that file.', isError: true);
       return;
     }
-    setState(() => _sending = true);
+    await _uploadAndSendFile(File(path), picked.name);
+  }
+
+  Future<void> _uploadAndSendFile(File file, String fileName) async {
+    setState(() { _sending = true; _uploadProgress = 0; });
     final upload = await MessagingRepository.instance.uploadChatFile(
-        conversationId: widget.conversationId, file: File(path), fileName: picked.name);
+      conversationId: widget.conversationId, file: file, fileName: fileName,
+      onProgress: (p) { if (mounted) setState(() => _uploadProgress = p); },
+    );
     if (upload is Success<String>) {
       await MessagingRepository.instance.sendMessage(
         conversationId: widget.conversationId,
         senderId: widget.currentUser.id, senderName: widget.currentUser.name,
-        fileUrl: upload.value, fileName: picked.name,
+        fileUrl: upload.value, fileName: fileName,
       );
     } else if (mounted) {
-      showToast(context, 'Failed to send — try again.', isError: true);
+      _showUploadFailedSnackBar(() => _uploadAndSendFile(file, fileName));
     }
-    if (mounted) setState(() => _sending = false);
+    if (mounted) setState(() { _sending = false; _uploadProgress = null; });
+  }
+
+  /// The repository already retries once internally — this surfaces a
+  /// manual retry too, since a dead connection can outlast one automatic
+  /// retry and the picked file shouldn't have to be reselected from
+  /// scratch every time.
+  void _showUploadFailedSnackBar(VoidCallback retry) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: const Text('Upload failed — check your connection.'),
+      backgroundColor: C.red,
+      action: SnackBarAction(label: 'Retry', textColor: Colors.white, onPressed: retry),
+    ));
   }
 
   @override
@@ -234,7 +259,28 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-        child: Row(children: [
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (_sending && _uploadProgress != null) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Row(children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: _uploadProgress! > 0 ? _uploadProgress : null,
+                      minHeight: 4, backgroundColor: C.bdr, color: C.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text('${(_uploadProgress! * 100).toInt()}%',
+                    style: AppText.caption.copyWith(fontSize: 10.5, color: C.txt2)),
+              ]),
+            ),
+            const SizedBox(height: 4),
+          ],
+          Row(children: [
           IconButton(
             icon: _sending
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
@@ -260,6 +306,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
           ),
           const SizedBox(width: 6),
           IconButton(icon: const Icon(Icons.send_rounded, color: C.primary), onPressed: _sendText),
+          ]),
         ]),
       ),
     );

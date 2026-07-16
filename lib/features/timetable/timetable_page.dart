@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../models/models.dart';
 import '../../repositories/timetable_repository.dart';
 import '../../core/result.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 
@@ -70,6 +71,11 @@ class _TimetablePageState extends State<TimetablePage> {
             builder: (ctx, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                CrashService.instance.recordError(snap.error, snap.stackTrace,
+                    context: 'TimetablePage._stream($_sid)');
+                return ErrorView(message: "Couldn't load the timetable — ${snap.error}");
               }
               final slots = (snap.data ?? [])
                   .where((s) => s.dayOfWeek == _day).toList()

@@ -5,6 +5,7 @@ import '../../models/models.dart';
 import '../../repositories/assignment_repository.dart';
 import '../../repositories/course_repository.dart';
 import '../../core/result.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 
@@ -40,6 +41,11 @@ class _LecView extends StatelessWidget {
         builder: (ctx, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            CrashService.instance.recordError(snap.error, snap.stackTrace,
+                context: 'AssignmentsPage.watchForLecturer($sid, ${user.id})');
+            return ErrorView(message: "Couldn't load assignments — ${snap.error}");
           }
           final list = snap.data ?? [];
           if (list.isEmpty) {
@@ -313,6 +319,11 @@ class _StuView extends StatelessWidget {
         builder: (ctx, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            CrashService.instance.recordError(snap.error, snap.stackTrace,
+                context: 'AssignmentsPage.watchForStudent($sid, ${user.id})');
+            return ErrorView(message: "Couldn't load assignments — ${snap.error}");
           }
           final list = snap.data ?? [];
           if (list.isEmpty) {

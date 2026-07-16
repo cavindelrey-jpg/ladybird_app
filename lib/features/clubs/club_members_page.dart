@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../models/app_user.dart';
 import '../../models/club.dart';
 import '../../repositories/club_repository.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 
@@ -175,6 +176,11 @@ class _PendingRequestsSection extends StatelessWidget {
     return StreamBuilder<List<ClubJoinRequest>>(
       stream: ClubRepository.instance.watchPendingRequests(club.id),
       builder: (context, snap) {
+        if (snap.hasError) {
+          CrashService.instance.recordError(snap.error, snap.stackTrace,
+              context: 'ClubMembersPage.watchPendingRequests(${club.id})');
+          return ErrorView(message: "Couldn't load join requests — ${snap.error}");
+        }
         final requests = snap.data ?? const <ClubJoinRequest>[];
         if (requests.isEmpty) return const SizedBox.shrink();
         return Padding(

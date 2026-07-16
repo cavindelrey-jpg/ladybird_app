@@ -51,6 +51,7 @@ import '../../repositories/announcement_repository.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../services/auth_service.dart';
+import '../../services/analytics_service.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/coming_soon_page.dart';
 import '../../pages/marks_page.dart';
@@ -231,6 +232,11 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return StreamBuilder<List<HeroSlide>>(
       stream: HeroSlideRepository.instance.watchActive(),
       builder: (context, snap) {
+        if (snap.hasError) {
+          CrashService.instance.recordError(snap.error, snap.stackTrace,
+              context: 'UniversalHomePage.watchActive');
+          return ErrorView(message: "Couldn't load the banner — ${snap.error}");
+        }
         final slides = snap.data ?? const <HeroSlide>[];
 
         if (slides.isEmpty) {

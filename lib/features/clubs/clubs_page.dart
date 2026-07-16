@@ -12,6 +12,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../models/models.dart';
 import '../../repositories/club_repository.dart';
 import '../../core/result.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 import '../../pages/notifications_page.dart';
@@ -295,6 +296,16 @@ class _MyClubTile extends StatelessWidget {
         return StreamBuilder<ClubJoinRequestStatus?>(
           stream: ClubRepository.instance.watchMyRequestStatus(club.id, user.id),
           builder: (context, reqSnap) {
+            if (reqSnap.hasError) {
+              // Embedded status badge inside a fixed-height tile row — an
+              // ErrorView here would break the row's layout, so this just
+              // records the failure and falls back to "no badge" (same as
+              // the loading/absent state) rather than a silent empty look
+              // masking a real query failure.
+              CrashService.instance.recordError(reqSnap.error, reqSnap.stackTrace,
+                  context: 'ClubsPage.watchMyRequestStatus(${club.id}, ${user.id})');
+              return const SizedBox.shrink();
+            }
             if (reqSnap.data != ClubJoinRequestStatus.pending) return const SizedBox.shrink();
             return _tile(context, statusLabel: 'Pending', statusColor: C.org, statusBg: C.orgb, disabled: true);
           },
@@ -368,6 +379,15 @@ class _DiscoverClubCard extends StatelessWidget {
         return StreamBuilder<ClubJoinRequestStatus?>(
           stream: ClubRepository.instance.watchMyRequestStatus(club.id, user.id),
           builder: (context, reqSnap) {
+            if (reqSnap.hasError) {
+              // Same reasoning as _MyClubTile above: this only gates
+              // whether the join card still shows, so record the failure
+              // and fall back to showing the card rather than an ErrorView
+              // wedged into a horizontally-scrolling card list.
+              CrashService.instance.recordError(reqSnap.error, reqSnap.stackTrace,
+                  context: 'ClubsPage.watchMyRequestStatus(${club.id}, ${user.id})');
+              return _card(context, joined: false, pending: false);
+            }
             final pending = reqSnap.data == ClubJoinRequestStatus.pending;
             if (pending) return const SizedBox.shrink();
             return _card(context, joined: false, pending: false);

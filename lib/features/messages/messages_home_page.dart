@@ -11,6 +11,7 @@ import '../../models/app_user.dart';
 import '../../models/messaging.dart';
 import '../../repositories/messaging_repository.dart';
 import '../../repositories/follow_repository.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 import '../../pages/notifications_page.dart';
@@ -144,6 +145,11 @@ class MessagesHomePage extends StatelessWidget {
     return StreamBuilder<List<FriendRequest>>(
       stream: MessagingRepository.instance.watchIncomingRequests(user.id),
       builder: (context, snap) {
+        if (snap.hasError) {
+          CrashService.instance.recordError(snap.error, snap.stackTrace,
+              context: 'MessagesHomePage.watchIncomingRequests(${user.id})');
+          return ErrorView(message: "Couldn't load friend requests — ${snap.error}");
+        }
         final requests = snap.data ?? const <FriendRequest>[];
         if (requests.isEmpty) return const SizedBox.shrink();
         return Padding(

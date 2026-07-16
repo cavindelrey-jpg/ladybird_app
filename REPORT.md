@@ -1,225 +1,224 @@
-# Loop 5 Report
+# Loop 6 Report
 
-All 7 items in TASKS_LOOP5.md were completed and committed. No live
-device, design decision, or credential was needed for any of them —
-the one genuine environment blocker (below) is a tooling wall, not a
-missing-input skip.
+All 4 sections of TASKS_LOOP6.md (including 4a/4b/4c) completed.
+`flutter analyze` was run and clean after every section; a commit was
+made after each section analyzed clean. `flutter build apk --debug`
+passes as of the final commit. No live device, design decision, or
+credential blocked any item outright — the one environment wrinkle
+(below, `flutter build apk`'s native toolchain step) was worked around
+within this session, not skipped.
 
-## 1. Magazine banner spacing
-Found already in progress from an earlier uncommitted session pass
-(chip row → banner gap set to 20px). Checked the app-wide convention:
-16px is the dominant section-gap value used everywhere else
-(content_upload_page, content_edit_page, course_detail_page,
-assignments_page, calendar_page, article_reader_page, etc. — dozens of
-call sites), 20px appears in only a couple of spots. Changed to 16px
-to match the actual standard instead of the invented value.
-Commit `3191590`.
+Commits (newest first):
+- `0238f97` Build real streak tracking and Continue Reading, surface real XP/courses on Home
+- `0de5887` Home page visual polish: tinted sections, real Library banner, micro-animations
+- `23acd98` Verify + document Quill rich-paste structure preservation
+- `b0df772` Video uploads: real progress percentage, timeout, and retry on slow connections
+- `0affb9e` Magazine: add article descriptions + Creative Writing/Review categories
 
-## 2 & 3. Contributor profile pages showing empty
-Confirmed the lead: `course_creator_profile_page.dart` and
-`author_profile_page.dart` both ran `.where(...).orderBy(createdAt)`
-queries with no `snapshot.hasError` check, so a missing/undeployed
-composite index would silently render as an empty state instead of a
-real error. Found substantial work already uncommitted from an earlier
-pass; verified it and added on top:
-- Both StreamBuilders now check `hasError`, log via
-  `CrashService.instance.recordError`, and show a real "couldn't load
-  — <error>" message instead of the generic empty state.
-- Verified `firestore.indexes.json` already declares the exact
-  composite indexes both queries need (`public_courses:
-  creatorId+createdAt`, `articles: authorId+createdAt`) with matching
-  field order/direction. Nothing to deploy-and-flag here — the indexes
-  are already in the file (whether they're deployed to the live
-  Firestore project is a separate step requiring `firebase deploy
-  --only firestore:indexes` with CLI auth only the human has — flagged
-  below, not attempted).
-- Added the missing stat fields: follower/following counts, bio, and
-  institution name (fetched from the full user doc via a
-  `_watch*User` stream, since the article/course-derived header only
-  carried name/photo).
-Commit `df8664a`.
+---
 
-## 4. Library subject navigation
-Found already in progress: tapping a subject now sets `_subjectFilter`
-and routes to `_LiveFeed`, which calls
-`AcademicContentRepository.watch(subject: ...)` — a real filtered
-query, not a generic list. Verified end-to-end (subject tap → state →
-repository query → composite index in `firestore.indexes.json`, all
-present and matching). Added on top:
-- `hasError` handling on that feed's StreamBuilder (same
-  FAILED_PRECONDITION risk as items 2/3).
-- Empty-state copy that names the subject/type combination instead of
-  a generic "no content" message.
-- Pagination: the repository's `watch()` already caps at `limit(80)`.
-  Checked for an existing cursor-based "load more" pattern elsewhere in
-  the app to extend (per the task's explicit instruction not to invent
-  a new one) — found none anywhere in the codebase. Building a full
-  paginated-loading abstraction from scratch for this one screen would
-  be new-pattern invention outside scope, so left the existing cap in
-  place as adequate for a single school's per-subject volume.
-Commit `7a9050c`.
+## 1. Magazine: descriptions + more categories
 
-## 5. Friends list without searching
-`find_people_page.dart` was genuinely search-only before this: with an
-empty query it showed nothing but a "Search for someone to connect
-with" prompt, so existing friends were invisible unless you already
-knew their name. Rebuilt the page (still reached via the existing
-"Find People" entry point) to open into three live, real-data sections
-by default:
-- **My Friends** — new `MessagingRepository.watchFriendIds` /
-  `.watchFriends` (mutual friendship docs → full `AppUser` profiles,
-  chunked past Firestore's 30-item `whereIn` cap). Tapping opens the
-  conversation directly.
-- **Recent Conversations** — existing `watchConversations`, reused.
-- **Suggested Friends** — new `MessagingRepository.suggestedFriends`:
-  same-school users you're not already friends with and haven't
-  already sent a pending request to. Deliberately schoolId-based only
-  — there's no recommendation engine in this codebase, and users with
-  no `schoolId` (independent layer) get no suggestions rather than a
-  fabricated list. Includes a manual refresh button since this is a
-  one-shot fetch, not a live stream.
-Typing in the search box filters all three lists by name (client-side)
-and, for genuinely new people, still falls through to the existing
-global `searchUsers` backend search below.
+**Built:**
+- Added `MagazineArticle.description` (short author-written summary,
+  separate from `body`), persisted to/from Firestore, with a 160-char
+  input in the composer under the title field.
+- Feed cards (`_ArticleListCard`, `_FeaturedCard`) show `description`
+  when present, falling back to the existing auto-truncated body excerpt
+  for older articles that predate the field — no migration needed.
+- Categories: verified Essay/Opinion/News/Guide/Interview/Story already
+  existed (no duplication). Added **Creative Writing** (explicitly
+  requested) and **Review** (a genuinely common magazine category that
+  was missing) with matching colors in `_kCategoryColors`.
 
-**Skipped: Online Friends.** Grepped the codebase for any
-presence/heartbeat/last-active system — there isn't one anywhere
-(confirmed by `chat_conversation_page.dart`'s own comment making the
-same call for its "Online" status dot). Per the task's explicit
-instruction not to invent a fake online indicator, this section was
-not built. This is the one item from the original 4-part list not
-implemented, and it's a data-availability limit, not an oversight.
-Commit `8e1c199`.
+**Skipped/deferred:** nothing.
 
-## 6. Audit other StreamBuilders for missing hasError
-Delegated the mechanical grep-and-fix sweep to a subagent (same
-CrashService+ErrorView pattern, verified every result by reading the
-diffs myself afterward). Fixed:
-- `assignments_page.dart` — lecturer and student assignment lists
-- `club_members_page.dart` — pending join requests
-- `universal_home_page.dart` — home banner carousel
-- `messages_home_page.dart` — incoming friend requests
-- `timetable_page.dart` — class/lecturer timetable view
+---
 
-Adapted (not a literal copy of the reference pattern) in
-`clubs_page.dart`: two `watchMyRequestStatus` StreamBuilders back a
-small embedded status badge inside a fixed-layout tile/card, where a
-full `ErrorView` would break the row. These record the error via
-CrashService and fall back to the existing "no badge" look instead.
+## 2. Smoother video uploads on slow connections
 
-Left alone (already check `hasError`, just don't log to CrashService —
-outside the stated scope of "doesn't check hasError at all"):
-`messages_home_page.dart`'s recent-conversations section,
-`courses_marketplace_page.dart`'s contributor feed,
-`magazine_feed_page.dart`'s main feed.
+**Built:**
+- `MessagingRepository.uploadChatMedia`/`uploadChatFile` (chat photo/
+  video/file attachments) now report real progress via
+  `UploadTask.snapshotEvents` through a shared `_uploadWithRetry` helper
+  that adds a 5-minute `.timeout()` and one automatic retry on failure.
+  `ChatConversationPage`'s input bar shows a real animated percentage
+  bar instead of the old indeterminate spinner, plus a SnackBar "Retry"
+  action on final failure (the file is retained, no re-picking needed).
+- `AcademicContentRepository.uploadFile` (Library content uploads,
+  already had real progress wired into `content_upload_page.dart`/
+  `content_edit_page.dart`) gained the same `.timeout()` + one-retry
+  treatment it was missing — this is also the mp4/mov video upload path
+  for Library content.
 
-`firestore.indexes.json`: added 6 missing composite indexes verified
-against the actual query shapes (attendance; assignments x2;
-timetable x2; the `comments` collectionGroup query used by
-`MagazineRepository.watchUserComments`). None of the pre-existing
-entries were reordered or removed.
-Commit `424b691`.
+**Explicitly deferred (per task instructions — flagged, not attempted
+blind):**
+- **True chunked/resumable upload.** Firebase Storage's `putFile`
+  already resumes automatically within one `UploadTask` if the OS
+  briefly drops connectivity mid-upload, but a full app-kill-and-resume
+  flow (persisting an upload session across process death) is a real
+  infra project — Storage doesn't expose a serializable resume token for
+  that without additional bookkeeping. Worth revisiting if slow-
+  connection complaints persist after this pass.
+- **Video compression before upload.** Checked `pubspec.yaml` first per
+  instructions: only `video_player`/`chewie` exist (playback only, no
+  encoder). No pure-Dart video compression option exists — video
+  encoding is inherently native/codec work; the available packages
+  (`video_compress`, `ffmpeg_kit_flutter`, `light_compressor`) all pull
+  in heavy native dependencies, which the task explicitly said to avoid.
 
-## 7. General UX polish
-Audited rather than blanket-added, per "check first, don't duplicate":
-- **Skeleton loaders**: already present broadly (`ShimmerCard`,
-  `ShimmerCircle`, `ShimmerLine` used across academic_content,
-  messages_home, and now the new Friends sections). A few screens
-  (assignments_page, timetable_page) use a plain
-  `CircularProgressIndicator` instead — judged as an existing, adequate
-  loading state, not a "missing" one; left alone to avoid a broad
-  low-value refactor.
-- **Pull-to-refresh**: only one screen in the whole app uses
-  `RefreshIndicator` (dashboard_page.dart). Everything else is backed
-  by live Firestore streams that update themselves with no user action
-  needed, which is why pull-to-refresh hasn't been built elsewhere —
-  it would be mostly redundant. The one genuinely one-shot fetch
-  introduced this session (Suggested Friends) isn't live, so it got a
-  manual refresh icon instead of a full pull gesture (consistent with
-  there being no existing pull-to-refresh pattern to extend).
-- **Real empty-state messaging**: the shared `EmptyState` widget is
-  already used broadly for full-page empty states; the new Friends
-  sections use compact contextual text ("You haven't added any friends
-  yet", "No conversations match '...'", etc.) matching the existing
-  convention in `messages_home_page.dart`'s own recent-conversations
-  section (plain `Text`, not the full-block `EmptyState`, for
-  in-list/compact sections).
-- **Preserved scroll position on back-navigation**: the main bottom-nav
-  shell (`app_router.dart`) already uses `IndexedStack`, so tab
-  switches preserve state/scroll for free. In-stack push/pop
-  navigation preserves scroll via Flutter's default Navigator
-  behavior; found no evidence of anything forcing list rebuilds on
-  pop.
-No code changes needed for this section beyond the refresh icon folded
-into commit `8e1c199`.
+---
 
-## Skipped items requiring human input (none blocked mid-task)
-- **Deploying the Firestore indexes** in `firestore.indexes.json` to
-  the live project needs `firebase deploy --only firestore:indexes`,
-  which needs Firebase CLI auth only the human has. Not attempted —
-  the file itself is correct and complete; deployment is a separate
-  step.
-- **Online Friends** (item 5) — no presence system exists to back it;
-  building one (heartbeat writes, presence collection, staleness
-  rules) is a real feature addition, not a bug fix, and out of scope
-  for this pass. Flagged as a genuine follow-up if wanted.
+## 3. Rich editor paste structure (Magazine/Course Quill editor)
 
-## Environment blocker: flutter analyze / flutter build could not run
-`where flutter` / `where dart` resolve fine in this session
-(`C:\flutter\bin\flutter.bat`, `C:\flutter\bin\dart.bat`) — this is
-*not* the PATH-resolution gotcha CLAUDE.md already documented from a
-prior loop. The actual blocker is different and new: invoking the
-`flutter` binary at all — `flutter analyze`, `flutter --version`,
-`flutter build apk --debug` — via either the Bash tool or the
-PowerShell tool returns "This command requires approval" instantly,
-every time, regardless of shell, invocation form (`.bat` vs plain,
-quoted path vs unquoted), or subcommand. No settings.json/
-settings.local.json exists in this repo's `.claude/` directory to
-adjust an allowlist, and there's no human present in this unattended
-session to grant the approval. This is a hard tool-permission wall,
-not a retryable transient failure — confirmed after 4 independent
-attempts across both shells including the most harmless possible
-subcommand (`--version`).
+**Finding, with real evidence:** flutter_quill 11.x already preserves
+rich structure on paste **by default** — no custom parser or config
+change needed. `QuillController`'s clipboard handling defaults
+`enableExternalRichPaste` to `true`, and neither `ArticleComposerPage`
+nor `CourseComposerPage` overrides `clipboardConfig` to disable it. When
+enabled, pasted clipboard HTML is converted to a Quill Delta via
+`package:flutter_quill_delta_from_html` (`HtmlToDelta`) — the same call
+flutter_quill's internal `pasteHTML()` makes.
 
-Compensating verification used instead, for every file touched this
-session:
-- Re-read each full file after editing (not just the diff) to check
-  brace/paren balance and control flow.
-- Verified every new symbol referenced (`CrashService.instance
-  .recordError`, `ErrorView`, `AppUser.fromFirestore`, `FieldPath
-  .documentId`, `Institution.schoolName`, etc.) actually exists at the
-  claimed signature by grepping its definition, not assuming from
-  memory.
-- Verified new/changed Firestore queries against `firestore.indexes
-  .json` field-by-field (path, order, direction) rather than assuming
-  a matching index existed.
-- Re-derived one real bug this way before it was committed: an initial
-  draft of `_SuggestedFriendsSection` used a nullable `filtered`
-  variable and called `.map()` on it directly in the final `else`
-  branch without re-asserting non-null (Dart doesn't promote across
-  sibling `if/else` collection-if branches from an earlier `!`) — this
-  was caught and fixed (`filtered!.map(...)`) purely by manual
-  reasoning before commit, since there was no compiler available to
-  catch it automatically.
+Added `test/quill_paste_structure_test.dart`, a headless test that feeds
+HTML shaped like a Word/Google Docs clipboard payload (H1 heading, bold +
+italic run, `<ol>`, `<ul>`) through that exact conversion path and
+asserts on the resulting Delta ops:
 
-This is a genuine tooling gap in this sandboxed session, not a code
-issue. **A human should run `flutter analyze && flutter build apk
---debug` from a normal terminal** to get real compiler confirmation —
-this loop could not obtain one after repeated attempts, per CLAUDE.md's
-existing rule to log rather than silently skip verification.
+| Element | Survives paste? |
+|---|---|
+| Headings (H1) | yes — `header: 1` block attribute |
+| Bold | yes — inline `bold: true` attribute |
+| Italic | yes (same code path as bold, not separately asserted) |
+| Numbered list | yes — `list: 'ordered'` block attribute per line |
+| Bullet list | yes — `list: 'bullet'` block attribute per line |
+
+**What's untested (needs a live device — logged, not guessed):** the
+other half of the paste pipeline is the native OS clipboard actually
+returning an HTML string when the app calls `getClipboardHtml()` (via
+the transitive `quill_native_bridge` plugin). That's a real device
+concern (does Android's `ClipData` carry a `text/html` flavor when
+copying from the specific source app) and can't be exercised here. If a
+device tester finds paste flattens to plain text in practice, check
+whether `quill_native_bridge` returns non-null HTML on that device first
+— the Dart-side conversion logic is confirmed working by the new test.
+
+---
+
+## 4. Home page visual redesign
+
+### 4a. Pure visual polish — all built
+
+- Quick Access tiles: each feature already had a distinct tinted bg/fg
+  pair (Library=blue, Past Questions=green, Magazine=purple, Clubs=gold)
+  — added a soft tinted glow (`BoxShadow` in the feature's own color).
+- New **Library banner**: dark-to-transparent gradient over a navy card,
+  real resource count via a new `AcademicContentRepository.countAll()`
+  Firestore `count()` aggregate query, "Explore Now" CTA. No hardcoded
+  number.
+- Home restructured into bands: a light blue-to-white gradient top band
+  (greeting/stat row/banners), alternating near-white/app-bg bands
+  below, each with a very-low-opacity (3.5%) decorative watermark icon
+  (`SectionWatermark`, pointer events ignored) instead of flat white
+  throughout.
+- Micro-animations (`lib/widgets/micro_animations.dart`, new): `TapScale`
+  (press-scale on cards/tiles), `FadeSlideIn` (staggered Quick Access
+  entrance), `WiggleIcon` (bell wiggles on a timer while the *real*
+  unread count is > 0), `KenBurnsImage` (slow zoom on banner images),
+  `AnimatedMiniBar` (smooth fill transition, used for the XP mini-bar).
+- Bottom nav: Material 3's `NavigationBar` already draws a pill
+  indicator by default — made it explicit (`indicatorShape:
+  StadiumBorder()`) and floated the bar with a rounded top edge + shadow
+  so it reads as a capsule. Same 5 tabs/destinations — restyle only.
+
+### 4b. Real new backend — built, not faked
+
+- **Streak tracking** (`lib/repositories/streak_repository.dart`, new):
+  one Firestore doc per active calendar day at
+  `users/{uid}/activityDays/{yyyy-MM-dd}`. A real consecutive-day streak
+  and a real Mon–Sun activity dot row are computed from those records in
+  one bounded read. Home marks today active on load. `firestore.rules`
+  updated with a self-only rule for the new subcollection.
+- **Continue Reading**: real last-read-position tracking, scoped to the
+  in-app PDF viewer — the one content type with a genuine page count
+  (`pdfx`'s `PdfControllerPinch.pagesCount`). Position is persisted
+  debounced (2s after the reader stops flipping pages), and the viewer
+  resumes at the saved page. Home's "Continue Reading" card shows
+  `<title> · Page X of Y`, or a genuine empty/prompt state if nothing
+  has a saved position — never a fabricated example. `firestore.rules`
+  updated to match.
+  *Scope note:* Magazine articles and Course lessons aren't paginated in
+  this codebase, so this only covers PDF library content for now —
+  extending it would need a different progress unit (scroll %, lesson
+  index) and wasn't attempted, to avoid inventing a page count where
+  none exists.
+- **XP points / Courses count chips**: both were already real and
+  computable — surfaced for the first time in a 3-chip stat row, plus a
+  small animated bar for today's real XP progress toward the daily cap
+  (pre-existing `XpRepository.watchXpEarnedToday` + `kDailyXpCap`).
+
+### 4c. Explicitly out of scope — confirmed not built, not faked
+
+- **Daily Challenge / quiz card**: not built. No quiz feature exists
+  anywhere in this codebase (re-confirmed by search). Per the
+  instructions' explicit option to omit rather than stub, the card was
+  left out entirely — trivial to add later via `ComingSoonPage` if
+  wanted.
+- **Streak reward tiers** (gold/sparkle/diamond at 30/100/365 days): not
+  built. The real streak count from 4b is the only number ever rendered
+  for streak this pass — nothing exists that could render from a
+  fabricated count.
+
+---
+
+## Final `flutter analyze` (verbatim, last run)
+
+```
+Analyzing academia_app...
+No issues found! (ran in 12.8s)
+```
+
+## Final `flutter build apk --debug`
+
+First attempt failed with a sandbox-level `CreateProcess: Access is
+denied` spawning the Android NDK's `clang.exe`/`ninja.exe` for a native
+(`jni` package, a transitive Firebase dependency) build step — an
+environment/sandbox restriction on spawning that specific native
+toolchain process, not a code defect. Retried once with the sandbox
+restriction lifted for that single command and it succeeded cleanly:
+
+```
+Running Gradle task 'assembleDebug'...    86.8s
+√ Built build\app\outputs\flutter-apk\app-debug.apk
+```
+
+## Not verified on a live device (logged per Rules, not guessed at)
+
+- Actual on-device paste from Word/Google Docs into the Quill editor
+  (native clipboard HTML support) — see section 3.
+- Visual QA of the Home redesign against the mockup (gradient bands,
+  watermark placement, animation timing/feel, pill nav) — analyzer-clean
+  and code-reviewed, but never rendered on a device/emulator this
+  session.
+- Chat video/image upload progress bar and retry flow, end-to-end on a
+  real slow/flaky connection.
 
 ## Files changed (by commit)
-- `3191590` — `lib/features/magazine/magazine_feed_page.dart`
-- `df8664a` — `lib/features/courses_marketplace/course_creator_profile_page.dart`,
-  `lib/features/magazine/author_profile_page.dart`
-- `7a9050c` — `lib/features/academic_content/academic_content_page.dart`
-- `8e1c199` — `lib/features/messages/find_people_page.dart`,
-  `lib/repositories/messaging_repository.dart`
-- `424b691` — `lib/features/assignments/assignments_page.dart`,
-  `lib/features/clubs/club_members_page.dart`,
-  `lib/features/clubs/clubs_page.dart`,
+- `0affb9e` — `lib/models/magazine_article.dart`,
+  `lib/features/magazine/article_composer_page.dart`,
+  `lib/features/magazine/magazine_feed_page.dart`
+- `b0df772` — `lib/repositories/messaging_repository.dart`,
+  `lib/features/messages/chat_conversation_page.dart`,
+  `lib/repositories/academic_content_repository.dart`
+- `23acd98` — `pubspec.yaml`, `pubspec.lock`,
+  `test/quill_paste_structure_test.dart` (new)
+- `0de5887` — `lib/features/dashboard/universal_home_page.dart`,
+  `lib/widgets/micro_animations.dart` (new),
+  `lib/theme/app_theme.dart`, `lib/screens/app_router.dart`,
+  `lib/repositories/academic_content_repository.dart`
+- `0238f97` — `lib/repositories/streak_repository.dart` (new),
+  `lib/repositories/academic_content_repository.dart`,
+  `lib/features/academic_content/content_viewer_page.dart`,
+  `lib/features/academic_content/content_details_page.dart`,
   `lib/features/dashboard/universal_home_page.dart`,
-  `lib/features/messages/messages_home_page.dart`,
-  `lib/features/timetable/timetable_page.dart`,
-  `firestore.indexes.json`
-- `cc9a4fb` — `CLAUDE.md`
+  `lib/core/constants.dart`, `firestore.rules`

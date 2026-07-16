@@ -36,12 +36,14 @@ import '../../repositories/notification_repository.dart';
 enum _FeedTab { forYou, following, local, global }
 
 const _kCategoryColors = <String, Color>{
-  'Essay':     C.pur,
-  'Opinion':   C.blu,
-  'Story':     C.grn,
-  'News':      C.org,
-  'Guide':     C.primary,
-  'Interview': C.red,
+  'Essay':            C.pur,
+  'Opinion':          C.blu,
+  'Story':            C.grn,
+  'Creative Writing': C.gold,
+  'News':             C.org,
+  'Guide':            C.primary,
+  'Interview':        C.red,
+  'Review':           C.navy,
 };
 
 Color _categoryColor(String cat) => _kCategoryColors[cat] ?? C.primary;
@@ -531,8 +533,8 @@ class _FeaturedCard extends StatelessWidget {
             Text(article.title, style: AppText.h2.copyWith(color: Colors.white),
                 maxLines: 2, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 8),
-            Text(_excerpt(article.body), style: AppText.bodySm.copyWith(
-                color: Colors.white.withValues(alpha: .8), height: 1.4),
+            Text(article.description.isNotEmpty ? article.description : _excerpt(article.body),
+                style: AppText.bodySm.copyWith(color: Colors.white.withValues(alpha: .8), height: 1.4),
                 maxLines: 2, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 14),
             Row(children: [
@@ -617,7 +619,11 @@ class _ArticleListCard extends StatelessWidget {
             Text(article.title, style: AppText.title.copyWith(fontSize: 14),
                 maxLines: 1, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 3),
-            Text(article.body.replaceAll('\n', ' '), style: AppText.bodySm.copyWith(fontSize: 12),
+            Text(
+                article.description.isNotEmpty
+                    ? article.description
+                    : article.body.replaceAll('\n', ' '),
+                style: AppText.bodySm.copyWith(fontSize: 12),
                 maxLines: 2, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 8),
             Row(children: [

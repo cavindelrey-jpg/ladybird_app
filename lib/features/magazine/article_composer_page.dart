@@ -36,6 +36,7 @@ class ArticleComposerPage extends StatefulWidget {
 
 class _ArticleComposerPageState extends State<ArticleComposerPage> {
   late final _titleCtrl = TextEditingController(text: widget.existing?.title ?? '');
+  late final _descriptionCtrl = TextEditingController(text: widget.existing?.description ?? '');
   late String _category = widget.existing?.category ?? kArticleCategories.first;
   late List<String> _tags = List<String>.from(widget.existing?.tags ?? const []);
   late final quill.QuillController _quillCtrl = _initQuillController();
@@ -90,6 +91,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
   void dispose() {
     _autoSaveTimer?.cancel();
     _titleCtrl.dispose();
+    _descriptionCtrl.dispose();
     _quillCtrl.dispose();
     _editorFocusNode.dispose();
     _editorScrollCtrl.dispose();
@@ -145,7 +147,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
     final title = _titleCtrl.text.trim();
     if (title.isEmpty && plainText.isEmpty) return;
 
-    final signature = '$title|$plainText|$_category|${_tags.join(",")}';
+    final signature = '$title|${_descriptionCtrl.text.trim()}|$plainText|$_category|${_tags.join(",")}';
     if (signature == _lastAutoSaveSignature) return;
 
     _autoSaving = true;
@@ -161,6 +163,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
   Future<bool> _persist({required bool publish}) async {
     final repo = MagazineRepository.instance;
     _workingArticle.title = _titleCtrl.text.trim();
+    _workingArticle.description = _descriptionCtrl.text.trim();
     _workingArticle.body = _quillCtrl.document.toPlainText().trim();
     _workingArticle.bodyDelta = jsonEncode(_quillCtrl.document.toDelta().toJson());
     _workingArticle.category = _category;
@@ -179,6 +182,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
         authorId: _workingArticle.authorId, authorName: _workingArticle.authorName,
         authorPhotoUrl: _workingArticle.authorPhotoUrl,
         title: _workingArticle.title, body: _workingArticle.body,
+        description: _workingArticle.description,
         bodyDelta: _workingArticle.bodyDelta,
         category: _workingArticle.category, tags: _workingArticle.tags,
         schoolId: _workingArticle.schoolId,
@@ -327,6 +331,18 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
                 controller: _titleCtrl,
                 style: AppText.h1,
                 decoration: const InputDecoration(hintText: 'Title', border: InputBorder.none),
+              ),
+              const SizedBox(height: 4),
+              TextField(
+                controller: _descriptionCtrl,
+                style: AppText.bodySm.copyWith(color: C.txt2),
+                maxLines: 2,
+                maxLength: 160,
+                decoration: const InputDecoration(
+                  hintText: 'Short summary shown on feed cards (optional)',
+                  border: InputBorder.none,
+                  counterText: '',
+                ),
               ),
               const Divider(color: C.bdr2),
               const SizedBox(height: 12),

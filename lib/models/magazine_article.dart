@@ -22,6 +22,12 @@ class MagazineArticle {
   /// bodyDelta exists.
   String body;
 
+  /// Short author-written summary shown on feed cards, distinct from the
+  /// full `body` — never auto-derived, so it stays empty for articles
+  /// published before this field existed (UI falls back to the
+  /// auto-truncated body excerpt in that case).
+  String description;
+
   /// Rich content as a Quill Delta, JSON-encoded. Null/empty means this
   /// article predates rich text and only has plain `body` — the reader
   /// falls back to rendering that as plain text in that case.
@@ -60,6 +66,7 @@ class MagazineArticle {
     this.authorPhotoUrl,
     required this.title,
     required this.body,
+    this.description = '',
     this.bodyDelta,
     this.thumbnailUrl,
     this.cachedThumbnailPath,
@@ -85,6 +92,7 @@ class MagazineArticle {
       authorPhotoUrl: d['authorPhotoUrl'],
       title: d['title'] ?? '',
       body: d['body'] ?? '',
+      description: d['description'] ?? '',
       bodyDelta: d['bodyDelta'],
       thumbnailUrl: d['thumbnailUrl'],
       category: d['category'] ?? 'Essay',
@@ -105,6 +113,7 @@ class MagazineArticle {
         'authorPhotoUrl': authorPhotoUrl,
         'title': title,
         'body': body,
+        'description': description,
         'bodyDelta': bodyDelta,
         'thumbnailUrl': thumbnailUrl,
         'category': category,
@@ -121,7 +130,9 @@ class MagazineArticle {
 
 /// Suggested category picker options for the composer. Free-text under
 /// the hood, but a fixed list keeps the tags visually consistent.
-const kArticleCategories = ['Essay', 'Opinion', 'Story', 'News', 'Guide', 'Interview'];
+const kArticleCategories = [
+  'Essay', 'Opinion', 'Story', 'Creative Writing', 'News', 'Guide', 'Interview', 'Review',
+];
 
 /// Suggested tag picker options — free-text under the hood (see `tags` on
 /// MagazineArticle), same pattern as kArticleCategories.

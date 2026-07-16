@@ -141,6 +141,14 @@ service cloud.firestore {
       match /settings/{settingId} {
         allow read, write: if isOwner(uid);
       }
+
+      // Real daily-activity streak — one doc per active calendar day,
+      // self-only (no one else's activity should be writable/readable
+      // through this path).
+      match /activityDays/{dayId} {
+        allow read, create, update: if isOwner(uid);
+        allow delete: if false;
+      }
     }
 
     // ── schools/{schoolId} ────────────────────────────────────────────
@@ -185,6 +193,13 @@ service cloud.firestore {
         allow read, create, delete: if isSignedIn() && request.auth.uid == userId;
       }
       match /recent_views/{userId} {
+        allow read, create, update: if isSignedIn() && request.auth.uid == userId;
+        allow delete: if false;
+      }
+
+      // Real last-read page position — powers Home "Continue Reading".
+      // Self-only, same shape as recent_views above.
+      match /readPositions/{userId} {
         allow read, create, update: if isSignedIn() && request.auth.uid == userId;
         allow delete: if false;
       }

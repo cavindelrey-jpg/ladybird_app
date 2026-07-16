@@ -48,6 +48,8 @@ class AppConstants {
   static const String colClubJoinRequests = 'club_join_requests';
   static const String colSaves           = 'saves';
   static const String colRecentViews     = 'recent_views';
+  static const String colActivityDays    = 'activityDays';
+  static const String colReadPositions   = 'readPositions';
   static const String colXpTransactions  = 'xpTransactions';
   static const String colUnlockedPapers  = 'unlockedPapers';
   static const String colPendingMagazineXp = 'pendingMagazineXp';

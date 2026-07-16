@@ -290,6 +290,8 @@ class _DownloadButtonState extends State<_DownloadButton> {
           fileUrl: widget.item.fileUrl!,
           title: widget.item.title,
           kind: kind,
+          contentId: widget.item.id,
+          userId: widget.user.id,
         ),
       ));
       return;

@@ -226,6 +226,79 @@ class AcademicContentRepository {
     });
   }
 
+  // ─── Read position (real data — powers Home "Continue Reading") ────────
+  // Did NOT exist before this — no course/article position tracking
+  // anywhere in the codebase. Only wired up for the in-app PDF viewer,
+  // the one content type with a real page count; a fabricated "Page X of
+  // Y" for content types without real pagination would repeat the same
+  // mistake as the old hardcoded stat card.
+
+  /// Persists how far [userId] has read into [contentId]. Best-effort — a
+  /// failed position write should never interrupt reading.
+  Future<void> recordReadPosition({
+    required String contentId,
+    required String userId,
+    required int page,
+    required int totalPages,
+  }) async {
+    try {
+      await _db.collection(_col).doc(contentId).collection(AppConstants.colReadPositions).doc(userId).set({
+        'page': page,
+        'totalPages': totalPages,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }).timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // best-effort
+    }
+  }
+
+  /// The page [userId] last left off on for [contentId], or 1 if there's
+  /// no saved position yet — used to resume the PDF viewer where they
+  /// left off.
+  Future<int> savedReadPage({required String contentId, required String userId}) async {
+    try {
+      final doc = await _db.collection(_col).doc(contentId)
+          .collection(AppConstants.colReadPositions).doc(userId).get();
+      final page = (doc.data()?['page'] as num?)?.toInt();
+      return (page != null && page > 0) ? page : 1;
+    } catch (_) {
+      return 1;
+    }
+  }
+
+  /// Most-recent real reading position for [userId] across all content —
+  /// powers the Home "Continue Reading: <title>, Page X of Y" card. Null
+  /// if they haven't read anything with a trackable position yet; the
+  /// caller shows a genuine empty/prompt state in that case, never a
+  /// fabricated example.
+  Future<({AcademicContent content, int page, int totalPages})?> continueReading(String userId) async {
+    try {
+      final snap = await _db.collectionGroup(AppConstants.colReadPositions)
+          .where(FieldPath.documentId, isEqualTo: userId)
+          .get();
+      if (snap.docs.isEmpty) return null;
+      final sorted = snap.docs.toList()
+        ..sort((a, b) {
+          final ta = (a.data()['updatedAt'] as Timestamp?)?.toDate() ?? DateTime(0);
+          final tb = (b.data()['updatedAt'] as Timestamp?)?.toDate() ?? DateTime(0);
+          return tb.compareTo(ta);
+        });
+      final latest = sorted.first;
+      final contentId = latest.reference.parent.parent?.id;
+      if (contentId == null) return null;
+      final contentDoc = await _db.collection(_col).doc(contentId).get();
+      if (!contentDoc.exists) return null;
+      final data = latest.data();
+      return (
+        content: AcademicContent.fromFirestore(contentDoc),
+        page: (data['page'] as num?)?.toInt() ?? 1,
+        totalPages: (data['totalPages'] as num?)?.toInt() ?? 1,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ─── Storage Upload ───────────────────────────────────────────────────────
 
   /// Uploads a file to Firebase Storage. Returns download URL. Times out

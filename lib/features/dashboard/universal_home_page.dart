@@ -47,10 +47,13 @@ import '../../models/announcement.dart';
 import '../../models/magazine_article.dart';
 import '../../models/quick_access_feature.dart';
 import '../../models/academic_content.dart';
+import '../../models/xp_transaction.dart' show kDailyXpCap;
 import '../../repositories/hero_slide_repository.dart';
 import '../../repositories/announcement_repository.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../repositories/academic_content_repository.dart';
+import '../../repositories/streak_repository.dart';
+import '../../repositories/xp_repository.dart';
 import '../../services/auth_service.dart';
 import '../../services/analytics_service.dart';
 import '../../widgets/widgets.dart';
@@ -62,6 +65,7 @@ import '../assignments/assignments_page.dart';
 import '../courses/courses_page.dart';
 import '../clubs/clubs_page.dart';
 import '../academic_content/academic_content_page.dart';
+import '../academic_content/content_viewer_page.dart';
 import '../magazine/magazine_feed_page.dart';
 import '../magazine/author_profile_page.dart';
 import '../../pages/notifications_page.dart';
@@ -83,8 +87,24 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   final _bannerCtrl = PageController();
   int _bannerIndex = 0;
 
+  Future<({int streak, List<bool> week})>? _streakFuture;
+  Future<({AcademicContent content, int page, int totalPages})?>? _continueReadingFuture;
+
   bool get _isGuest => widget.user == null;
   AppUser? get _u => widget.user;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_isGuest) {
+      // Fire-and-forget: marks today active for the streak, then the
+      // summary read below reflects it. Best-effort by design (see
+      // StreakRepository) so a failure here never blocks the page.
+      StreakRepository.instance.recordActiveToday(_u!.id);
+      _streakFuture = StreakRepository.instance.loadSummary(_u!.id);
+      _continueReadingFuture = AcademicContentRepository.instance.continueReading(_u!.id);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,6 +128,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                 _topBar(context),
                 const SizedBox(height: 18),
                 _greetingRow(),
+                const SizedBox(height: 16),
+                _statStreakRow(),
                 const SizedBox(height: 20),
                 _bannerCarousel(),
                 const SizedBox(height: 16),
@@ -131,6 +153,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                 ),
               ]),
             ),
+            if (!_isGuest) _continueReadingBand(),
             // Back to app-bg for Top Writers / Announcements.
             Container(
               color: C.bg,
@@ -364,6 +387,166 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         border: Border.all(color: C.bdr, width: 1.5),
       ),
       child: const Icon(Icons.person_rounded, size: 34, color: C.muted),
+    );
+  }
+
+  // ── Streak + XP + Courses stat row, Mon-Sun activity dots ───────────────
+  // Streak and today's-XP-progress are computed from real Firestore data
+  // (StreakRepository, XpRepository) — never a fabricated number. XP
+  // balance and course count were already real and computable; this is
+  // just the first place either is surfaced on Home.
+  Widget _statStreakRow() {
+    if (_isGuest) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: FutureBuilder<({int streak, List<bool> week})>(
+        future: _streakFuture,
+        builder: (context, snap) {
+          final streak = snap.data?.streak ?? 0;
+          final week = snap.data?.week ?? List<bool>.filled(7, false);
+          return Column(children: [
+            Row(children: [
+              Expanded(
+                child: _statChip(
+                  icon: Icons.local_fire_department_rounded, iconColor: C.org,
+                  value: '$streak', label: 'Day Streak',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: StreamBuilder<(int, int)>(
+                  stream: XpRepository.instance.watchBalance(_u!.id),
+                  builder: (context, xpSnap) {
+                    final balance = xpSnap.data?.$1 ?? 0;
+                    return _statChip(
+                      icon: Icons.star_rounded, iconColor: C.gold,
+                      value: NumberFormat('#,###').format(balance), label: 'XP Points',
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _statChip(
+                  icon: Icons.menu_book_rounded, iconColor: C.pur,
+                  value: '${_u!.courseIds.length}', label: 'Courses',
+                ),
+              ),
+            ]),
+            const SizedBox(height: 12),
+            _weekDotRow(week),
+            const SizedBox(height: 10),
+            StreamBuilder<int>(
+              stream: XpRepository.instance.watchXpEarnedToday(_u!.id),
+              builder: (context, xpSnap) {
+                final earned = (xpSnap.data ?? 0).clamp(0, kDailyXpCap);
+                return Row(children: [
+                  Text("Today's XP", style: AppText.caption.copyWith(fontSize: 10.5)),
+                  const SizedBox(width: 8),
+                  Expanded(child: AnimatedMiniBar(value: earned / kDailyXpCap, color: C.gold)),
+                  const SizedBox(width: 8),
+                  Text('$earned/$kDailyXpCap', style: AppText.caption.copyWith(fontSize: 10.5)),
+                ]);
+              },
+            ),
+          ]);
+        },
+      ),
+    );
+  }
+
+  Widget _statChip({required IconData icon, required Color iconColor, required String value, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      decoration: BoxDecoration(
+        color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr),
+      ),
+      child: Column(children: [
+        Icon(icon, color: iconColor, size: 18),
+        const SizedBox(height: 4),
+        Text(value, style: AppText.title.copyWith(fontSize: 14)),
+        Text(label, style: AppText.caption.copyWith(fontSize: 9.5),
+            textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ]),
+    );
+  }
+
+  Widget _weekDotRow(List<bool> week) {
+    const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: List.generate(7, (i) {
+        final active = week[i];
+        return Column(children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: 22, height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: active ? C.gold : C.surf3,
+              border: Border.all(color: active ? C.gold : C.bdr),
+            ),
+            child: active ? const Icon(Icons.check_rounded, size: 13, color: Colors.white) : null,
+          ),
+          const SizedBox(height: 3),
+          Text(labels[i], style: AppText.caption.copyWith(fontSize: 9)),
+        ]);
+      }),
+    );
+  }
+
+  // ── Continue Reading — real last-read PDF position, honest empty state ──
+  Widget _continueReadingBand() {
+    return Container(
+      color: C.bg,
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
+      child: FutureBuilder<({AcademicContent content, int page, int totalPages})?>(
+        future: _continueReadingFuture,
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const ShimmerBlock(height: 68);
+          }
+          final data = snap.data;
+          return TapScale(
+            child: ACard(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                if (data == null) { _open(context, const _LibraryDest()); return; }
+                final kind = viewableKindFor(data.content.fileUrl ?? '');
+                if (kind == null || (data.content.fileUrl ?? '').isEmpty) {
+                  _open(context, const _LibraryDest());
+                  return;
+                }
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => ContentViewerPage(
+                  fileUrl: data.content.fileUrl!, title: data.content.title, kind: kind,
+                  contentId: data.content.id, userId: _u!.id,
+                )));
+              },
+              child: Row(children: [
+                Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.menu_book_rounded, color: C.primary, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('CONTINUE READING', style: AppText.label.copyWith(color: C.primary, fontSize: 10)),
+                    const SizedBox(height: 3),
+                    data == null
+                        ? Text('Nothing read yet — open something from the Library to pick up here.',
+                            style: AppText.bodySm.copyWith(fontSize: 12))
+                        : Text('${data.content.title} · Page ${data.page} of ${data.totalPages}',
+                            style: AppText.title.copyWith(fontSize: 13),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ]),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: C.muted),
+              ]),
+            ),
+          );
+        },
+      ),
     );
   }
 

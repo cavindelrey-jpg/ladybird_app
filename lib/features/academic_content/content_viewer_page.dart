@@ -6,6 +6,7 @@
 // renderer, so those still fall back to the external-app flow the
 // caller already has.
 
+import 'dart:async';
 import 'dart:convert';
 import 'package:chewie/chewie.dart';
 import 'package:flutter/foundation.dart';
@@ -15,6 +16,7 @@ import 'package:http/http.dart' as http;
 import 'package:pdfx/pdfx.dart';
 import 'package:video_player/video_player.dart';
 import '../../core/docx_parser.dart';
+import '../../repositories/academic_content_repository.dart';
 import '../../theme/app_theme.dart';
 
 enum ViewableFileKind { image, pdf, video, docx }
@@ -40,11 +42,20 @@ class ContentViewerPage extends StatelessWidget {
   final String title;
   final ViewableFileKind kind;
 
+  /// Both required to track/resume reading position (Home "Continue
+  /// Reading") — null for callers that don't have a persisted content
+  /// item and/or signed-in user, in which case position tracking is
+  /// simply skipped rather than guessed at.
+  final String? contentId;
+  final String? userId;
+
   const ContentViewerPage({
     super.key,
     required this.fileUrl,
     required this.title,
     required this.kind,
+    this.contentId,
+    this.userId,
   });
 
   @override
@@ -61,7 +72,7 @@ class ContentViewerPage extends StatelessWidget {
       ),
       body: switch (kind) {
         ViewableFileKind.image => _ImageViewer(url: fileUrl),
-        ViewableFileKind.pdf => _PdfViewer(url: fileUrl),
+        ViewableFileKind.pdf => _PdfViewer(url: fileUrl, contentId: contentId, userId: userId),
         ViewableFileKind.video => _VideoViewer(url: fileUrl),
         ViewableFileKind.docx => _DocxViewer(url: fileUrl),
       },
@@ -93,22 +104,68 @@ class _ImageViewer extends StatelessWidget {
   }
 }
 
+/// Loads the saved page position (if any) before building the actual PDF
+/// viewer, so PdfControllerPinch can be constructed with the right
+/// initialPage from the start rather than jumping after first render.
 class _PdfViewer extends StatefulWidget {
   final String url;
-  const _PdfViewer({required this.url});
+  final String? contentId;
+  final String? userId;
+  const _PdfViewer({required this.url, this.contentId, this.userId});
 
   @override
   State<_PdfViewer> createState() => _PdfViewerState();
 }
 
 class _PdfViewerState extends State<_PdfViewer> {
+  late final Future<int> _initialPageFuture = _loadInitialPage();
+
+  Future<int> _loadInitialPage() async {
+    final contentId = widget.contentId;
+    final userId = widget.userId;
+    if (contentId == null || userId == null) return 1;
+    return AcademicContentRepository.instance
+        .savedReadPage(contentId: contentId, userId: userId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<int>(
+      future: _initialPageFuture,
+      builder: (context, snap) {
+        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+        return _PdfViewerBody(
+          url: widget.url, initialPage: snap.data!,
+          contentId: widget.contentId, userId: widget.userId,
+        );
+      },
+    );
+  }
+}
+
+class _PdfViewerBody extends StatefulWidget {
+  final String url;
+  final int initialPage;
+  final String? contentId;
+  final String? userId;
+  const _PdfViewerBody({
+    required this.url, required this.initialPage, this.contentId, this.userId,
+  });
+
+  @override
+  State<_PdfViewerBody> createState() => _PdfViewerBodyState();
+}
+
+class _PdfViewerBodyState extends State<_PdfViewerBody> {
   late final PdfControllerPinch _controller;
+  Timer? _saveDebounce;
 
   @override
   void initState() {
     super.initState();
     _controller = PdfControllerPinch(
       document: PdfDocument.openData(_fetchBytes(widget.url)),
+      initialPage: widget.initialPage,
     );
   }
 
@@ -117,8 +174,24 @@ class _PdfViewerState extends State<_PdfViewer> {
     return resp.bodyBytes;
   }
 
+  /// Debounced so flicking through pages quickly doesn't fire a write per
+  /// page — only the page the reader actually settles on is persisted.
+  void _onPageChanged(int page) {
+    final contentId = widget.contentId;
+    final userId = widget.userId;
+    if (contentId == null || userId == null) return;
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(seconds: 2), () {
+      final total = _controller.pagesCount ?? page;
+      AcademicContentRepository.instance.recordReadPosition(
+        contentId: contentId, userId: userId, page: page, totalPages: total,
+      );
+    });
+  }
+
   @override
   void dispose() {
+    _saveDebounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -127,6 +200,7 @@ class _PdfViewerState extends State<_PdfViewer> {
   Widget build(BuildContext context) {
     return PdfViewPinch(
       controller: _controller,
+      onPageChanged: _onPageChanged,
       onDocumentError: (error) => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),

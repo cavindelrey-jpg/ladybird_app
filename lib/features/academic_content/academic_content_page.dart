@@ -13,6 +13,7 @@ import '../../core/debouncer.dart';
 import '../../models/app_user.dart';
 import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 import 'content_details_page.dart';
@@ -78,6 +79,15 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
 
   bool get _canUpload => widget.user.canUploadContent;
 
+  void _selectSubject(String subject) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _subjectFilter = subject;
+      _isSearching = false;
+      _searchCtrl.clear();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -125,8 +135,8 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
         Expanded(
           child: _isSearching
               ? _SearchResults(loading: _searchLoading, results: _searchResults ?? [], user: widget.user)
-              : (_typeFilter == null
-                  ? _LibraryDiscovery(user: widget.user)
+              : ((_typeFilter == null && _subjectFilter == null)
+                  ? _LibraryDiscovery(user: widget.user, onSubjectTap: _selectSubject)
                   : _LiveFeed(user: widget.user, typeFilter: _typeFilter, subjectFilter: _subjectFilter)),
         ),
       ]),
@@ -291,8 +301,13 @@ class _LiveFeed extends StatelessWidget {
         if (snap.connectionState == ConnectionState.waiting) {
           return const _ContentGridSkeleton();
         }
+        if (snap.hasError) {
+          CrashService.instance.recordError(snap.error, snap.stackTrace,
+              context: 'AcademicContentPage._LiveFeed.watch(type: $typeFilter, subject: $subjectFilter)');
+          return ErrorView(message: "Couldn't load this list — ${snap.error}");
+        }
         final items = snap.data ?? [];
-        if (items.isEmpty) return _EmptyState(typeFilter: typeFilter);
+        if (items.isEmpty) return _EmptyState(typeFilter: typeFilter, subjectFilter: subjectFilter);
         return _ContentGrid(items: items, user: user);
       },
     );
@@ -453,13 +468,17 @@ class _Placeholder extends StatelessWidget {
 
 class _EmptyState extends StatelessWidget {
   final ContentType? typeFilter;
-  const _EmptyState({this.typeFilter});
+  final String? subjectFilter;
+  const _EmptyState({this.typeFilter, this.subjectFilter});
   @override
   Widget build(BuildContext context) => Center(
     child: Column(mainAxisSize: MainAxisSize.min, children: [
       Text(typeFilter?.emoji ?? '📚', style: const TextStyle(fontSize: 48)),
       const SizedBox(height: 12),
-      Text(typeFilter != null ? 'No ${typeFilter!.label} yet' : 'No content uploaded yet',
+      Text(
+          typeFilter != null
+              ? 'No ${typeFilter!.label}${subjectFilter != null ? ' in $subjectFilter' : ''} yet'
+              : (subjectFilter != null ? 'No resources in $subjectFilter yet' : 'No content uploaded yet'),
           style: AppText.h2.copyWith(fontSize: 16)),
       const SizedBox(height: 6),
       Text('Upload the first resource for your school.',
@@ -486,7 +505,8 @@ const _kSubjectIcons = <String, IconData>{
 /// subject counts from the actual library, not a fixed hardcoded list).
 class _LibraryDiscovery extends StatelessWidget {
   final AppUser user;
-  const _LibraryDiscovery({required this.user});
+  final ValueChanged<String> onSubjectTap;
+  const _LibraryDiscovery({required this.user, required this.onSubjectTap});
 
   @override
   Widget build(BuildContext context) {
@@ -631,25 +651,33 @@ class _LibraryDiscovery extends StatelessWidget {
           child: Wrap(
             spacing: 10, runSpacing: 10,
             children: sorted.map((entry) {
-              return Container(
-                width: 155,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
-                child: Row(children: [
-                  Container(
-                    width: 34, height: 34,
-                    decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(9)),
-                    child: Icon(_kSubjectIcons[entry.key] ?? Icons.book_outlined, size: 17, color: C.primary),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(entry.key, style: AppText.subtitle.copyWith(color: C.txt, fontSize: 12.5),
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                      Text('${entry.value} item${entry.value == 1 ? '' : 's'}', style: AppText.caption.copyWith(fontSize: 10.5)),
+              return Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(Rad.md),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Rad.md),
+                  onTap: () => onSubjectTap(entry.key),
+                  child: Container(
+                    width: 155,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+                    child: Row(children: [
+                      Container(
+                        width: 34, height: 34,
+                        decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(9)),
+                        child: Icon(_kSubjectIcons[entry.key] ?? Icons.book_outlined, size: 17, color: C.primary),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(entry.key, style: AppText.subtitle.copyWith(color: C.txt, fontSize: 12.5),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Text('${entry.value} item${entry.value == 1 ? '' : 's'}', style: AppText.caption.copyWith(fontSize: 10.5)),
+                        ]),
+                      ),
                     ]),
                   ),
-                ]),
+                ),
               );
             }).toList(),
           ),

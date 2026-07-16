@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import '../models/messaging.dart';
+import '../models/app_user.dart';
 import '../core/constants.dart';
 import '../core/result.dart';
 
@@ -116,6 +117,63 @@ class MessagingRepository {
       .where('userIds', arrayContains: userId)
       .snapshots()
       .map((s) => s.docs.length);
+
+  /// IDs of everyone [userId] is mutually friends with.
+  Stream<List<String>> watchFriendIds(String userId) => _friendships
+      .where('userIds', arrayContains: userId)
+      .snapshots()
+      .map((s) => s.docs.map((d) {
+            final ids = List<String>.from(d.data()['userIds'] ?? []);
+            return ids.firstWhere((id) => id != userId, orElse: () => '');
+          }).where((id) => id.isNotEmpty).toList());
+
+  /// Full profiles behind [watchFriendIds] — powers the "My Friends" list.
+  /// Firestore `whereIn` caps at 30, so this chunks for the rare user with
+  /// more friends than that.
+  Stream<List<AppUser>> watchFriends(String userId) => watchFriendIds(userId).asyncMap((ids) async {
+        if (ids.isEmpty) return <AppUser>[];
+        final users = <AppUser>[];
+        for (var i = 0; i < ids.length; i += 30) {
+          final chunk = ids.sublist(i, i + 30 > ids.length ? ids.length : i + 30);
+          final snap = await _db
+              .collection(AppConstants.colUsers)
+              .where(FieldPath.documentId, whereIn: chunk)
+              .get();
+          users.addAll(snap.docs.map((d) => AppUser.fromFirestore(d.id, d.data())));
+        }
+        return users;
+      });
+
+  /// Same-school users [user] isn't already friends with or hasn't
+  /// already sent a pending request to. Purely schoolId-based since
+  /// there's no recommendation engine here — users with no schoolId
+  /// (independent layer) get no suggestions rather than a fabricated list.
+  Future<List<AppUser>> suggestedFriends(AppUser user, {int limit = 20}) async {
+    if (user.schoolId == null || user.schoolId!.isEmpty) return [];
+    final friendIds = await _friendships
+        .where('userIds', arrayContains: user.id)
+        .get()
+        .then((s) => s.docs.map((d) {
+              final ids = List<String>.from(d.data()['userIds'] ?? []);
+              return ids.firstWhere((id) => id != user.id, orElse: () => '');
+            }).where((id) => id.isNotEmpty).toSet());
+    final pendingOutgoing = await _requests
+        .where('fromUserId', isEqualTo: user.id)
+        .where('status', isEqualTo: 'pending')
+        .get()
+        .then((s) => s.docs.map((d) => d.data()['toUserId'] as String).toSet());
+    final exclude = {user.id, ...friendIds, ...pendingOutgoing};
+    final snap = await _db
+        .collection(AppConstants.colUsers)
+        .where('schoolId', isEqualTo: user.schoolId)
+        .limit(limit + exclude.length)
+        .get();
+    return snap.docs
+        .where((d) => !exclude.contains(d.id))
+        .take(limit)
+        .map((d) => AppUser.fromFirestore(d.id, d.data()))
+        .toList();
+  }
 
   // ── Conversations ────────────────────────────────────────
 

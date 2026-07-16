@@ -57,6 +57,10 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.13.1
+  # Already a transitive dep of flutter_quill (used internally for its
+  # rich-paste HTML->Delta conversion) — declared directly so the
+  # section-3 paste-structure test can import it without an analyzer lint.
+  flutter_quill_delta_from_html: ^1.5.3
 
 flutter:
   uses-material-design: true

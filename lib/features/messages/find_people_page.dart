@@ -184,7 +184,7 @@ class _FriendsSection extends StatelessWidget {
                       conversationId: result.value, currentUser: user,
                       otherUserId: f.id, otherUserName: f.name, otherUserPhoto: f.photoUrl)));
                 } else if (context.mounted && result is Failure) {
-                  showToast(context, result.message, isError: true);
+                  showToast(context, (result as Failure).message, isError: true);
                 }
               },
               child: Row(children: [
@@ -352,7 +352,7 @@ class _SuggestedFriendsSectionState extends State<_SuggestedFriendsSection> {
           style: AppText.bodySm,
         )
       else
-        ...filtered!.map((s) => Padding(
+        ...filtered.map((s) => Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: _PersonRow(user: widget.user, person: {
             'id': s.id, 'name': s.name, 'photoUrl': s.photoUrl, 'roleName': s.roleLabel,

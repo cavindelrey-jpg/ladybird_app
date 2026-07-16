@@ -39,6 +39,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import '../../theme/app_theme.dart';
 import '../../models/app_user.dart';
 import '../../models/hero_slide.dart';
@@ -53,6 +54,7 @@ import '../../repositories/academic_content_repository.dart';
 import '../../services/auth_service.dart';
 import '../../services/analytics_service.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/micro_animations.dart';
 import '../../widgets/coming_soon_page.dart';
 import '../../pages/marks_page.dart';
 import '../timetable/timetable_page.dart';
@@ -90,25 +92,154 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       color: C.bg,
       child: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.only(bottom: 24),
+          padding: EdgeInsets.zero,
           children: [
-            _topBar(context),
-            const SizedBox(height: 18),
-            _greetingRow(),
-            const SizedBox(height: 20),
-            _bannerCarousel(),
-            const SizedBox(height: 24),
-            _sectionHeader('Quick Access',
-                onViewAll: () => showToast(context, 'Tap a tile above — more will appear here as you use them.')),
-            const SizedBox(height: 12),
-            _quickAccessGrid(context),
-            const SizedBox(height: 24),
-            _upcomingAndAnnouncements(),
-            const SizedBox(height: 24),
-            _sectionHeader('Recommended for You', onViewAll: () => _open(context, const _LibraryDest())),
-            const SizedBox(height: 12),
-            _recommendedRow(),
+            // Top band: subtle blue-tinted gradient fading to the app
+            // background, instead of flat white all the way down.
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [C.primaryBg, C.bg],
+                  begin: Alignment.topCenter, end: Alignment.bottomCenter,
+                  stops: [0.0, 0.7],
+                ),
+              ),
+              child: Column(children: [
+                _topBar(context),
+                const SizedBox(height: 18),
+                _greetingRow(),
+                const SizedBox(height: 20),
+                _bannerCarousel(),
+                const SizedBox(height: 16),
+                _libraryBanner(context),
+                const SizedBox(height: 8),
+              ]),
+            ),
+            // Alternating near-white band for Quick Access.
+            Container(
+              color: Colors.white,
+              child: Stack(children: [
+                const SectionWatermark(icon: Icons.science_outlined, alignment: Alignment.topRight),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Column(children: [
+                    _sectionHeader('Quick Access',
+                        onViewAll: () => showToast(context, 'Tap a tile above — more will appear here as you use them.')),
+                    const SizedBox(height: 12),
+                    _quickAccessGrid(context),
+                  ]),
+                ),
+              ]),
+            ),
+            // Back to app-bg for Top Writers / Announcements.
+            Container(
+              color: C.bg,
+              child: Stack(children: [
+                const SectionWatermark(icon: Icons.menu_book_outlined, alignment: Alignment.topLeft),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: _upcomingAndAnnouncements(),
+                ),
+              ]),
+            ),
+            // Near-white again for Recommended.
+            Container(
+              color: Colors.white,
+              child: Stack(children: [
+                const SectionWatermark(icon: Icons.school_outlined, alignment: Alignment.topRight),
+                Padding(
+                  padding: const EdgeInsets.only(top: 24, bottom: 24),
+                  child: Column(children: [
+                    _sectionHeader('Recommended for You', onViewAll: () => _open(context, const _LibraryDest())),
+                    const SizedBox(height: 12),
+                    _recommendedRow(),
+                  ]),
+                ),
+              ]),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // ── Library promo banner — real resource count, no hardcoded number ────
+  Widget _libraryBanner(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: TapScale(
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(Rad.lg),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _open(context, const _LibraryDest());
+            },
+            child: Container(
+              height: 150,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [C.navy2, C.navy], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                boxShadow: Shad.md,
+              ),
+              child: Stack(fit: StackFit.expand, children: [
+                // Dark-to-transparent overlay per spec — reads as "dark"
+                // via the navy gradient itself since there's no stock
+                // library photo asset in this codebase to overlay instead.
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.black.withValues(alpha: .5), Colors.transparent],
+                      begin: Alignment.centerLeft, end: Alignment.centerRight,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('Library', style: AppText.h1.copyWith(color: Colors.white)),
+                      const SizedBox(height: 6),
+                      Text('Discover books, past papers and other study materials.',
+                          style: AppText.bodySm.copyWith(color: Colors.white.withValues(alpha: .8)),
+                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 12),
+                      FutureBuilder<int>(
+                        future: AcademicContentRepository.instance.countAll(institutionId: _u?.schoolId),
+                        builder: (context, snap) {
+                          if (!snap.hasData) {
+                            return Text('Loading…',
+                                style: AppText.caption.copyWith(color: Colors.white54));
+                          }
+                          return Row(mainAxisSize: MainAxisSize.min, children: [
+                            const Icon(Icons.auto_awesome_outlined, size: 14, color: Colors.white70),
+                            const SizedBox(width: 6),
+                            Text('${NumberFormat('#,###').format(snap.data)} Resources Available',
+                                style: AppText.caption.copyWith(color: Colors.white70)),
+                          ]);
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                        decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(10)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Text('Explore Now', style: AppText.subtitle.copyWith(
+                              color: C.navy, fontSize: 12, fontWeight: FontWeight.w700)),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.arrow_forward_rounded, size: 14, color: C.navy),
+                        ]),
+                      ),
+                    ],
+                  ),
+                ),
+              ]),
+            ),
+          ),
         ),
       ),
     );
@@ -138,39 +269,48 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           icon: const Icon(Icons.search_rounded, color: C.txt2),
           onPressed: () => showToast(context, 'Search is coming soon.'),
         ),
-        Stack(clipBehavior: Clip.none, children: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: C.txt2),
-            onPressed: () {
-              HapticFeedback.selectionClick();
-              Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => _isGuest
-                      ? const ComingSoonPage(
+        _isGuest
+            ? IconButton(
+                icon: const Icon(Icons.notifications_outlined, color: C.txt2),
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const ComingSoonPage(
                           title: 'Sign in required',
                           subtitle: 'Create a free account to see notifications.',
-                          icon: Icons.lock_outline_rounded)
-                      : NotificationsPage(userId: _u!.id)));
-            },
-          ),
-          if (!_isGuest)
-            StreamBuilder<int>(
-              stream: NotificationRepository.instance.watchUnreadCount(_u!.id),
-              builder: (context, snap) {
-                final count = snap.data ?? 0;
-                if (count == 0) return const SizedBox.shrink();
-                return Positioned(
-                  top: 6, right: 6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                    constraints: const BoxConstraints(minWidth: 16),
-                    decoration: BoxDecoration(color: C.red, borderRadius: BorderRadius.circular(8)),
-                    child: Text(count > 9 ? '9+' : '$count', textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
-                  ),
-                );
-              },
-            ),
-        ]),
+                          icon: Icons.lock_outline_rounded)));
+                },
+              )
+            : StreamBuilder<int>(
+                stream: NotificationRepository.instance.watchUnreadCount(_u!.id),
+                builder: (context, snap) {
+                  final count = snap.data ?? 0;
+                  return Stack(clipBehavior: Clip.none, children: [
+                    WiggleIcon(
+                      active: count > 0,
+                      child: IconButton(
+                        icon: const Icon(Icons.notifications_outlined, color: C.txt2),
+                        onPressed: () {
+                          HapticFeedback.selectionClick();
+                          Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => NotificationsPage(userId: _u!.id)));
+                        },
+                      ),
+                    ),
+                    if (count > 0)
+                      Positioned(
+                        top: 6, right: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          constraints: const BoxConstraints(minWidth: 16),
+                          decoration: BoxDecoration(color: C.red, borderRadius: BorderRadius.circular(8)),
+                          child: Text(count > 9 ? '9+' : '$count', textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+                        ),
+                      ),
+                  ]);
+                },
+              ),
       ]),
     );
   }
@@ -284,53 +424,56 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _bannerCard(HeroSlide slide) {
+    final hasImage = slide.imageUrl != null && slide.imageUrl!.isEmpty == false;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(Rad.lg),
-        child: InkWell(
+      child: TapScale(
+        child: Material(
+          color: Colors.transparent,
           borderRadius: BorderRadius.circular(Rad.lg),
-          onTap: () {
-            HapticFeedback.lightImpact();
-            _openHeroSlide(slide);
-          },
-          child: Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                  colors: [C.navy, C.navy2],
-                  begin: Alignment.topLeft, end: Alignment.bottomRight),
-              borderRadius: BorderRadius.circular(Rad.lg),
-              boxShadow: Shad.md,
-              image: (slide.imageUrl != null && slide.imageUrl!.isNotEmpty)
-                  ? DecorationImage(
-                      image: NetworkImage(slide.imageUrl!),
-                      fit: BoxFit.cover,
-                      colorFilter: ColorFilter.mode(
-                          Colors.black.withValues(alpha: .35), BlendMode.darken),
-                    )
-                  : null,
-            ),
-            child: Row(children: [
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(slide.headline, style: AppText.h2.copyWith(color: Colors.white)),
-                  const SizedBox(height: 8),
-                  Text(slide.subtext, style: AppText.bodySm.copyWith(
-                      color: Colors.white.withValues(alpha: .75))),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                    decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(10)),
-                    child: Text(slide.ctaLabel, style: AppText.subtitle.copyWith(
-                        color: C.navy, fontSize: 12, fontWeight: FontWeight.w700)),
-                  ),
-                ]),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _openHeroSlide(slide);
+            },
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [C.navy, C.navy2],
+                    begin: Alignment.topLeft, end: Alignment.bottomRight),
+                boxShadow: Shad.md,
               ),
-              if (slide.imageUrl == null || slide.imageUrl!.isEmpty)
-                const Icon(Icons.school_rounded, size: 56, color: Colors.white24),
-            ]),
+              child: Stack(fit: StackFit.expand, children: [
+                if (hasImage)
+                  KenBurnsImage(image: NetworkImage(slide.imageUrl!)),
+                if (hasImage)
+                  Container(color: Colors.black.withValues(alpha: .35)),
+                Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: Row(children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Text(slide.headline, style: AppText.h2.copyWith(color: Colors.white)),
+                        const SizedBox(height: 8),
+                        Text(slide.subtext, style: AppText.bodySm.copyWith(
+                            color: Colors.white.withValues(alpha: .75))),
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                          decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(10)),
+                          child: Text(slide.ctaLabel, style: AppText.subtitle.copyWith(
+                              color: C.navy, fontSize: 12, fontWeight: FontWeight.w700)),
+                        ),
+                      ]),
+                    ),
+                    if (!hasImage)
+                      const Icon(Icons.school_rounded, size: 56, color: Colors.white24),
+                  ]),
+                ),
+              ]),
+            ),
           ),
         ),
       ),
@@ -399,33 +542,45 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) {
           final feat = top4[i];
-          return Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(Rad.md),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(Rad.md),
-              onTap: () {
-                HapticFeedback.selectionClick();
-                _openQuickAccess(context, feat);
-              },
-              child: Container(
-                width: 84,
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                decoration: BoxDecoration(
-                  color: C.surf, borderRadius: BorderRadius.circular(Rad.md),
-                  border: Border.all(color: C.bdr),
-                ),
-                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Container(
-                    width: 36, height: 36,
-                    decoration: BoxDecoration(color: feat.bg, borderRadius: BorderRadius.circular(10)),
-                    child: Icon(feat.icon, color: feat.fg, size: 19),
+          return FadeSlideIn(
+            index: i,
+            child: TapScale(
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(Rad.md),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Rad.md),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    _openQuickAccess(context, feat);
+                  },
+                  child: Container(
+                    width: 84,
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: C.surf, borderRadius: BorderRadius.circular(Rad.md),
+                      border: Border.all(color: C.bdr),
+                    ),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Container(
+                        width: 36, height: 36,
+                        decoration: BoxDecoration(
+                          color: feat.bg,
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(color: feat.fg.withValues(alpha: .28),
+                                blurRadius: 12, spreadRadius: -2, offset: const Offset(0, 4)),
+                          ],
+                        ),
+                        child: Icon(feat.icon, color: feat.fg, size: 19),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(feat.label, textAlign: TextAlign.center,
+                          style: AppText.bodySm.copyWith(fontSize: 10.5, fontWeight: FontWeight.w600, color: C.txt),
+                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                    ]),
                   ),
-                  const SizedBox(height: 8),
-                  Text(feat.label, textAlign: TextAlign.center,
-                      style: AppText.bodySm.copyWith(fontSize: 10.5, fontWeight: FontWeight.w600, color: C.txt),
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
-                ]),
+                ),
               ),
             ),
           );

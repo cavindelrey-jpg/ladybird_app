@@ -416,13 +416,28 @@ class _HomeShellState extends State<HomeShell> {
               (i) => _visitedTabs.contains(i) ? _buildPage(nav[i]) : const SizedBox.shrink()),
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: safeTab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
-        labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
-        destinations: nav.map((n) => NavigationDestination(
-          icon: Icon(n.outlinedIcon), selectedIcon: Icon(n.filledIcon), label: n.label,
-        )).toList(),
+      bottomNavigationBar: DecoratedBox(
+        // A restyle of the selected-tab indicator only (still a plain
+        // Material 3 pill behind the active icon) — floated above the
+        // page content with its own shadow/rounded top edge so it reads
+        // as a distinct capsule bar rather than a flat strip. Tabs and
+        // destinations below are untouched.
+        decoration: BoxDecoration(
+          color: C.surf,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(Rad.lg)),
+          boxShadow: Shad.lg,
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(Rad.lg)),
+          child: NavigationBar(
+            selectedIndex: safeTab,
+            onDestinationSelected: (i) => setState(() => _tab = i),
+            labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+            destinations: nav.map((n) => NavigationDestination(
+              icon: Icon(n.outlinedIcon), selectedIcon: Icon(n.filledIcon), label: n.label,
+            )).toList(),
+          ),
+        ),
       ),
     );
   }

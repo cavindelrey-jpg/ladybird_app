@@ -120,6 +120,10 @@ class AppTheme {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: C.surf,
       indicatorColor: C.primaryBg,
+      // Explicit stadium (pill/capsule) indicator behind the active tab —
+      // Material 3 defaults to this shape already, made explicit here so
+      // it can't silently regress if the M3 default ever changes.
+      indicatorShape: const StadiumBorder(),
       labelTextStyle: WidgetStateProperty.all(
           const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
       iconTheme: WidgetStateProperty.resolveWith((states) {

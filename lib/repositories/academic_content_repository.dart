@@ -42,6 +42,19 @@ class AcademicContentRepository {
         .map((s) => s.docs.map(AcademicContent.fromFirestore).toList());
   }
 
+  /// One-shot real count of library resources in scope — powers the Home
+  /// "Library" banner's resource count. Uses a Firestore count() aggregate
+  /// query so it doesn't need to download every document just to count
+  /// them.
+  Future<int> countAll({String? institutionId}) async {
+    Query<Map<String, dynamic>> q = _db.collection(_col);
+    if (institutionId != null) {
+      q = q.where('institutionId', isEqualTo: institutionId);
+    }
+    final snap = await q.count().get();
+    return snap.count ?? 0;
+  }
+
   /// Stream for a single document.
   Stream<AcademicContent?> watchOne(String id) {
     return _db.collection(_col).doc(id).snapshots().map((doc) {

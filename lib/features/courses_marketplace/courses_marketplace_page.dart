@@ -16,6 +16,7 @@ import '../../models/public_course.dart';
 import '../../repositories/public_course_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
 import '../../pages/profile_page.dart';
 import 'course_reader_page.dart';
@@ -52,7 +53,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: C.bg,
-      body: SafeArea(
+      body: AppBackground(child: SafeArea(
         child: Column(children: [
           _header(context),
           if (_searchOpen)
@@ -106,6 +107,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
             ),
           ),
         ]),
+      ),
       ),
     );
   }

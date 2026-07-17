@@ -16,6 +16,7 @@ import '../../repositories/academic_content_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import 'content_details_page.dart';
 import 'content_upload_page.dart';
 import '../../pages/notifications_page.dart';
@@ -92,7 +93,7 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: C.bg,
-      body: SafeArea(
+      body: AppBackground(child: SafeArea(
         child: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
@@ -140,6 +141,7 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
                   : _LiveFeed(user: widget.user, typeFilter: _typeFilter, subjectFilter: _subjectFilter)),
         ),
       ]),
+      ),
       ),
       floatingActionButton: _canUpload
           ? FloatingActionButton.extended(

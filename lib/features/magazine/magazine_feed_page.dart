@@ -26,6 +26,7 @@ import '../../repositories/magazine_repository.dart';
 import '../../repositories/follow_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import 'article_reader_page.dart';
 import 'article_composer_page.dart';
 import 'author_profile_page.dart';
@@ -132,7 +133,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: C.bg,
-      body: SafeArea(
+      body: AppBackground(child: SafeArea(
         child: Column(children: [
           _header(context),
           _tabRow(),
@@ -186,6 +187,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
             ),
           ),
         ]),
+      ),
       ),
     );
   }

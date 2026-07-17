@@ -37,6 +37,7 @@
 //      recommendation engine — worth renaming the header if that
 //      distinction matters to you.
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -84,9 +85,6 @@ class UniversalHomePage extends StatefulWidget {
 }
 
 class _UniversalHomePageState extends State<UniversalHomePage> {
-  final _bannerCtrl = PageController();
-  int _bannerIndex = 0;
-
   Future<({int streak, List<bool> week})>? _streakFuture;
   Future<({AcademicContent content, int page, int totalPages})?>? _continueReadingFuture;
 
@@ -551,117 +549,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   // ── Banner carousel — live Firestore slides, no hardcoded copy ──────────
-  Widget _bannerCarousel() {
-    return StreamBuilder<List<HeroSlide>>(
-      stream: HeroSlideRepository.instance.watchActive(),
-      builder: (context, snap) {
-        if (snap.hasError) {
-          CrashService.instance.recordError(snap.error, snap.stackTrace,
-              context: 'UniversalHomePage.watchActive');
-          return ErrorView(message: "Couldn't load the banner — ${snap.error}");
-        }
-        final slides = snap.data ?? const <HeroSlide>[];
-
-        if (slides.isEmpty) {
-          // Nothing configured yet. superAdmin gets a nudge to add the
-          // first slide via the in-app image manager; everyone else just
-          // doesn't see the carousel — no fake placeholder banners.
-          if (!_isGuest && _u!.isSuperAdmin) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => HeroSlideManagerPage(createdByUid: _u!.id))),
-                icon: const Icon(Icons.add_photo_alternate_outlined),
-                label: const Text('Add your first Home banner'),
-              ),
-            );
-          }
-          return const SizedBox.shrink();
-        }
-
-        return SizedBox(
-          height: 190,
-          child: Column(children: [
-            Expanded(
-              child: PageView.builder(
-                controller: _bannerCtrl,
-                onPageChanged: (i) => setState(() => _bannerIndex = i),
-                itemCount: slides.length,
-                itemBuilder: (_, i) => _bannerCard(slides[i]),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(slides.length, (i) => Container(
-                  width: 6, height: 6, margin: const EdgeInsets.symmetric(horizontal: 3),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: i == _bannerIndex ? C.gold : C.bdr,
-                  ),
-                ))),
-          ]),
-        );
-      },
-    );
-  }
-
-  Widget _bannerCard(HeroSlide slide) {
-    final hasImage = slide.imageUrl != null && slide.imageUrl!.isEmpty == false;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: TapScale(
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(Rad.lg),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              _openHeroSlide(slide);
-            },
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                    colors: [C.navy, C.navy2],
-                    begin: Alignment.topLeft, end: Alignment.bottomRight),
-                boxShadow: Shad.md,
-              ),
-              child: Stack(fit: StackFit.expand, children: [
-                if (hasImage)
-                  KenBurnsImage(image: NetworkImage(slide.imageUrl!)),
-                if (hasImage)
-                  Container(color: Colors.black.withValues(alpha: .35)),
-                Padding(
-                  padding: const EdgeInsets.all(22),
-                  child: Row(children: [
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Text(slide.headline, style: AppText.h2.copyWith(color: Colors.white)),
-                        const SizedBox(height: 8),
-                        Text(slide.subtext, style: AppText.bodySm.copyWith(
-                            color: Colors.white.withValues(alpha: .75))),
-                        const SizedBox(height: 14),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                          decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(10)),
-                          child: Text(slide.ctaLabel, style: AppText.subtitle.copyWith(
-                              color: C.navy, fontSize: 12, fontWeight: FontWeight.w700)),
-                        ),
-                      ]),
-                    ),
-                    if (!hasImage)
-                      const Icon(Icons.school_rounded, size: 56, color: Colors.white24),
-                  ]),
-                ),
-              ]),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _bannerCarousel() => _HomeBannerCarousel(onOpenSlide: _openHeroSlide, isSuperAdmin: !_isGuest && _u!.isSuperAdmin, userId: _u?.id);
 
   void _openHeroSlide(HeroSlide slide) {
     switch (slide.destination) {
@@ -1179,4 +1067,184 @@ class _MagazineDest extends StatelessWidget {
 class _PastQuestionsDest extends StatelessWidget {
   const _PastQuestionsDest();
   @override Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+// ── Home banner carousel — isolated from the rest of Home ──────────
+// Previously the whole Home page's setState() fired on every manual
+// swipe (onPageChanged called setState on _UniversalHomePageState),
+// so every section below — Quick Access, Today's Progress, Daily
+// Challenge, Top Writers, everything — rebuilt on every swipe. That's
+// exactly what looked/felt like "the page reloads" when swiping.
+// This widget owns its own state entirely, so swiping only rebuilds
+// itself. Also adds: auto-advancing slideshow (paused/reset on manual
+// interaction so it doesn't fight the user), and a proper left-to-right
+// fading gradient overlay (matching the technique already used
+// elsewhere in this file) instead of a flat uniform darkening — so
+// text stays readable on the left no matter what the banner image
+// looks like on the right.
+class _HomeBannerCarousel extends StatefulWidget {
+  final void Function(HeroSlide) onOpenSlide;
+  final bool isSuperAdmin;
+  final String? userId;
+  const _HomeBannerCarousel({required this.onOpenSlide, required this.isSuperAdmin, required this.userId});
+
+  @override
+  State<_HomeBannerCarousel> createState() => _HomeBannerCarouselState();
+}
+
+class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
+  final _ctrl = PageController();
+  int _index = 0;
+  Timer? _autoTimer;
+  int _slideCount = 0;
+
+  @override
+  void dispose() {
+    _autoTimer?.cancel();
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _restartAutoAdvance() {
+    _autoTimer?.cancel();
+    if (_slideCount <= 1) return;
+    _autoTimer = Timer.periodic(const Duration(seconds: 6), (_) {
+      if (!mounted || !_ctrl.hasClients) return;
+      final next = (_index + 1) % _slideCount;
+      _ctrl.animateToPage(next, duration: const Duration(milliseconds: 450), curve: Curves.easeInOut);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<HeroSlide>>(
+      stream: HeroSlideRepository.instance.watchActive(),
+      builder: (context, snap) {
+        if (snap.hasError) {
+          CrashService.instance.recordError(snap.error, snap.stackTrace,
+              context: 'UniversalHomePage.watchActive');
+          return ErrorView(message: "Couldn't load the banner — ${snap.error}");
+        }
+        final slides = snap.data ?? const <HeroSlide>[];
+
+        if (slides.isEmpty) {
+          _autoTimer?.cancel();
+          // Nothing configured yet. superAdmin gets a nudge to add the
+          // first slide via the in-app image manager; everyone else just
+          // doesn't see the carousel — no fake placeholder banners.
+          if (widget.isSuperAdmin && widget.userId != null) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => HeroSlideManagerPage(createdByUid: widget.userId!))),
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: const Text('Add your first Home banner'),
+              ),
+            );
+          }
+          return const SizedBox.shrink();
+        }
+
+        if (_slideCount != slides.length) {
+          _slideCount = slides.length;
+          WidgetsBinding.instance.addPostFrameCallback((_) => _restartAutoAdvance());
+        }
+
+        return SizedBox(
+          height: 190,
+          child: Column(children: [
+            Expanded(
+              child: PageView.builder(
+                controller: _ctrl,
+                onPageChanged: (i) {
+                  setState(() => _index = i);
+                  _restartAutoAdvance(); // manual swipe resets the auto timer, doesn't fight it
+                },
+                itemCount: slides.length,
+                itemBuilder: (_, i) => _bannerCard(slides[i]),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(slides.length, (i) => Container(
+                  width: 6, height: 6, margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: i == _index ? C.gold : C.bdr,
+                  ),
+                ))),
+          ]),
+        );
+      },
+    );
+  }
+
+  Widget _bannerCard(HeroSlide slide) {
+    final hasImage = slide.imageUrl != null && slide.imageUrl!.isEmpty == false;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: TapScale(
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(Rad.lg),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              widget.onOpenSlide(slide);
+            },
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [C.navy, C.navy2],
+                    begin: Alignment.topLeft, end: Alignment.bottomRight),
+                boxShadow: Shad.md,
+              ),
+              child: Stack(fit: StackFit.expand, children: [
+                if (hasImage)
+                  KenBurnsImage(image: NetworkImage(slide.imageUrl!)),
+                if (hasImage)
+                  // Dark on the left, fading to transparent on the right —
+                  // keeps the title/CTA readable regardless of what's in
+                  // the image, instead of the old flat uniform darkening.
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.black87, Colors.black45, Colors.transparent],
+                        stops: [0.0, 0.55, 1.0],
+                        begin: Alignment.centerLeft, end: Alignment.centerRight,
+                      ),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.all(22),
+                  child: Row(children: [
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Text(slide.headline, style: AppText.h2.copyWith(color: Colors.white)),
+                        const SizedBox(height: 8),
+                        Text(slide.subtext, style: AppText.bodySm.copyWith(
+                            color: Colors.white.withValues(alpha: .75))),
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                          decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(10)),
+                          child: Text(slide.ctaLabel, style: AppText.subtitle.copyWith(
+                              color: C.navy, fontSize: 12, fontWeight: FontWeight.w700)),
+                        ),
+                      ]),
+                    ),
+                    if (!hasImage)
+                      const Icon(Icons.school_rounded, size: 56, color: Colors.white24),
+                  ]),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

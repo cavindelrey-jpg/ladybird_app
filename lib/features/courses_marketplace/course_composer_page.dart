@@ -21,6 +21,7 @@ import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 
+import '../../widgets/app_background.dart';
 class CourseComposerPage extends StatefulWidget {
   final AppUser user;
   final PublicCourse? existing;
@@ -93,7 +94,6 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
   }
 
   Future<void> _pickCover() async {
-    HapticFeedback.selectionClick();
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked != null) setState(() => _pickedCover = File(picked.path));
   }
@@ -270,32 +270,16 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
             IconButton(icon: const Icon(Icons.delete_outline_rounded, color: C.red), onPressed: _delete),
         ],
       ),
-      body: Column(children: [
+      body: AppBackground(child: Column(children: [
         Expanded(
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              Material(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(Rad.md),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(Rad.md),
-                  onTap: _pickCover,
-                  child: Container(
-                    height: 140, width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: C.navy, borderRadius: BorderRadius.circular(Rad.md),
-                      image: _pickedCover != null
-                          ? DecorationImage(image: FileImage(_pickedCover!), fit: BoxFit.cover)
-                          : (widget.existing?.coverImageUrl != null
-                          ? DecorationImage(image: NetworkImage(widget.existing!.coverImageUrl!), fit: BoxFit.cover)
-                          : null),
-                    ),
-                    child: (_pickedCover == null && widget.existing?.coverImageUrl == null)
-                        ? const Center(child: Icon(Icons.add_photo_alternate_outlined, color: Colors.white70, size: 32))
-                        : null,
-                  ),
-                ),
+              ComposerCoverPicker(
+                pickedFile: _pickedCover,
+                existingUrl: widget.existing?.coverImageUrl,
+                onTap: _pickCover,
+                height: 150,
               ),
               if (_canImportDocx) ...[
                 const SizedBox(height: 10),
@@ -313,33 +297,9 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                 ),
               ],
               const SizedBox(height: 16),
-              Wrap(
-                spacing: 8, runSpacing: 8,
-                children: kCourseCategories.map((cat) {
-                  final active = cat == _category;
-                  return Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(20),
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        setState(() => _category = cat);
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: active ? C.primary : C.surf2,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: active ? C.primary : C.bdr),
-                        ),
-                        child: Text(cat, style: AppText.caption.copyWith(
-                            fontSize: 12, fontWeight: FontWeight.w700,
-                            color: active ? Colors.white : C.txt2)),
-                      ),
-                    ),
-                  );
-                }).toList(),
+              CategoryChipSelector(
+                options: kCourseCategories, selected: _category,
+                onChanged: (c) => setState(() => _category = c),
               ),
               const SizedBox(height: 14),
               TagMultiSelect(
@@ -348,21 +308,15 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                 onChanged: (next) => setState(() => _tags = next),
               ),
               const SizedBox(height: 20),
-              TextField(
-                controller: _titleCtrl, style: AppText.h1,
-                decoration: const InputDecoration(hintText: 'Course title', border: InputBorder.none),
+              ComposerField(controller: _titleCtrl, hint: 'Course title', style: AppText.h1, maxLength: 100),
+              const SizedBox(height: 10),
+              ComposerField(
+                controller: _descCtrl,
+                hint: 'Short description (shown on cards)…',
+                style: AppText.bodySm.copyWith(color: C.txt),
+                maxLines: 2, maxLength: 160,
               ),
-              const Divider(color: C.bdr2),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _descCtrl, style: AppText.bodySm.copyWith(color: C.txt),
-                maxLines: 2,
-                decoration: const InputDecoration(
-                    hintText: 'Short description (shown on cards)…', border: InputBorder.none),
-              ),
-              const SizedBox(height: 12),
-              const Divider(color: C.bdr2),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Container(
                 constraints: const BoxConstraints(minHeight: 320),
                 decoration: BoxDecoration(
@@ -441,7 +395,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
             ]),
           ),
         ),
-      ]),
+      ])),
     );
   }
 }

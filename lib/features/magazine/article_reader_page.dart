@@ -23,9 +23,11 @@ import '../../repositories/notification_repository.dart';
 import '../../models/app_notification.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/media_players.dart';
 import 'author_profile_page.dart';
 import 'article_composer_page.dart';
 
+import '../../widgets/app_background.dart';
 class ArticleReaderPage extends StatefulWidget {
   final MagazineArticle article;
   final AppUser? currentUser;
@@ -121,7 +123,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
             ),
         ],
       ),
-      body: FadeTransition(
+      body: AppBackground(child: FadeTransition(
         opacity: _entryFade,
         child: SlideTransition(
           position: _entryRise,
@@ -249,7 +251,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 
@@ -266,6 +268,26 @@ class _ArticleBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mediaUrl = article.mediaUrl;
+    if (article.type == MagazineArticleType.video && (mediaUrl ?? '').isNotEmpty) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        ArticleVideoPlayer(url: mediaUrl!),
+        if (article.body.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(article.body, style: AppText.body),
+        ],
+      ]);
+    }
+    if (article.type == MagazineArticleType.audio && (mediaUrl ?? '').isNotEmpty) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        ArticleAudioPlayer(url: mediaUrl!, coverUrl: article.thumbnailUrl),
+        if (article.body.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(article.body, style: AppText.body),
+        ],
+      ]);
+    }
+
     final deltaJson = article.bodyDelta;
     if (deltaJson == null || deltaJson.isEmpty) {
       return Text(article.body, style: AppText.body);

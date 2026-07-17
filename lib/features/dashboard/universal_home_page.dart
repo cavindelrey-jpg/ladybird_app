@@ -151,7 +151,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                 ),
               ]),
             ),
-            if (!_isGuest) _continueReadingBand(),
+            if (!_isGuest) _progressAndChallengeRow(),
             // Back to app-bg for Top Writers / Announcements.
             Container(
               color: C.bg,
@@ -493,57 +493,148 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     );
   }
 
-  // ── Continue Reading — real last-read PDF position, honest empty state ──
-  Widget _continueReadingBand() {
-    return Container(
-      color: C.bg,
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
-      child: FutureBuilder<({AcademicContent content, int page, int totalPages})?>(
-        future: _continueReadingFuture,
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const ShimmerBlock(height: 68);
-          }
-          final data = snap.data;
-          return TapScale(
-            child: ACard(
-              onTap: () {
-                HapticFeedback.selectionClick();
-                if (data == null) { _open(context, const _LibraryDest()); return; }
-                final kind = viewableKindFor(data.content.fileUrl ?? '');
-                if (kind == null || (data.content.fileUrl ?? '').isEmpty) {
-                  _open(context, const _LibraryDest());
-                  return;
+  // ── Today's Progress (real XP %, with Continue Reading folded in) +
+  // Daily Challenge. Daily Challenge is deliberately front-end only: the
+  // quiz backend doesn't exist yet (no question bank, no attempt
+  // tracking), so "Today's Physics Quiz" / "3 Questions" / "+50 XP" are
+  // placeholder copy, not live data — Start Challenge is a toast, not a
+  // dead end pretending to work. Swap in a real stream the moment the
+  // quiz backend lands; the card shell is ready for it.
+  Widget _progressAndChallengeRow() {
+    if (_isGuest) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 4, 18, 20),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Expanded(child: _todaysProgressCard()),
+        const SizedBox(width: 12),
+        Expanded(child: _dailyChallengeCard()),
+      ]),
+    );
+  }
+
+  Widget _todaysProgressCard() {
+    return StreamBuilder<int>(
+      stream: XpRepository.instance.watchXpEarnedToday(_u!.id),
+      builder: (context, xpSnap) {
+        final earned = (xpSnap.data ?? 0).clamp(0, kDailyXpCap);
+        final pct = kDailyXpCap == 0 ? 0 : ((earned / kDailyXpCap) * 100).round();
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.trending_up_rounded, size: 15, color: C.primary),
+              const SizedBox(width: 6),
+              Expanded(child: Text("Today's Progress", style: AppText.subtitle.copyWith(fontSize: 12))),
+              Text('$pct%', style: AppText.title.copyWith(fontSize: 13, color: C.primary)),
+            ]),
+            const SizedBox(height: 8),
+            AnimatedMiniBar(value: pct / 100, color: C.primary),
+            const SizedBox(height: 14),
+            FutureBuilder<({AcademicContent content, int page, int totalPages})?>(
+              future: _continueReadingFuture,
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const ShimmerBlock(height: 40);
                 }
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => ContentViewerPage(
-                  fileUrl: data.content.fileUrl!, title: data.content.title, kind: kind,
-                  contentId: data.content.id, userId: _u!.id,
-                )));
+                final data = snap.data;
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(Rad.sm),
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      if (data == null) { _open(context, const _LibraryDest()); return; }
+                      final kind = viewableKindFor(data.content.fileUrl ?? '');
+                      if (kind == null || (data.content.fileUrl ?? '').isEmpty) {
+                        _open(context, const _LibraryDest());
+                        return;
+                      }
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => ContentViewerPage(
+                        fileUrl: data.content.fileUrl!, title: data.content.title, kind: kind,
+                        contentId: data.content.id, userId: _u!.id,
+                      )));
+                    },
+                    child: Row(children: [
+                      Container(
+                        width: 32, height: 32,
+                        decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(8)),
+                        child: const Icon(Icons.menu_book_rounded, color: C.primary, size: 16),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('Continue Reading', style: AppText.caption.copyWith(color: C.primary, fontSize: 9.5)),
+                          Text(data == null ? 'Nothing read yet' : data.content.title,
+                              style: AppText.subtitle.copyWith(color: C.txt, fontSize: 11.5),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ]),
+                      ),
+                      const Icon(Icons.chevron_right_rounded, color: C.muted, size: 18),
+                    ]),
+                  ),
+                );
               },
-              child: Row(children: [
+            ),
+          ]),
+        );
+      },
+    );
+  }
+
+  Widget _dailyChallengeCard() {
+    return TapScale(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(Rad.md),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            showToast(context, 'Daily quizzes are launching soon — check back here.');
+          },
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+              ),
+            ),
+            child: Stack(children: [
+              Positioned(
+                right: -10, bottom: -10,
+                child: Icon(Icons.psychology_alt_rounded, size: 64, color: Colors.white.withValues(alpha: .12)),
+              ),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  const Icon(Icons.local_fire_department_rounded, size: 14, color: Colors.white),
+                  const SizedBox(width: 5),
+                  Text('Daily Challenge', style: AppText.caption.copyWith(
+                      color: Colors.white.withValues(alpha: .9), fontSize: 11, fontWeight: FontWeight.w700)),
+                ]),
+                const SizedBox(height: 8),
+                Text("Today's Physics Quiz", style: AppText.title.copyWith(color: Colors.white, fontSize: 13),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 6),
+                Text('3 Questions · +50 XP',
+                    style: AppText.caption.copyWith(color: Colors.white.withValues(alpha: .75), fontSize: 10.5)),
+                const SizedBox(height: 12),
                 Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(10)),
-                  child: const Icon(Icons.menu_book_rounded, color: C.primary, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('CONTINUE READING', style: AppText.label.copyWith(color: C.primary, fontSize: 10)),
-                    const SizedBox(height: 3),
-                    data == null
-                        ? Text('Nothing read yet — open something from the Library to pick up here.',
-                            style: AppText.bodySm.copyWith(fontSize: 12))
-                        : Text('${data.content.title} · Page ${data.page} of ${data.totalPages}',
-                            style: AppText.title.copyWith(fontSize: 13),
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text('Start Challenge', style: AppText.subtitle.copyWith(
+                        color: const Color(0xFF6D28D9), fontSize: 11, fontWeight: FontWeight.w700)),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.arrow_forward_rounded, size: 13, color: Color(0xFF6D28D9)),
                   ]),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: C.muted),
               ]),
-            ),
-          );
-        },
+            ]),
+          ),
+        ),
       ),
     );
   }
@@ -602,17 +693,17 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   // Library, Past Questions, Magazine, Clubs.
   Widget _quickAccessGrid(BuildContext context) {
     final usage = _isGuest ? const <String, int>{} : _u!.quickAccessUsage;
-    final top4 = QuickAccessRegistry.topFour(usage);
+    final tiles = QuickAccessRegistry.topFourPlusNew(usage);
 
     return SizedBox(
       height: 104,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 18),
-        itemCount: top4.length,
+        itemCount: tiles.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) {
-          final feat = top4[i];
+          final feat = tiles[i];
           return FadeSlideIn(
             index: i,
             child: TapScale(
@@ -632,23 +723,35 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                       color: C.surf, borderRadius: BorderRadius.circular(Rad.md),
                       border: Border.all(color: C.bdr),
                     ),
-                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Container(
-                        width: 36, height: 36,
-                        decoration: BoxDecoration(
-                          color: feat.bg,
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: [
-                            BoxShadow(color: feat.fg.withValues(alpha: .28),
-                                blurRadius: 12, spreadRadius: -2, offset: const Offset(0, 4)),
-                          ],
+                    child: Stack(clipBehavior: Clip.none, children: [
+                      Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Container(
+                          width: 36, height: 36,
+                          decoration: BoxDecoration(
+                            color: feat.bg,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(color: feat.fg.withValues(alpha: .28),
+                                  blurRadius: 12, spreadRadius: -2, offset: const Offset(0, 4)),
+                            ],
+                          ),
+                          child: Icon(feat.icon, color: feat.fg, size: 19),
                         ),
-                        child: Icon(feat.icon, color: feat.fg, size: 19),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(feat.label, textAlign: TextAlign.center,
-                          style: AppText.bodySm.copyWith(fontSize: 10.5, fontWeight: FontWeight.w600, color: C.txt),
-                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 8),
+                        Text(feat.label, textAlign: TextAlign.center,
+                            style: AppText.bodySm.copyWith(fontSize: 10.5, fontWeight: FontWeight.w600, color: C.txt),
+                            maxLines: 2, overflow: TextOverflow.ellipsis),
+                      ]),
+                      if (feat.isNew)
+                        Positioned(
+                          top: -6, right: -6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: C.org, borderRadius: BorderRadius.circular(8)),
+                            child: Text('New', style: AppText.caption.copyWith(
+                                fontSize: 8.5, fontWeight: FontWeight.w800, color: Colors.white, height: 1)),
+                          ),
+                        ),
                     ]),
                   ),
                 ),
@@ -691,6 +794,15 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         break;
       case 'timetable':
         _open(context, const _TimetableDest());
+        break;
+      case 'quizzes':
+        // Front-end only for now — see the Daily Challenge card's doc
+        // comment. Same ComingSoonPage pattern as 'lecture_notes' above.
+        _open(context, const ComingSoonPage(
+          title: 'Daily Quizzes',
+          subtitle: 'Quick daily quizzes with XP rewards are on the way — this screen is reserved for them.',
+          icon: Icons.quiz_rounded,
+        ));
         break;
     }
   }

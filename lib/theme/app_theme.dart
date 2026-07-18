@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'app_colors.dart';
 
 /// Academia Design System colour tokens.
 class C {
@@ -65,6 +66,7 @@ class AppTheme {
       surface: C.surf,
       brightness: Brightness.light,
     ),
+    extensions: const [AppColors.light],
     appBarTheme: const AppBarTheme(
       backgroundColor: C.surf,
       foregroundColor: C.txt,
@@ -146,6 +148,107 @@ class AppTheme {
     floatingActionButtonTheme: const FloatingActionButtonThemeData(
       backgroundColor: C.gold,
       foregroundColor: C.navy,
+      elevation: 2,
+    ),
+  );
+
+  // ── Dark ──────────────────────────────────────────────────────────────
+  // Currently consumed by universal_home_page.dart via AppColors.of(context)
+  // — see that file's top-of-build comment for exactly what does/doesn't
+  // respond to it yet. Every screen still built with literal `C.xxx` reads
+  // ThemeData's own resolved colors for its Scaffold/AppBar/inputs/etc (so
+  // those chrome pieces DO go dark), but any screen-specific Container/Text
+  // color written as `C.bg`/`C.txt`/etc. directly stays light until that
+  // screen is converted to AppColors.of(context) the same way Home was.
+  static final ThemeData dark = ThemeData(
+    useMaterial3: true,
+    scaffoldBackgroundColor: AppColors.dark.bg,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: AppColors.dark.primary,
+      primary: AppColors.dark.primary,
+      secondary: AppColors.dark.gold,
+      surface: AppColors.dark.surf,
+      brightness: Brightness.dark,
+    ),
+    extensions: const [AppColors.dark],
+    appBarTheme: AppBarTheme(
+      backgroundColor: AppColors.dark.surf,
+      foregroundColor: AppColors.dark.txt,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: false,
+      surfaceTintColor: Colors.transparent,
+      iconTheme: IconThemeData(color: AppColors.dark.txt),
+    ),
+    cardTheme: CardThemeData(
+      color: AppColors.dark.surf,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.dark.bdr),
+      ),
+      surfaceTintColor: Colors.transparent,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.dark.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        minimumSize: const Size(double.infinity, 52),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.dark.primary,
+        side: BorderSide(color: AppColors.dark.primary, width: 1.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: AppColors.dark.surf3,
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.dark.bdr)),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.dark.bdr)),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.dark.primary, width: 1.5)),
+      errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.dark.red)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: AppColors.dark.surf,
+      indicatorColor: AppColors.dark.primaryBg,
+      indicatorShape: const StadiumBorder(),
+      labelTextStyle: WidgetStateProperty.all(
+          const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return IconThemeData(color: AppColors.dark.primary, size: 22);
+        }
+        return IconThemeData(color: AppColors.dark.muted, size: 22);
+      }),
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: AppColors.dark.surf3,
+      selectedColor: AppColors.dark.primaryBg,
+      labelStyle: const TextStyle(fontSize: 12),
+      side: BorderSide(color: AppColors.dark.bdr),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    ),
+    dividerColor: AppColors.dark.bdr,
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: AppColors.dark.gold,
+      foregroundColor: AppColors.dark.navy,
       elevation: 2,
     ),
   );

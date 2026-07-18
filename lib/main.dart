@@ -12,6 +12,7 @@ import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations
 import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
 import 'providers/institution_provider.dart';
+import 'providers/theme_provider.dart';
 import 'screens/app_router.dart';
 import 'services/analytics_service.dart';
 import 'services/config_service.dart';
@@ -69,34 +70,46 @@ class AcademiaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => InstitutionProvider()..restoreFromPrefs(),
-      child: MaterialApp(
-        title: 'Academia',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light.copyWith(
-          pageTransitionsTheme: const PageTransitionsTheme(builders: {
-            TargetPlatform.android: _AcademiaPageTransition(),
-            TargetPlatform.iOS: _AcademiaPageTransition(),
-          }),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => InstitutionProvider()..restoreFromPrefs()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()..restoreFromPrefs()),
+      ],
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) => MaterialApp(
+          title: 'Academia',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light.copyWith(
+            pageTransitionsTheme: const PageTransitionsTheme(builders: {
+              TargetPlatform.android: _AcademiaPageTransition(),
+              TargetPlatform.iOS: _AcademiaPageTransition(),
+            }),
+          ),
+          darkTheme: AppTheme.dark.copyWith(
+            pageTransitionsTheme: const PageTransitionsTheme(builders: {
+              TargetPlatform.android: _AcademiaPageTransition(),
+              TargetPlatform.iOS: _AcademiaPageTransition(),
+            }),
+          ),
+          themeMode: themeProvider.mode,
+          home: const _MaintenanceGate(),
+          // Missing entirely before this fix — flutter_quill's toolbar
+          // buttons (used in both the Article and Course composers) call
+          // FlutterQuillLocalizations.of(context) internally, and throw an
+          // UnimplementedError the instant they try to build without this
+          // delegate registered. That's what made "Write a Post" and
+          // "Create Course" appear to do nothing: the push happened, but
+          // the composer's toolbar threw on its very first frame, in a
+          // tight repeating loop, so the screen never finished rendering.
+          localizationsDelegates: const [
+            FlutterQuillLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('en')],
+          builder: (ctx, child) => child ?? const SizedBox.shrink(),
         ),
-        home: const _MaintenanceGate(),
-        // Missing entirely before this fix — flutter_quill's toolbar
-        // buttons (used in both the Article and Course composers) call
-        // FlutterQuillLocalizations.of(context) internally, and throw an
-        // UnimplementedError the instant they try to build without this
-        // delegate registered. That's what made "Write a Post" and
-        // "Create Course" appear to do nothing: the push happened, but
-        // the composer's toolbar threw on its very first frame, in a
-        // tight repeating loop, so the screen never finished rendering.
-        localizationsDelegates: const [
-          FlutterQuillLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: const [Locale('en')],
-        builder: (ctx, child) => child ?? const SizedBox.shrink(),
       ),
     );
   }

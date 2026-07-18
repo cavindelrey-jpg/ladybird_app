@@ -10,6 +10,7 @@ import '../providers/institution_provider.dart';
 import '../models/models.dart';
 import '../theme/institution_theme_engine.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../features/institution/institution_splash_screen.dart';
 import '../services/auth_service.dart';
 import '../repositories/magazine_repository.dart';
@@ -423,7 +424,7 @@ class _HomeShellState extends State<HomeShell> {
         // as a distinct capsule bar rather than a flat strip. Tabs and
         // destinations below are untouched.
         decoration: BoxDecoration(
-          color: C.surf,
+          color: AppColors.of(context).surf,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(Rad.lg)),
           boxShadow: Shad.lg,
         ),

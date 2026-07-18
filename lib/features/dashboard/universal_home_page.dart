@@ -41,7 +41,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
+import '../../providers/theme_provider.dart';
 import '../../models/app_user.dart';
 import '../../models/hero_slide.dart';
 import '../../models/announcement.dart';
@@ -106,8 +109,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
-      color: C.bg,
+      color: ac.bg,
       child: SafeArea(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -115,19 +119,17 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             // Top band: subtle blue-tinted gradient fading to the app
             // background, instead of flat white all the way down.
             Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [C.primaryBg, C.bg],
+                  colors: [ac.primaryBg, ac.bg],
                   begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                  stops: [0.0, 0.7],
+                  stops: const [0.0, 0.7],
                 ),
               ),
               child: Column(children: [
                 _topBar(context),
-                const SizedBox(height: 18),
-                _greetingRow(),
-                const SizedBox(height: 16),
-                _statStreakRow(),
+                const SizedBox(height: 14),
+                _idCard(context),
                 const SizedBox(height: 20),
                 _bannerCarousel(),
                 const SizedBox(height: 16),
@@ -135,9 +137,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                 const SizedBox(height: 8),
               ]),
             ),
-            // Alternating near-white band for Quick Access.
+            // Alternating surface band for Quick Access.
             Container(
-              color: Colors.white,
+              color: ac.surf,
               child: Stack(children: [
                 const SectionWatermark(icon: Icons.science_outlined, alignment: Alignment.topRight),
                 Padding(
@@ -154,7 +156,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             if (!_isGuest) _progressAndChallengeRow(),
             // Back to app-bg for Top Writers / Announcements.
             Container(
-              color: C.bg,
+              color: ac.bg,
               child: Stack(children: [
                 const SectionWatermark(icon: Icons.menu_book_outlined, alignment: Alignment.topLeft),
                 Padding(
@@ -163,9 +165,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                 ),
               ]),
             ),
-            // Near-white again for Recommended.
+            // Surface band again for Recommended.
             Container(
-              color: Colors.white,
+              color: ac.surf,
               child: Stack(children: [
                 const SectionWatermark(icon: Icons.school_outlined, alignment: Alignment.topRight),
                 Padding(
@@ -268,31 +270,48 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
 
   // ── Top bar: menu (drawer), search, notifications ──────────────────────
   Widget _topBar(BuildContext context) {
+    final ac = AppColors.of(context);
+    final isDark = context.watch<ThemeProvider>().isDark;
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
       child: Row(children: [
         Builder(builder: (ctx) => IconButton(
-          icon: const Icon(Icons.menu_rounded, color: C.txt),
+          icon: Icon(Icons.menu_rounded, color: ac.txt),
           onPressed: () => Scaffold.of(ctx).openDrawer(),
         )),
         const SizedBox(width: 4),
-        const AcademiaLogo(size: 34),
+        Container(
+          decoration: isDark
+              ? BoxDecoration(shape: BoxShape.circle, boxShadow: [
+                  BoxShadow(color: ac.primary.withValues(alpha: .45), blurRadius: 18, spreadRadius: 1),
+                ])
+              : null,
+          child: const AcademiaLogo(size: 34),
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Academia', style: AppText.title.copyWith(fontSize: 17)),
+            Text('Academia', style: AppText.title.copyWith(fontSize: 17, color: ac.txt)),
             Text('Your Complete Smart School Platform',
-                style: AppText.caption.copyWith(fontSize: 10),
+                style: AppText.caption.copyWith(fontSize: 10, color: ac.txt2),
                 overflow: TextOverflow.ellipsis),
           ]),
         ),
         IconButton(
-          icon: const Icon(Icons.search_rounded, color: C.txt2),
+          icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_outlined, color: ac.txt2),
+          tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+          onPressed: () {
+            HapticFeedback.selectionClick();
+            context.read<ThemeProvider>().toggle();
+          },
+        ),
+        IconButton(
+          icon: Icon(Icons.search_rounded, color: ac.txt2),
           onPressed: () => showToast(context, 'Search is coming soon.'),
         ),
         _isGuest
             ? IconButton(
-                icon: const Icon(Icons.notifications_outlined, color: C.txt2),
+                icon: Icon(Icons.notifications_outlined, color: ac.txt2),
                 onPressed: () {
                   HapticFeedback.selectionClick();
                   Navigator.of(context).push(MaterialPageRoute(
@@ -310,7 +329,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                     WiggleIcon(
                       active: count > 0,
                       child: IconButton(
-                        icon: const Icon(Icons.notifications_outlined, color: C.txt2),
+                        icon: Icon(Icons.notifications_outlined, color: ac.txt2),
                         onPressed: () {
                           HapticFeedback.selectionClick();
                           Navigator.of(context).push(MaterialPageRoute(
@@ -324,7 +343,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                           constraints: const BoxConstraints(minWidth: 16),
-                          decoration: BoxDecoration(color: C.red, borderRadius: BorderRadius.circular(8)),
+                          decoration: BoxDecoration(color: ac.red, borderRadius: BorderRadius.circular(8)),
                           child: Text(count > 9 ? '9+' : '$count', textAlign: TextAlign.center,
                               style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
                         ),
@@ -336,140 +355,147 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     );
   }
 
-  // ── Greeting block: avatar + name/status, stat card ─────────────────────
-  Widget _greetingRow() {
+  // ── Identity card — approved 2-column mockup layout:
+  // LEFT column: avatar + name/role, spans the card's full height.
+  // RIGHT column: stat tiles (streak/XP/courses) stacked above the
+  // weekday-streak dots, confined to that column's width only — this
+  // was iterated on explicitly in chat before being approved, see the
+  // shared HTML mockup for the reference this mirrors.
+  Widget _idCard(BuildContext context) {
+    final ac = AppColors.of(context);
+    final isDark = context.watch<ThemeProvider>().isDark;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-        _isGuest
-            ? _avatar()
-            : InkWell(
-                borderRadius: BorderRadius.circular(32),
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => ProfilePage(user: _u!))),
-                child: _avatar(),
-              ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(_isGuest ? 'Browsing as' : 'Welcome back,', style: AppText.subtitle),
-            Text(_isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name),
-                style: AppText.h1.copyWith(fontSize: 19)),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-              decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(20)),
-              child: Text(_isGuest ? 'Guest' : _u!.roleLabel,
-                  style: AppText.label.copyWith(fontSize: 10, color: C.primary, letterSpacing: 0)),
-            ),
-          ]),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [ac.surf, isDark ? ac.surf2 : ac.primaryBg],
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(Rad.md),
+          border: Border.all(color: ac.bdr),
+          boxShadow: [BoxShadow(color: ac.shadow, blurRadius: 20, offset: const Offset(0, 8))],
         ),
-        // Real "Academic Score" wiring needs a decision on grading
-        // methodology (MarksRepository has no average/aggregate method
-        // yet) — showing nothing here is honest; showing a fabricated
-        // number was not. See header comment.
-      ]),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          // LEFT — avatar + name/role
+          _isGuest
+              ? _avatar(ac, isDark)
+              : InkWell(
+                  borderRadius: BorderRadius.circular(32),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ProfilePage(user: _u!))),
+                  child: _avatar(ac, isDark),
+                ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_isGuest ? 'Browsing as' : 'Welcome back,',
+                  style: AppText.subtitle.copyWith(fontSize: 10.5, color: ac.txt2)),
+              Text(_isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name),
+                  style: AppText.h1.copyWith(fontSize: 14.5, color: ac.txt),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 3),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0x2422D3EE) : ac.primaryBg,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(_isGuest ? 'Guest' : _u!.roleLabel,
+                    style: AppText.label.copyWith(
+                        fontSize: 8.5, color: isDark ? const Color(0xFF22D3EE) : ac.primary, letterSpacing: 0)),
+              ),
+            ]),
+          ),
+          const SizedBox(width: 10),
+          // RIGHT — stats row above weekday dots, right column only
+          if (!_isGuest)
+            Expanded(
+              child: FutureBuilder<({int streak, List<bool> week})>(
+                future: _streakFuture,
+                builder: (context, snap) {
+                  final streak = snap.data?.streak ?? 0;
+                  final week = snap.data?.week ?? List<bool>.filled(7, false);
+                  return Column(children: [
+                    Row(children: [
+                      Expanded(child: _statChip(ac, isDark,
+                          icon: Icons.local_fire_department_rounded, tint: ac.org,
+                          value: '$streak')),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: StreamBuilder<(int, int)>(
+                          stream: XpRepository.instance.watchBalance(_u!.id),
+                          builder: (context, xpSnap) {
+                            final balance = xpSnap.data?.$1 ?? 0;
+                            return _statChip(ac, isDark,
+                                icon: Icons.star_rounded, tint: ac.gold,
+                                value: NumberFormat.compact().format(balance));
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(child: _statChip(ac, isDark,
+                          icon: Icons.menu_book_rounded, tint: ac.pur,
+                          value: '${_u!.courseIds.length}')),
+                    ]),
+                    const SizedBox(height: 7),
+                    Container(
+                      padding: const EdgeInsets.only(top: 7),
+                      decoration: BoxDecoration(border: Border(top: BorderSide(color: ac.bdr2))),
+                      child: _weekDotRow(week, ac, isDark),
+                    ),
+                  ]);
+                },
+              ),
+            ),
+        ]),
+      ),
     );
   }
 
-  Widget _avatar() {
+  Widget _avatar(AppColors ac, bool isDark) {
+    final glow = isDark
+        ? [BoxShadow(color: ac.primary.withValues(alpha: .35), blurRadius: 14, spreadRadius: 1)]
+        : <BoxShadow>[];
     if (!_isGuest && (_u!.photoUrl ?? '').isNotEmpty) {
-      return CircleAvatar(radius: 32, backgroundImage: NetworkImage(_u!.photoUrl!));
+      return Container(
+        decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: glow),
+        child: CircleAvatar(radius: 23, backgroundImage: NetworkImage(_u!.photoUrl!)),
+      );
     }
     // NPC placeholder — guest, or signed-in with no profile photo.
     return Container(
-      width: 64, height: 64,
+      width: 46, height: 46,
       decoration: BoxDecoration(
-        color: C.surf3,
+        color: ac.surf3,
         shape: BoxShape.circle,
-        border: Border.all(color: C.bdr, width: 1.5),
+        border: Border.all(color: ac.bdr, width: 1.5),
+        boxShadow: glow,
       ),
-      child: const Icon(Icons.person_rounded, size: 34, color: C.muted),
+      child: Icon(Icons.person_rounded, size: 24, color: ac.muted),
     );
   }
 
-  // ── Streak + XP + Courses stat row, Mon-Sun activity dots ───────────────
-  // Streak and today's-XP-progress are computed from real Firestore data
-  // (StreakRepository, XpRepository) — never a fabricated number. XP
-  // balance and course count were already real and computable; this is
-  // just the first place either is surfaced on Home.
-  Widget _statStreakRow() {
-    if (_isGuest) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: FutureBuilder<({int streak, List<bool> week})>(
-        future: _streakFuture,
-        builder: (context, snap) {
-          final streak = snap.data?.streak ?? 0;
-          final week = snap.data?.week ?? List<bool>.filled(7, false);
-          return Column(children: [
-            Row(children: [
-              Expanded(
-                child: _statChip(
-                  icon: Icons.local_fire_department_rounded, iconColor: C.org,
-                  value: '$streak', label: 'Day Streak',
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: StreamBuilder<(int, int)>(
-                  stream: XpRepository.instance.watchBalance(_u!.id),
-                  builder: (context, xpSnap) {
-                    final balance = xpSnap.data?.$1 ?? 0;
-                    return _statChip(
-                      icon: Icons.star_rounded, iconColor: C.gold,
-                      value: NumberFormat('#,###').format(balance), label: 'XP Points',
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _statChip(
-                  icon: Icons.menu_book_rounded, iconColor: C.pur,
-                  value: '${_u!.courseIds.length}', label: 'Courses',
-                ),
-              ),
-            ]),
-            const SizedBox(height: 12),
-            _weekDotRow(week),
-            const SizedBox(height: 10),
-            StreamBuilder<int>(
-              stream: XpRepository.instance.watchXpEarnedToday(_u!.id),
-              builder: (context, xpSnap) {
-                final earned = (xpSnap.data ?? 0).clamp(0, kDailyXpCap);
-                return Row(children: [
-                  Text("Today's XP", style: AppText.caption.copyWith(fontSize: 10.5)),
-                  const SizedBox(width: 8),
-                  Expanded(child: AnimatedMiniBar(value: earned / kDailyXpCap, color: C.gold)),
-                  const SizedBox(width: 8),
-                  Text('$earned/$kDailyXpCap', style: AppText.caption.copyWith(fontSize: 10.5)),
-                ]);
-              },
-            ),
-          ]);
-        },
-      ),
-    );
-  }
-
-  Widget _statChip({required IconData icon, required Color iconColor, required String value, required String label}) {
+  Widget _statChip(AppColors ac, bool isDark, {required IconData icon, required Color tint, required String value}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
       decoration: BoxDecoration(
-        color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr),
+        color: tint.withValues(alpha: isDark ? .12 : .10),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: tint.withValues(alpha: isDark ? .45 : .25)),
+        boxShadow: isDark ? [BoxShadow(color: tint.withValues(alpha: .16), blurRadius: 10)] : null,
       ),
-      child: Column(children: [
-        Icon(icon, color: iconColor, size: 18),
-        const SizedBox(height: 4),
-        Text(value, style: AppText.title.copyWith(fontSize: 14)),
-        Text(label, style: AppText.caption.copyWith(fontSize: 9.5),
-            textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(icon, color: tint, size: 13),
+        const SizedBox(width: 3),
+        Flexible(child: Text(value, style: AppText.title.copyWith(fontSize: 11.5, color: ac.txt),
+            maxLines: 1, overflow: TextOverflow.ellipsis)),
       ]),
     );
   }
 
-  Widget _weekDotRow(List<bool> week) {
+  Widget _weekDotRow(List<bool> week, AppColors ac, bool isDark) {
     const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -478,16 +504,21 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         return Column(children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
-            width: 22, height: 22,
+            width: 16, height: 16,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: active ? C.gold : C.surf3,
-              border: Border.all(color: active ? C.gold : C.bdr),
+              color: active ? ac.org : (isDark ? ac.surf2 : ac.surf3),
+              border: Border.all(color: active ? ac.org : ac.bdr),
+              boxShadow: active && isDark
+                  ? [BoxShadow(color: ac.org.withValues(alpha: .55), blurRadius: 8)]
+                  : null,
             ),
-            child: active ? const Icon(Icons.check_rounded, size: 13, color: Colors.white) : null,
+            // Checkmark shown in light mode; dark mode is a clean glowing
+            // dot with no glyph, per the approved dark mockup.
+            child: (active && !isDark) ? const Icon(Icons.check_rounded, size: 10, color: Colors.white) : null,
           ),
-          const SizedBox(height: 3),
-          Text(labels[i], style: AppText.caption.copyWith(fontSize: 9)),
+          const SizedBox(height: 2),
+          Text(labels[i], style: AppText.caption.copyWith(fontSize: 7.5, color: ac.txt2)),
         ]);
       }),
     );
@@ -513,6 +544,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _todaysProgressCard() {
+    final ac = AppColors.of(context);
     return StreamBuilder<int>(
       stream: XpRepository.instance.watchXpEarnedToday(_u!.id),
       builder: (context, xpSnap) {
@@ -521,16 +553,16 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         return Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+            color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              const Icon(Icons.trending_up_rounded, size: 15, color: C.primary),
+              Icon(Icons.trending_up_rounded, size: 15, color: ac.primary),
               const SizedBox(width: 6),
-              Expanded(child: Text("Today's Progress", style: AppText.subtitle.copyWith(fontSize: 12))),
-              Text('$pct%', style: AppText.title.copyWith(fontSize: 13, color: C.primary)),
+              Expanded(child: Text("Today's Progress", style: AppText.subtitle.copyWith(fontSize: 12, color: ac.txt2))),
+              Text('$pct%', style: AppText.title.copyWith(fontSize: 13, color: ac.primary)),
             ]),
             const SizedBox(height: 8),
-            AnimatedMiniBar(value: pct / 100, color: C.primary),
+            AnimatedMiniBar(value: pct / 100, color: ac.primary),
             const SizedBox(height: 14),
             FutureBuilder<({AcademicContent content, int page, int totalPages})?>(
               future: _continueReadingFuture,
@@ -559,19 +591,19 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                     child: Row(children: [
                       Container(
                         width: 32, height: 32,
-                        decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.menu_book_rounded, color: C.primary, size: 16),
+                        decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(8)),
+                        child: Icon(Icons.menu_book_rounded, color: ac.primary, size: 16),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('Continue Reading', style: AppText.caption.copyWith(color: C.primary, fontSize: 9.5)),
+                          Text('Continue Reading', style: AppText.caption.copyWith(color: ac.primary, fontSize: 9.5)),
                           Text(data == null ? 'Nothing read yet' : data.content.title,
-                              style: AppText.subtitle.copyWith(color: C.txt, fontSize: 11.5),
+                              style: AppText.subtitle.copyWith(color: ac.txt, fontSize: 11.5),
                               maxLines: 1, overflow: TextOverflow.ellipsis),
                         ]),
                       ),
-                      const Icon(Icons.chevron_right_rounded, color: C.muted, size: 18),
+                      Icon(Icons.chevron_right_rounded, color: ac.muted, size: 18),
                     ]),
                   ),
                 );
@@ -584,6 +616,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _dailyChallengeCard() {
+    final isDark = context.watch<ThemeProvider>().isDark;
     return TapScale(
       child: Material(
         color: Colors.transparent,
@@ -596,16 +629,22 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           },
           child: Container(
             padding: const EdgeInsets.all(14),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+                colors: isDark
+                    ? const [Color(0xFF6D28D9), Color(0xFF2E1065)]
+                    : const [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
               ),
+              boxShadow: isDark
+                  ? [BoxShadow(color: const Color(0xFF6D28D9).withValues(alpha: .35), blurRadius: 24, offset: const Offset(0, 10))]
+                  : null,
             ),
             child: Stack(children: [
               Positioned(
                 right: -10, bottom: -10,
-                child: Icon(Icons.psychology_alt_rounded, size: 64, color: Colors.white.withValues(alpha: .12)),
+                child: Icon(Icons.psychology_alt_rounded, size: 64,
+                    color: Colors.white.withValues(alpha: isDark ? .18 : .12)),
               ),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
@@ -665,10 +704,11 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _sectionHeader(String title, {required VoidCallback onViewAll}) {
+    final ac = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18),
       child: Row(children: [
-        Expanded(child: Text(title, style: AppText.h2.copyWith(fontSize: 16))),
+        Expanded(child: Text(title, style: AppText.h2.copyWith(fontSize: 16, color: ac.txt))),
         Material(
           color: Colors.transparent,
           child: InkWell(
@@ -680,7 +720,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
               child: Text('View All', style: AppText.subtitle.copyWith(
-                  color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                  color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
             ),
           ),
         ),
@@ -692,6 +732,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   // New users (empty usage map) see the QuickAccessRegistry default order:
   // Library, Past Questions, Magazine, Clubs.
   Widget _quickAccessGrid(BuildContext context) {
+    final ac = AppColors.of(context);
     final usage = _isGuest ? const <String, int>{} : _u!.quickAccessUsage;
     final tiles = QuickAccessRegistry.topFourPlusNew(usage);
 
@@ -720,8 +761,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                     width: 84,
                     padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                     decoration: BoxDecoration(
-                      color: C.surf, borderRadius: BorderRadius.circular(Rad.md),
-                      border: Border.all(color: C.bdr),
+                      color: ac.surf, borderRadius: BorderRadius.circular(Rad.md),
+                      border: Border.all(color: ac.bdr),
                     ),
                     child: Stack(clipBehavior: Clip.none, children: [
                       Column(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -739,7 +780,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                         ),
                         const SizedBox(height: 8),
                         Text(feat.label, textAlign: TextAlign.center,
-                            style: AppText.bodySm.copyWith(fontSize: 10.5, fontWeight: FontWeight.w600, color: C.txt),
+                            style: AppText.bodySm.copyWith(fontSize: 10.5, fontWeight: FontWeight.w600, color: ac.txt),
                             maxLines: 2, overflow: TextOverflow.ellipsis),
                       ]),
                       if (feat.isNew)
@@ -747,7 +788,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                           top: -6, right: -6,
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: C.org, borderRadius: BorderRadius.circular(8)),
+                            decoration: BoxDecoration(color: ac.org, borderRadius: BorderRadius.circular(8)),
                             child: Text('New', style: AppText.caption.copyWith(
                                 fontSize: 8.5, fontWeight: FontWeight.w800, color: Colors.white, height: 1)),
                           ),
@@ -886,7 +927,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         }
         return Column(children: [
           for (var i = 0; i < writers.length; i++) ...[
-            if (i > 0) const Divider(height: 20, color: C.bdr2),
+            if (i > 0) Divider(height: 20, color: AppColors.of(context).bdr2),
             _topWriterRow(rank: i + 1, entry: writers[i]),
           ],
         ]);
@@ -895,6 +936,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _topWriterRow({required int rank, required TopWriterEntry entry}) {
+    final ac = AppColors.of(context);
     return InkWell(
       borderRadius: BorderRadius.circular(Rad.sm),
       onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -902,10 +944,10 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       child: Row(children: [
         Container(
           width: 32, height: 32,
-          decoration: const BoxDecoration(color: C.goldp, shape: BoxShape.circle),
+          decoration: BoxDecoration(color: ac.goldBg, shape: BoxShape.circle),
           alignment: Alignment.center,
           child: Text('#$rank', style: AppText.subtitle.copyWith(
-              fontSize: 12, fontWeight: FontWeight.w800, color: C.gold)),
+              fontSize: 12, fontWeight: FontWeight.w800, color: ac.gold)),
         ),
         const SizedBox(width: 12),
         UserAvatar(
@@ -916,8 +958,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(entry.authorName, style: AppText.subtitle.copyWith(color: C.txt, fontSize: 12.5)),
-            Text('${entry.totalReads} reads · ${entry.totalComments} comments', style: AppText.caption),
+            Text(entry.authorName, style: AppText.subtitle.copyWith(color: ac.txt, fontSize: 12.5)),
+            Text('${entry.totalReads} reads · ${entry.totalComments} comments',
+                style: AppText.caption.copyWith(color: ac.muted)),
           ]),
         ),
       ]),
@@ -954,14 +997,15 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _emptyPanelRow({required IconData icon, required String text}) {
+    final ac = AppColors.of(context);
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(
         width: 36, height: 36,
-        decoration: BoxDecoration(color: C.surf3, borderRadius: BorderRadius.circular(10)),
-        child: Icon(icon, color: C.muted, size: 18),
+        decoration: BoxDecoration(color: ac.surf3, borderRadius: BorderRadius.circular(10)),
+        child: Icon(icon, color: ac.muted, size: 18),
       ),
       const SizedBox(width: 12),
-      Expanded(child: Text(text, style: AppText.bodySm.copyWith(height: 1.4))),
+      Expanded(child: Text(text, style: AppText.bodySm.copyWith(height: 1.4, color: ac.txt2))),
     ]);
   }
 
@@ -1001,16 +1045,17 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _panelCard({required String title, required Widget child, VoidCallback? onViewAll}) {
+    final ac = AppColors.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: C.surf, borderRadius: BorderRadius.circular(Rad.lg),
-        border: Border.all(color: C.bdr),
+        color: ac.surf, borderRadius: BorderRadius.circular(Rad.lg),
+        border: Border.all(color: ac.bdr),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text(title, style: AppText.title.copyWith(fontSize: 14, fontWeight: FontWeight.w800))),
+          Expanded(child: Text(title, style: AppText.title.copyWith(fontSize: 14, fontWeight: FontWeight.w800, color: ac.txt))),
           if (onViewAll != null)
             InkWell(
               borderRadius: BorderRadius.circular(6),
@@ -1018,7 +1063,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 child: Text('View All', style: AppText.subtitle.copyWith(
-                    color: C.primary, fontWeight: FontWeight.w700, fontSize: 11)),
+                    color: ac.primary, fontWeight: FontWeight.w700, fontSize: 11)),
               ),
             ),
         ]),
@@ -1029,6 +1074,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _announceRow(IconData icon, Color fg, Color bg, String text, String time) {
+    final ac = AppColors.of(context);
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(
         width: 36, height: 36,
@@ -1038,9 +1084,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       const SizedBox(width: 12),
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(text, style: AppText.bodySm.copyWith(color: C.txt, height: 1.35)),
+          Text(text, style: AppText.bodySm.copyWith(color: ac.txt, height: 1.35)),
           const SizedBox(height: 3),
-          Text(time, style: AppText.caption.copyWith(fontSize: 10.5)),
+          Text(time, style: AppText.caption.copyWith(fontSize: 10.5, color: ac.muted)),
         ]),
       ),
     ]);
@@ -1108,6 +1154,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             itemBuilder: (_, i) {
               final item = items[i];
               final (bg, fg) = _contentColors(item.contentType);
+              final ac = AppColors.of(context);
+              final isDark = context.watch<ThemeProvider>().isDark;
               return Material(
                 color: Colors.transparent,
                 borderRadius: BorderRadius.circular(Rad.md),
@@ -1125,15 +1173,20 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                   child: Container(
                     width: 160,
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(Rad.md)),
+                    decoration: BoxDecoration(
+                      color: isDark ? ac.surf : bg,
+                      borderRadius: BorderRadius.circular(Rad.md),
+                      border: isDark ? Border(left: BorderSide(color: fg, width: 3)) : null,
+                    ),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                          style: AppText.subtitle.copyWith(color: C.txt, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                          style: AppText.subtitle.copyWith(color: ac.txt, fontSize: 12.5, fontWeight: FontWeight.w700)),
                       const Spacer(),
                       Row(children: [
                         Icon(_contentIcon(item.contentType), size: 18, color: fg),
                         const SizedBox(width: 6),
-                        Expanded(child: Text(item.contentType.label, style: AppText.caption.copyWith(fontSize: 10))),
+                        Expanded(child: Text(item.contentType.label,
+                            style: AppText.caption.copyWith(fontSize: 10, color: ac.muted))),
                       ]),
                     ]),
                   ),

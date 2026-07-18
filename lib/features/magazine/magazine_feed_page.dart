@@ -22,11 +22,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/app_user.dart';
 import '../../models/magazine_article.dart';
+import '../../models/academic_content.dart';
+import '../../models/club.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../repositories/follow_repository.dart';
+import '../../repositories/academic_content_repository.dart';
+import '../../repositories/club_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/category_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
+import '../academic_content/content_viewer_page.dart';
+import '../academic_content/academic_content_page.dart';
+import '../clubs/clubs_page.dart';
 import 'article_reader_page.dart';
 import 'article_composer_page.dart';
 import 'author_profile_page.dart';
@@ -36,7 +44,7 @@ import '../../repositories/notification_repository.dart';
 
 enum _FeedTab { forYou, following, local, global }
 
-const _kCategoryColors = <String, Color>{
+const _kCategoryColors = CategoryColorMap({
   'Essay':            C.pur,
   'Opinion':          C.blu,
   'Story':            C.grn,
@@ -45,9 +53,9 @@ const _kCategoryColors = <String, Color>{
   'Guide':            C.primary,
   'Interview':        C.red,
   'Review':           C.navy,
-};
+});
 
-Color _categoryColor(String cat) => _kCategoryColors[cat] ?? C.primary;
+Color _categoryColor(String cat) => _kCategoryColors.of(cat);
 
 class MagazineFeedPage extends StatefulWidget {
   final AppUser? user;
@@ -154,22 +162,49 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                 final articles = _applySort(snap.data ?? const <MagazineArticle>[]);
                 if (articles.isEmpty) return _emptyState();
 
-                return ListView(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  children: [
-                    if (_tab == _FeedTab.forYou || _tab == _FeedTab.global)
-                      _FeaturedCarousel(user: widget.user),
-                    const SizedBox(height: 20),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(children: [
-                        Expanded(child: Text(_sectionTitle, style: AppText.h2.copyWith(fontSize: 16))),
-                        Text('See all', style: AppText.subtitle.copyWith(
-                            color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
-                      ]),
-                    ),
-                    const SizedBox(height: 12),
-                    ...articles.map((a) => Padding(
+                // Videos come straight out of the same feed query — no
+                // second Firestore read, just a client-side filter down
+                // to video-type articles (see MagazineArticleType).
+                final videos = articles
+                    .where((a) => a.type == MagazineArticleType.video && (a.mediaUrl ?? '').isNotEmpty)
+                    .take(8)
+                    .toList();
+
+                // Alternating vertical/horizontal rhythm: a few article
+                // cards, then one real horizontal section, repeat. Only
+                // sections backed by actual data get inserted — Research
+                // Papers and Clubs render nothing (SizedBox.shrink) if
+                // there's nothing to show, so the rhythm degrades
+                // gracefully instead of showing an empty carousel.
+                const chunkSize = 3;
+                final chunks = <List<MagazineArticle>>[];
+                for (var i = 0; i < articles.length; i += chunkSize) {
+                  chunks.add(articles.sublist(i, (i + chunkSize).clamp(0, articles.length)));
+                }
+                final horizontalSections = <Widget>[
+                  if (videos.isNotEmpty) _VideoCarousel(videos: videos, currentUser: widget.user),
+                  _ResearchPapersCarousel(user: widget.user),
+                  _ClubsCarousel(user: widget.user),
+                ];
+
+                final children = <Widget>[
+                  if (_tab == _FeedTab.forYou || _tab == _FeedTab.global)
+                    _FeaturedCarousel(user: widget.user),
+                  const SizedBox(height: 20),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(children: [
+                      Expanded(child: Text(_sectionTitle, style: AppText.h2.copyWith(fontSize: 16))),
+                      Text('See all', style: AppText.subtitle.copyWith(
+                          color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                    ]),
+                  ),
+                  const SizedBox(height: 12),
+                ];
+                var hIndex = 0;
+                for (var i = 0; i < chunks.length; i++) {
+                  for (final a in chunks[i]) {
+                    children.add(Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                       child: _ArticleListCard(
                         article: a,
@@ -179,9 +214,18 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                         onOpenAuthor: () => Navigator.of(context).push(MaterialPageRoute(
                             builder: (_) => AuthorProfilePage(authorId: a.authorId, currentUser: widget.user))),
                       ),
-                    )),
-                    if (_canCompose) _writeCta(context),
-                  ],
+                    ));
+                  }
+                  if (i < chunks.length - 1 && hIndex < horizontalSections.length) {
+                    children.add(horizontalSections[hIndex]);
+                    hIndex++;
+                  }
+                }
+                if (_canCompose) children.add(_writeCta(context));
+
+                return ListView(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  children: children,
                 );
               },
             ),
@@ -559,6 +603,234 @@ class _FeaturedCard extends StatelessWidget {
           ]),
         ),
       ),
+    );
+  }
+}
+
+/// Horizontal video rail — video-type Magazine articles, pulled from the
+/// same feed query the vertical list already fetched (no extra read).
+class _VideoCarousel extends StatelessWidget {
+  final List<MagazineArticle> videos;
+  final AppUser? currentUser;
+  const _VideoCarousel({required this.videos, required this.currentUser});
+
+  @override
+  Widget build(BuildContext context) {
+    if (videos.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text('Latest Videos', style: AppText.h2.copyWith(fontSize: 15)),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 150,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: videos.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (_, i) {
+              final v = videos[i];
+              final hasThumb = (v.thumbnailUrl ?? '').isNotEmpty;
+              return Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(Rad.md),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Rad.md),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => ArticleReaderPage(article: v, currentUser: currentUser)));
+                  },
+                  child: Container(
+                    width: 190,
+                    decoration: BoxDecoration(
+                      color: C.navy, borderRadius: BorderRadius.circular(Rad.md),
+                      image: hasThumb
+                          ? DecorationImage(image: NetworkImage(v.thumbnailUrl!), fit: BoxFit.cover,
+                              colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: .25), BlendMode.darken))
+                          : null,
+                    ),
+                    child: Stack(children: [
+                      const Center(
+                        child: Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 36),
+                      ),
+                      Positioned(
+                        left: 10, right: 10, bottom: 10,
+                        child: Text(v.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                            style: AppText.subtitle.copyWith(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                      ),
+                    ]),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Horizontal research-paper rail — real Library content
+/// (ContentType.researchPaper), not a fabricated section. Renders
+/// nothing if there's no research paper content yet.
+class _ResearchPapersCarousel extends StatelessWidget {
+  final AppUser? user;
+  const _ResearchPapersCarousel({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<AcademicContent>>(
+      stream: AcademicContentRepository.instance.watch(institutionId: user?.schoolId),
+      builder: (context, snap) {
+        final papers = (snap.data ?? const <AcademicContent>[])
+            .where((c) => c.contentType == ContentType.researchPaper)
+            .take(8)
+            .toList();
+        if (papers.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text('Research Papers', style: AppText.h2.copyWith(fontSize: 15)),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 128,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: papers.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (_, i) {
+                  final p = papers[i];
+                  return Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(Rad.md),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(Rad.md),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        final kind = viewableKindFor(p.fileUrl ?? '');
+                        if (user == null) {
+                          showToast(context, 'Sign in to open Library content.');
+                          return;
+                        }
+                        if (kind == null || (p.fileUrl ?? '').isEmpty) {
+                          Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => AcademicContentPage(user: user!)));
+                          return;
+                        }
+                        Navigator.of(context).push(MaterialPageRoute(builder: (_) => ContentViewerPage(
+                          fileUrl: p.fileUrl!, title: p.title, kind: kind, contentId: p.id, userId: user!.id,
+                        )));
+                      },
+                      child: Container(
+                        width: 160,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: C.purb, borderRadius: BorderRadius.circular(Rad.md)),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const Icon(Icons.science_rounded, color: C.pur, size: 20),
+                          const Spacer(),
+                          Text(p.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                              style: AppText.subtitle.copyWith(color: C.txt, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 4),
+                          Text(p.subject, style: AppText.caption.copyWith(fontSize: 10),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ]),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ]),
+        );
+      },
+    );
+  }
+}
+
+/// Horizontal clubs rail — real Club data. Renders nothing if the school
+/// (or the platform, for independent users) has no clubs yet.
+class _ClubsCarousel extends StatelessWidget {
+  final AppUser? user;
+  const _ClubsCarousel({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<Club>>(
+      stream: ClubRepository.instance.watchClubs(schoolId: user?.schoolId),
+      builder: (context, snap) {
+        final clubs = (snap.data ?? const <Club>[]).take(8).toList();
+        if (clubs.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text('Clubs Spotlight', style: AppText.h2.copyWith(fontSize: 15)),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 118,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: clubs.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (_, i) {
+                  final club = clubs[i];
+                  return Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(Rad.md),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(Rad.md),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        if (user == null) {
+                          showToast(context, 'Sign in to join clubs.');
+                          return;
+                        }
+                        Navigator.of(context).push(MaterialPageRoute(builder: (_) => ClubsPage(user: user!)));
+                      },
+                      child: Container(
+                        width: 168,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(children: [
+                            Container(
+                              width: 32, height: 32,
+                              decoration: BoxDecoration(color: C.goldp, shape: BoxShape.circle),
+                              alignment: Alignment.center,
+                              child: Text(club.emoji, style: const TextStyle(fontSize: 15)),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(club.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: AppText.subtitle.copyWith(fontSize: 12.5, fontWeight: FontWeight.w700, color: C.txt))),
+                          ]),
+                          const SizedBox(height: 8),
+                          Expanded(child: Text(club.description, maxLines: 2, overflow: TextOverflow.ellipsis,
+                              style: AppText.caption.copyWith(fontSize: 10.5))),
+                          Text('${club.memberCount} members', style: AppText.caption.copyWith(fontSize: 9.5, color: C.muted)),
+                        ]),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ]),
+        );
+      },
     );
   }
 }

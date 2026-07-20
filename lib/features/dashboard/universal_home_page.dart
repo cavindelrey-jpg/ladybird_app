@@ -132,8 +132,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                 _idCard(context),
                 const SizedBox(height: 20),
                 _bannerCarousel(),
-                const SizedBox(height: 16),
-                _libraryBanner(context),
                 const SizedBox(height: 8),
               ]),
             ),
@@ -181,88 +179,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               ]),
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  // ── Library promo banner — real resource count, no hardcoded number ────
-  Widget _libraryBanner(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: TapScale(
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(Rad.lg),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              _open(context, const _LibraryDest());
-            },
-            child: Container(
-              height: 150,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                    colors: [C.navy2, C.navy], begin: Alignment.topLeft, end: Alignment.bottomRight),
-                boxShadow: Shad.md,
-              ),
-              child: Stack(fit: StackFit.expand, children: [
-                // Dark-to-transparent overlay per spec — reads as "dark"
-                // via the navy gradient itself since there's no stock
-                // library photo asset in this codebase to overlay instead.
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.black.withValues(alpha: .5), Colors.transparent],
-                      begin: Alignment.centerLeft, end: Alignment.centerRight,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('Library', style: AppText.h1.copyWith(color: Colors.white)),
-                      const SizedBox(height: 6),
-                      Text('Discover books, past papers and other study materials.',
-                          style: AppText.bodySm.copyWith(color: Colors.white.withValues(alpha: .8)),
-                          maxLines: 2, overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 12),
-                      FutureBuilder<int>(
-                        future: AcademicContentRepository.instance.countAll(institutionId: _u?.schoolId),
-                        builder: (context, snap) {
-                          if (!snap.hasData) {
-                            return Text('Loading…',
-                                style: AppText.caption.copyWith(color: Colors.white54));
-                          }
-                          return Row(mainAxisSize: MainAxisSize.min, children: [
-                            const Icon(Icons.auto_awesome_outlined, size: 14, color: Colors.white70),
-                            const SizedBox(width: 6),
-                            Text('${NumberFormat('#,###').format(snap.data)} Resources Available',
-                                style: AppText.caption.copyWith(color: Colors.white70)),
-                          ]);
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                        decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(10)),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Text('Explore Now', style: AppText.subtitle.copyWith(
-                              color: C.navy, fontSize: 12, fontWeight: FontWeight.w700)),
-                          const SizedBox(width: 6),
-                          const Icon(Icons.arrow_forward_rounded, size: 14, color: C.navy),
-                        ]),
-                      ),
-                    ],
-                  ),
-                ),
-              ]),
-            ),
-          ),
         ),
       ),
     );
@@ -367,6 +283,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18),
       child: Container(
+        width: double.infinity,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -421,8 +338,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                     Row(children: [
                       Expanded(child: _statChip(ac, isDark,
                           icon: Icons.local_fire_department_rounded, tint: ac.org,
-                          value: '$streak')),
-                      const SizedBox(width: 5),
+                          value: '$streak', label: 'Day Streak')),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: StreamBuilder<(int, int)>(
                           stream: XpRepository.instance.watchBalance(_u!.id),
@@ -430,14 +347,14 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                             final balance = xpSnap.data?.$1 ?? 0;
                             return _statChip(ac, isDark,
                                 icon: Icons.star_rounded, tint: ac.gold,
-                                value: NumberFormat.compact().format(balance));
+                                value: NumberFormat.compact().format(balance), label: 'XP Points');
                           },
                         ),
                       ),
-                      const SizedBox(width: 5),
+                      const SizedBox(width: 8),
                       Expanded(child: _statChip(ac, isDark,
                           icon: Icons.menu_book_rounded, tint: ac.pur,
-                          value: '${_u!.courseIds.length}')),
+                          value: '${_u!.courseIds.length}', label: 'Courses')),
                     ]),
                     const SizedBox(height: 7),
                     Container(
@@ -477,20 +394,30 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     );
   }
 
-  Widget _statChip(AppColors ac, bool isDark, {required IconData icon, required Color tint, required String value}) {
+  Widget _statChip(AppColors ac, bool isDark, {
+    required IconData icon, required Color tint, required String value, required String label,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
       decoration: BoxDecoration(
         color: tint.withValues(alpha: isDark ? .12 : .10),
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: tint.withValues(alpha: isDark ? .45 : .25)),
         boxShadow: isDark ? [BoxShadow(color: tint.withValues(alpha: .16), blurRadius: 10)] : null,
       ),
-      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(icon, color: tint, size: 13),
-        const SizedBox(width: 3),
-        Flexible(child: Text(value, style: AppText.title.copyWith(fontSize: 11.5, color: ac.txt),
-            maxLines: 1, overflow: TextOverflow.ellipsis)),
+      child: Stack(clipBehavior: Clip.none, children: [
+        Positioned(top: -1, right: -2, child: Icon(Icons.chevron_right_rounded, size: 14, color: ac.muted)),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Row(children: [
+            Icon(icon, color: tint, size: 14),
+            const SizedBox(width: 4),
+            Flexible(child: Text(value, style: AppText.title.copyWith(fontSize: 13, color: ac.txt),
+                maxLines: 1, overflow: TextOverflow.ellipsis)),
+          ]),
+          const SizedBox(height: 2),
+          Text(label, style: AppText.caption.copyWith(fontSize: 8.5, color: ac.txt2),
+              maxLines: 1, overflow: TextOverflow.ellipsis),
+        ]),
       ]),
     );
   }

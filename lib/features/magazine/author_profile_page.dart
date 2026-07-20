@@ -16,6 +16,7 @@ import '../../repositories/institution_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import 'article_reader_page.dart';
 import 'article_composer_page.dart';
 
@@ -44,7 +45,7 @@ class AuthorProfilePage extends StatelessWidget {
         iconTheme: const IconThemeData(color: C.txt),
         title: Text(_isOwnProfile ? 'Your Articles' : 'Writer Profile', style: AppText.title),
       ),
-      body: StreamBuilder<List<MagazineArticle>>(
+      body: AppBackground(child: StreamBuilder<List<MagazineArticle>>(
         stream: MagazineRepository.instance.watchByAuthor(authorId),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
@@ -180,7 +181,7 @@ class AuthorProfilePage extends StatelessWidget {
             ],
           );
         },
-      ),
+      )),
     );
   }
 }

@@ -7,6 +7,7 @@ import '../../models/magazine_article.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import 'author_profile_page.dart';
 
 class TopWritersPage extends StatelessWidget {
@@ -30,7 +31,7 @@ class TopWritersPage extends StatelessWidget {
         iconTheme: const IconThemeData(color: C.txt),
         title: Text('Top Writers', style: AppText.title),
       ),
-      body: FutureBuilder<List<TopWriterEntry>>(
+      body: AppBackground(child: FutureBuilder<List<TopWriterEntry>>(
         future: MagazineRepository.instance.topWriters(),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
@@ -83,7 +84,7 @@ class TopWritersPage extends StatelessWidget {
             },
           );
         },
-      ),
+      )),
     );
   }
 }

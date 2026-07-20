@@ -32,14 +32,21 @@ class QuickAccessFeature {
 
 class QuickAccessRegistry {
   static const List<QuickAccessFeature> all = [
-    QuickAccessFeature(id: 'library', label: 'Library',
-        icon: Icons.menu_book_rounded, bg: C.primaryBg, fg: C.primary, defaultOrder: 0),
-    QuickAccessFeature(id: 'past_questions', label: 'Past Questions',
-        icon: Icons.description_rounded, bg: C.grnb, fg: C.grn, defaultOrder: 1),
+    // defaultOrder matches the approved model's tile order (Magazine,
+    // Clubs, Library, Past Questions) for a zero-usage account. Once a
+    // user actually taps tiles, topFour ranks by real usage instead —
+    // so this order is what a brand-new account sees, not a permanent
+    // guarantee. Flagged as an open question in chat: if you want the
+    // order fixed regardless of usage, say so and I'll drop the
+    // usage-ranking sort entirely instead.
     QuickAccessFeature(id: 'magazine', label: 'Magazine',
-        icon: Icons.auto_stories_rounded, bg: C.purb, fg: C.pur, defaultOrder: 2),
+        icon: Icons.auto_stories_rounded, bg: C.purb, fg: C.pur, defaultOrder: 0),
     QuickAccessFeature(id: 'clubs', label: 'Clubs',
-        icon: Icons.groups_rounded, bg: C.goldp, fg: C.gold, defaultOrder: 3),
+        icon: Icons.groups_rounded, bg: C.goldp, fg: C.gold, defaultOrder: 1),
+    QuickAccessFeature(id: 'library', label: 'Library',
+        icon: Icons.menu_book_rounded, bg: C.primaryBg, fg: C.primary, defaultOrder: 2),
+    QuickAccessFeature(id: 'past_questions', label: 'Past Questions',
+        icon: Icons.description_rounded, bg: C.grnb, fg: C.grn, defaultOrder: 3),
     QuickAccessFeature(id: 'courses', label: 'Courses',
         icon: Icons.school_rounded, bg: C.primaryBg, fg: C.primary, defaultOrder: 4),
     QuickAccessFeature(id: 'lecture_notes', label: 'Lecture Notes',
@@ -62,8 +69,8 @@ class QuickAccessRegistry {
 
   /// Exactly 4 features, highest-tapped first. Empty/partial usage maps
   /// (new users, or users who've only tried 1-2 features) fall back to
-  /// defaultOrder for the untapped remainder: Library, Past Questions,
-  /// Magazine, Clubs. Excludes Quizzes — Home pins that on as a 5th tile
+  /// defaultOrder for the untapped remainder: Magazine, Clubs, Library,
+  /// Past Questions. Excludes Quizzes — Home pins that on as a 5th tile
   /// via its `isNew` ribbon (see `topFourPlusNew`) rather than letting it
   /// compete on tap-frequency it hasn't had a chance to earn yet.
   static List<QuickAccessFeature> topFour(Map<String, int> usage) {

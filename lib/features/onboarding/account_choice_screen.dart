@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import '../institution/school_code_page.dart';
 import 'create_account_screen.dart';
 
@@ -27,7 +28,7 @@ class AccountChoiceScreen extends StatelessWidget {
         elevation: 0,
         iconTheme: const IconThemeData(color: C.txt),
       ),
-      body: SafeArea(
+      body: AppBackground(child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -97,7 +98,7 @@ class AccountChoiceScreen extends StatelessWidget {
             ),
           ]),
         ),
-      ),
+      )),
     );
   }
 }

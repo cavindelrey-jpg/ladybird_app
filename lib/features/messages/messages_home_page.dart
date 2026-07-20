@@ -14,6 +14,7 @@ import '../../repositories/follow_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
 import '../../pages/profile_page.dart';
 import 'chat_conversation_page.dart';
@@ -27,7 +28,7 @@ class MessagesHomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: C.bg,
-      body: SafeArea(
+      body: AppBackground(child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
           children: [
@@ -46,7 +47,7 @@ class MessagesHomePage extends StatelessWidget {
             _newMessageButton(context),
           ],
         ),
-      ),
+      )),
     );
   }
 

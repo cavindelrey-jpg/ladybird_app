@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
 
+import '../widgets/app_background.dart';
 class _Faq {
   final String q, a;
   const _Faq(this.q, this.a);
@@ -49,7 +50,7 @@ class HelpSupportPage extends StatelessWidget {
         title: Text('Help & Support', style: GoogleFonts.sora(
             fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
       ),
-      body: ListView(
+      body: AppBackground(child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           Text('Frequently Asked Questions', style: GoogleFonts.sora(
@@ -80,7 +81,7 @@ class HelpSupportPage extends StatelessWidget {
             ]),
           ),
         ],
-      ),
+      )),
     );
   }
 }

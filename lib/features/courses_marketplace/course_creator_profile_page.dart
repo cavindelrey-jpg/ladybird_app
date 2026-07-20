@@ -13,6 +13,7 @@ import '../../repositories/public_course_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import 'course_reader_page.dart';
 import 'course_composer_page.dart';
 
@@ -41,7 +42,7 @@ class CourseCreatorProfilePage extends StatelessWidget {
         iconTheme: const IconThemeData(color: C.txt),
         title: Text(_isOwnProfile ? 'Your Courses' : 'Creator Profile', style: AppText.title),
       ),
-      body: StreamBuilder<List<PublicCourse>>(
+      body: AppBackground(child: StreamBuilder<List<PublicCourse>>(
         stream: PublicCourseRepository.instance.watchByCreator(creatorId),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
@@ -166,7 +167,7 @@ class CourseCreatorProfilePage extends StatelessWidget {
             ],
           );
         },
-      ),
+      )),
     );
   }
 }

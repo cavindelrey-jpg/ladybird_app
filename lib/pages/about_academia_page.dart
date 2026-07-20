@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../widgets/widgets.dart';
 import '../core/constants.dart';
 
+import '../widgets/app_background.dart';
 class AboutAcademiaPage extends StatelessWidget {
   const AboutAcademiaPage({super.key});
 
@@ -20,7 +21,7 @@ class AboutAcademiaPage extends StatelessWidget {
         title: Text('About Academia', style: GoogleFonts.sora(
             fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
       ),
-      body: ListView(
+      body: AppBackground(child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           const Center(child: AcademiaLogo(size: 72)),
@@ -57,7 +58,7 @@ class AboutAcademiaPage extends StatelessWidget {
                 style: GoogleFonts.inter(fontSize: 11, color: C.muted)),
           ),
         ],
-      ),
+      )),
     );
   }
 

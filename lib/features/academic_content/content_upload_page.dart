@@ -13,6 +13,7 @@ import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../theme/app_theme.dart';
 
+import '../../widgets/app_background.dart';
 class ContentUploadPage extends StatefulWidget {
   final AppUser user;
   const ContentUploadPage({super.key, required this.user});
@@ -168,7 +169,7 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
         title: Text('Upload Content',
             style: GoogleFonts.sora(fontWeight: FontWeight.w700)),
       ),
-      body: Form(
+      body: AppBackground(child: Form(
         key: _formKey,
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -298,7 +299,7 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 }

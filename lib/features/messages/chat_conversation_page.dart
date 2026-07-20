@@ -23,6 +23,7 @@ import '../../services/link_preview_service.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 
 class ChatConversationPage extends StatefulWidget {
   final String conversationId;
@@ -196,7 +197,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
               onPressed: () => showToast(context, 'Video calling isn\'t built yet.')),
         ],
       ),
-      body: Column(children: [
+      body: AppBackground(child: Column(children: [
         Expanded(
           child: StreamBuilder<List<ChatMessage>>(
             stream: MessagingRepository.instance.watchMessages(widget.conversationId),
@@ -250,7 +251,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
           ),
         ),
         _inputBar(),
-      ]),
+      ])),
     );
   }
 

@@ -15,6 +15,7 @@ import '../../models/app_user.dart';
 import '../../models/public_course.dart';
 import '../../repositories/public_course_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/category_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
@@ -632,7 +633,7 @@ class _BookmarkButton extends StatelessWidget {
   }
 }
 
-const _kCategoryColorMap = <String, Color>{
+const _kCategoryColorMap = CategoryColorMap({
   'Mathematics':      C.pur,
   'Science':          C.grn,
   'Languages':        C.blu,
@@ -641,9 +642,9 @@ const _kCategoryColorMap = <String, Color>{
   'Business':         C.org,
   'Social Studies':   C.primary,
   'Other':            C.muted,
-};
+});
 
-Color _categoryColor(String cat) => _kCategoryColorMap[cat] ?? C.primary;
+Color _categoryColor(String cat) => _kCategoryColorMap.of(cat);
 
 String _formatCount(int n) {
   if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';

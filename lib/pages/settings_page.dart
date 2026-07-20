@@ -15,6 +15,7 @@ import 'notification_preferences_page.dart';
 import 'help_support_page.dart';
 import 'about_academia_page.dart';
 
+import '../widgets/app_background.dart';
 class SettingsPage extends StatelessWidget {
   final AppUser user;
   const SettingsPage({super.key, required this.user});
@@ -29,7 +30,7 @@ class SettingsPage extends StatelessWidget {
         title: Text('Settings', style: GoogleFonts.sora(
             fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
       ),
-      body: ListView(
+      body: AppBackground(child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           _sectionLabel('Account'),
@@ -67,7 +68,7 @@ class SettingsPage extends StatelessWidget {
             if (context.mounted) context.read<InstitutionProvider>().clear();
           }, color: C.red),
         ],
-      ),
+      )),
     );
   }
 

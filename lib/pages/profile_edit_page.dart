@@ -15,6 +15,7 @@ import '../models/app_user.dart';
 import '../services/auth_service.dart';
 import '../widgets/widgets.dart';
 
+import '../widgets/app_background.dart';
 const int kBioMaxWords = 100;
 
 class ProfileEditPage extends StatefulWidget {
@@ -130,7 +131,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: AppBackground(child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(children: [
           Center(
@@ -209,7 +210,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
             decoration: _fieldDecoration(hint: 'Tell people a bit about yourself…'),
           ),
         ]),
-      ),
+      )),
     );
   }
 

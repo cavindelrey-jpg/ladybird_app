@@ -13,6 +13,7 @@ import '../../models/public_course.dart';
 import '../../repositories/public_course_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import 'course_creator_profile_page.dart';
 import 'course_composer_page.dart';
 
@@ -64,7 +65,7 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
     final c = widget.course;
     return Scaffold(
       backgroundColor: C.bg,
-      body: StreamBuilder<PublicCourse?>(
+      body: AppBackground(child: StreamBuilder<PublicCourse?>(
         stream: PublicCourseRepository.instance.watchOne(c.id),
         initialData: c,
         builder: (context, snap) {
@@ -198,6 +199,7 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
             ),
           ]);
         },
+      ),
       ),
     );
   }

@@ -16,6 +16,7 @@ import 'profile_edit_page.dart';
 import 'bookmarks_page.dart';
 import 'settings_page.dart';
 
+import '../widgets/app_background.dart';
 class ProfilePage extends StatelessWidget {
   final AppUser user;
   final Institution? institution;
@@ -59,7 +60,7 @@ class ProfilePage extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: AppBackground(child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(children: [
           // Institution banner
@@ -199,7 +200,7 @@ class ProfilePage extends StatelessWidget {
             icon: const Icon(Icons.swap_horiz_rounded),
             label: const Text('Switch School')),
         ]),
-      ),
+      )),
     );
   }
 }

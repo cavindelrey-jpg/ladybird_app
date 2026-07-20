@@ -14,6 +14,7 @@ import '../../theme/app_theme.dart';
 import '../../models/app_user.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import '../../widgets/premium_unlock_sheet.dart';
 import '../../widgets/google_sign_in_button.dart';
 
@@ -100,7 +101,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: C.txt),
       ),
-      body: SafeArea(
+      body: AppBackground(child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
           child: Form(
@@ -206,7 +207,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             ]),
           ),
         ),
-      ),
+      )),
     );
   }
 }

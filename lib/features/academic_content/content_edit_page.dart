@@ -13,6 +13,7 @@ import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../theme/app_theme.dart';
 
+import '../../widgets/app_background.dart';
 class ContentEditPage extends StatefulWidget {
   final AcademicContent content;
   final AppUser user;
@@ -183,7 +184,7 @@ class _ContentEditPageState extends State<ContentEditPage> {
           ),
         ],
       ),
-      body: Form(
+      body: AppBackground(child: Form(
         key: _formKey,
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -298,7 +299,7 @@ class _ContentEditPageState extends State<ContentEditPage> {
             ],
           ),
         ),
-      ),
+      )),
     );
   }
 }

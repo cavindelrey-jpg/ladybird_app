@@ -13,6 +13,7 @@ import '../../repositories/course_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import 'course_detail_page.dart';
 
 class CoursesPage extends StatelessWidget {
@@ -36,7 +37,7 @@ class CoursesPage extends StatelessWidget {
           title: Text('Courses', style: AppText.title),
           automaticallyImplyLeading: false,
         ),
-        body: Center(
+        body: AppBackground(child: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -54,7 +55,7 @@ class CoursesPage extends StatelessWidget {
               ),
             ]),
           ),
-        ),
+        )),
       );
     }
 

@@ -17,6 +17,7 @@ import 'content_edit_page.dart';
 import 'content_delete_dialog.dart';
 import 'content_viewer_page.dart';
 
+import '../../widgets/app_background.dart';
 class ContentDetailsPage extends StatefulWidget {
   final String contentId;
   final AppUser user;
@@ -41,7 +42,7 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: AppBackground(child: Center(child: CircularProgressIndicator())),
           );
         }
         final item = snap.data;

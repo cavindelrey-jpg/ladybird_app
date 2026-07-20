@@ -135,26 +135,6 @@ class MagazineRepository {
     }
   }
 
-  /// Uploads a video/audio file for [articleId], returns the download URL.
-  /// Companion to [uploadThumbnail] — that's for the hero/cover image,
-  /// this is for the actual playable file on video/audio articles.
-  Future<Result<String>> uploadMedia({
-    required String articleId,
-    required File file,
-    required String extension,
-  }) async {
-    try {
-      final ref = FirebaseStorage.instance.ref('magazine_media/$articleId.$extension');
-      await ref.putFile(file)
-          .timeout(const Duration(seconds: 120), onTimeout: () => throw Exception(
-              'Upload is taking too long. Check your connection and try again.'));
-      final url = await ref.getDownloadURL();
-      return Success(url);
-    } catch (e) {
-      return Failure('Failed to upload file', e);
-    }
-  }
-
   /// Records a view of [articleId]. Deliberately NOT a bare increment —
   /// this is the choke point that stops an author (or a friend acting on
   /// their behalf) from farming XP by simply reopening the same article

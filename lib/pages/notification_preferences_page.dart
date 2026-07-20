@@ -7,6 +7,7 @@ import '../theme/app_theme.dart';
 import '../models/app_notification.dart';
 import '../repositories/notification_repository.dart';
 import '../widgets/widgets.dart';
+import '../widgets/app_background.dart';
 
 class NotificationPreferencesPage extends StatefulWidget {
   final String userId;
@@ -53,7 +54,7 @@ class _NotificationPreferencesPageState extends State<NotificationPreferencesPag
             ),
         ],
       ),
-      body: _prefs == null
+      body: AppBackground(child: _prefs == null
           ? const LoadingView()
           : ListView(
               padding: const EdgeInsets.all(20),
@@ -91,6 +92,7 @@ class _NotificationPreferencesPageState extends State<NotificationPreferencesPag
                 ),
               ],
             ),
+      ),
     );
   }
 

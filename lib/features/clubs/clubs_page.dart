@@ -15,6 +15,7 @@ import '../../core/result.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
 import '../messages/messages_home_page.dart';
 import 'create_club_page.dart';
@@ -37,7 +38,7 @@ class _ClubsPageState extends State<ClubsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: C.bg,
-      body: SafeArea(
+      body: AppBackground(child: SafeArea(
         child: StreamBuilder<List<Club>>(
           stream: ClubRepository.instance.watchClubs(schoolId: widget.user.schoolId),
           builder: (context, snap) {
@@ -70,7 +71,7 @@ class _ClubsPageState extends State<ClubsPage> {
             );
           },
         ),
-      ),
+      )),
       floatingActionButton: _canCreate
           ? FloatingActionButton.extended(
               backgroundColor: C.navy,

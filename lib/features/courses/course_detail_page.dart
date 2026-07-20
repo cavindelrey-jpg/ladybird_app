@@ -12,6 +12,7 @@ import '../../repositories/course_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 
 const _kPalette = [C.primary, C.grn, C.pur, C.org, C.blu, C.red];
 
@@ -28,7 +29,7 @@ class CourseDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: C.bg,
-      body: StreamBuilder<Course?>(
+      body: AppBackground(child: StreamBuilder<Course?>(
         // Live — if a lecturer edits this course while a student has it
         // open, the change appears without a manual refresh.
         stream: CourseRepository.instance.watchOne(course.schoolId, course.id),
@@ -127,7 +128,7 @@ class CourseDetailPage extends StatelessWidget {
             ),
           ]);
         },
-      ),
+      )),
     );
   }
 

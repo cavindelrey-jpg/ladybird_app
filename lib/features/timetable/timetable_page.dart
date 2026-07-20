@@ -9,6 +9,7 @@ import '../../core/result.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 
 class TimetablePage extends StatefulWidget {
   final AppUser user;
@@ -41,7 +42,7 @@ class _TimetablePageState extends State<TimetablePage> {
                 onPressed: () => _showAdd(context))]
             : null,
       ),
-      body: Column(children: [
+      body: AppBackground(child: Column(children: [
         // Day selector
         Container(
           color: C.surf,
@@ -99,7 +100,7 @@ class _TimetablePageState extends State<TimetablePage> {
             },
           ),
         ),
-      ]),
+      ])),
     );
   }
 

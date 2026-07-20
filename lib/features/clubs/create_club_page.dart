@@ -15,6 +15,7 @@ import '../../repositories/club_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import 'clubs_page.dart';
 
 const _kClubCategories = [
@@ -126,7 +127,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
         title: Text('Create a Club', style: GoogleFonts.sora(
             fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
       ),
-      body: Form(
+      body: AppBackground(child: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(20),
@@ -287,7 +288,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
             PrimaryBtn(label: 'Create Club', onTap: _create, loading: _saving),
           ],
         ),
-      ),
+      )),
     );
   }
 }

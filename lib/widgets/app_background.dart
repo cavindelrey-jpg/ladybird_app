@@ -49,7 +49,7 @@ class AppBackground extends StatelessWidget {
       // doc's "Educational Personality" rule — decorative only, must
       // never sit where it could reduce text contrast, so it's pinned
       // to the top-right corner, out of the way of body content.
-      Positioned(
+      const Positioned(
         top: 60, right: -20,
         child: Opacity(
           opacity: 0.04,

@@ -11,6 +11,7 @@ import '../../repositories/institution_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 
 const _kPresetPalettes = [
   ('Navy & Gold',   '#0A1F44', '#152D5E', '#C9A227'),
@@ -107,7 +108,7 @@ class _CreateInstitutionPageState extends State<CreateInstitutionPage> {
         iconTheme: const IconThemeData(color: C.txt),
         title: Text('Register a School', style: AppText.title),
       ),
-      body: Form(
+      body: AppBackground(child: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(20),
@@ -256,7 +257,7 @@ class _CreateInstitutionPageState extends State<CreateInstitutionPage> {
             PrimaryBtn(label: 'Create School', loading: _saving, onTap: _submit),
           ],
         ),
-      ),
+      )),
     );
   }
 

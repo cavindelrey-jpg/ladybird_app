@@ -9,6 +9,7 @@ import '../models/app_notification.dart';
 import '../repositories/notification_repository.dart';
 import '../widgets/widgets.dart';
 
+import '../widgets/app_background.dart';
 class NotificationsPage extends StatelessWidget {
   final String userId;
   const NotificationsPage({super.key, required this.userId});
@@ -51,7 +52,7 @@ class NotificationsPage extends StatelessWidget {
           ),
         ],
       ),
-      body: StreamBuilder<List<AppNotification>>(
+      body: AppBackground(child: StreamBuilder<List<AppNotification>>(
         stream: NotificationRepository.instance.watchFeed(userId),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
@@ -121,7 +122,7 @@ class NotificationsPage extends StatelessWidget {
             },
           );
         },
-      ),
+      )),
     );
   }
 }

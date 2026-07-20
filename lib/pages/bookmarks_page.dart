@@ -14,6 +14,7 @@ import '../theme/app_theme.dart';
 import '../features/courses_marketplace/course_reader_page.dart';
 import '../features/magazine/article_reader_page.dart';
 
+import '../widgets/app_background.dart';
 class BookmarksPage extends StatefulWidget {
   final AppUser user;
   const BookmarksPage({super.key, required this.user});
@@ -37,7 +38,7 @@ class _BookmarksPageState extends State<BookmarksPage> with SingleTickerProvider
         bottom: TabBar(controller: _tc, labelColor: C.primary, unselectedLabelColor: C.txt2,
             indicatorColor: C.primary, tabs: const [Tab(text: 'Courses'), Tab(text: 'Magazine')]),
       ),
-      body: TabBarView(controller: _tc, children: [
+      body: AppBackground(child: TabBarView(controller: _tc, children: [
         StreamBuilder<List<PublicCourse>>(
           stream: PublicCourseRepository.instance.watchBookmarkedCourses(widget.user.id),
           builder: (context, snap) {
@@ -84,7 +85,7 @@ class _BookmarksPageState extends State<BookmarksPage> with SingleTickerProvider
             );
           },
         ),
-      ]),
+      ])),
     );
   }
 }

@@ -8,6 +8,7 @@ import '../repositories/marks_repository.dart';
 import '../core/result.dart';
 import '../widgets/widgets.dart';
 
+import '../widgets/app_background.dart';
 class MarksPage extends StatelessWidget {
   final AppUser user;
   const MarksPage({super.key, required this.user});
@@ -93,7 +94,7 @@ class _LecturerMarksViewState extends State<_LecturerMarksView> {
       appBar: AppBar(
         title: Text('Enter Marks', style: GoogleFonts.sora(fontWeight: FontWeight.w700)),
         automaticallyImplyLeading: false),
-      body: SingleChildScrollView(
+      body: AppBackground(child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const _Label('1. Find Student'),
@@ -207,7 +208,7 @@ class _LecturerMarksViewState extends State<_LecturerMarksView> {
           const SizedBox(height: 20),
           PrimaryBtn(label: 'Save Mark', loading: _saving, onTap: _save),
         ]),
-      ),
+      )),
     );
   }
 }

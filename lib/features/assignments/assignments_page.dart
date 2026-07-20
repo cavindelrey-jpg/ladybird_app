@@ -8,6 +8,7 @@ import '../../core/result.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 
 class AssignmentsPage extends StatelessWidget {
   final AppUser user;
@@ -36,7 +37,7 @@ class _LecView extends StatelessWidget {
       appBar: AppBar(
           title: Text('Assignments', style: GoogleFonts.sora(fontWeight: FontWeight.w700)),
           automaticallyImplyLeading: false),
-      body: StreamBuilder<List<Assignment>>(
+      body: AppBackground(child: StreamBuilder<List<Assignment>>(
         stream: AssignmentRepository.instance.watchForLecturer(sid, user.id),
         builder: (ctx, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
@@ -62,7 +63,7 @@ class _LecView extends StatelessWidget {
                 _LecCard(a: list[i], user: user, sid: sid),
           );
         },
-      ),
+      )),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: C.gold, foregroundColor: C.navy,
         icon: const Icon(Icons.add),

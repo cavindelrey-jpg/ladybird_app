@@ -13,6 +13,7 @@ import '../../repositories/hero_slide_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 
 class HeroSlideManagerPage extends StatelessWidget {
   final String createdByUid;
@@ -34,7 +35,7 @@ class HeroSlideManagerPage extends StatelessWidget {
           ),
         ],
       ),
-      body: StreamBuilder<List<HeroSlide>>(
+      body: AppBackground(child: StreamBuilder<List<HeroSlide>>(
         stream: HeroSlideRepository.instance.watchAll(),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
@@ -71,7 +72,7 @@ class HeroSlideManagerPage extends StatelessWidget {
             },
           );
         },
-      ),
+      )),
     );
   }
 

@@ -6,6 +6,7 @@ import '../../repositories/calendar_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 
 class CalendarPage extends StatelessWidget {
   final AppUser user;
@@ -39,7 +40,7 @@ class CalendarPage extends StatelessWidget {
                 onPressed: () => _showAdd(context))]
             : null,
       ),
-      body: StreamBuilder<List<CalendarEvent>>(
+      body: AppBackground(child: StreamBuilder<List<CalendarEvent>>(
         stream: CalendarRepository.instance.watchAll(_sid),
         builder: (ctx, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
@@ -76,7 +77,7 @@ class CalendarPage extends StatelessWidget {
             },
           );
         },
-      ),
+      )),
     );
   }
 

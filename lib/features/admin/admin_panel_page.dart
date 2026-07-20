@@ -11,6 +11,7 @@ import '../../services/auth_service.dart';
 import '../../providers/institution_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import '../../core/result.dart';
 import 'hero_slide_manager_page.dart';
 import 'create_institution_page.dart';
@@ -47,11 +48,11 @@ class _AdminPanelPageState extends State<AdminPanelPage>
           if (widget.user.isSuperAdmin) const Tab(text: 'PLATFORM'),
         ]),
       ),
-      body: TabBarView(controller: _tc, children: [
+      body: AppBackground(child: TabBarView(controller: _tc, children: [
         _UsersTab(user: widget.user),
         _SeatsTab(user: widget.user),
         if (widget.user.isSuperAdmin) _PlatformTab(user: widget.user),
-      ]),
+      ])),
     );
   }
 }

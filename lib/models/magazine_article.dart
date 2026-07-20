@@ -9,31 +9,6 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// What kind of content an article carries. Every article still has the
-/// same title/description/category/tags shell — this only changes which
-/// body the composer collects and the reader renders: rich text for
-/// [text], a single hero image for [image], and an uploaded file
-/// (`mediaUrl`) for [video]/[audio].
-enum MagazineArticleType { text, image, video, audio }
-
-extension MagazineArticleTypeExt on MagazineArticleType {
-  String get label {
-    switch (this) {
-      case MagazineArticleType.text:  return 'Text';
-      case MagazineArticleType.image: return 'Image';
-      case MagazineArticleType.video: return 'Video';
-      case MagazineArticleType.audio: return 'Audio';
-    }
-  }
-
-  static MagazineArticleType fromName(String? name) {
-    return MagazineArticleType.values.firstWhere(
-      (t) => t.name == name,
-      orElse: () => MagazineArticleType.text,
-    );
-  }
-}
-
 class MagazineArticle {
   final String id;
   final String authorId;
@@ -60,16 +35,6 @@ class MagazineArticle {
 
   String? thumbnailUrl;    // author-supplied cover image
   String? cachedThumbnailPath;
-
-  /// Content kind — see [MagazineArticleType]. Defaults to `text` so every
-  /// article predating this field (no `type` in Firestore) still reads as
-  /// a plain rich-text piece, exactly how it always behaved.
-  MagazineArticleType type;
-
-  /// Uploaded file URL for [MagazineArticleType.video]/[.audio] articles.
-  /// Unused (null) for text/image articles — image content uses
-  /// `thumbnailUrl` as its single hero image instead of a separate file.
-  String? mediaUrl;
 
   /// Free-text category label (Essay, Opinion, Story, News, etc.) — shown
   /// as the small colored tag on article cards. No fixed enum since this
@@ -105,8 +70,6 @@ class MagazineArticle {
     this.bodyDelta,
     this.thumbnailUrl,
     this.cachedThumbnailPath,
-    this.type = MagazineArticleType.text,
-    this.mediaUrl,
     this.category = 'Essay',
     List<String>? tags,
     this.schoolId,
@@ -132,8 +95,6 @@ class MagazineArticle {
       description: d['description'] ?? '',
       bodyDelta: d['bodyDelta'],
       thumbnailUrl: d['thumbnailUrl'],
-      type: MagazineArticleTypeExt.fromName(d['type']),
-      mediaUrl: d['mediaUrl'],
       category: d['category'] ?? 'Essay',
       tags: List<String>.from(d['tags'] ?? const []),
       schoolId: d['schoolId'],
@@ -155,8 +116,6 @@ class MagazineArticle {
         'description': description,
         'bodyDelta': bodyDelta,
         'thumbnailUrl': thumbnailUrl,
-        'type': type.name,
-        'mediaUrl': mediaUrl,
         'category': category,
         'tags': tags,
         'schoolId': schoolId,

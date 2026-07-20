@@ -7,6 +7,7 @@ import '../../models/models.dart';
 import '../../repositories/announcement_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import 'compose_announcement_page.dart';
 
 class AnnouncementsPage extends StatelessWidget {
@@ -23,7 +24,7 @@ class AnnouncementsPage extends StatelessWidget {
           style: GoogleFonts.sora(fontSize: 17, fontWeight: FontWeight.w700)),
         automaticallyImplyLeading: false,
       ),
-      body: StreamBuilder<List<Announcement>>(
+      body: AppBackground(child: StreamBuilder<List<Announcement>>(
         stream: AnnouncementRepository.instance
             .watchAnnouncements(schoolId: user.schoolId),
         builder: (context, snap) {
@@ -65,7 +66,7 @@ class AnnouncementsPage extends StatelessWidget {
             },
           );
         },
-      ),
+      )),
       floatingActionButton: canPost
           ? FloatingActionButton.extended(
               onPressed: () => Navigator.push(context,

@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../services/auth_service.dart';
 import '../widgets/widgets.dart';
 
+import '../widgets/app_background.dart';
 class ChangePasswordPage extends StatefulWidget {
   const ChangePasswordPage({super.key});
 
@@ -80,7 +81,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         title: Text('Change Password', style: GoogleFonts.sora(
             fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
       ),
-      body: Form(
+      body: AppBackground(child: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(20),
@@ -133,7 +134,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             PrimaryBtn(label: 'Update Password', onTap: _submit, loading: _saving),
           ],
         ),
-      ),
+      )),
     );
   }
 

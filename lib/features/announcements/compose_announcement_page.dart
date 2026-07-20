@@ -9,6 +9,7 @@ import '../../repositories/announcement_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 
 class ComposeAnnouncementPage extends StatefulWidget {
   final AppUser user;
@@ -91,7 +92,7 @@ class _ComposeAnnouncementPageState extends State<ComposeAnnouncementPage> {
             ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: AppBackground(child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // Urgency toggle
@@ -198,6 +199,7 @@ class _ComposeAnnouncementPageState extends State<ComposeAnnouncementPage> {
 
           PrimaryBtn(label: '📢 Publish Announcement', loading: _loading, onTap: _publish),
         ]),
+      ),
       ),
     );
   }

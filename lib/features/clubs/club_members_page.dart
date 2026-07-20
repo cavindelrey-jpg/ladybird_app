@@ -12,6 +12,7 @@ import '../../repositories/club_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 
 class ClubMembersPage extends StatelessWidget {
   final Club club;
@@ -46,7 +47,7 @@ class ClubMembersPage extends StatelessWidget {
         title: Text('${club.name} · Members', style: GoogleFonts.sora(
             fontSize: 15, fontWeight: FontWeight.w700, color: C.txt)),
       ),
-      body: StreamBuilder<ClubRole>(
+      body: AppBackground(child: StreamBuilder<ClubRole>(
         stream: ClubRepository.instance.watchUserRole(club.id, currentUser.id),
         builder: (context, myRoleSnap) {
           final myRole = myRoleSnap.data ?? ClubRole.visitor;
@@ -76,7 +77,7 @@ class ClubMembersPage extends StatelessWidget {
             },
           );
         },
-      ),
+      )),
     );
   }
 

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../providers/institution_provider.dart';
 import '../../theme/app_theme.dart';
 
+import '../../widgets/app_background.dart';
 class SchoolCodePage extends StatefulWidget {
   const SchoolCodePage({super.key});
   @override State<SchoolCodePage> createState() => _SchoolCodePageState();
@@ -48,7 +49,7 @@ class _SchoolCodePageState extends State<SchoolCodePage>
     final prov = context.watch<InstitutionProvider>();
     return Scaffold(
       backgroundColor: C.bg,
-      body: SafeArea(
+      body: AppBackground(child: SafeArea(
         child: Stack(children: [
           FadeTransition(
           opacity: _fadeAnim,
@@ -175,7 +176,7 @@ class _SchoolCodePageState extends State<SchoolCodePage>
               ),
             ),
         ]),
-      ),
+      )),
     );
   }
 }

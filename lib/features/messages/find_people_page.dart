@@ -21,6 +21,7 @@ import '../../core/result.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 import 'chat_conversation_page.dart';
 
 class FindPeoplePage extends StatefulWidget {
@@ -80,7 +81,7 @@ class _FindPeoplePageState extends State<FindPeoplePage> {
         iconTheme: const IconThemeData(color: C.txt),
         title: Text('Friends', style: AppText.title),
       ),
-      body: Column(children: [
+      body: AppBackground(child: Column(children: [
         Padding(
           padding: const EdgeInsets.all(16),
           child: TextField(
@@ -112,7 +113,7 @@ class _FindPeoplePageState extends State<FindPeoplePage> {
             ],
           ),
         ),
-      ]),
+      ])),
     );
   }
 

@@ -41,10 +41,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
-import '../../theme/app_colors.dart';
-import '../../providers/theme_provider.dart';
 import '../../models/app_user.dart';
 import '../../models/hero_slide.dart';
 import '../../models/announcement.dart';
@@ -109,9 +106,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return Container(
-      color: ac.bg,
+      color: C.bg,
       child: SafeArea(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -119,25 +115,29 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             // Top band: subtle blue-tinted gradient fading to the app
             // background, instead of flat white all the way down.
             Container(
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [ac.primaryBg, ac.bg],
+                  colors: [C.primaryBg, C.bg],
                   begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                  stops: const [0.0, 0.7],
+                  stops: [0.0, 0.7],
                 ),
               ),
               child: Column(children: [
                 _topBar(context),
-                const SizedBox(height: 14),
-                _idCard(context),
+                const SizedBox(height: 18),
+                _greetingRow(),
+                const SizedBox(height: 16),
+                _statStreakRow(),
                 const SizedBox(height: 20),
                 _bannerCarousel(),
+                const SizedBox(height: 16),
+                _libraryBanner(context),
                 const SizedBox(height: 8),
               ]),
             ),
-            // Alternating surface band for Quick Access.
+            // Alternating near-white band for Quick Access.
             Container(
-              color: ac.surf,
+              color: Colors.white,
               child: Stack(children: [
                 const SectionWatermark(icon: Icons.science_outlined, alignment: Alignment.topRight),
                 Padding(
@@ -151,10 +151,10 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                 ),
               ]),
             ),
-            if (!_isGuest) _progressAndChallengeRow(),
+            if (!_isGuest) _continueReadingBand(),
             // Back to app-bg for Top Writers / Announcements.
             Container(
-              color: ac.bg,
+              color: C.bg,
               child: Stack(children: [
                 const SectionWatermark(icon: Icons.menu_book_outlined, alignment: Alignment.topLeft),
                 Padding(
@@ -163,9 +163,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                 ),
               ]),
             ),
-            // Surface band again for Recommended.
+            // Near-white again for Recommended.
             Container(
-              color: ac.surf,
+              color: Colors.white,
               child: Stack(children: [
                 const SectionWatermark(icon: Icons.school_outlined, alignment: Alignment.topRight),
                 Padding(
@@ -184,50 +184,115 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     );
   }
 
+  // ── Library promo banner — real resource count, no hardcoded number ────
+  Widget _libraryBanner(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: TapScale(
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(Rad.lg),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _open(context, const _LibraryDest());
+            },
+            child: Container(
+              height: 150,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [C.navy2, C.navy], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                boxShadow: Shad.md,
+              ),
+              child: Stack(fit: StackFit.expand, children: [
+                // Dark-to-transparent overlay per spec — reads as "dark"
+                // via the navy gradient itself since there's no stock
+                // library photo asset in this codebase to overlay instead.
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.black.withValues(alpha: .5), Colors.transparent],
+                      begin: Alignment.centerLeft, end: Alignment.centerRight,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('Library', style: AppText.h1.copyWith(color: Colors.white)),
+                      const SizedBox(height: 6),
+                      Text('Discover books, past papers and other study materials.',
+                          style: AppText.bodySm.copyWith(color: Colors.white.withValues(alpha: .8)),
+                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 12),
+                      FutureBuilder<int>(
+                        future: AcademicContentRepository.instance.countAll(institutionId: _u?.schoolId),
+                        builder: (context, snap) {
+                          if (!snap.hasData) {
+                            return Text('Loading…',
+                                style: AppText.caption.copyWith(color: Colors.white54));
+                          }
+                          return Row(mainAxisSize: MainAxisSize.min, children: [
+                            const Icon(Icons.auto_awesome_outlined, size: 14, color: Colors.white70),
+                            const SizedBox(width: 6),
+                            Text('${NumberFormat('#,###').format(snap.data)} Resources Available',
+                                style: AppText.caption.copyWith(color: Colors.white70)),
+                          ]);
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                        decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(10)),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Text('Explore Now', style: AppText.subtitle.copyWith(
+                              color: C.navy, fontSize: 12, fontWeight: FontWeight.w700)),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.arrow_forward_rounded, size: 14, color: C.navy),
+                        ]),
+                      ),
+                    ],
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ── Top bar: menu (drawer), search, notifications ──────────────────────
   Widget _topBar(BuildContext context) {
-    final ac = AppColors.of(context);
-    final isDark = context.watch<ThemeProvider>().isDark;
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
       child: Row(children: [
         Builder(builder: (ctx) => IconButton(
-          icon: Icon(Icons.menu_rounded, color: ac.txt),
+          icon: const Icon(Icons.menu_rounded, color: C.txt),
           onPressed: () => Scaffold.of(ctx).openDrawer(),
         )),
         const SizedBox(width: 4),
-        Container(
-          decoration: isDark
-              ? BoxDecoration(shape: BoxShape.circle, boxShadow: [
-                  BoxShadow(color: ac.primary.withValues(alpha: .45), blurRadius: 18, spreadRadius: 1),
-                ])
-              : null,
-          child: const AcademiaLogo(size: 34),
-        ),
+        const AcademiaLogo(size: 34),
         const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Academia', style: AppText.title.copyWith(fontSize: 17, color: ac.txt)),
+            Text('Academia', style: AppText.title.copyWith(fontSize: 17)),
             Text('Your Complete Smart School Platform',
-                style: AppText.caption.copyWith(fontSize: 10, color: ac.txt2),
+                style: AppText.caption.copyWith(fontSize: 10),
                 overflow: TextOverflow.ellipsis),
           ]),
         ),
         IconButton(
-          icon: Icon(isDark ? Icons.light_mode_rounded : Icons.dark_mode_outlined, color: ac.txt2),
-          tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
-          onPressed: () {
-            HapticFeedback.selectionClick();
-            context.read<ThemeProvider>().toggle();
-          },
-        ),
-        IconButton(
-          icon: Icon(Icons.search_rounded, color: ac.txt2),
+          icon: const Icon(Icons.search_rounded, color: C.txt2),
           onPressed: () => showToast(context, 'Search is coming soon.'),
         ),
         _isGuest
             ? IconButton(
-                icon: Icon(Icons.notifications_outlined, color: ac.txt2),
+                icon: const Icon(Icons.notifications_outlined, color: C.txt2),
                 onPressed: () {
                   HapticFeedback.selectionClick();
                   Navigator.of(context).push(MaterialPageRoute(
@@ -245,7 +310,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                     WiggleIcon(
                       active: count > 0,
                       child: IconButton(
-                        icon: Icon(Icons.notifications_outlined, color: ac.txt2),
+                        icon: const Icon(Icons.notifications_outlined, color: C.txt2),
                         onPressed: () {
                           HapticFeedback.selectionClick();
                           Navigator.of(context).push(MaterialPageRoute(
@@ -259,7 +324,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                           constraints: const BoxConstraints(minWidth: 16),
-                          decoration: BoxDecoration(color: ac.red, borderRadius: BorderRadius.circular(8)),
+                          decoration: BoxDecoration(color: C.red, borderRadius: BorderRadius.circular(8)),
                           child: Text(count > 9 ? '9+' : '$count', textAlign: TextAlign.center,
                               style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
                         ),
@@ -271,158 +336,140 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     );
   }
 
-  // ── Identity card — approved 2-column mockup layout:
-  // LEFT column: avatar + name/role, spans the card's full height.
-  // RIGHT column: stat tiles (streak/XP/courses) stacked above the
-  // weekday-streak dots, confined to that column's width only — this
-  // was iterated on explicitly in chat before being approved, see the
-  // shared HTML mockup for the reference this mirrors.
-  Widget _idCard(BuildContext context) {
-    final ac = AppColors.of(context);
-    final isDark = context.watch<ThemeProvider>().isDark;
+  // ── Greeting block: avatar + name/status, stat card ─────────────────────
+  Widget _greetingRow() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [ac.surf, isDark ? ac.surf2 : ac.primaryBg],
-            begin: Alignment.topLeft, end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(Rad.md),
-          border: Border.all(color: ac.bdr),
-          boxShadow: [BoxShadow(color: ac.shadow, blurRadius: 20, offset: const Offset(0, 8))],
-        ),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          // LEFT — avatar + name/role
-          _isGuest
-              ? _avatar(ac, isDark)
-              : InkWell(
-                  borderRadius: BorderRadius.circular(32),
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => ProfilePage(user: _u!))),
-                  child: _avatar(ac, isDark),
-                ),
-          const SizedBox(width: 10),
-          Flexible(
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_isGuest ? 'Browsing as' : 'Welcome back,',
-                  style: AppText.subtitle.copyWith(fontSize: 10.5, color: ac.txt2)),
-              Text(_isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name),
-                  style: AppText.h1.copyWith(fontSize: 14.5, color: ac.txt),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 3),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0x2422D3EE) : ac.primaryBg,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(_isGuest ? 'Guest' : _u!.roleLabel,
-                    style: AppText.label.copyWith(
-                        fontSize: 8.5, color: isDark ? const Color(0xFF22D3EE) : ac.primary, letterSpacing: 0)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        _isGuest
+            ? _avatar()
+            : InkWell(
+                borderRadius: BorderRadius.circular(32),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ProfilePage(user: _u!))),
+                child: _avatar(),
               ),
-            ]),
-          ),
-          const SizedBox(width: 10),
-          // RIGHT — stats row above weekday dots, right column only
-          if (!_isGuest)
-            Expanded(
-              child: FutureBuilder<({int streak, List<bool> week})>(
-                future: _streakFuture,
-                builder: (context, snap) {
-                  final streak = snap.data?.streak ?? 0;
-                  final week = snap.data?.week ?? List<bool>.filled(7, false);
-                  return Column(children: [
-                    Row(children: [
-                      Expanded(child: _statChip(ac, isDark,
-                          icon: Icons.local_fire_department_rounded, tint: ac.org,
-                          value: '$streak', label: 'Day Streak')),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: StreamBuilder<(int, int)>(
-                          stream: XpRepository.instance.watchBalance(_u!.id),
-                          builder: (context, xpSnap) {
-                            final balance = xpSnap.data?.$1 ?? 0;
-                            return _statChip(ac, isDark,
-                                icon: Icons.star_rounded, tint: ac.gold,
-                                value: NumberFormat.compact().format(balance), label: 'XP Points');
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(child: _statChip(ac, isDark,
-                          icon: Icons.menu_book_rounded, tint: ac.pur,
-                          value: '${_u!.courseIds.length}', label: 'Courses')),
-                    ]),
-                    const SizedBox(height: 7),
-                    Container(
-                      padding: const EdgeInsets.only(top: 7),
-                      decoration: BoxDecoration(border: Border(top: BorderSide(color: ac.bdr2))),
-                      child: _weekDotRow(week, ac, isDark),
-                    ),
-                  ]);
-                },
-              ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_isGuest ? 'Browsing as' : 'Welcome back,', style: AppText.subtitle),
+            Text(_isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name),
+                style: AppText.h1.copyWith(fontSize: 19)),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(20)),
+              child: Text(_isGuest ? 'Guest' : _u!.roleLabel,
+                  style: AppText.label.copyWith(fontSize: 10, color: C.primary, letterSpacing: 0)),
             ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _avatar(AppColors ac, bool isDark) {
-    final glow = isDark
-        ? [BoxShadow(color: ac.primary.withValues(alpha: .35), blurRadius: 14, spreadRadius: 1)]
-        : <BoxShadow>[];
-    if (!_isGuest && (_u!.photoUrl ?? '').isNotEmpty) {
-      return Container(
-        decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: glow),
-        child: CircleAvatar(radius: 23, backgroundImage: NetworkImage(_u!.photoUrl!)),
-      );
-    }
-    // NPC placeholder — guest, or signed-in with no profile photo.
-    return Container(
-      width: 46, height: 46,
-      decoration: BoxDecoration(
-        color: ac.surf3,
-        shape: BoxShape.circle,
-        border: Border.all(color: ac.bdr, width: 1.5),
-        boxShadow: glow,
-      ),
-      child: Icon(Icons.person_rounded, size: 24, color: ac.muted),
-    );
-  }
-
-  Widget _statChip(AppColors ac, bool isDark, {
-    required IconData icon, required Color tint, required String value, required String label,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
-      decoration: BoxDecoration(
-        color: tint.withValues(alpha: isDark ? .12 : .10),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: tint.withValues(alpha: isDark ? .45 : .25)),
-        boxShadow: isDark ? [BoxShadow(color: tint.withValues(alpha: .16), blurRadius: 10)] : null,
-      ),
-      child: Stack(clipBehavior: Clip.none, children: [
-        Positioned(top: -1, right: -2, child: Icon(Icons.chevron_right_rounded, size: 14, color: ac.muted)),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Row(children: [
-            Icon(icon, color: tint, size: 14),
-            const SizedBox(width: 4),
-            Flexible(child: Text(value, style: AppText.title.copyWith(fontSize: 13, color: ac.txt),
-                maxLines: 1, overflow: TextOverflow.ellipsis)),
           ]),
-          const SizedBox(height: 2),
-          Text(label, style: AppText.caption.copyWith(fontSize: 8.5, color: ac.txt2),
-              maxLines: 1, overflow: TextOverflow.ellipsis),
-        ]),
+        ),
+        // Real "Academic Score" wiring needs a decision on grading
+        // methodology (MarksRepository has no average/aggregate method
+        // yet) — showing nothing here is honest; showing a fabricated
+        // number was not. See header comment.
       ]),
     );
   }
 
-  Widget _weekDotRow(List<bool> week, AppColors ac, bool isDark) {
+  Widget _avatar() {
+    if (!_isGuest && (_u!.photoUrl ?? '').isNotEmpty) {
+      return CircleAvatar(radius: 32, backgroundImage: NetworkImage(_u!.photoUrl!));
+    }
+    // NPC placeholder — guest, or signed-in with no profile photo.
+    return Container(
+      width: 64, height: 64,
+      decoration: BoxDecoration(
+        color: C.surf3,
+        shape: BoxShape.circle,
+        border: Border.all(color: C.bdr, width: 1.5),
+      ),
+      child: const Icon(Icons.person_rounded, size: 34, color: C.muted),
+    );
+  }
+
+  // ── Streak + XP + Courses stat row, Mon-Sun activity dots ───────────────
+  // Streak and today's-XP-progress are computed from real Firestore data
+  // (StreakRepository, XpRepository) — never a fabricated number. XP
+  // balance and course count were already real and computable; this is
+  // just the first place either is surfaced on Home.
+  Widget _statStreakRow() {
+    if (_isGuest) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: FutureBuilder<({int streak, List<bool> week})>(
+        future: _streakFuture,
+        builder: (context, snap) {
+          final streak = snap.data?.streak ?? 0;
+          final week = snap.data?.week ?? List<bool>.filled(7, false);
+          return Column(children: [
+            Row(children: [
+              Expanded(
+                child: _statChip(
+                  icon: Icons.local_fire_department_rounded, iconColor: C.org,
+                  value: '$streak', label: 'Day Streak',
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: StreamBuilder<(int, int)>(
+                  stream: XpRepository.instance.watchBalance(_u!.id),
+                  builder: (context, xpSnap) {
+                    final balance = xpSnap.data?.$1 ?? 0;
+                    return _statChip(
+                      icon: Icons.star_rounded, iconColor: C.gold,
+                      value: NumberFormat('#,###').format(balance), label: 'XP Points',
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _statChip(
+                  icon: Icons.menu_book_rounded, iconColor: C.pur,
+                  value: '${_u!.courseIds.length}', label: 'Courses',
+                ),
+              ),
+            ]),
+            const SizedBox(height: 12),
+            _weekDotRow(week),
+            const SizedBox(height: 10),
+            StreamBuilder<int>(
+              stream: XpRepository.instance.watchXpEarnedToday(_u!.id),
+              builder: (context, xpSnap) {
+                final earned = (xpSnap.data ?? 0).clamp(0, kDailyXpCap);
+                return Row(children: [
+                  Text("Today's XP", style: AppText.caption.copyWith(fontSize: 10.5)),
+                  const SizedBox(width: 8),
+                  Expanded(child: AnimatedMiniBar(value: earned / kDailyXpCap, color: C.gold)),
+                  const SizedBox(width: 8),
+                  Text('$earned/$kDailyXpCap', style: AppText.caption.copyWith(fontSize: 10.5)),
+                ]);
+              },
+            ),
+          ]);
+        },
+      ),
+    );
+  }
+
+  Widget _statChip({required IconData icon, required Color iconColor, required String value, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      decoration: BoxDecoration(
+        color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr),
+      ),
+      child: Column(children: [
+        Icon(icon, color: iconColor, size: 18),
+        const SizedBox(height: 4),
+        Text(value, style: AppText.title.copyWith(fontSize: 14)),
+        Text(label, style: AppText.caption.copyWith(fontSize: 9.5),
+            textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ]),
+    );
+  }
+
+  Widget _weekDotRow(List<bool> week) {
     const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -431,176 +478,72 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         return Column(children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
-            width: 16, height: 16,
+            width: 22, height: 22,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: active ? ac.org : (isDark ? ac.surf2 : ac.surf3),
-              border: Border.all(color: active ? ac.org : ac.bdr),
-              boxShadow: active && isDark
-                  ? [BoxShadow(color: ac.org.withValues(alpha: .55), blurRadius: 8)]
-                  : null,
+              color: active ? C.gold : C.surf3,
+              border: Border.all(color: active ? C.gold : C.bdr),
             ),
-            // Checkmark shown in light mode; dark mode is a clean glowing
-            // dot with no glyph, per the approved dark mockup.
-            child: (active && !isDark) ? const Icon(Icons.check_rounded, size: 10, color: Colors.white) : null,
+            child: active ? const Icon(Icons.check_rounded, size: 13, color: Colors.white) : null,
           ),
-          const SizedBox(height: 2),
-          Text(labels[i], style: AppText.caption.copyWith(fontSize: 7.5, color: ac.txt2)),
+          const SizedBox(height: 3),
+          Text(labels[i], style: AppText.caption.copyWith(fontSize: 9)),
         ]);
       }),
     );
   }
 
-  // ── Today's Progress (real XP %, with Continue Reading folded in) +
-  // Daily Challenge. Daily Challenge is deliberately front-end only: the
-  // quiz backend doesn't exist yet (no question bank, no attempt
-  // tracking), so "Today's Physics Quiz" / "3 Questions" / "+50 XP" are
-  // placeholder copy, not live data — Start Challenge is a toast, not a
-  // dead end pretending to work. Swap in a real stream the moment the
-  // quiz backend lands; the card shell is ready for it.
-  Widget _progressAndChallengeRow() {
-    if (_isGuest) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 4, 18, 20),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Expanded(child: _todaysProgressCard()),
-        const SizedBox(width: 12),
-        Expanded(child: _dailyChallengeCard()),
-      ]),
-    );
-  }
-
-  Widget _todaysProgressCard() {
-    final ac = AppColors.of(context);
-    return StreamBuilder<int>(
-      stream: XpRepository.instance.watchXpEarnedToday(_u!.id),
-      builder: (context, xpSnap) {
-        final earned = (xpSnap.data ?? 0).clamp(0, kDailyXpCap);
-        final pct = kDailyXpCap == 0 ? 0 : ((earned / kDailyXpCap) * 100).round();
-        return Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Icon(Icons.trending_up_rounded, size: 15, color: ac.primary),
-              const SizedBox(width: 6),
-              Expanded(child: Text("Today's Progress", style: AppText.subtitle.copyWith(fontSize: 12, color: ac.txt2))),
-              Text('$pct%', style: AppText.title.copyWith(fontSize: 13, color: ac.primary)),
-            ]),
-            const SizedBox(height: 8),
-            AnimatedMiniBar(value: pct / 100, color: ac.primary),
-            const SizedBox(height: 14),
-            FutureBuilder<({AcademicContent content, int page, int totalPages})?>(
-              future: _continueReadingFuture,
-              builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const ShimmerBlock(height: 40);
+  // ── Continue Reading — real last-read PDF position, honest empty state ──
+  Widget _continueReadingBand() {
+    return Container(
+      color: C.bg,
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
+      child: FutureBuilder<({AcademicContent content, int page, int totalPages})?>(
+        future: _continueReadingFuture,
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const ShimmerBlock(height: 68);
+          }
+          final data = snap.data;
+          return TapScale(
+            child: ACard(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                if (data == null) { _open(context, const _LibraryDest()); return; }
+                final kind = viewableKindFor(data.content.fileUrl ?? '');
+                if (kind == null || (data.content.fileUrl ?? '').isEmpty) {
+                  _open(context, const _LibraryDest());
+                  return;
                 }
-                final data = snap.data;
-                return Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(Rad.sm),
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      if (data == null) { _open(context, const _LibraryDest()); return; }
-                      final kind = viewableKindFor(data.content.fileUrl ?? '');
-                      if (kind == null || (data.content.fileUrl ?? '').isEmpty) {
-                        _open(context, const _LibraryDest());
-                        return;
-                      }
-                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => ContentViewerPage(
-                        fileUrl: data.content.fileUrl!, title: data.content.title, kind: kind,
-                        contentId: data.content.id, userId: _u!.id,
-                      )));
-                    },
-                    child: Row(children: [
-                      Container(
-                        width: 32, height: 32,
-                        decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(8)),
-                        child: Icon(Icons.menu_book_rounded, color: ac.primary, size: 16),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('Continue Reading', style: AppText.caption.copyWith(color: ac.primary, fontSize: 9.5)),
-                          Text(data == null ? 'Nothing read yet' : data.content.title,
-                              style: AppText.subtitle.copyWith(color: ac.txt, fontSize: 11.5),
-                              maxLines: 1, overflow: TextOverflow.ellipsis),
-                        ]),
-                      ),
-                      Icon(Icons.chevron_right_rounded, color: ac.muted, size: 18),
-                    ]),
-                  ),
-                );
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => ContentViewerPage(
+                  fileUrl: data.content.fileUrl!, title: data.content.title, kind: kind,
+                  contentId: data.content.id, userId: _u!.id,
+                )));
               },
-            ),
-          ]),
-        );
-      },
-    );
-  }
-
-  Widget _dailyChallengeCard() {
-    final isDark = context.watch<ThemeProvider>().isDark;
-    return TapScale(
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(Rad.md),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.selectionClick();
-            showToast(context, 'Daily quizzes are launching soon — check back here.');
-          },
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: isDark
-                    ? const [Color(0xFF6D28D9), Color(0xFF2E1065)]
-                    : const [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-              ),
-              boxShadow: isDark
-                  ? [BoxShadow(color: const Color(0xFF6D28D9).withValues(alpha: .35), blurRadius: 24, offset: const Offset(0, 10))]
-                  : null,
-            ),
-            child: Stack(children: [
-              Positioned(
-                right: -10, bottom: -10,
-                child: Icon(Icons.psychology_alt_rounded, size: 64,
-                    color: Colors.white.withValues(alpha: isDark ? .18 : .12)),
-              ),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  const Icon(Icons.local_fire_department_rounded, size: 14, color: Colors.white),
-                  const SizedBox(width: 5),
-                  Text('Daily Challenge', style: AppText.caption.copyWith(
-                      color: Colors.white.withValues(alpha: .9), fontSize: 11, fontWeight: FontWeight.w700)),
-                ]),
-                const SizedBox(height: 8),
-                Text("Today's Physics Quiz", style: AppText.title.copyWith(color: Colors.white, fontSize: 13),
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 6),
-                Text('3 Questions · +50 XP',
-                    style: AppText.caption.copyWith(color: Colors.white.withValues(alpha: .75), fontSize: 10.5)),
-                const SizedBox(height: 12),
+              child: Row(children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text('Start Challenge', style: AppText.subtitle.copyWith(
-                        color: const Color(0xFF6D28D9), fontSize: 11, fontWeight: FontWeight.w700)),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.arrow_forward_rounded, size: 13, color: Color(0xFF6D28D9)),
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(10)),
+                  child: const Icon(Icons.menu_book_rounded, color: C.primary, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('CONTINUE READING', style: AppText.label.copyWith(color: C.primary, fontSize: 10)),
+                    const SizedBox(height: 3),
+                    data == null
+                        ? Text('Nothing read yet — open something from the Library to pick up here.',
+                            style: AppText.bodySm.copyWith(fontSize: 12))
+                        : Text('${data.content.title} · Page ${data.page} of ${data.totalPages}',
+                            style: AppText.title.copyWith(fontSize: 13),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
                   ]),
                 ),
+                const Icon(Icons.chevron_right_rounded, color: C.muted),
               ]),
-            ]),
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -631,11 +574,10 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _sectionHeader(String title, {required VoidCallback onViewAll}) {
-    final ac = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 18),
       child: Row(children: [
-        Expanded(child: Text(title, style: AppText.h2.copyWith(fontSize: 16, color: ac.txt))),
+        Expanded(child: Text(title, style: AppText.h2.copyWith(fontSize: 16))),
         Material(
           color: Colors.transparent,
           child: InkWell(
@@ -647,7 +589,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
               child: Text('View All', style: AppText.subtitle.copyWith(
-                  color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                  color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
             ),
           ),
         ),
@@ -659,19 +601,18 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   // New users (empty usage map) see the QuickAccessRegistry default order:
   // Library, Past Questions, Magazine, Clubs.
   Widget _quickAccessGrid(BuildContext context) {
-    final ac = AppColors.of(context);
     final usage = _isGuest ? const <String, int>{} : _u!.quickAccessUsage;
-    final tiles = QuickAccessRegistry.topFourPlusNew(usage);
+    final top4 = QuickAccessRegistry.topFour(usage);
 
     return SizedBox(
       height: 104,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 18),
-        itemCount: tiles.length,
+        itemCount: top4.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) {
-          final feat = tiles[i];
+          final feat = top4[i];
           return FadeSlideIn(
             index: i,
             child: TapScale(
@@ -688,38 +629,26 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                     width: 84,
                     padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
                     decoration: BoxDecoration(
-                      color: ac.surf, borderRadius: BorderRadius.circular(Rad.md),
-                      border: Border.all(color: ac.bdr),
+                      color: C.surf, borderRadius: BorderRadius.circular(Rad.md),
+                      border: Border.all(color: C.bdr),
                     ),
-                    child: Stack(clipBehavior: Clip.none, children: [
-                      Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Container(
-                          width: 36, height: 36,
-                          decoration: BoxDecoration(
-                            color: feat.bg,
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              BoxShadow(color: feat.fg.withValues(alpha: .28),
-                                  blurRadius: 12, spreadRadius: -2, offset: const Offset(0, 4)),
-                            ],
-                          ),
-                          child: Icon(feat.icon, color: feat.fg, size: 19),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Container(
+                        width: 36, height: 36,
+                        decoration: BoxDecoration(
+                          color: feat.bg,
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(color: feat.fg.withValues(alpha: .28),
+                                blurRadius: 12, spreadRadius: -2, offset: const Offset(0, 4)),
+                          ],
                         ),
-                        const SizedBox(height: 8),
-                        Text(feat.label, textAlign: TextAlign.center,
-                            style: AppText.bodySm.copyWith(fontSize: 10.5, fontWeight: FontWeight.w600, color: ac.txt),
-                            maxLines: 2, overflow: TextOverflow.ellipsis),
-                      ]),
-                      if (feat.isNew)
-                        Positioned(
-                          top: -6, right: -6,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: ac.org, borderRadius: BorderRadius.circular(8)),
-                            child: Text('New', style: AppText.caption.copyWith(
-                                fontSize: 8.5, fontWeight: FontWeight.w800, color: Colors.white, height: 1)),
-                          ),
-                        ),
+                        child: Icon(feat.icon, color: feat.fg, size: 19),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(feat.label, textAlign: TextAlign.center,
+                          style: AppText.bodySm.copyWith(fontSize: 10.5, fontWeight: FontWeight.w600, color: C.txt),
+                          maxLines: 2, overflow: TextOverflow.ellipsis),
                     ]),
                   ),
                 ),
@@ -762,15 +691,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         break;
       case 'timetable':
         _open(context, const _TimetableDest());
-        break;
-      case 'quizzes':
-        // Front-end only for now — see the Daily Challenge card's doc
-        // comment. Same ComingSoonPage pattern as 'lecture_notes' above.
-        _open(context, const ComingSoonPage(
-          title: 'Daily Quizzes',
-          subtitle: 'Quick daily quizzes with XP rewards are on the way — this screen is reserved for them.',
-          icon: Icons.quiz_rounded,
-        ));
         break;
     }
   }
@@ -854,7 +774,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         }
         return Column(children: [
           for (var i = 0; i < writers.length; i++) ...[
-            if (i > 0) Divider(height: 20, color: AppColors.of(context).bdr2),
+            if (i > 0) const Divider(height: 20, color: C.bdr2),
             _topWriterRow(rank: i + 1, entry: writers[i]),
           ],
         ]);
@@ -863,7 +783,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _topWriterRow({required int rank, required TopWriterEntry entry}) {
-    final ac = AppColors.of(context);
     return InkWell(
       borderRadius: BorderRadius.circular(Rad.sm),
       onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -871,10 +790,10 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       child: Row(children: [
         Container(
           width: 32, height: 32,
-          decoration: BoxDecoration(color: ac.goldBg, shape: BoxShape.circle),
+          decoration: const BoxDecoration(color: C.goldp, shape: BoxShape.circle),
           alignment: Alignment.center,
           child: Text('#$rank', style: AppText.subtitle.copyWith(
-              fontSize: 12, fontWeight: FontWeight.w800, color: ac.gold)),
+              fontSize: 12, fontWeight: FontWeight.w800, color: C.gold)),
         ),
         const SizedBox(width: 12),
         UserAvatar(
@@ -885,9 +804,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(entry.authorName, style: AppText.subtitle.copyWith(color: ac.txt, fontSize: 12.5)),
-            Text('${entry.totalReads} reads · ${entry.totalComments} comments',
-                style: AppText.caption.copyWith(color: ac.muted)),
+            Text(entry.authorName, style: AppText.subtitle.copyWith(color: C.txt, fontSize: 12.5)),
+            Text('${entry.totalReads} reads · ${entry.totalComments} comments', style: AppText.caption),
           ]),
         ),
       ]),
@@ -924,15 +842,14 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _emptyPanelRow({required IconData icon, required String text}) {
-    final ac = AppColors.of(context);
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(
         width: 36, height: 36,
-        decoration: BoxDecoration(color: ac.surf3, borderRadius: BorderRadius.circular(10)),
-        child: Icon(icon, color: ac.muted, size: 18),
+        decoration: BoxDecoration(color: C.surf3, borderRadius: BorderRadius.circular(10)),
+        child: Icon(icon, color: C.muted, size: 18),
       ),
       const SizedBox(width: 12),
-      Expanded(child: Text(text, style: AppText.bodySm.copyWith(height: 1.4, color: ac.txt2))),
+      Expanded(child: Text(text, style: AppText.bodySm.copyWith(height: 1.4))),
     ]);
   }
 
@@ -972,17 +889,16 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _panelCard({required String title, required Widget child, VoidCallback? onViewAll}) {
-    final ac = AppColors.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: ac.surf, borderRadius: BorderRadius.circular(Rad.lg),
-        border: Border.all(color: ac.bdr),
+        color: C.surf, borderRadius: BorderRadius.circular(Rad.lg),
+        border: Border.all(color: C.bdr),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text(title, style: AppText.title.copyWith(fontSize: 14, fontWeight: FontWeight.w800, color: ac.txt))),
+          Expanded(child: Text(title, style: AppText.title.copyWith(fontSize: 14, fontWeight: FontWeight.w800))),
           if (onViewAll != null)
             InkWell(
               borderRadius: BorderRadius.circular(6),
@@ -990,7 +906,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 child: Text('View All', style: AppText.subtitle.copyWith(
-                    color: ac.primary, fontWeight: FontWeight.w700, fontSize: 11)),
+                    color: C.primary, fontWeight: FontWeight.w700, fontSize: 11)),
               ),
             ),
         ]),
@@ -1001,7 +917,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _announceRow(IconData icon, Color fg, Color bg, String text, String time) {
-    final ac = AppColors.of(context);
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(
         width: 36, height: 36,
@@ -1011,9 +926,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       const SizedBox(width: 12),
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(text, style: AppText.bodySm.copyWith(color: ac.txt, height: 1.35)),
+          Text(text, style: AppText.bodySm.copyWith(color: C.txt, height: 1.35)),
           const SizedBox(height: 3),
-          Text(time, style: AppText.caption.copyWith(fontSize: 10.5, color: ac.muted)),
+          Text(time, style: AppText.caption.copyWith(fontSize: 10.5)),
         ]),
       ),
     ]);
@@ -1081,8 +996,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             itemBuilder: (_, i) {
               final item = items[i];
               final (bg, fg) = _contentColors(item.contentType);
-              final ac = AppColors.of(context);
-              final isDark = context.watch<ThemeProvider>().isDark;
               return Material(
                 color: Colors.transparent,
                 borderRadius: BorderRadius.circular(Rad.md),
@@ -1100,20 +1013,15 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                   child: Container(
                     width: 160,
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: isDark ? ac.surf : bg,
-                      borderRadius: BorderRadius.circular(Rad.md),
-                      border: isDark ? Border(left: BorderSide(color: fg, width: 3)) : null,
-                    ),
+                    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(Rad.md)),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                          style: AppText.subtitle.copyWith(color: ac.txt, fontSize: 12.5, fontWeight: FontWeight.w700)),
+                          style: AppText.subtitle.copyWith(color: C.txt, fontSize: 12.5, fontWeight: FontWeight.w700)),
                       const Spacer(),
                       Row(children: [
                         Icon(_contentIcon(item.contentType), size: 18, color: fg),
                         const SizedBox(width: 6),
-                        Expanded(child: Text(item.contentType.label,
-                            style: AppText.caption.copyWith(fontSize: 10, color: ac.muted))),
+                        Expanded(child: Text(item.contentType.label, style: AppText.caption.copyWith(fontSize: 10))),
                       ]),
                     ]),
                   ),

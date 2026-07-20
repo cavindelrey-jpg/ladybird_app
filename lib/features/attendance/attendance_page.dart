@@ -12,6 +12,7 @@ import '../../core/constants.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
 
 class AttendancePage extends StatelessWidget {
   final AppUser user;
@@ -106,7 +107,7 @@ class _LecturerViewState extends State<_LecturerView> {
                     fontWeight: FontWeight.w700, color: C.primary)))]
             : null,
       ),
-      body: _loading
+      body: AppBackground(child: _loading
           ? const Center(child: CircularProgressIndicator())
           : Column(children: [
               Container(color: C.surf, padding: const EdgeInsets.all(16), child: Column(children: [
@@ -155,6 +156,7 @@ class _LecturerViewState extends State<_LecturerView> {
                         onChanged: (v) => setState(() => _marks[_students[i].id] = v),
                       ))),
             ]),
+      ),
     );
   }
 }

@@ -1,60 +1,60 @@
 // lib/models/magazine_article.dart
-// Core schema for the Magazine module. Establishes the shape now so
-// Home's "Top Writers" section can be wired to real data even before the
-// full Magazine feed UI ships. Zero seed/demo articles — the feed and
-// leaderboard are simply empty until the first real post exists.
+// Full schema for the Magazine module: feed, composer, reader, author
+// profile, and bookmarks all read/write this shape. Zero seed/demo
+// articles ship with this file — everything starts empty until a real
+// post exists.
 //
 // Firestore: articles/{articleId}
 //            articles/{articleId}/comments/{commentId}
+//            articles/{articleId}/reads/{uid}   (unique-reader tracking)
+//            articles/{articleId}/likes/{uid}
+//            users/{uid}/bookmarks/{articleId}
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+/// Predefined categories shown in the composer's picker.
+const List<String> kArticleCategories = [
+  'Academics', 'Sports', 'Arts & Culture', 'Science & Tech',
+  'Opinion', 'Campus Life', 'Careers', 'Other',
+];
+
+/// Predefined tag suggestions shown as chips in the composer.
+const List<String> kArticleTags = [
+  'GCE', 'Study Tips', 'Exam Prep', 'Clubs', 'Announcements',
+  'Interview', 'Achievement', 'Event',
+];
 
 class MagazineArticle {
   final String id;
   final String authorId;
   final String authorName;
   final String? authorPhotoUrl; // null -> generic thumbnail in the UI
+  final String? schoolId;       // null -> independent/global article
+
   String title;
-
-  /// Plain-text body — kept as a fallback/derived value for card excerpts,
-  /// search, and feed previews. Always regenerated from bodyDelta's plain
-  /// text whenever the rich content is saved; never edited directly once
-  /// bodyDelta exists.
-  String body;
-
-  /// Short author-written summary shown on feed cards, distinct from the
-  /// full `body` — never auto-derived, so it stays empty for articles
-  /// published before this field existed (UI falls back to the
-  /// auto-truncated body excerpt in that case).
-  String description;
-
-  /// Rich content as a Quill Delta, JSON-encoded. Null/empty means this
-  /// article predates rich text and only has plain `body` — the reader
-  /// falls back to rendering that as plain text in that case.
-  String? bodyDelta;
-
-  String? thumbnailUrl;    // author-supplied cover image
-  String? cachedThumbnailPath;
-
-  /// Free-text category label (Essay, Opinion, Story, News, etc.) — shown
-  /// as the small colored tag on article cards. No fixed enum since this
-  /// is editorial, not structural — see kArticleCategories for the
-  /// suggested picker list in the composer.
-  String category;
-
-  /// Free-text multi-select tags, in addition to the single `category` —
-  /// finer-grained than category (e.g. an Essay article might be tagged
-  /// 'GCE A-Level' and 'Exam Prep'). See kArticleTags for the suggested
-  /// picker list; custom tags are allowed too.
+  String description;   // short excerpt shown in feed cards
+  String body;           // plain-text/HTML body (used by feed previews,
+                          // simple rendering, and as a fallback when
+                          // bodyDelta isn't populated)
+  dynamic bodyDelta;    // rich-text delta (flutter_quill JSON), untyped so
+                         // the composer can assign a List or a String as it
+                         // serializes its editor state
+  String category;      // one of kArticleCategories (or 'Other')
   List<String> tags;
 
-  /// Author's schoolId at time of publish (nullable — independent users
-  /// have none). Backs the "Local Feed" tab; "Global Feed" ignores it.
-  final String? schoolId;
+  String? thumbnailUrl;
+  bool featured;
 
   int readCount;
   int commentCount;
   int likeCount;
+
+  /// XP earned by the author from unique reads that hasn't been credited
+  /// to their AppUser.xpTotal yet — settled via
+  /// MagazineRepository.settlePendingXp(authorId), called once at app
+  /// start (see app_router.dart). 2 XP per unique new reader, per spec.
+  int pendingAuthorXp;
+
   bool published;
   final DateTime createdAt;
   DateTime updatedAt;
@@ -64,24 +64,41 @@ class MagazineArticle {
     required this.authorId,
     required this.authorName,
     this.authorPhotoUrl,
-    required this.title,
-    required this.body,
-    this.description = '',
-    this.bodyDelta,
-    this.thumbnailUrl,
-    this.cachedThumbnailPath,
-    this.category = 'Essay',
-    List<String>? tags,
     this.schoolId,
+    this.title = '',
+    this.description = '',
+    this.body = '',
+    this.bodyDelta = '',
+    this.category = 'Other',
+    List<String>? tags,
+    this.thumbnailUrl,
+    this.featured = false,
     this.readCount = 0,
     this.commentCount = 0,
     this.likeCount = 0,
+    this.pendingAuthorXp = 0,
     this.published = true,
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : tags = tags ?? [],
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
+
+  /// Empty draft used by the composer before the first save.
+  factory MagazineArticle.draft({
+    required String authorId,
+    required String authorName,
+    String? authorPhotoUrl,
+    String? schoolId,
+  }) =>
+      MagazineArticle(
+        id: '',
+        authorId: authorId,
+        authorName: authorName,
+        authorPhotoUrl: authorPhotoUrl,
+        schoolId: schoolId,
+        published: false,
+      );
 
   factory MagazineArticle.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data() ?? {};
@@ -90,17 +107,19 @@ class MagazineArticle {
       authorId: d['authorId'] ?? '',
       authorName: d['authorName'] ?? 'Unknown',
       authorPhotoUrl: d['authorPhotoUrl'],
-      title: d['title'] ?? '',
-      body: d['body'] ?? '',
-      description: d['description'] ?? '',
-      bodyDelta: d['bodyDelta'],
-      thumbnailUrl: d['thumbnailUrl'],
-      category: d['category'] ?? 'Essay',
-      tags: List<String>.from(d['tags'] ?? const []),
       schoolId: d['schoolId'],
-      readCount: d['readCount'] ?? 0,
-      commentCount: d['commentCount'] ?? 0,
-      likeCount: d['likeCount'] ?? 0,
+      title: d['title'] ?? '',
+      description: d['description'] ?? '',
+      body: d['body'] ?? '',
+      bodyDelta: d['bodyDelta'] ?? '',
+      category: d['category'] ?? 'Other',
+      tags: List<String>.from(d['tags'] ?? []),
+      thumbnailUrl: d['thumbnailUrl'],
+      featured: d['featured'] ?? false,
+      readCount: (d['readCount'] as num?)?.toInt() ?? 0,
+      commentCount: (d['commentCount'] as num?)?.toInt() ?? 0,
+      likeCount: (d['likeCount'] as num?)?.toInt() ?? 0,
+      pendingAuthorXp: (d['pendingAuthorXp'] as num?)?.toInt() ?? 0,
       published: d['published'] ?? true,
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -111,35 +130,24 @@ class MagazineArticle {
         'authorId': authorId,
         'authorName': authorName,
         'authorPhotoUrl': authorPhotoUrl,
+        'schoolId': schoolId,
         'title': title,
-        'body': body,
         'description': description,
+        'body': body,
         'bodyDelta': bodyDelta,
-        'thumbnailUrl': thumbnailUrl,
         'category': category,
         'tags': tags,
-        'schoolId': schoolId,
+        'thumbnailUrl': thumbnailUrl,
+        'featured': featured,
         'readCount': readCount,
         'commentCount': commentCount,
         'likeCount': likeCount,
+        'pendingAuthorXp': pendingAuthorXp,
         'published': published,
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': FieldValue.serverTimestamp(),
       };
 }
-
-/// Suggested category picker options for the composer. Free-text under
-/// the hood, but a fixed list keeps the tags visually consistent.
-const kArticleCategories = [
-  'Essay', 'Opinion', 'Story', 'Creative Writing', 'News', 'Guide', 'Interview', 'Review',
-];
-
-/// Suggested tag picker options — free-text under the hood (see `tags` on
-/// MagazineArticle), same pattern as kArticleCategories.
-const kArticleTags = [
-  'GCE O-Level', 'GCE A-Level', 'Study Tips', 'Exam Prep', 'Career Advice',
-  'Campus Life', 'Technology', 'Motivation', 'Culture', 'Trending',
-];
 
 class ArticleComment {
   final String id;

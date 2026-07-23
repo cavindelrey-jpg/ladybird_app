@@ -1,0 +1,42 @@
+// Merge into your existing firestore.rules — new collections this drop
+// introduces: heroSlides, articles (read-only here, full write rules come
+// with the Magazine module build), dailyChallenges (+ attempts subcoll).
+
+function isSignedIn() { return request.auth != null; }
+
+function isAdminRole() {
+  return isSignedIn() &&
+    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+      in ['superAdmin', 'schoolAdmin'];
+}
+
+match /heroSlides/{slideId} {
+  allow read: if true;           // carousel is visible to guests too
+  allow write: if isAdminRole(); // in-app image manager, admin-only
+}
+
+match /articles/{articleId} {
+  allow read: if true;           // needed for Top Writers aggregation
+  allow write: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+}
+
+match /dailyChallenges/{dateKey} {
+  allow read: if true;
+  allow write: if isAdminRole(); // seeding today's challenge
+
+  match /attempts/{uid} {
+    allow read: if isSignedIn() && request.auth.uid == uid;
+    // Client can only CREATE their own attempt once — no update/delete,
+    // so a completed challenge can't be replayed for repeat XP.
+    allow create: if isSignedIn() && request.auth.uid == uid;
+  }
+}
+
+// Also confirm your existing users/{uid} rule allows a signed-in user to
+// update their OWN doc — recordDailyActivity/addXp/setContinueReading all
+// write to users/{uid} as the signed-in user themself:
+//
+// match /users/{uid} {
+//   allow read: if isSignedIn();
+//   allow update: if isSignedIn() && request.auth.uid == uid;
+// }

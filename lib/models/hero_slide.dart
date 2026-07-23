@@ -1,18 +1,17 @@
 // lib/models/hero_slide.dart
-// Every Home banner ("Join a Club", "Every Past Question. One App.",
-// "Your Voice in the Magazine.") is a row here instead of hardcoded text.
-// Each slide can hold a real image (uploaded via the in-app image manager);
-// with none set yet, the UI falls back to the existing navy gradient card.
+// Backs the Home banner. Visually this is now the Gamma "big image + dark
+// gradient + title/subtitle/stat line/CTA" card. Content-wise, it's a real,
+// admin-editable, swipeable set of slides — not a single hardcoded banner.
 //
 // Firestore: heroSlides/{slideId}   Storage: hero_slides/{slideId}.jpg
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum HeroDestination {
-  clubs('Join a Club'),
+  library('Library'),
+  clubs('Clubs'),
   pastQuestions('Past Questions'),
   magazine('Magazine'),
-  library('Library'),
   courses('Courses'),
   custom('Custom Link');
 
@@ -25,34 +24,29 @@ class HeroSlide {
   String headline;
   String subtext;
   String ctaLabel;
+  String statLine;      // e.g. "4,521 Resources Available"
   HeroDestination destination;
   String? customRoute;
-
-  String? imageUrl;       // Firebase Storage download URL
-  String? cachedImagePath; // local mirror for instant/offline paint
-
+  String? imageUrl;      // Firebase Storage download URL
   int order;
   bool active;
   final String createdBy;
   final DateTime createdAt;
-  DateTime updatedAt;
 
   HeroSlide({
     required this.id,
     required this.headline,
     required this.subtext,
     this.ctaLabel = 'Explore Now',
+    this.statLine = '',
     this.destination = HeroDestination.custom,
     this.customRoute,
     this.imageUrl,
-    this.cachedImagePath,
     this.order = 0,
     this.active = true,
     required this.createdBy,
     DateTime? createdAt,
-    DateTime? updatedAt,
-  })  : createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now();
+  }) : createdAt = createdAt ?? DateTime.now();
 
   factory HeroSlide.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data() ?? {};
@@ -61,6 +55,7 @@ class HeroSlide {
       headline: d['headline'] ?? '',
       subtext: d['subtext'] ?? '',
       ctaLabel: d['ctaLabel'] ?? 'Explore Now',
+      statLine: d['statLine'] ?? '',
       destination: HeroDestination.values.firstWhere(
           (v) => v.name == d['destination'], orElse: () => HeroDestination.custom),
       customRoute: d['customRoute'],
@@ -69,7 +64,6 @@ class HeroSlide {
       active: d['active'] ?? true,
       createdBy: d['createdBy'] ?? '',
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
@@ -77,6 +71,7 @@ class HeroSlide {
         'headline': headline,
         'subtext': subtext,
         'ctaLabel': ctaLabel,
+        'statLine': statLine,
         'destination': destination.name,
         'customRoute': customRoute,
         'imageUrl': imageUrl,
@@ -84,6 +79,5 @@ class HeroSlide {
         'active': active,
         'createdBy': createdBy,
         'createdAt': Timestamp.fromDate(createdAt),
-        'updatedAt': FieldValue.serverTimestamp(),
       };
 }

@@ -1,881 +1,887 @@
 // lib/features/dashboard/universal_home_page.dart
+//
+// UI layer is Gamma's mockup, kept as close to verbatim as possible:
+//   - avatar/name/role + 3 stat pills (streak/XP/courses) + week dots
+//   - single big-image "Library" banner with gradient + CTA + dot indicator
+//   - Quick Access: 5 fixed icons (Magazine/Clubs/Library/Past Qs/Quizzes)
+//   - Today's Progress + Daily Challenge, side by side
+//   - Top Writers + Recent Announcements, side by side
+//   - Recommended for You, horizontal cards
+// Two requested tweaks from the mockup: tighter avatar<->stat-pill gap, and
+// stronger card shadow ("glow") than Gamma's default render.
+//
+// Every number and card below is wired to real data or a real repository.
+// Where the underlying feature doesn't exist yet (daily challenge unseeded,
+// no reading in progress, no hero slide configured), the section shows an
+// honest empty/locked state instead of Gamma's hardcoded placeholders.
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../theme/app_theme.dart';
+import '../../models/app_user.dart';
+import '../../models/hero_slide.dart';
+import '../../models/announcement.dart';
+import '../../models/magazine_article.dart';
+import '../../models/daily_challenge.dart';
+import '../../models/library_item.dart';
+import '../../models/academic_content.dart';
+import '../../models/course.dart';
+import '../../repositories/hero_slide_repository.dart';
+import '../../repositories/announcement_repository.dart';
+import '../../repositories/magazine_repository.dart';
+import '../../repositories/daily_challenge_repository.dart';
+import '../../repositories/library_repository.dart';
+import '../../repositories/course_repository.dart';
+import '../../services/auth_service.dart';
+import '../../widgets/widgets.dart';
+import '../../widgets/coming_soon_page.dart';
+import '../../pages/daily_challenge_page.dart';
+import '../library/library_page.dart';
+import '../library/library_reader_page.dart';
+
+/// Local, slightly stronger "glow" shadow for this page's cards -- Gamma's
+/// own render used a near-invisible shadow (alpha .02-.03); the mockup
+/// wants it more present, without touching the app-wide Shad tokens.
+const List<BoxShadow> _glow = [
+  BoxShadow(color: Color(0x14000000), blurRadius: 20, offset: Offset(0, 6)),
+];
 
 class UniversalHomePage extends StatefulWidget {
-  const UniversalHomePage({super.key});
+  final AppUser? user;
+  const UniversalHomePage({super.key, this.user});
 
   @override
   State<UniversalHomePage> createState() => _UniversalHomePageState();
 }
 
 class _UniversalHomePageState extends State<UniversalHomePage> {
-  int _bottomNavIndex = 0;
+  final _bannerCtrl = PageController();
+  int _bannerIndex = 0;
+
+  bool get _isGuest => widget.user == null;
+  AppUser? get _u => widget.user;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_isGuest) {
+      // Fire-and-forget: decides streak continue/reset/no-op from the
+      // user's own last-active date. Never blocks the first frame.
+      AuthService.instance.recordDailyActivity(_u!);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA), // Light app background
-      body: SafeArea(
-        child: SingleChildScrollView(
+    return Container(
+      color: C.bg,
+      child: SafeArea(
+        child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildTopBar(),
-              const SizedBox(height: 16),
-              _buildGreetingAndStats(),
-              const SizedBox(height: 20),
-              _buildLibraryBanner(),
-              const SizedBox(height: 24),
-              _buildSectionHeader('Quick Access', onViewAll: () {}),
-              const SizedBox(height: 12),
-              _buildQuickAccess(),
-              const SizedBox(height: 24),
-              _buildProgressAndChallenge(),
-              const SizedBox(height: 24),
-              _buildWritersAndAnnouncements(),
-              const SizedBox(height: 24),
-              _buildSectionHeader('Recommended for You', onViewAll: () {}),
-              const SizedBox(height: 12),
-              _buildRecommendedRow(),
-            ],
-          ),
+          children: [
+            _topBar(context),
+            const SizedBox(height: 16),
+            _greetingAndStats(),
+            const SizedBox(height: 20),
+            _libraryBanner(context),
+            const SizedBox(height: 24),
+            _sectionHeader('Quick Access'),
+            const SizedBox(height: 12),
+            _quickAccessRow(context),
+            const SizedBox(height: 20),
+            _progressAndChallengeRow(context),
+            const SizedBox(height: 20),
+            _writersAndAnnouncementsRow(context),
+            const SizedBox(height: 24),
+            _sectionHeader('Recommended for You',
+                onViewAll: () => _open(context, const _LibraryDest())),
+            const SizedBox(height: 12),
+            _recommendedRow(context),
+          ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
-  // ── Top Bar ─────────────────────────────────────────────────────────────
-  Widget _buildTopBar() {
+  // -- Top bar --------------------------------------------------------
+  Widget _topBar(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Row(
-        children: [
-          const Icon(Icons.menu, color: Colors.black87),
-          const SizedBox(width: 12),
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: Colors.black,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.school, color: Colors.amber, size: 20),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      child: Row(children: [
+        Builder(builder: (ctx) => IconButton(
+          icon: const Icon(Icons.menu_rounded, color: C.txt),
+          onPressed: () => Scaffold.of(ctx).openDrawer(),
+        )),
+        const SizedBox(width: 4),
+        AcademiaLogo(size: 34),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Academia', style: GoogleFonts.sora(
+                fontSize: 17, fontWeight: FontWeight.w800, color: C.txt)),
+            Text('Your Complete Smart School Platform',
+                style: GoogleFonts.inter(fontSize: 10, color: C.txt2),
+                overflow: TextOverflow.ellipsis),
+          ]),
+        ),
+        IconButton(
+          icon: const Icon(Icons.search_rounded, color: C.txt2),
+          onPressed: () {},
+        ),
+        Stack(clipBehavior: Clip.none, children: [
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: C.txt2),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => const ComingSoonPage(
+                    title: 'Notifications', icon: Icons.notifications_outlined))),
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Academia',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87),
-                ),
-                Text(
-                  'Your Complete Smart School Platform',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.search, color: Colors.black54),
-          const SizedBox(width: 16),
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              const Icon(Icons.notifications_none, color: Colors.black54),
-              Positioned(
-                top: 0,
-                right: 0,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+          if (!_isGuest)
+            Positioned(top: 8, right: 6, child: Container(
+              width: 9, height: 9,
+              decoration: const BoxDecoration(color: C.red, shape: BoxShape.circle),
+            )),
+        ]),
+      ]),
     );
   }
 
-  // ── Greeting & Stats ────────────────────────────────────────────────────
-  Widget _buildGreetingAndStats() {
+  // -- Greeting + Stats + Week dots ------------------------------------
+  // Tweak #1: avatar column is a fixed width (not Expanded flex:2), with a
+  // small explicit gap before the stats column -- tighter than Gamma's
+  // flex-driven spacing.
+  Widget _greetingAndStats() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Avatar and Name
-          Expanded(
-            flex: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const CircleAvatar(
-                  radius: 30,
-                  backgroundImage: NetworkImage(
-                      'https://i.pravatar.cc/150?img=11'), // Placeholder avatar
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Welcome back,',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                ),
-                const Text(
-                  'Nso Dylan',
-                  style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'Super Admin',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade700),
-                  ),
-                ),
-              ],
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(
+          width: 128,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _avatar(),
+            const SizedBox(height: 8),
+            Text(_isGuest ? 'Browsing as' : 'Welcome back,',
+                style: GoogleFonts.inter(fontSize: 12.5, color: C.txt2)),
+            Text(_isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name),
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.sora(fontSize: 17, fontWeight: FontWeight.w800, color: C.txt)),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(12)),
+              child: Text(_isGuest ? 'Guest' : _u!.roleLabel,
+                  style: GoogleFonts.sora(fontSize: 10.5, fontWeight: FontWeight.w700, color: C.primary)),
             ),
-          ),
-          // Stats & Week Tracker
-          Expanded(
-            flex: 3,
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _statBox(Icons.local_fire_department, Colors.deepOrange,
-                        '7', 'Day Streak'),
-                    _statBox(Icons.star, Colors.amber, '1,250', 'XP Points'),
-                    _statBox(Icons.menu_book, Colors.purple, '12', 'Courses'),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    _dayDot('M', true),
-                    _dayDot('T', true),
-                    _dayDot('W', true),
-                    _dayDot('T', true),
-                    _dayDot('F', true),
-                    _dayDot('S', false, isCurrent: true),
-                    _dayDot('S', false),
-                  ],
-                )
-              ],
-            ),
-          )
-        ],
-      ),
+          ]),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              _statPill(Icons.local_fire_department_rounded, C.org,
+                  _isGuest ? '0' : '${_u!.streakDays}', 'Day Streak'),
+              _statPill(Icons.star_rounded, C.gold,
+                  _isGuest ? '0' : '${_u!.xpTotal}', 'XP Points'),
+              _statPill(Icons.menu_book_rounded, C.pur,
+                  _isGuest ? '0' : '${_u!.courseIds.length}', 'Courses'),
+            ]),
+            const SizedBox(height: 12),
+            _weekDots(),
+          ]),
+        ),
+      ]),
     );
   }
 
-  Widget _statBox(IconData icon, Color iconColor, String value, String label) {
+  Widget _avatar() {
+    if (!_isGuest && (_u!.photoUrl ?? '').isNotEmpty) {
+      return CircleAvatar(radius: 28, backgroundImage: NetworkImage(_u!.photoUrl!));
+    }
+    return Container(
+      width: 56, height: 56,
+      decoration: BoxDecoration(
+        color: C.surf3, shape: BoxShape.circle,
+        border: Border.all(color: C.bdr, width: 1.5),
+      ),
+      child: Icon(Icons.person_rounded, size: 30, color: C.muted),
+    );
+  }
+
+  Widget _statPill(IconData icon, Color iconColor, String value, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4))
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: iconColor, size: 20),
-          const SizedBox(width: 6),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(value,
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.bold)),
-              Text(label,
-                  style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
-            ],
-          ),
-          const SizedBox(width: 4),
-          Icon(Icons.chevron_right, size: 14, color: Colors.grey.shade400)
-        ],
-      ),
+        color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), boxShadow: _glow),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, color: iconColor, size: 18),
+        const SizedBox(width: 5),
+        Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(value, style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w800, color: C.txt)),
+          Text(label, style: GoogleFonts.inter(fontSize: 8.5, color: C.txt2)),
+        ]),
+      ]),
     );
   }
 
-  Widget _dayDot(String day, bool completed, {bool isCurrent = false}) {
-    return Column(
-      children: [
-        completed
-            ? const Icon(Icons.check_circle, color: Colors.amber, size: 18)
+  /// Real week dots -- driven by AppUser.weekActivityDates, not fabricated.
+  Widget _weekDots() {
+    final labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    final now = DateTime.now();
+    final monday = now.subtract(Duration(days: now.weekday - 1));
+    final activity = _isGuest ? const <String>{} : _u!.weekActivityDates.toSet();
+    final todayIdx = now.weekday - 1;
+
+    return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: List.generate(7, (i) {
+      final day = monday.add(Duration(days: i));
+      final key = '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+      final done = activity.contains(key);
+      final isToday = i == todayIdx;
+      return Column(children: [
+        done
+            ? const Icon(Icons.check_circle_rounded, color: C.gold, size: 17)
             : Container(
-          width: 14,
-          height: 14,
-          decoration: BoxDecoration(
-            color: isCurrent ? Colors.grey.shade400 : Colors.grey.shade200,
-            shape: BoxShape.circle,
+                width: 13, height: 13,
+                decoration: BoxDecoration(
+                  color: isToday ? C.bdr : C.bdr2, shape: BoxShape.circle),
+              ),
+        const SizedBox(height: 3),
+        Text(labels[i], style: GoogleFonts.inter(fontSize: 9.5, color: C.txt2)),
+      ]);
+    }));
+  }
+
+  // -- Library banner -- real, swipeable, admin-editable ---------------
+  Widget _libraryBanner(BuildContext context) {
+    return StreamBuilder<List<HeroSlide>>(
+      stream: HeroSlideRepository.instance.watchActive(),
+      builder: (context, snap) {
+        final slides = snap.data ?? const <HeroSlide>[];
+        if (slides.isEmpty) {
+          if (!_isGuest && _u!.isSuperAdmin) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const ComingSoonPage(
+                        title: 'Hero Slide Manager',
+                        subtitle: 'Add the first Home banner (image + link).',
+                        icon: Icons.image_outlined))),
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: const Text('Add your first Home banner'),
+              ),
+            );
+          }
+          return const SizedBox.shrink();
+        }
+        return SizedBox(
+          height: 176,
+          child: PageView.builder(
+            controller: _bannerCtrl,
+            onPageChanged: (i) => setState(() => _bannerIndex = i),
+            itemCount: slides.length,
+            itemBuilder: (_, i) => _bannerCard(context, slides[i], slides.length),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(day, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-      ],
+        );
+      },
     );
   }
 
-  // ── Library Banner ──────────────────────────────────────────────────────
-  Widget _buildLibraryBanner() {
+  Widget _bannerCard(BuildContext context, HeroSlide slide, int totalSlides) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        height: 160,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          image: const DecorationImage(
-            image: NetworkImage(
-                'https://images.unsplash.com/photo-1507842217343-583bb7270b66?ixlib=rb-1.2.1&auto=format&fit=crop&w=1000&q=80'), // Placeholder library image
-            fit: BoxFit.cover,
-          ),
-        ),
+      child: GestureDetector(
+        onTap: () => _openHeroSlide(context, slide),
         child: Container(
+          height: 160,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              colors: [Colors.black.withOpacity(0.8), Colors.transparent],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
+            borderRadius: BorderRadius.circular(Rad.xl),
+            color: C.navy,
+            image: (slide.imageUrl != null && slide.imageUrl!.isNotEmpty)
+                ? DecorationImage(image: NetworkImage(slide.imageUrl!), fit: BoxFit.cover)
+                : null,
           ),
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Library',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold)),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(Rad.xl),
+              gradient: LinearGradient(
+                colors: [Colors.black.withValues(alpha: .82), Colors.transparent],
+                begin: Alignment.centerLeft, end: Alignment.centerRight,
+              ),
+            ),
+            padding: const EdgeInsets.all(20),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(slide.headline, style: GoogleFonts.sora(
+                  fontSize: 21, fontWeight: FontWeight.w800, color: Colors.white)),
               const SizedBox(height: 6),
-              const Text(
-                'Discover books, past papers\nand other study materials.',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Icon(Icons.school, color: Colors.grey, size: 16),
+              Text(slide.subtext, style: GoogleFonts.inter(
+                  fontSize: 12.5, color: Colors.white70, height: 1.3)),
+              if (slide.statLine.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Row(children: [
+                  const Icon(Icons.workspace_premium_outlined, color: Colors.white60, size: 15),
                   const SizedBox(width: 6),
-                  const Text('4,521 Resources Available',
-                      style: TextStyle(color: Colors.white, fontSize: 12)),
-                ],
-              ),
+                  Text(slide.statLine,
+                      style: GoogleFonts.inter(fontSize: 11.5, color: Colors.white)),
+                ]),
+              ],
               const Spacer(),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  ElevatedButton(
-                    onPressed: () {},
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.amber,
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(10)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text(slide.ctaLabel, style: GoogleFonts.sora(
+                        fontSize: 12, fontWeight: FontWeight.w700, color: C.navy)),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.arrow_forward_rounded, size: 14, color: C.navy),
+                  ]),
+                ),
+                if (totalSlides > 1)
+                  Row(children: List.generate(totalSlides, (i) => Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: 6, height: 6,
+                    decoration: BoxDecoration(
+                      color: i == _bannerIndex ? C.gold : Colors.white54,
+                      shape: BoxShape.circle,
                     ),
-                    child: const Row(
-                      children: [
-                        Text('Explore Now',
-                            style: TextStyle(fontWeight: FontWeight.bold)),
-                        SizedBox(width: 4),
-                        Icon(Icons.arrow_forward, size: 16)
-                      ],
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      _bannerDot(true),
-                      _bannerDot(false),
-                      _bannerDot(false),
-                      _bannerDot(false),
-                    ],
-                  )
-                ],
-              )
-            ],
+                  ))),
+              ]),
+            ]),
           ),
         ),
       ),
     );
   }
 
-  Widget _bannerDot(bool active) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 3),
-      width: 6,
-      height: 6,
-      decoration: BoxDecoration(
-        color: active ? Colors.amber : Colors.white54,
-        shape: BoxShape.circle,
-      ),
-    );
+  void _openHeroSlide(BuildContext context, HeroSlide slide) {
+    switch (slide.destination) {
+      case HeroDestination.library:
+        _open(context, const _LibraryDest());
+        break;
+      case HeroDestination.clubs:
+        _open(context, const ComingSoonPage(title: 'Clubs', icon: Icons.groups_rounded));
+        break;
+      case HeroDestination.pastQuestions:
+        _open(context, const ComingSoonPage(
+            title: 'Past Questions', icon: Icons.description_rounded));
+        break;
+      case HeroDestination.magazine:
+        _open(context, const ComingSoonPage(
+            title: 'Magazine', icon: Icons.auto_stories_rounded));
+        break;
+      case HeroDestination.courses:
+        _open(context, const ComingSoonPage(title: 'Courses', icon: Icons.school_rounded));
+        break;
+      case HeroDestination.custom:
+        break;
+    }
   }
 
-  // ── Section Header ──────────────────────────────────────────────────────
-  Widget _buildSectionHeader(String title, {required VoidCallback onViewAll}) {
+  Widget _sectionHeader(String title, {VoidCallback? onViewAll}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(title,
-              style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87)),
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Text(title, style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w800, color: C.txt)),
+        if (onViewAll != null)
           GestureDetector(
             onTap: onViewAll,
-            child: Text('View All',
-                style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade600)),
+            child: Text('View All', style: GoogleFonts.sora(
+                fontSize: 13, fontWeight: FontWeight.w700, color: C.primary)),
           ),
-        ],
+      ]),
+    );
+  }
+
+  // -- Quick Access -- fixed 5, per your call (no "New" badge) ----------
+  Widget _quickAccessRow(BuildContext context) {
+    final items = <(String, IconData, Color)>[
+      ('Magazine', Icons.menu_book_rounded, C.pur),
+      ('Clubs', Icons.groups_rounded, C.gold),
+      ('Library', Icons.import_contacts_rounded, C.primary),
+      ('Past Questions', Icons.description_rounded, C.grn),
+      ('Quizzes', Icons.assignment_rounded, C.org),
+    ];
+    return SizedBox(
+      height: 100,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (_, i) {
+          final (label, icon, color) = items[i];
+          return GestureDetector(
+            onTap: () => _openQuickAccess(context, label),
+            child: Container(
+              width: 80,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: C.surf, borderRadius: BorderRadius.circular(Rad.md), boxShadow: _glow),
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: color.withValues(alpha: .1), shape: BoxShape.circle),
+                  child: Icon(icon, color: color, size: 22),
+                ),
+                const SizedBox(height: 10),
+                Text(label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: C.txt)),
+              ]),
+            ),
+          );
+        },
       ),
     );
   }
 
-  // ── Quick Access ────────────────────────────────────────────────────────
-  Widget _buildQuickAccess() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+  void _openQuickAccess(BuildContext context, String label) {
+    switch (label) {
+      case 'Magazine':
+        _open(context, const ComingSoonPage(title: 'Magazine', icon: Icons.auto_stories_rounded));
+        break;
+      case 'Clubs':
+        _open(context, const ComingSoonPage(title: 'Clubs', icon: Icons.groups_rounded));
+        break;
+      case 'Library':
+        _open(context, const _LibraryDest());
+        break;
+      case 'Past Questions':
+        _open(context, const ComingSoonPage(title: 'Past Questions', icon: Icons.description_rounded));
+        break;
+      case 'Quizzes':
+        _open(context, const ComingSoonPage(title: 'Quizzes', icon: Icons.assignment_rounded));
+        break;
+    }
+  }
+
+  void _open(BuildContext context, Widget destResolver) {
+    if (_isGuest) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ComingSoonPage(
+        title: 'Sign in required',
+        subtitle: 'Create a free account to open this section.',
+        icon: Icons.lock_outline_rounded,
+      )));
+      return;
+    }
+    final page = destResolver is _LibraryDest ? LibraryPage(user: _u!) : destResolver;
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+  }
+
+  // -- Today's Progress + Daily Challenge --------------------------------
+  Widget _progressAndChallengeRow(BuildContext context) {
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          _quickAccessItem('Magazine', Icons.menu_book, Colors.purple),
-          _quickAccessItem('Clubs', Icons.groups, Colors.amber),
-          _quickAccessItem('Library', Icons.import_contacts, Colors.blue),
-          _quickAccessItem(
-              'Past Questions', Icons.description, Colors.green),
-          _quickAccessItem('Quizzes', Icons.assignment, Colors.deepOrange,
-              isNew: true),
-        ],
+      child: IntrinsicHeight(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Expanded(child: _progressCard(context)),
+          const SizedBox(width: 12),
+          Expanded(child: _challengeCard(context)),
+        ]),
       ),
     );
   }
 
-  Widget _quickAccessItem(String title, IconData icon, Color color,
-      {bool isNew = false}) {
+  Widget _progressCard(BuildContext context) {
+    final hasReading = !_isGuest && (_u!.continueReadingItemId != null);
+    final total = _isGuest ? null : _u!.continueReadingTotalPages;
+    final page = _isGuest ? 0 : _u!.continueReadingPage;
+    final pct = (hasReading && total != null && total > 0) ? page / total : null;
+
     return Container(
-      margin: const EdgeInsets.only(right: 12),
-      width: 80,
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 10,
-              offset: const Offset(0, 4))
-        ],
-      ),
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
-        children: [
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
+          color: C.surf, borderRadius: BorderRadius.circular(Rad.md), boxShadow: _glow),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.show_chart_rounded, size: 15, color: C.primary),
+          const SizedBox(width: 4),
+          Expanded(child: Text("Today's Progress", style: GoogleFonts.sora(
+              fontSize: 11.5, fontWeight: FontWeight.w700, color: C.txt))),
+          if (pct != null)
+            Text('${(pct * 100).round()}%', style: GoogleFonts.sora(
+                fontSize: 11.5, fontWeight: FontWeight.w800, color: C.txt)),
+        ]),
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: pct ?? 0,
+            backgroundColor: C.bdr2,
+            valueColor: const AlwaysStoppedAnimation(C.primary),
+            minHeight: 6,
+          ),
+        ),
+        const SizedBox(height: 14),
+        if (hasReading)
+          GestureDetector(
+            onTap: () => _reopenContinueReading(context),
+            child: Row(children: [
               Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: color, size: 24),
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(9)),
+                child: const Icon(Icons.menu_book_rounded, color: C.primary, size: 18),
               ),
-              const SizedBox(height: 10),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87),
-              )
-            ],
-          ),
-          if (isNew)
-            Positioned(
-              top: -10,
-              right: 4,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.deepOrange,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text('New',
-                    style: TextStyle(color: Colors.white, fontSize: 9)),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Continue Reading', style: GoogleFonts.inter(fontSize: 9.5, color: C.primary)),
+                  Text(_u!.continueReadingTitle ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: C.txt)),
+                  Text(total != null ? 'Page $page of $total' : 'Page $page',
+                      style: GoogleFonts.inter(fontSize: 9.5, color: C.muted)),
+                ]),
               ),
-            )
-        ],
-      ),
+              const Icon(Icons.chevron_right_rounded, color: C.muted, size: 16),
+            ]),
+          )
+        else
+          Text('No reading in progress -- open something from the Library to start.',
+              style: GoogleFonts.inter(fontSize: 10.5, color: C.muted, height: 1.3)),
+      ]),
     );
   }
 
-  // ── Middle Section: Progress & Daily Challenge ──────────────────────────
-  Widget _buildProgressAndChallenge() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          // Today's Progress
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4))
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.show_chart,
-                              size: 16, color: Colors.blue.shade600),
-                          const SizedBox(width: 4),
-                          const Text("Today's Progress",
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                      const Text('62%',
-                          style: TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  LinearProgressIndicator(
-                    value: 0.62,
-                    backgroundColor: Colors.grey.shade200,
-                    valueColor:
-                    AlwaysStoppedAnimation<Color>(Colors.blue.shade600),
-                    borderRadius: BorderRadius.circular(4),
-                    minHeight: 6,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            borderRadius: BorderRadius.circular(10)),
-                        child: Icon(Icons.menu_book,
-                            color: Colors.blue.shade600, size: 20),
-                      ),
-                      const SizedBox(width: 10),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Continue Reading',
-                                style: TextStyle(
-                                    fontSize: 10, color: Colors.blue)),
-                            Text('Mechanics',
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold)),
-                            Text('Page 14 of 26',
-                                style: TextStyle(
-                                    fontSize: 10, color: Colors.grey)),
-                          ],
-                        ),
-                      ),
-                      Icon(Icons.chevron_right, color: Colors.grey.shade400)
-                    ],
-                  )
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Daily Challenge
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.purple.shade50, Colors.purple.shade100],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.local_fire_department,
-                          color: Colors.deepOrange, size: 16),
-                      SizedBox(width: 4),
-                      Text('Daily Challenge',
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.purple)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Text("Today's Physics Quiz",
-                      style: TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.assignment,
-                          size: 12, color: Colors.purple),
-                      const SizedBox(width: 4),
-                      const Text('3 Questions',
-                          style: TextStyle(fontSize: 10, color: Colors.purple)),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.star, size: 12, color: Colors.amber),
-                      const SizedBox(width: 2),
-                      Text('+50 XP',
-                          style: TextStyle(
-                              fontSize: 10, color: Colors.grey.shade700)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {},
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.purple.shade500,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        elevation: 0,
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('Start Challenge',
-                              style: TextStyle(fontSize: 12)),
-                          SizedBox(width: 4),
-                          Icon(Icons.arrow_forward, size: 14)
-                        ],
-                      ),
+  Future<void> _reopenContinueReading(BuildContext context) async {
+    if (_isGuest || _u!.continueReadingItemId == null) return;
+    final items = await LibraryRepository.instance.recent(schoolId: _u!.schoolId, limit: 60);
+    LibraryItem? match;
+    for (final it in items) {
+      if (it.id == _u!.continueReadingItemId) { match = it; break; }
+    }
+    match ??= LibraryItem(
+      id: _u!.continueReadingItemId!, title: _u!.continueReadingTitle ?? 'Untitled',
+      author: '', subject: '', size: '', views: 0, type: ContentType.note,
+      totalPages: _u!.continueReadingTotalPages,
+    );
+    if (!context.mounted) return;
+    Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => LibraryReaderPage(user: _u!, item: match!)));
+  }
+
+  Widget _challengeCard(BuildContext context) {
+    if (_isGuest) {
+      return _lockedChallengeCard(
+          message: 'Sign in to take today\'s challenge.');
+    }
+    return FutureBuilder<DailyChallenge?>(
+      future: DailyChallengeRepository.instance.getToday(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return _challengeShell(child: const Center(child: SizedBox(
+              width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))));
+        }
+        final challenge = snap.data;
+        if (challenge == null) {
+          return _lockedChallengeCard(message: 'No challenge today -- check back soon.');
+        }
+        return FutureBuilder<bool>(
+          future: DailyChallengeRepository.instance.hasAttempted(challenge.dateKey, _u!.id),
+          builder: (context, attemptedSnap) {
+            final attempted = attemptedSnap.data ?? false;
+            return _challengeShell(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  const Icon(Icons.local_fire_department_rounded, color: C.org, size: 15),
+                  const SizedBox(width: 4),
+                  Text('Daily Challenge', style: GoogleFonts.sora(
+                      fontSize: 11.5, fontWeight: FontWeight.w700, color: C.pur)),
+                ]),
+                const SizedBox(height: 8),
+                Text(challenge.title, style: GoogleFonts.sora(
+                    fontSize: 12.5, fontWeight: FontWeight.w800, color: C.txt)),
+                const SizedBox(height: 4),
+                Row(children: [
+                  const Icon(Icons.assignment_rounded, size: 12, color: C.pur),
+                  const SizedBox(width: 4),
+                  Text('${challenge.questions.length} Questions',
+                      style: GoogleFonts.inter(fontSize: 10, color: C.pur)),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.star_rounded, size: 12, color: C.gold),
+                  const SizedBox(width: 2),
+                  Text('+${challenge.xpPerCorrect * challenge.questions.length} XP',
+                      style: GoogleFonts.inter(fontSize: 10, color: C.txt2)),
+                ]),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: attempted ? null : () async {
+                      final done = await Navigator.of(context).push<bool>(MaterialPageRoute(
+                          builder: (_) => DailyChallengePage(user: _u!, challenge: challenge)));
+                      if (done == true && mounted) setState(() {});
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: attempted ? C.bdr : C.pur,
+                      foregroundColor: attempted ? C.txt2 : Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
                     ),
-                  )
-                ],
-              ),
-            ),
-          )
-        ],
-      ),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      if (attempted) ...[
+                        const Icon(Icons.check_circle_rounded, size: 14),
+                        const SizedBox(width: 4),
+                      ],
+                      Text(attempted ? 'Completed' : 'Start Challenge',
+                          style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700)),
+                      if (!attempted) ...[
+                        const SizedBox(width: 4),
+                        const Icon(Icons.arrow_forward_rounded, size: 14),
+                      ],
+                    ]),
+                  ),
+                ),
+              ]),
+            );
+          },
+        );
+      },
     );
   }
 
-  // ── Lower Section: Writers & Announcements ──────────────────────────────
-  Widget _buildWritersAndAnnouncements() {
+  Widget _challengeShell({required Widget child}) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [C.purb, Color(0xFFEDE4FF)],
+              begin: Alignment.topLeft, end: Alignment.bottomRight),
+          borderRadius: BorderRadius.circular(Rad.md),
+        ),
+        child: child,
+      );
+
+  Widget _lockedChallengeCard({required String message}) => _challengeShell(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.local_fire_department_rounded, color: C.org, size: 15),
+            const SizedBox(width: 4),
+            Text('Daily Challenge', style: GoogleFonts.sora(
+                fontSize: 11.5, fontWeight: FontWeight.w700, color: C.pur)),
+          ]),
+          const SizedBox(height: 10),
+          Text(message, style: GoogleFonts.inter(fontSize: 11, color: C.txt2, height: 1.3)),
+        ]),
+      );
+
+  // -- Top Writers + Recent Announcements --------------------------------
+  Widget _writersAndAnnouncementsRow(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top Writers
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4))
-                ],
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Top Writers',
-                          style: TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.bold)),
-                      Text('View All',
-                          style: TextStyle(
-                              fontSize: 11, color: Colors.blue.shade600)),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                            color: Colors.amber.shade100,
-                            shape: BoxShape.circle),
-                        child: const Text('#1',
-                            style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.amber)),
-                      ),
-                      const SizedBox(width: 8),
-                      const CircleAvatar(
-                        radius: 14,
-                        backgroundImage: NetworkImage(
-                            'https://i.pravatar.cc/150?img=11'),
-                      ),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Nso Dylan',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold)),
-                            Text('5 reads • 1 comments',
-                                style: TextStyle(
-                                    fontSize: 9, color: Colors.grey)),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.emoji_events,
-                          color: Colors.amber, size: 16)
-                    ],
-                  )
-                ],
-              ),
-            ),
-          ),
+      child: IntrinsicHeight(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Expanded(child: _panel(title: 'Top Writers', child: _topWritersContent())),
           const SizedBox(width: 12),
-          // Recent Announcements
+          Expanded(child: _panel(title: 'Recent Announcements', child: _announcementsContent())),
+        ]),
+      ),
+    );
+  }
+
+  Widget _panel({required String title, required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: C.surf, borderRadius: BorderRadius.circular(Rad.md), boxShadow: _glow),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w800, color: C.txt)),
+        const SizedBox(height: 14),
+        child,
+      ]),
+    );
+  }
+
+  Widget _topWritersContent() {
+    return FutureBuilder<List<TopWriterEntry>>(
+      future: MagazineRepository.instance.topWriters(),
+      builder: (context, snap) {
+        final writers = (snap.data ?? const <TopWriterEntry>[]);
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const SizedBox(height: 20, width: 20,
+              child: CircularProgressIndicator(strokeWidth: 2));
+        }
+        if (writers.isEmpty) {
+          return Text('No published articles yet.',
+              style: GoogleFonts.inter(fontSize: 10.5, color: C.muted, height: 1.3));
+        }
+        final top = writers.first;
+        return Row(children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(color: C.goldp, shape: BoxShape.circle),
+            child: Text('#1', style: GoogleFonts.sora(
+                fontSize: 9.5, fontWeight: FontWeight.w800, color: C.gold)),
+          ),
+          const SizedBox(width: 8),
+          UserAvatar(
+            initials: top.authorName.trim().isEmpty ? '?' : top.authorName.trim()[0].toUpperCase(),
+            photoUrl: top.authorPhotoUrl, radius: 14,
+          ),
+          const SizedBox(width: 8),
           Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4))
-                ],
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Recent Announcements',
-                          style: TextStyle(
-                              fontSize: 11, fontWeight: FontWeight.bold)),
-                      Text('View All',
-                          style: TextStyle(
-                              fontSize: 11, color: Colors.blue.shade600)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
-                            shape: BoxShape.circle),
-                        child: Icon(Icons.campaign,
-                            color: Colors.blue.shade300, size: 20),
-                      ),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text(
-                          'No announcements yet. Magazine posts, paper uploads, and club news will show up here.',
-                          style: TextStyle(fontSize: 9, color: Colors.grey),
-                        ),
-                      )
-                    ],
-                  )
-                ],
-              ),
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  // ── Recommended For You ─────────────────────────────────────────────────
-  Widget _buildRecommendedRow() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          _recommendedCard(
-              'Document',
-              'Additional Mathematics\n2015 Paper 2',
-              'PDF • 2.4 MB',
-              Colors.purple.shade50,
-              Colors.purple),
-          _recommendedCard(
-              'Document',
-              '2018_AdditionalMathem\natics_Paper1.docx',
-              'DOCX • 1.7 MB',
-              Colors.amber.shade50,
-              Colors.amber),
-          _recommendedCard(
-              'Book',
-              'A Military History of\nAfrica',
-              'PDF • 3.8 MB',
-              Colors.blue.shade50,
-              Colors.blue),
-          _recommendedCard(
-              'Past Paper',
-              'The Atom\nQuestions',
-              'PDF • 1.2 MB',
-              Colors.green.shade50,
-              Colors.green),
-        ],
-      ),
-    );
-  }
-
-  Widget _recommendedCard(String type, String title, String subtitle,
-      Color bgColor, Color iconColor) {
-    return Container(
-      margin: const EdgeInsets.only(right: 12),
-      width: 150,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.description, size: 12, color: iconColor),
-              const SizedBox(width: 4),
-              Text(type,
-                  style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: iconColor)),
-            ],
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(top.authorName, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: C.txt)),
+              Text('${top.totalReads} reads . ${top.totalComments} comments',
+                  style: GoogleFonts.inter(fontSize: 9, color: C.muted)),
+            ]),
           ),
+          const Icon(Icons.emoji_events_rounded, color: C.gold, size: 16),
+        ]);
+      },
+    );
+  }
+
+  Widget _announcementsContent() {
+    return StreamBuilder<List<Announcement>>(
+      stream: AnnouncementRepository.instance.watchAnnouncements(schoolId: _u?.schoolId),
+      builder: (context, snap) {
+        final items = (snap.data ?? const <Announcement>[]);
+        if (items.isEmpty) {
+          return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: C.primaryBg, shape: BoxShape.circle),
+              child: const Icon(Icons.campaign_rounded, color: C.primary, size: 20),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(
+                'No announcements yet. Magazine posts, paper uploads, and club '
+                'news will show up here.',
+                style: GoogleFonts.inter(fontSize: 9, color: C.muted, height: 1.3))),
+          ]);
+        }
+        final a = items.first;
+        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: C.primaryBg, shape: BoxShape.circle),
+            child: const Icon(Icons.campaign_rounded, color: C.primary, size: 20),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(a.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(fontSize: 10.5, color: C.txt, height: 1.3)),
+              const SizedBox(height: 3),
+              Text(_timeAgo(a.date), style: GoogleFonts.inter(fontSize: 9, color: C.muted)),
+            ]),
+          ),
+        ]);
+      },
+    );
+  }
+
+  String _timeAgo(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 60) return '${diff.inMinutes.clamp(1, 59)} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hours ago';
+    if (diff.inDays < 7) return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  // -- Recommended for You -- mix of Library + Courses --------------------
+  Widget _recommendedRow(BuildContext context) {
+    return FutureBuilder<List<Object>>(
+      future: _loadRecommended(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const SizedBox(height: 140,
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+        }
+        final items = snap.data ?? const [];
+        if (items.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text('Nothing to recommend yet -- Library and Courses are still empty.',
+                style: GoogleFonts.inter(fontSize: 12, color: C.muted)),
+          );
+        }
+        return SizedBox(
+          height: 140,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (_, i) {
+              final it = items[i];
+              if (it is LibraryItem) return _recommendedLibraryCard(context, it);
+              if (it is Course) return _recommendedCourseCard(context, it);
+              return const SizedBox.shrink();
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Future<List<Object>> _loadRecommended() async {
+    final libraryItems = await LibraryRepository.instance.recent(schoolId: _u?.schoolId, limit: 4);
+    List<Course> courses = [];
+    if (!_isGuest && _u!.schoolId != null) {
+      try {
+        courses = await CourseRepository.instance.watchAll(_u!.schoolId!).first
+            .timeout(const Duration(seconds: 3));
+        courses = courses.take(4).toList();
+      } catch (_) {
+        courses = [];
+      }
+    }
+    return [...libraryItems, ...courses];
+  }
+
+  Widget _recommendedLibraryCard(BuildContext context, LibraryItem item) {
+    return GestureDetector(
+      onTap: () => _open(context, const _LibraryDest()),
+      child: Container(
+        width: 150,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: C.purb, borderRadius: BorderRadius.circular(Rad.md)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.description_rounded, size: 12, color: C.pur),
+            const SizedBox(width: 4),
+            Text(item.type.name, style: GoogleFonts.inter(
+                fontSize: 10, fontWeight: FontWeight.w600, color: C.pur)),
+          ]),
           const SizedBox(height: 8),
-          Text(title,
-              style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  height: 1.2)),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(subtitle,
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
-              Icon(Icons.bookmark, size: 16, color: iconColor)
-            ],
-          )
-        ],
+          Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, height: 1.2)),
+          const Spacer(),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Expanded(child: Text(item.size, style: GoogleFonts.inter(fontSize: 10, color: C.txt2))),
+            const Icon(Icons.bookmark_outline_rounded, size: 16, color: C.pur),
+          ]),
+        ]),
       ),
     );
   }
 
-  // ── Bottom Navigation ───────────────────────────────────────────────────
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -4))
-        ],
-      ),
-      child: BottomNavigationBar(
-        currentIndex: _bottomNavIndex,
-        onTap: (index) => setState(() => _bottomNavIndex = index),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue.shade700,
-        unselectedItemColor: Colors.grey.shade500,
-        selectedFontSize: 11,
-        unselectedFontSize: 11,
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        items: [
-          BottomNavigationBarItem(
-            icon: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(Icons.home),
-            ),
-            label: 'Home',
-          ),
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.menu_book), label: 'Library'),
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.school_outlined), label: 'Courses'),
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.school), label: 'Clubs'),
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline), label: 'Profile'),
-        ],
+  Widget _recommendedCourseCard(BuildContext context, Course course) {
+    return GestureDetector(
+      onTap: () => _open(context, const ComingSoonPage(title: 'Courses', icon: Icons.school_rounded)),
+      child: Container(
+        width: 150,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: C.blub, borderRadius: BorderRadius.circular(Rad.md)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.school_rounded, size: 12, color: C.blu),
+            const SizedBox(width: 4),
+            Text('Course', style: GoogleFonts.inter(
+                fontSize: 10, fontWeight: FontWeight.w600, color: C.blu)),
+          ]),
+          const SizedBox(height: 8),
+          Text(course.name, maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, height: 1.2)),
+          const Spacer(),
+          Text(course.code, style: GoogleFonts.inter(fontSize: 10, color: C.txt2)),
+        ]),
       ),
     );
   }
+}
+
+// Marker widget used only to select LibraryPage in _open().
+class _LibraryDest extends StatelessWidget {
+  const _LibraryDest();
+  @override Widget build(BuildContext context) => const SizedBox.shrink();
 }

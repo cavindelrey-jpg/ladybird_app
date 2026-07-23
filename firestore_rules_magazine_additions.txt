@@ -1,0 +1,40 @@
+// Merge into firestore.rules — additions for the reads/likes/bookmarks
+// subcollections the full MagazineRepository now uses.
+
+match /articles/{articleId} {
+  allow read: if true;
+  allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+  allow update, delete: if isSignedIn() &&
+    (resource.data.authorId == request.auth.uid || isAdminRole());
+
+  match /comments/{commentId} {
+    allow read: if true;
+    allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+  }
+
+  // One doc per unique reader — client only ever creates its own, never
+  // rewrites someone else's, so read-XP can't be farmed by re-reading.
+  match /reads/{uid} {
+    allow read: if isSignedIn() && request.auth.uid == uid;
+    allow create: if isSignedIn() && request.auth.uid == uid;
+  }
+
+  match /likes/{uid} {
+    allow read: if true;
+    allow create, delete: if isSignedIn() && request.auth.uid == uid;
+  }
+}
+
+// Bookmarks live under the user's own doc — already covered by your
+// users/{uid} subcollection rules if you allow a user full access to
+// their own subcollections. If not, add:
+match /users/{uid}/bookmarks/{articleId} {
+  allow read, write: if isSignedIn() && request.auth.uid == uid;
+}
+
+// NOTE ON INDEXES: watchFeedFromAuthors, watchLocalFeed, watchFeaturedOnce,
+// and settlePendingXp's query all combine a where() with an orderBy() (or
+// two where()s) on different fields — Firestore will refuse these until a
+// composite index exists. The FIRST time each query runs, the debug
+// console prints an error with a direct "create index" link — just click
+// through each one the first time you hit that screen in the app.

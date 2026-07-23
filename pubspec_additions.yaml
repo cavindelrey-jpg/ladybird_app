@@ -1,21 +1,11 @@
-# Add to your existing pubspec.yaml dependencies (you already have
-# firebase_core, firebase_auth, cloud_firestore, firebase_storage,
-# provider, google_fonts, shared_preferences, path_provider — these are
-# the NEW ones this drop needs):
+# Add to your existing pubspec.yaml dependencies (firebase_storage,
+# cloud_firestore, firebase_auth, google_fonts already present):
 
   google_sign_in: ^6.2.1
-  image_picker: ^1.1.2
+  url_launcher: ^6.3.1
 
-# Then: flutter pub get
+# flutter pub get
 
-# ── Android — Google Sign-In needs your SHA-1 registered ──
+# Google Sign-In needs your Android SHA-1 registered in Firebase Console
+# (Project Settings > Your Android app > Add fingerprint):
 #   cd android && ./gradlew signingReport
-# Copy the SHA-1 under "Add fingerprint" in Firebase Console >
-# Project Settings > Your Android app. Without this, Google Sign-In
-# fails silently on Android release/signed builds (debug usually works
-# once the debug SHA-1 is added).
-#
-# ── iOS — add the reversed client ID URL scheme ──
-# In ios/Runner/Info.plist, add a CFBundleURLTypes entry with the
-# REVERSED_CLIENT_ID from GoogleService-Info.plist. (Skip if you're
-# Android-only for now.)

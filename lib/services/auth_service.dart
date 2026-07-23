@@ -11,7 +11,7 @@ class AuthService {
 
   final fb.FirebaseAuth _auth = fb.FirebaseAuth.instance;
   final FirebaseFirestore _db  = FirebaseFirestore.instance;
-  final GoogleSignIn _google = GoogleSignIn();
+  final GoogleSignIn _google = GoogleSignIn(scopes: ['email', 'profile']);
 
   fb.User? get firebaseUser   => _auth.currentUser;
   Stream<fb.User?> get authStateChanges => _auth.authStateChanges();
@@ -28,56 +28,13 @@ class AuthService {
     final u = _auth.currentUser;
     if (u == null) return Stream.value(null);
     return _db.collection(AppConstants.colUsers).doc(u.uid).snapshots().map(
-            (doc) => doc.exists ? AppUser.fromFirestore(u.uid, doc.data()!) : null);
-  }
-
-  /// Sends a Firebase password-reset email. Throws on failure (invalid
-  /// email format, network error, etc.) so the caller can show a message.
-  /// Note: for unregistered emails Firebase Auth still resolves normally
-  /// (no user-enumeration signal) unless email enumeration protection is
-  /// off on the project, in which case it throws 'user-not-found'.
-  Future<void> sendPasswordResetEmail(String email) async {
-    await _auth.sendPasswordResetEmail(email: email.trim());
-  }
-
-  /// Changes the signed-in user's password. Firebase requires a recent
-  /// sign-in for this operation, so we always reauthenticate with the
-  /// current password first — this also doubles as verifying the caller
-  /// actually knows their current password before setting a new one.
-  /// Throws on failure (wrong current password -> 'wrong-password' /
-  /// 'invalid-credential', weak new password -> 'weak-password', or no
-  /// email/password provider on this account -> 'no-password-provider').
-  Future<void> changePassword({
-    required String currentPassword,
-    required String newPassword,
-  }) async {
-    final user = _auth.currentUser;
-    if (user == null || user.email == null) {
-      throw Exception('No signed-in email account found.');
-    }
-    final hasPasswordProvider = user.providerData
-        .any((p) => p.providerId == 'password');
-    if (!hasPasswordProvider) {
-      throw Exception(
-          'This account signed in with Google and has no password to change.');
-    }
-    final cred = fb.EmailAuthProvider.credential(
-      email: user.email!,
-      password: currentPassword,
-    );
-    await user.reauthenticateWithCredential(cred);
-    await user.updatePassword(newPassword);
+        (doc) => doc.exists ? AppUser.fromFirestore(u.uid, doc.data()!) : null);
   }
 
   Future<AppUser?> signIn({required String email, required String password}) async {
-    final cred = await _auth
-        .signInWithEmailAndPassword(email: email, password: password)
-        .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
-            'Sign in is taking too long. Check your connection and try again.'));
+    final cred = await _auth.signInWithEmailAndPassword(email: email, password: password);
     final uid  = cred.user!.uid;
-    final doc  = await _db.collection(AppConstants.colUsers).doc(uid).get()
-        .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
-            'Could not load your account. Check your connection and try again.'));
+    final doc  = await _db.collection(AppConstants.colUsers).doc(uid).get();
     if (!doc.exists) return null;
     final user = AppUser.fromFirestore(uid, doc.data()!);
     if (user.status == AccountStatus.suspended) {
@@ -102,12 +59,10 @@ class AuthService {
   }
 
   /// Runs the Google account picker and signs in. Returns null if the user
-  /// cancels the picker — that's a normal outcome, not an error, so the
-  /// caller should just stay on the current screen.
+  /// cancels the picker — a normal outcome, not an error.
   Future<AppUser?> signInWithGoogle() async {
     final googleUser = await _google.signIn();
-    if (googleUser == null) return null; // user cancelled the picker
-
+    if (googleUser == null) return null;
     final googleAuth = await googleUser.authentication;
     final credential = fb.GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
@@ -179,13 +134,34 @@ class AuthService {
     await _auth.signOut();
   }
 
-  /// Increments a Quick Access tap count for the signed-in user. Fire-and-
-  /// forget by design — never blocks navigation on the write.
-  Future<void> recordQuickAccessTap(String userId, String featureId) {
-    if (userId.isEmpty) return Future.value();
-    return _db.collection(AppConstants.colUsers).doc(userId).set({
-      'quickAccessUsage': {featureId: FieldValue.increment(1)},
-    }, SetOptions(merge: true));
+  /// Re-authenticates with the current password, then sets the new one.
+  /// Throws with a user-facing message on wrong-password / weak-password.
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) {
+      throw Exception('You must be signed in with an email account to change your password.');
+    }
+    final cred = fb.EmailAuthProvider.credential(email: user.email!, password: currentPassword);
+    try {
+      await user.reauthenticateWithCredential(cred);
+      await user.updatePassword(newPassword);
+    } on fb.FirebaseAuthException catch (e) {
+      if (e.code == 'wrong-password') throw Exception('Current password is incorrect.');
+      if (e.code == 'weak-password') throw Exception('New password is too weak.');
+      throw Exception(e.message ?? 'Failed to change password.');
+    }
+  }
+
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+    } on fb.FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') throw Exception('No account found for that email.');
+      throw Exception(e.message ?? 'Failed to send reset email.');
+    }
   }
 
   Future<void> updateUser(AppUser user, Map<String, dynamic> fields) async {
@@ -196,4 +172,67 @@ class AuthService {
   static Future<void> markFirstLoginComplete(String userId) async =>
       FirebaseFirestore.instance.collection(AppConstants.colUsers)
           .doc(userId).update({'isFirstLogin': false});
+
+  // ── Gamification (real, minimal) ───────────────────────────────────────
+  // Called once per Home page load. Decides — from the user's OWN last
+  // activity date — whether the streak continues, resets, or is a no-op
+  // for today. Never fabricates a number; every value here traces back to
+  // an actual recorded day of app use.
+
+  static String _dateKey(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// The 7 date keys (Mon..Sun) for the calendar week containing [d].
+  static List<String> _weekKeys(DateTime d) {
+    final monday = d.subtract(Duration(days: d.weekday - 1));
+    return List.generate(7, (i) => _dateKey(monday.add(Duration(days: i))));
+  }
+
+  Future<void> recordDailyActivity(AppUser user) async {
+    if (user.id.isEmpty) return; // guest — nothing to record
+    final now = DateTime.now();
+    final today = _dateKey(now);
+    if (user.lastActiveDate == today) return; // already recorded today
+
+    final yesterday = _dateKey(now.subtract(const Duration(days: 1)));
+    final newStreak = (user.lastActiveDate == yesterday) ? user.streakDays + 1 : 1;
+
+    final thisWeek = _weekKeys(now).toSet();
+    final carriedOver = user.weekActivityDates.where(thisWeek.contains);
+    final newWeekDates = {...carriedOver, today}.toList()..sort();
+
+    await _db.collection(AppConstants.colUsers).doc(user.id).set({
+      'lastActiveDate': today,
+      'streakDays': newStreak,
+      'weekActivityDates': newWeekDates,
+    }, SetOptions(merge: true));
+  }
+
+  /// The only entry point for awarding XP — every call site should be a
+  /// decided source (quiz answer, magazine read, daily challenge), never
+  /// an arbitrary bonus.
+  Future<void> addXp(String userId, int amount) async {
+    if (userId.isEmpty || amount == 0) return;
+    await _db.collection(AppConstants.colUsers).doc(userId).set({
+      'xpTotal': FieldValue.increment(amount),
+    }, SetOptions(merge: true));
+  }
+
+  /// Real, user-driven "Continue Reading" position — set by
+  /// LibraryReaderPage whenever the person turns a page.
+  Future<void> setContinueReading(
+    String userId, {
+    required String itemId,
+    required String title,
+    required int page,
+    int? totalPages,
+  }) async {
+    if (userId.isEmpty) return;
+    await _db.collection(AppConstants.colUsers).doc(userId).set({
+      'continueReadingItemId': itemId,
+      'continueReadingTitle': title,
+      'continueReadingPage': page,
+      'continueReadingTotalPages': totalPages,
+    }, SetOptions(merge: true));
+  }
 }

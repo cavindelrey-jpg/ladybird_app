@@ -1,7 +1,6 @@
 // lib/models/app_user.dart
 // 6-tier role system. Fully backward-compatible with prior 4-role enum.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum UserRole {
   guest,          // unauthenticated / restricted
@@ -53,18 +52,32 @@ class AppUser {
   /// Learner). Free text, not tied to classLevel (which is school-scoped).
   final String educationLevel;
 
-  /// Per-feature tap counts (QuickAccessFeature.id -> count), used to rank
-  /// the 4-icon Quick Access row by real usage frequency.
+  /// Per-feature tap counts — kept for potential future usage-ranked
+  /// surfaces; Quick Access itself is now a fixed set (see Home).
   final Map<String, int> quickAccessUsage;
 
-  /// Spendable XP — decreases when a past paper is unlocked via XP.
-  final int xpBalance;
-  /// Never decreases — leaderboard/rank display only, so spending XP
-  /// never hurts a student's rank.
-  final int lifetimeXP;
-  /// Resets to 0 once xpEarnedTodayDate is stale (see XpRepository).
-  final int xpEarnedToday;
-  final DateTime? xpEarnedTodayDate;
+  // ── Gamification (real, minimal — no fabricated numbers) ──────────────
+  /// Total XP earned — only incremented through a decided XP source
+  /// (quiz answers, magazine reads, daily challenge).
+  final int xpTotal;
+
+  /// Consecutive days the app has been opened. Recomputed by
+  /// AuthService.recordDailyActivity() on each Home page load.
+  final int streakDays;
+
+  /// yyyy-MM-dd of the last recorded activity — decides whether today
+  /// continues, resets, or is a no-op for the streak.
+  final String? lastActiveDate;
+
+  /// yyyy-MM-dd dates active THIS calendar week (Mon–Sun), trimmed weekly —
+  /// drives the real M/T/W/T/F/S/S dots on Home.
+  final List<String> weekActivityDates;
+
+  // ── Continue Reading (real, minimal — see LibraryReaderPage) ───────────
+  final String? continueReadingItemId;
+  final String? continueReadingTitle;
+  final int continueReadingPage;
+  final int? continueReadingTotalPages;
 
   const AppUser({
     required this.id,
@@ -86,10 +99,14 @@ class AppUser {
     this.bio = '',
     this.educationLevel = '',
     this.quickAccessUsage = const {},
-    this.xpBalance = 0,
-    this.lifetimeXP = 0,
-    this.xpEarnedToday = 0,
-    this.xpEarnedTodayDate,
+    this.xpTotal = 0,
+    this.streakDays = 0,
+    this.lastActiveDate,
+    this.weekActivityDates = const [],
+    this.continueReadingItemId,
+    this.continueReadingTitle,
+    this.continueReadingPage = 1,
+    this.continueReadingTotalPages,
   });
 
   // ── Identity helpers ───────────────────────────────────────────────────────
@@ -187,10 +204,14 @@ class AppUser {
     bio: d['bio'] ?? '',
     educationLevel: d['educationLevel'] ?? '',
     quickAccessUsage: Map<String, int>.from(d['quickAccessUsage'] ?? {}),
-    xpBalance: (d['xpBalance'] as num?)?.toInt() ?? 0,
-    lifetimeXP: (d['lifetimeXP'] as num?)?.toInt() ?? 0,
-    xpEarnedToday: (d['xpEarnedToday'] as num?)?.toInt() ?? 0,
-    xpEarnedTodayDate: (d['xpEarnedTodayDate'] as Timestamp?)?.toDate(),
+    xpTotal: (d['xpTotal'] as num?)?.toInt() ?? 0,
+    streakDays: (d['streakDays'] as num?)?.toInt() ?? 0,
+    lastActiveDate: d['lastActiveDate'],
+    weekActivityDates: List<String>.from(d['weekActivityDates'] ?? []),
+    continueReadingItemId: d['continueReadingItemId'],
+    continueReadingTitle: d['continueReadingTitle'],
+    continueReadingPage: (d['continueReadingPage'] as num?)?.toInt() ?? 1,
+    continueReadingTotalPages: (d['continueReadingTotalPages'] as num?)?.toInt(),
   );
 
   /// Handles both old 4-role values and new 6-role values stored in Firestore.
@@ -205,7 +226,7 @@ class AppUser {
   }
 
   Map<String, dynamic> toFirestore() => {
-    'name': name, 'nameLower': name.toLowerCase(), 'email': email, 'photoUrl': photoUrl,
+    'name': name, 'email': email, 'photoUrl': photoUrl,
     'role': role.name, 'roleName': roleName,
     'accountType': accountType.name, 'status': status.name,
     'schoolId': schoolId, 'departmentId': departmentId,
@@ -217,10 +238,14 @@ class AppUser {
     'bio': bio,
     'educationLevel': educationLevel,
     'quickAccessUsage': quickAccessUsage,
-    'xpBalance': xpBalance,
-    'lifetimeXP': lifetimeXP,
-    'xpEarnedToday': xpEarnedToday,
-    'xpEarnedTodayDate': xpEarnedTodayDate != null ? Timestamp.fromDate(xpEarnedTodayDate!) : null,
+    'xpTotal': xpTotal,
+    'streakDays': streakDays,
+    'lastActiveDate': lastActiveDate,
+    'weekActivityDates': weekActivityDates,
+    'continueReadingItemId': continueReadingItemId,
+    'continueReadingTitle': continueReadingTitle,
+    'continueReadingPage': continueReadingPage,
+    'continueReadingTotalPages': continueReadingTotalPages,
   };
 
   AppUser copyWith({
@@ -231,7 +256,10 @@ class AppUser {
     String? classLevel, String? subject, List<String>? courseIds,
     bool? isFirstLogin, bool? adminAccessRevoked, bool? isPremium,
     String? bio, String? educationLevel, Map<String, int>? quickAccessUsage,
-    int? xpBalance, int? lifetimeXP, int? xpEarnedToday, DateTime? xpEarnedTodayDate,
+    int? xpTotal, int? streakDays, String? lastActiveDate,
+    List<String>? weekActivityDates,
+    String? continueReadingItemId, String? continueReadingTitle,
+    int? continueReadingPage, int? continueReadingTotalPages,
   }) => AppUser(
     id: id ?? this.id, name: name ?? this.name,
     email: email ?? this.email, photoUrl: photoUrl ?? this.photoUrl,
@@ -249,9 +277,13 @@ class AppUser {
     bio: bio ?? this.bio,
     educationLevel: educationLevel ?? this.educationLevel,
     quickAccessUsage: quickAccessUsage ?? this.quickAccessUsage,
-    xpBalance: xpBalance ?? this.xpBalance,
-    lifetimeXP: lifetimeXP ?? this.lifetimeXP,
-    xpEarnedToday: xpEarnedToday ?? this.xpEarnedToday,
-    xpEarnedTodayDate: xpEarnedTodayDate ?? this.xpEarnedTodayDate,
+    xpTotal: xpTotal ?? this.xpTotal,
+    streakDays: streakDays ?? this.streakDays,
+    lastActiveDate: lastActiveDate ?? this.lastActiveDate,
+    weekActivityDates: weekActivityDates ?? this.weekActivityDates,
+    continueReadingItemId: continueReadingItemId ?? this.continueReadingItemId,
+    continueReadingTitle: continueReadingTitle ?? this.continueReadingTitle,
+    continueReadingPage: continueReadingPage ?? this.continueReadingPage,
+    continueReadingTotalPages: continueReadingTotalPages ?? this.continueReadingTotalPages,
   );
 }

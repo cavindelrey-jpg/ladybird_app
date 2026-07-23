@@ -109,9 +109,9 @@ class _GuestShellState extends State<_GuestShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      const UniversalHomePage(user: null),
+      const UniversalHomePage(),
       _GuestGateTab(onTap: () => _guestGate(context), label: 'Clubs'),
-      const UniversalHomePage(user: null),
+      const UniversalHomePage(),
       _GuestGateTab(onTap: () => _guestGate(context), label: 'Messages'),
       _GuestGateTab(onTap: () => _guestGate(context), label: 'Profile'),
     ];
@@ -383,7 +383,7 @@ class _HomeShellState extends State<HomeShell> {
           ])));
     }
     switch (def.label) {
-      case 'Home':     return UniversalHomePage(user: u);
+      case 'Home':     return const UniversalHomePage();
       case 'Library':  return AcademicContentPage(user: u);
       case 'Magazine': return MagazineFeedPage(user: u);
       case 'Courses':  return CoursesMarketplacePage(user: u);

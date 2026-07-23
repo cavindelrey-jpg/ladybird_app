@@ -204,7 +204,7 @@ class _ResourceCard extends StatelessWidget {
                     maxLines: 2, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 4),
                 Row(children: [
-                  Icon(Icons.visibility_outlined, size: 10, color: C.muted),
+                  const Icon(Icons.visibility_outlined, size: 10, color: C.muted),
                   const SizedBox(width: 3),
                   Text('${item.views}', style: GoogleFonts.inter(
                       fontSize: 10, color: C.muted)),

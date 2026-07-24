@@ -152,28 +152,42 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   Widget _greetingAndStats() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(
-          width: 116,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        // Left portion (~39% of row, per your spec: avatar 135px + name
+        // block 215px out of 945px total) -- avatar and name SIDE BY SIDE,
+        // both vertically centered together. Previously these were
+        // stacked (avatar on top, name below) -- that was the actual bug.
+        Expanded(
+          flex: 39,
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             _avatar(),
-            const SizedBox(height: 8),
-            Text(_isGuest ? 'Browsing as' : 'Welcome back,',
-                style: GoogleFonts.inter(fontSize: 12.5, color: C.txt2)),
-            Text(_isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name),
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.sora(fontSize: 17, fontWeight: FontWeight.w800, color: C.txt)),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(12)),
-              child: Text(_isGuest ? 'Guest' : _u!.roleLabel,
-                  style: GoogleFonts.sora(fontSize: 10.5, fontWeight: FontWeight.w700, color: C.primary)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                Text(_isGuest ? 'Browsing as' : 'Welcome back,',
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(fontSize: 12.5, color: C.txt2)),
+                Text(_isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name),
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.sora(fontSize: 16.5, fontWeight: FontWeight.w800, color: C.txt)),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(12)),
+                  child: Text(_isGuest ? 'Guest' : _u!.roleLabel,
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.sora(fontSize: 10.5, fontWeight: FontWeight.w700, color: C.primary)),
+                ),
+              ]),
             ),
           ]),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 12),
+        // Right portion (~53% of row, per spec: 505px of 945px) -- merged
+        // stat card, week dots directly beneath it.
         Expanded(
+          flex: 53,
           child: Column(children: [
             _statCard(),
             const SizedBox(height: 10),

@@ -113,7 +113,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           onPressed: () => Scaffold.of(ctx).openDrawer(),
         )),
         const SizedBox(width: 4),
-        const AcademiaLogo(size: 34),
+        AcademiaLogo(size: 34),
         const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -154,7 +154,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         SizedBox(
-          width: 128,
+          width: 116,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _avatar(),
             const SizedBox(height: 8),
@@ -175,15 +175,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         const SizedBox(width: 10),
         Expanded(
           child: Column(children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              _statPill(Icons.local_fire_department_rounded, C.org,
-                  _isGuest ? '0' : '${_u!.streakDays}', 'Day Streak'),
-              _statPill(Icons.star_rounded, C.gold,
-                  _isGuest ? '0' : '${_u!.xpTotal}', 'XP Points'),
-              _statPill(Icons.menu_book_rounded, C.pur,
-                  _isGuest ? '0' : '${_u!.courseIds.length}', 'Courses'),
-            ]),
-            const SizedBox(height: 12),
+            _statCard(),
+            const SizedBox(height: 10),
             _weekDots(),
           ]),
         ),
@@ -193,30 +186,57 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
 
   Widget _avatar() {
     if (!_isGuest && (_u!.photoUrl ?? '').isNotEmpty) {
-      return CircleAvatar(radius: 28, backgroundImage: NetworkImage(_u!.photoUrl!));
+      return CircleAvatar(radius: 30, backgroundImage: NetworkImage(_u!.photoUrl!));
     }
     return Container(
-      width: 56, height: 56,
+      width: 60, height: 60,
       decoration: BoxDecoration(
         color: C.surf3, shape: BoxShape.circle,
         border: Border.all(color: C.bdr, width: 1.5),
       ),
-      child: const Icon(Icons.person_rounded, size: 30, color: C.muted),
+      child: Icon(Icons.person_rounded, size: 32, color: C.muted),
     );
   }
 
-  Widget _statPill(IconData icon, Color iconColor, String value, String label) {
+  /// One merged card, three segments split by thin dividers -- matches
+  /// your spec sheet's "Stats card (whole white card)" instead of three
+  /// separate floating pills.
+  Widget _statCard() {
+    final segments = [
+      (Icons.local_fire_department_rounded, C.org, _isGuest ? '0' : '${_u!.streakDays}', 'Day Streak'),
+      (Icons.star_rounded, C.gold, _isGuest ? '0' : '${_u!.xpTotal}', 'XP Points'),
+      (Icons.menu_book_rounded, C.pur, _isGuest ? '0' : '${_u!.courseIds.length}', 'Courses'),
+    ];
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+      height: 64,
       decoration: BoxDecoration(
-        color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), boxShadow: _glow),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, color: iconColor, size: 18),
+          color: C.surf, borderRadius: BorderRadius.circular(16), boxShadow: _glow),
+      child: Row(children: [
+        for (var i = 0; i < segments.length; i++) ...[
+          if (i > 0) Container(width: 1, height: 36, color: C.bdr2),
+          Expanded(child: _statSegment(segments[i])),
+        ],
+      ]),
+    );
+  }
+
+  Widget _statSegment((IconData, Color, String, String) segment) {
+    final (icon, color, value, label) = segment;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(icon, color: color, size: 17),
         const SizedBox(width: 5),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Text(value, style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w800, color: C.txt)),
-          Text(label, style: GoogleFonts.inter(fontSize: 8.5, color: C.txt2)),
-        ]),
+        Flexible(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.sora(fontSize: 14.5, fontWeight: FontWeight.w800, color: C.txt)),
+            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(fontSize: 8.5, color: C.txt2)),
+          ]),
+        ),
+        const SizedBox(width: 2),
+        const Icon(Icons.chevron_right_rounded, size: 13, color: C.muted),
       ]),
     );
   }
@@ -237,14 +257,14 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       final isToday = i == todayIdx;
       return Column(children: [
         done
-            ? const Icon(Icons.check_circle_rounded, color: C.gold, size: 17)
+            ? const Icon(Icons.check_circle_rounded, color: C.gold, size: 19)
             : Container(
-                width: 13, height: 13,
+                width: 16, height: 16,
                 decoration: BoxDecoration(
                   color: isToday ? C.bdr : C.bdr2, shape: BoxShape.circle),
               ),
         const SizedBox(height: 3),
-        Text(labels[i], style: GoogleFonts.inter(fontSize: 9.5, color: C.txt2)),
+        Text(labels[i], style: GoogleFonts.inter(fontSize: 10, color: C.txt2)),
       ]);
     }));
   }
@@ -454,15 +474,13 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   void _open(BuildContext context, Widget destResolver) {
-    if (_isGuest) {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ComingSoonPage(
-        title: 'Sign in required',
-        subtitle: 'Create a free account to open this section.',
-        icon: Icons.lock_outline_rounded,
-      )));
-      return;
-    }
-    final page = destResolver is _LibraryDest ? LibraryPage(user: _u!) : destResolver;
+    // Guests browse read-only content freely — only actions that WRITE
+    // data (liking, commenting, bookmarking, the Daily Challenge) ask for
+    // sign-in, and those already do it inline where the action happens
+    // rather than blocking navigation here.
+    final page = destResolver is _LibraryDest
+        ? LibraryPage(user: _u ?? AppUser.guest())
+        : destResolver;
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 
@@ -705,7 +723,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         return Row(children: [
           Container(
             padding: const EdgeInsets.all(6),
-            decoration: const BoxDecoration(color: C.goldp, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: C.goldp, shape: BoxShape.circle),
             child: Text('#1', style: GoogleFonts.sora(
                 fontSize: 9.5, fontWeight: FontWeight.w800, color: C.gold)),
           ),
@@ -738,7 +756,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(color: C.primaryBg, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: C.primaryBg, shape: BoxShape.circle),
               child: const Icon(Icons.campaign_rounded, color: C.primary, size: 20),
             ),
             const SizedBox(width: 8),
@@ -752,7 +770,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: const BoxDecoration(color: C.primaryBg, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: C.primaryBg, shape: BoxShape.circle),
             child: const Icon(Icons.campaign_rounded, color: C.primary, size: 20),
           ),
           const SizedBox(width: 8),

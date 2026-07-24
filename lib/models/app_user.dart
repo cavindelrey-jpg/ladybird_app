@@ -182,6 +182,13 @@ class AppUser {
   bool get canManagePlatform   => isSuperAdmin;
 
   // ── Firestore ──────────────────────────────────────────────────────────────
+  /// Lightweight placeholder passed to pages that require a non-null
+  /// AppUser (e.g. LibraryPage) when a guest is browsing read-only content.
+  /// Never written to Firestore, never treated as a real account — id
+  /// stays empty so any accidental write attempt is a visible no-op
+  /// (AuthService methods already early-return on empty id).
+  factory AppUser.guest() => const AppUser(id: '', name: 'Guest');
+
   factory AppUser.fromFirestore(String id, Map<String, dynamic> d) => AppUser(
     id: id,
     name: d['name'] ?? '',

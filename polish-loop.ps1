@@ -3,16 +3,16 @@
 # with no WSL/Git Bash required.
 #
 # Run from the project root (same folder as pubspec.yaml and CLAUDE.md):
-#   .\polish-loop.ps1              # work through TASKS.md until empty
-#   .\polish-loop.ps1 5            # do at most 5 tasks this run
+#   .\polish-loop.ps1                                    # uses polish/TASKS.md
+#   .\polish-loop.ps1 -TasksFile polish/TASKS_PERF.md     # a different task file
+#   .\polish-loop.ps1 -MaxRuns 5                          # cap how many tasks this run
 #
 # Requires: claude CLI on PATH, flutter/dart on PATH, a git repo with a
 # CLEAN working tree (uncommitted changes are refused — commit or stash
 # first, same as the bash original).
 
-param([int]$MaxRuns = 999)
+param([int]$MaxRuns = 999, [string]$TasksFile = "polish/TASKS.md")
 
-$TasksFile = "polish/TASKS.md"
 $LogDir = "polish/logs"
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 

@@ -383,7 +383,7 @@ class _HomeShellState extends State<HomeShell> {
           ])));
     }
     switch (def.label) {
-      case 'Home':     return const UniversalHomePage();
+      case 'Home':     return UniversalHomePage(user: u);
       case 'Library':  return AcademicContentPage(user: u);
       case 'Magazine': return MagazineFeedPage(user: u);
       case 'Courses':  return CoursesMarketplacePage(user: u);

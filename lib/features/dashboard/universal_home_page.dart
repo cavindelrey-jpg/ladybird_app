@@ -33,11 +33,14 @@ import '../../repositories/daily_challenge_repository.dart';
 import '../../repositories/library_repository.dart';
 import '../../repositories/course_repository.dart';
 import '../../services/auth_service.dart';
+import '../../repositories/xp_repository.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/coming_soon_page.dart';
 import '../../pages/daily_challenge_page.dart';
 import '../library/library_page.dart';
 import '../library/library_reader_page.dart';
+import '../testing/xp_dashboard_page.dart';
+import '../testing/tests_subject_picker_page.dart';
 
 /// Local, slightly stronger "glow" shadow for this page's cards -- Gamma's
 /// own render used a near-invisible shadow (alpha .02-.03); the mockup
@@ -216,21 +219,39 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   /// your spec sheet's "Stats card (whole white card)" instead of three
   /// separate floating pills.
   Widget _statCard() {
-    final segments = [
-      (Icons.local_fire_department_rounded, C.org, _isGuest ? '0' : '${_u!.streakDays}', 'Day Streak'),
-      (Icons.star_rounded, C.gold, _isGuest ? '0' : '${_u!.xpTotal}', 'XP Points'),
-      (Icons.menu_book_rounded, C.pur, _isGuest ? '0' : '${_u!.courseIds.length}', 'Courses'),
-    ];
-    return Container(
-      height: 64,
-      decoration: BoxDecoration(
-          color: C.surf, borderRadius: BorderRadius.circular(16), boxShadow: _glow),
-      child: Row(children: [
-        for (var i = 0; i < segments.length; i++) ...[
-          if (i > 0) Container(width: 1, height: 36, color: C.bdr2),
-          Expanded(child: _statSegment(segments[i])),
-        ],
-      ]),
+    // XP is read live from XpRepository's real ledger (lifetimeXP) —
+    // AppUser.xpTotal is now deprecated (see xp_transaction.dart's file
+    // comment) and would just show a stale, disconnected number here.
+    return StreamBuilder<(int, int)>(
+      stream: _isGuest
+          ? const Stream<(int, int)>.empty()
+          : XpRepository.instance.watchBalance(_u!.id),
+      builder: (context, snap) {
+        final lifetimeXp = _isGuest ? 0 : (snap.data?.$2 ?? 0);
+        final segments = [
+          (Icons.local_fire_department_rounded, C.org, _isGuest ? '0' : '${_u!.streakDays}', 'Day Streak'),
+          (Icons.star_rounded, C.gold, '$lifetimeXp', 'XP Points'),
+          (Icons.menu_book_rounded, C.pur, _isGuest ? '0' : '${_u!.courseIds.length}', 'Courses'),
+        ];
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: _isGuest ? null : () => _open(context, XpDashboardPage(user: _u!)),
+            child: Container(
+              height: 64,
+              decoration: BoxDecoration(
+                  color: C.surf, borderRadius: BorderRadius.circular(16), boxShadow: _glow),
+              child: Row(children: [
+                for (var i = 0; i < segments.length; i++) ...[
+                  if (i > 0) Container(width: 1, height: 36, color: C.bdr2),
+                  Expanded(child: _statSegment(segments[i])),
+                ],
+              ]),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -482,7 +503,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         _open(context, const ComingSoonPage(title: 'Past Questions', icon: Icons.description_rounded));
         break;
       case 'Quizzes':
-        _open(context, const ComingSoonPage(title: 'Quizzes', icon: Icons.assignment_rounded));
+        _open(context, TestsSubjectPickerPage(user: _isGuest ? AppUser.guest() : _u!));
         break;
     }
   }

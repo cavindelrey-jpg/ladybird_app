@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../models/app_user.dart';
 import '../models/daily_challenge.dart';
+import '../models/xp_transaction.dart';
 import '../repositories/daily_challenge_repository.dart';
 import '../services/auth_service.dart';
 import '../core/result.dart';
@@ -37,11 +38,14 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
     );
     if (!mounted) return;
     if (result case Success(:final value)) {
-      await AuthService.instance.addXp(widget.user.id, value);
+      final awarded = await AuthService.instance.addXp(widget.user.id, value, XpSource.mcq);
       if (!mounted) return;
       Navigator.of(context).pop(true);
+      final message = awarded < value
+          ? 'Challenge complete — +$awarded XP (daily cap reached)'
+          : 'Challenge complete — +$awarded XP!';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Challenge complete — +$value XP!'),
+          content: Text(message),
           backgroundColor: C.grn));
     } else if (result case Failure(:final message)) {
       setState(() => _submitting = false);

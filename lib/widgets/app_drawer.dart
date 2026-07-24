@@ -27,6 +27,8 @@ import '../models/academic_content.dart';
 import '../features/magazine/magazine_feed_page.dart';
 import '../pages/notifications_page.dart';
 import '../pages/help_support_page.dart';
+import '../features/testing/tests_subject_picker_page.dart';
+import '../features/testing/grading_page.dart';
 
 class AppDrawer extends StatelessWidget {
   final AppUser? user;
@@ -82,6 +84,10 @@ class AppDrawer extends StatelessWidget {
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => MagazineFeedPage(user: user)));
                 }),
+                _item(context, Icons.quiz_rounded, 'Tests & Quizzes', () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => TestsSubjectPickerPage(user: user ?? AppUser.guest())));
+                }),
                 _item(context, Icons.chat_bubble_outline_rounded, 'Messages', () {
                   if (_isGuest) {
                     _goSignIn(context);
@@ -118,6 +124,13 @@ class AppDrawer extends StatelessWidget {
                 _item(context, Icons.help_outline_rounded, 'Help & Support',
                     () => Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => const HelpSupportPage()))),
+                if (!_isGuest && user!.hasMinRole(UserRole.lecturer)) ...[
+                  const Divider(height: 24, color: C.bdr2),
+                  _item(context, Icons.rate_review_rounded, 'Grading Queue', () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => GradingPage(grader: user!)));
+                  }),
+                ],
                 if (!_isGuest && user!.canManagePlatform) ...[
                   const Divider(height: 24, color: C.bdr2),
                   _item(context, Icons.admin_panel_settings_rounded, 'Admin Panel', () {

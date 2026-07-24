@@ -1,176 +1,139 @@
-# Academia Ingest Pipeline
+# Academia Ingest Pipeline — Cloud Function version
 
-A local script that takes a ZIP of past papers (clean or scanned), classifies each
-one with Claude, generates thumbnails, skips duplicates, and uploads everything
-straight to your Academia Firebase project (Firestore + Storage).
+Fully automatic: an admin uploads a ZIP into Firebase Storage (either through
+a future admin screen in the app, or manually via the Firebase Console for
+now) and this Function does everything else — no local script, no PC needed.
 
-Academia the app never touches this — it's a separate admin-only tool you run
-from your PC when you have a batch of papers to add.
+## How it works
+
+1. Admin uploads a ZIP of PDFs to Storage path: `admin_uploads/whatever.zip`
+2. This triggers `ingestPastPapers` automatically
+3. For each PDF inside:
+   - Checks file hash against everything already in Firestore → skips duplicates
+   - Extracts text (native first, Cloud Vision OCR fallback for scanned pages)
+   - Sends text to Claude → gets back title/subject/level/year/docType/etc.
+   - Generates a thumbnail from page 1
+   - Uploads PDF + thumbnail to Storage, creates a Firestore doc in `papers`
+4. Writes a report to the `ingestReports` collection (one doc per batch) with
+   a live status (`processing` → `complete`) and per-file results — you can
+   build a simple admin screen later that just listens to this collection
+5. Deletes the processed ZIP from `admin_uploads/` when done
 
 ---
 
-## 1. One-time setup
+## One-time setup
 
-Recommended location on your machine (next to, not inside, the Flutter project):
+### 1. Upgrade to Blaze plan
+Firebase Console → your project → bottom-left "Upgrade" → Blaze (pay-as-you-go).
+Required because this Function calls external APIs (Anthropic). Free tier
+limits still apply on top of Blaze — you won't be charged at low volume.
 
-```
-C:\Users\12406\academia_cameroon\ingest_tool\
-```
+### 2. Enable the Cloud Vision API
+Google Cloud Console → APIs & Services → Library → search "Cloud Vision API" → Enable.
+(Same project: academia-b1705)
 
-Put `ingest.py`, `requirements.txt`, and this README in that folder.
-
-### Install Python packages
-
+### 3. Install Firebase CLI (if not already)
 ```powershell
-cd C:\Users\12406\academia_cameroon\ingest_tool
-pip install -r requirements.txt
+npm install -g firebase-tools
+firebase login
 ```
 
-### Install Tesseract OCR (separate from the pip package)
+### 4. Place these files in your Flutter project
+Put the `functions/` folder, `firebase.json`, and `.firebaserc` at the **root**
+of `academia_cameroon` (as a sibling to `academia_app`, not inside it), e.g.:
 
-`pytesseract` is just a Python wrapper — it needs the actual Tesseract OCR
-program installed on Windows:
+```
+C:\Users\12406\academia_cameroon\
+  ├── academia_app\          (existing Flutter app)
+  ├── firebase.json          (new)
+  ├── .firebaserc             (new)
+  └── functions\              (new)
+      ├── index.js
+      └── package.json
+```
 
-1. Download the installer: https://github.com/UB-Mannheim/tesseract/wiki
-2. Run it, keep the default install path (usually `C:\Program Files\Tesseract-OCR\`)
-3. You'll pass this path to the script with `--tesseract-path`, e.g.:
-   ```
-   --tesseract-path "C:\Program Files\Tesseract-OCR\tesseract.exe"
-   ```
-   (or hardcode it once in `ingest.py` under `TESSERACT_CMD` near the top, so
-   you don't need to pass the flag every time)
+If you already have a `firebase.json`/`.firebaserc` from when you ran
+`firebase deploy --only firestore:rules`, merge the `functions` section into
+your existing `firebase.json` instead of overwriting it.
 
-### Firebase service account key
-
-You already generated one. **Because a copy of it was pasted into a chat
-conversation, rotate it before relying on this for real uploads:**
-
-1. Firebase Console → Project Settings → Service Accounts
-2. Manage service account permissions → find the key → delete/revoke it
-3. Generate a new one
-4. Save the new JSON file somewhere on your PC, e.g.:
-   ```
-   C:\Users\12406\academia_cameroon\ingest_tool\firebase-key.json
-   ```
-5. **Never commit this file to GitHub.** Add it to `.gitignore`.
-
-### Anthropic API key
-
-This script calls the Claude API directly (separate from your claude.ai
-subscription) to classify each paper. Get a key from console.anthropic.com,
-then set it as an environment variable before running the script:
-
+### 5. Install function dependencies
 ```powershell
-$env:ANTHROPIC_API_KEY = "sk-ant-your-key-here"
+cd C:\Users\12406\academia_cameroon\functions
+npm install
 ```
 
-(This only lasts for the current PowerShell session — you'll set it again
-next time you open a new terminal, or add it to your system environment
-variables permanently via Windows Settings.)
-
-### Find your Storage bucket name
-
-Firebase Console → Storage → the bucket name is shown at the top, usually:
-```
-academia-b1705.appspot.com
-```
-or newer projects use:
-```
-academia-b1705.firebasestorage.app
-```
-Check yours and use exactly that string.
-
----
-
-## 2. Running it
-
-Basic run:
-
+### 6. Set your Anthropic API key as a secret
+This keeps it out of your code entirely — Google Secret Manager stores it,
+the Function reads it at runtime.
 ```powershell
-python ingest.py --zip "C:\path\to\papers.zip" --key "firebase-key.json" --bucket "academia-b1705.appspot.com" --tesseract-path "C:\Program Files\Tesseract-OCR\tesseract.exe"
+firebase functions:secrets:set ANTHROPIC_API_KEY
 ```
+Paste your key (starts `sk-ant-...`) when prompted.
 
-**Dry run first (recommended)** — classifies everything and shows you what
-it *would* do, without touching Firebase at all:
-
+### 7. Deploy
 ```powershell
-python ingest.py --zip "C:\path\to\papers.zip" --key "firebase-key.json" --bucket "academia-b1705.appspot.com" --tesseract-path "C:\Program Files\Tesseract-OCR\tesseract.exe" --dry-run
+cd C:\Users\12406\academia_cameroon
+firebase deploy --only functions:ingestPastPapers
 ```
 
-Review the printed classifications and the JSON report it writes out. Once
-you're happy with the quality, run again without `--dry-run` for the real
-upload.
+First deploy takes a few minutes. You'll get a confirmation once it's live.
 
 ---
 
-## 3. What it does, step by step
+## Testing it
 
-1. Extracts the ZIP to a temp folder
-2. For each PDF:
-   - Computes a SHA-256 hash and checks it against every existing document
-     already in Firestore (and against other files in this same batch) —
-     skips exact duplicates
-   - Extracts text from the first 5 pages (enough for classification)
-   - If a page has little/no extractable text (i.e. it's a scanned photo),
-     automatically falls back to OCR for that page
-   - Sends the extracted text to Claude, which returns structured metadata:
-     title, subject, level (O-Level/A-Level), exam board, document type
-     (past_paper / marking_scheme / notes / assignment / other), year, paper
-     number, and a confidence rating
-   - Generates a JPEG thumbnail from page 1
-   - Uploads the PDF and thumbnail to Firebase Storage
-   - Creates a Firestore document in the `papers` collection with all
-     metadata + public URLs
-3. Anything with unparseable/empty text, or an unparseable Claude response,
-   gets marked `needs_review` instead of uploaded — you check these by hand
-4. Prints a summary (uploaded / duplicates / needs review / failed) and
-   writes a full JSON report to disk in the same folder
+**For now, before the in-app admin upload screen exists:**
+
+1. Firebase Console → Storage → create folder `admin_uploads` if it doesn't exist
+2. Upload a test ZIP (start with 3-5 papers, not 60, to verify everything works)
+3. Watch it process: Firebase Console → Functions → `ingestPastPapers` → Logs
+4. Check Firestore → `ingestReports` collection for the summary
+5. Check Firestore → `papers` collection for the new documents
+6. Check Storage → `papers/` and `thumbnails/` for the uploaded files
+
+Once you confirm this works end-to-end with a small batch, scale up to your
+full 40-60 paper ZIPs.
 
 ---
 
-## 4. Firestore schema this creates
+## Building the in-app upload screen (next step, when ready)
 
-Each document in the `papers` collection looks like:
+The Function is already wired to trigger on anything landing in
+`admin_uploads/*.zip` — so the Flutter side just needs:
+1. A superAdmin-only screen with a file picker restricted to `.zip`
+2. Upload the picked file to `admin_uploads/{filename}.zip` via
+   `FirebaseStorage.instance.ref(...)`
+3. Listen to the `ingestReports` collection (ordered by `startedAt` desc,
+   limit 1) with a `StreamBuilder` to show live progress and the final
+   summary — no polling needed, Firestore pushes updates automatically
 
-```json
-{
-  "title": "GCE A-Level Physics Paper 2 2023",
-  "subject": "Physics",
-  "level": "A-Level",
-  "examBoard": "GCE Board Cameroon",
-  "docType": "past_paper",
-  "year": "2023",
-  "paperNumber": "Paper 2",
-  "classificationConfidence": "high",
-  "fileUrl": "https://storage.googleapis.com/.../papers/...pdf",
-  "thumbnailUrl": "https://storage.googleapis.com/.../thumbnails/...jpg",
-  "fileHash": "sha256...",
-  "originalFilename": "Physics Paper 2 2023.pdf",
-  "uploadedAt": "<server timestamp>",
-  "uploadSource": "ingest_pipeline_v1"
-}
-```
-
-**Important:** this schema needs to line up with whatever your Flutter
-`PastPaper`/`Library` model expects in `academia_app`. If your existing
-Firestore documents use different field names (e.g. `subjectName` instead
-of `subject`), tell me and I'll adjust the script — better to fix this now
-than after uploading 60 papers with the wrong field names.
+Tell me when you want this screen built and I'll write the Flutter side to
+match your existing admin UI patterns (you already have `AdminAccountsPage`
+and similar as reference).
 
 ---
 
-## 5. Known limitations / things to watch
+## Cost awareness
 
-- Only reads the first 5 pages of each PDF for classification — fine for
-  exam papers, but a 40-page notes document will only be classified from
-  its intro
-- `pdf_blob.make_public()` makes files publicly readable via a direct URL
-  (no auth needed to view). If you'd rather use Firebase Storage's signed
-  URLs or rely on your existing Firestore security rules instead, tell me
-  and I'll switch this to use `download_url` tokens instead
-- No retry logic yet if a Claude API call or Firebase upload fails mid-batch
-  — a failed file is just logged and skipped, rerun the ZIP (duplicates
-  will auto-skip already-uploaded ones)
-- Duplicate detection is by exact file hash only — a rescanned copy of the
-  same paper won't be caught (would need a title/year similarity check on
-  top, doable later if this becomes a real problem)
+Rough cost per 50-paper batch:
+- Claude API: ~50 calls × ~2K input tokens × Sonnet pricing = a few cents
+- Cloud Vision OCR: only runs on scanned pages, ~$1.50 per 1,000 pages
+- Cloud Functions/Storage/Firestore: negligible at this volume, well within
+  Blaze free tier
+
+This is not going to generate a meaningful bill unless you're processing
+thousands of scanned pages per month.
+
+---
+
+## Known limitations (same as the local script had)
+
+- Only reads/OCRs the first few pages per PDF for classification
+- Duplicate detection is exact file-hash only — a rescanned copy of the same
+  paper won't be caught
+- `makePublic()` is used for simplicity — if you'd rather lock file access
+  behind your existing Firestore security rules, tell me and I'll switch to
+  signed URLs instead
+- Function timeout is set to 540s (9 min) — for very large batches
+  (100+ scanned PDFs needing OCR), you may need to split into smaller ZIPs
+  or I can restructure this as a queued/chunked job

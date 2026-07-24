@@ -1,13 +1,18 @@
 // lib/repositories/xp_repository.dart
-// Award/spend XP for the platform-wide economy (quizzes + magazine reads
-// on the earn side, past-paper/bundle unlocks on the spend side). Both
-// awardXp() and spendXp() run inside Firestore transactions — not just
-// spendXp as
-// literally specified — because the daily-cap check in awardXp has the
-// exact same read-then-write race condition spendXp does (two rapid
-// concurrent answers could both read "150/200 used today" and both
-// award their full amount, blowing past the cap). Same integrity bug,
-// same fix.
+// Award/spend XP for the platform-wide economy (quizzes, tests, streaks,
+// and magazine reads on the earn side, past-paper/bundle unlocks on the
+// spend side). Both awardXp() and spendXp() run inside Firestore
+// transactions — not just spendXp as literally specified — because the
+// daily-cap check in awardXp has the exact same read-then-write race
+// condition spendXp does (two rapid concurrent answers could both read
+// "150/200 used today" and both award their full amount, blowing past
+// the cap). Same integrity bug, same fix.
+//
+// This is now the SINGLE entry point for all XP awards in the app —
+// AuthService.addXp() (magazine settlement, daily challenge) delegates
+// here too, so there is exactly one capped, logged ledger instead of the
+// two that used to exist. See models/xp_transaction.dart's file comment
+// for that history.
 //
 // Honest limitation: the daily-cap "is this a new day yet" check compares
 // against the device's clock (DateTime.now()), not a server-anchored
@@ -37,10 +42,13 @@ class XpRepository {
   bool _isSameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
 
-  /// Awards XP for one correct answer. [rawAmount] is normally
-  /// `source.baseXp` — passed explicitly (per spec) rather than derived
-  /// internally, leaving room for a future streak/difficulty multiplier
-  /// applied by the caller before this is invoked.
+  /// Awards XP for one earn event. [rawAmount] is the already-computed
+  /// amount for this award (e.g. `source.baseXp` for a flat-rate answer,
+  /// or a dynamically computed test-completion/streak-milestone bonus —
+  /// see core/xp_rules.dart for how each is derived). [refId] is an
+  /// optional pointer back to whatever produced this award (a
+  /// testAttempts/{id}, an article id via [articleId], etc.) purely for
+  /// audit-trail / history display — it never affects the award itself.
   ///
   /// Returns the amount actually awarded, which may be less than
   /// [rawAmount] (or zero) if the daily cap was hit — check the returned
@@ -51,8 +59,10 @@ class XpRepository {
     XpSource source,
     int rawAmount, {
     String? articleId,
+    String? refId,
   }) async {
     if (rawAmount <= 0) return const Success(0);
+    if (userId.isEmpty) return const Success(0);
     try {
       final awarded = await _db.runTransaction<int>((tx) async {
         final snap = await tx.get(_userDoc(userId));
@@ -78,7 +88,8 @@ class XpRepository {
         final txnRef = _db.collection(AppConstants.colXpTransactions).doc();
         tx.set(txnRef, XpTransaction(
           id: '', userId: userId, type: XpTransactionType.earn,
-          source: source, amount: toAward, articleId: articleId, timestamp: now,
+          source: source, amount: toAward, articleId: articleId,
+          refId: refId, timestamp: now,
         ).toFirestore());
 
         return toAward;
@@ -136,7 +147,8 @@ class XpRepository {
     return (((d['xpBalance'] as num?) ?? 0).toInt(), ((d['lifetimeXP'] as num?) ?? 0).toInt());
   }
 
-  /// Live version of getBalance — for a persistent header badge.
+  /// Live version of getBalance — for a persistent header badge and the
+  /// XP dashboard.
   Stream<(int, int)> watchBalance(String userId) => _userDoc(userId).snapshots().map((doc) {
         final d = doc.data() ?? {};
         return (((d['xpBalance'] as num?) ?? 0).toInt(), ((d['lifetimeXP'] as num?) ?? 0).toInt());
@@ -152,6 +164,17 @@ class XpRepository {
         if (storedDate == null || !_isSameDay(storedDate, DateTime.now())) return 0;
         return ((d['xpEarnedToday'] as num?) ?? 0).toInt();
       });
+
+  /// Recent XP ledger entries for a user, newest first — powers the XP
+  /// dashboard's earning history list. Real transactions only, sourced
+  /// straight from the same collection every award/spend writes to.
+  Stream<List<XpTransaction>> watchHistory(String userId, {int limit = 50}) => _db
+      .collection(AppConstants.colXpTransactions)
+      .where('userId', isEqualTo: userId)
+      .orderBy('timestamp', descending: true)
+      .limit(limit)
+      .snapshots()
+      .map((s) => s.docs.map(XpTransaction.fromFirestore).toList());
 
   /// Checks unlock status. Premium subscribers unlock everything
   /// implicitly (per spec, no per-paper record written for them unless

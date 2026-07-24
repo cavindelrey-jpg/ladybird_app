@@ -53,6 +53,8 @@ class AppConstants {
   static const String colXpTransactions  = 'xpTransactions';
   static const String colUnlockedPapers  = 'unlockedPapers';
   static const String colPendingMagazineXp = 'pendingMagazineXp';
+  static const String colTests           = 'tests';
+  static const String colTestAttempts    = 'testAttempts';
 
   // Firebase Storage
   static const String storageContentFiles = 'content_files';

@@ -3,7 +3,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/models.dart';
+import '../models/xp_transaction.dart';
 import '../core/constants.dart';
+import '../core/xp_rules.dart';
+import '../core/result.dart';
+import '../repositories/xp_repository.dart';
 
 class AuthService {
   AuthService._();
@@ -192,7 +196,7 @@ class AuthService {
     if (user.id.isEmpty) return; // guest — nothing to record
     final now = DateTime.now();
     final today = _dateKey(now);
-    if (user.lastActiveDate == today) return; // already recorded today
+    if (user.lastActiveDate == today) return; // already recorded today — no double-award
 
     final yesterday = _dateKey(now.subtract(const Duration(days: 1)));
     final newStreak = (user.lastActiveDate == yesterday) ? user.streakDays + 1 : 1;
@@ -206,16 +210,38 @@ class AuthService {
       'streakDays': newStreak,
       'weekActivityDates': newWeekDates,
     }, SetOptions(merge: true));
+
+    // Real streak XP — the `lastActiveDate == today` guard above means
+    // this whole block runs at most once per calendar day per user, so
+    // there's no separate de-dup check needed here. Best-effort: a
+    // failed XP award should never block Home from loading.
+    try {
+      await XpRepository.instance.awardXp(
+        user.id, XpSource.streakDaily, kStreakDailyXp,
+      );
+      final milestone = streakMilestoneBonusXp(newStreak);
+      if (milestone > 0) {
+        await XpRepository.instance.awardXp(
+          user.id, XpSource.streakMilestone, milestone,
+        );
+      }
+    } catch (_) {
+      // best-effort, same policy as the streak-day write itself
+    }
   }
 
-  /// The only entry point for awarding XP — every call site should be a
-  /// decided source (quiz answer, magazine read, daily challenge), never
-  /// an arbitrary bonus.
-  Future<void> addXp(String userId, int amount) async {
-    if (userId.isEmpty || amount == 0) return;
-    await _db.collection(AppConstants.colUsers).doc(userId).set({
-      'xpTotal': FieldValue.increment(amount),
-    }, SetOptions(merge: true));
+  /// Awards XP for a decided source (quiz answer, magazine read, daily
+  /// challenge, test — never an arbitrary bonus). Delegates to
+  /// XpRepository.awardXp() so every XP source shares the same capped,
+  /// logged ledger (xpBalance/lifetimeXP + xpTransactions) instead of
+  /// writing a separate, cap-less `xpTotal` field the way this method
+  /// used to. Returns the amount actually awarded (may be less than
+  /// [amount] if the daily cap was hit) so callers can show an honest
+  /// "+N XP" rather than assuming the full amount landed.
+  Future<int> addXp(String userId, int amount, XpSource source) async {
+    if (userId.isEmpty || amount <= 0) return 0;
+    final result = await XpRepository.instance.awardXp(userId, source, amount);
+    return switch (result) { Success(:final value) => value, Failure() => 0 };
   }
 
   /// Real, user-driven "Continue Reading" position — set by

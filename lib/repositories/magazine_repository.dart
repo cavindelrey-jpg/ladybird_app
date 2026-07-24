@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/magazine_article.dart';
+import '../models/xp_transaction.dart';
 import '../core/result.dart';
 import '../services/auth_service.dart';
 
@@ -181,7 +182,9 @@ class MagazineRepository {
       batch.update(doc.reference, {'pendingAuthorXp': 0});
     }
     await batch.commit();
-    if (totalOwed > 0) await AuthService.instance.addXp(userId, totalOwed);
+    if (totalOwed > 0) {
+      await AuthService.instance.addXp(userId, totalOwed, XpSource.magazineRead);
+    }
   }
 
   // ── Likes ──────────────────────────────────────────────────────────────

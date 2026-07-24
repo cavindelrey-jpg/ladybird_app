@@ -16,3 +16,6 @@ export 'calendar_event.dart';
 export 'hero_slide.dart';
 export 'magazine_article.dart';
 export 'daily_challenge.dart';
+export 'xp_transaction.dart';
+export 'test.dart';
+export 'test_attempt.dart';

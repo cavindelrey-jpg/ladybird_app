@@ -1,0 +1,94 @@
+[debug] [2026-07-17T14:39:46.897Z] ----------------------------------------------------------------------
+[debug] [2026-07-17T14:39:46.900Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\12406\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only functions:ingestPastPapers
+[debug] [2026-07-17T14:39:46.900Z] CLI Version:   15.23.0
+[debug] [2026-07-17T14:39:46.900Z] Platform:      win32
+[debug] [2026-07-17T14:39:46.900Z] Node Version:  v24.18.0
+[debug] [2026-07-17T14:39:46.900Z] Detected Agent: unknown
+[debug] [2026-07-17T14:39:46.900Z] Time:          Fri Jul 17 2026 15:39:46 GMT+0100 (West Africa Time)
+[debug] [2026-07-17T14:39:46.900Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-07-17T14:39:52.129Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-07-17T14:39:52.129Z] > authorizing via signed-in user (cavindelrey@gmail.com)
+[debug] [2026-07-17T14:39:52.130Z] [iam] checking project academia-b1705 for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2026-07-17T14:39:52.141Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:52.141Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:52.142Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/academia-b1705:testIamPermissions [none]
+[debug] [2026-07-17T14:39:52.142Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/academia-b1705:testIamPermissions  x-goog-user-project=academia-b1705
+[debug] [2026-07-17T14:39:52.142Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/academia-b1705:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-07-17T14:39:53.693Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/academia-b1705:testIamPermissions 200
+[debug] [2026-07-17T14:39:53.693Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/academia-b1705:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2026-07-17T14:39:53.694Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:53.694Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:53.694Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/academia-b1705/serviceAccounts/academia-b1705@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2026-07-17T14:39:53.694Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/academia-b1705/serviceAccounts/academia-b1705@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2026-07-17T14:39:55.295Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/academia-b1705/serviceAccounts/academia-b1705@appspot.gserviceaccount.com:testIamPermissions 404
+[debug] [2026-07-17T14:39:55.296Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/academia-b1705/serviceAccounts/academia-b1705@appspot.gserviceaccount.com:testIamPermissions {"error":{"code":404,"message":"Unknown service account","status":"NOT_FOUND"}}
+[debug] [2026-07-17T14:39:55.296Z] [functions] service account IAM check errored, deploy may fail: Request to https://iam.googleapis.com/v1/projects/academia-b1705/serviceAccounts/academia-b1705@appspot.gserviceaccount.com:testIamPermissions had HTTP Error: 404, Unknown service account {"name":"FirebaseError","children":[],"context":{"body":{"error":{"code":404,"message":"Unknown service account","status":"NOT_FOUND"}},"response":{"statusCode":404}},"exit":1,"message":"Request to https://iam.googleapis.com/v1/projects/academia-b1705/serviceAccounts/academia-b1705@appspot.gserviceaccount.com:testIamPermissions had HTTP Error: 404, Unknown service account","status":404}
+[info] 
+[info] === Deploying to 'academia-b1705'...
+[info] 
+[info] i  deploying functions 
+[debug] [2026-07-17T14:39:55.302Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:55.302Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:55.302Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/academia-b1705 [none]
+[debug] [2026-07-17T14:39:55.636Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/academia-b1705 200
+[debug] [2026-07-17T14:39:55.636Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/academia-b1705 {"projectNumber":"415070142496","projectId":"academia-b1705","lifecycleState":"ACTIVE","name":"Academia","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2026-06-15T04:39:27.753Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[debug] [2026-07-17T14:39:55.641Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:55.641Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:55.642Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:55.642Z] Checked if tokens are valid: true, expires at: 1784302284119
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[debug] [2026-07-17T14:39:55.644Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:55.644Z] Checked if tokens are valid: true, expires at: 1784302284119
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2026-07-17T14:39:55.645Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:55.645Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:55.646Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudfunctions.googleapis.com [none]
+[debug] [2026-07-17T14:39:55.646Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudfunctions.googleapis.com  x-goog-user-project=academia-b1705
+[debug] [2026-07-17T14:39:55.648Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/runtimeconfig.googleapis.com [none]
+[debug] [2026-07-17T14:39:55.649Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/runtimeconfig.googleapis.com  x-goog-user-project=academia-b1705
+[debug] [2026-07-17T14:39:55.650Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudbuild.googleapis.com [none]
+[debug] [2026-07-17T14:39:55.651Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudbuild.googleapis.com  x-goog-user-project=academia-b1705
+[debug] [2026-07-17T14:39:55.652Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/artifactregistry.googleapis.com [none]
+[debug] [2026-07-17T14:39:55.652Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/artifactregistry.googleapis.com  x-goog-user-project=academia-b1705
+[debug] [2026-07-17T14:39:57.027Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudfunctions.googleapis.com 200
+[debug] [2026-07-17T14:39:57.028Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudfunctions.googleapis.com [omitted]
+[warn] !  functions: missing required API cloudfunctions.googleapis.com. Enabling now... 
+[debug] [2026-07-17T14:39:57.029Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:57.030Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:57.030Z] >>> [apiv2][query] POST https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudfunctions.googleapis.com:enable [none]
+[debug] [2026-07-17T14:39:57.030Z] >>> [apiv2][(partial)header] POST https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudfunctions.googleapis.com:enable  x-goog-user-project=academia-b1705
+[debug] [2026-07-17T14:39:57.312Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudbuild.googleapis.com 200
+[debug] [2026-07-17T14:39:57.312Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudbuild.googleapis.com [omitted]
+[warn] !  functions: missing required API cloudbuild.googleapis.com. Enabling now... 
+[debug] [2026-07-17T14:39:57.313Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:57.313Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:57.313Z] >>> [apiv2][query] POST https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudbuild.googleapis.com:enable [none]
+[debug] [2026-07-17T14:39:57.313Z] >>> [apiv2][(partial)header] POST https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudbuild.googleapis.com:enable  x-goog-user-project=academia-b1705
+[debug] [2026-07-17T14:39:57.499Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/artifactregistry.googleapis.com 200
+[debug] [2026-07-17T14:39:57.499Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/artifactregistry.googleapis.com [omitted]
+[warn] !  artifactregistry: missing required API artifactregistry.googleapis.com. Enabling now... 
+[debug] [2026-07-17T14:39:57.500Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:57.500Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:39:57.500Z] >>> [apiv2][query] POST https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/artifactregistry.googleapis.com:enable [none]
+[debug] [2026-07-17T14:39:57.500Z] >>> [apiv2][(partial)header] POST https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/artifactregistry.googleapis.com:enable  x-goog-user-project=academia-b1705
+[debug] [2026-07-17T14:39:58.217Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/runtimeconfig.googleapis.com 200
+[debug] [2026-07-17T14:39:58.217Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/runtimeconfig.googleapis.com [omitted]
+[debug] [2026-07-17T14:39:58.474Z] <<< [apiv2][status] POST https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudfunctions.googleapis.com:enable 200
+[debug] [2026-07-17T14:39:58.474Z] <<< [apiv2][body] POST https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudfunctions.googleapis.com:enable [omitted]
+[debug] [2026-07-17T14:39:58.961Z] <<< [apiv2][status] POST https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudbuild.googleapis.com:enable 200
+[debug] [2026-07-17T14:39:58.962Z] <<< [apiv2][body] POST https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/cloudbuild.googleapis.com:enable [omitted]
+[debug] [2026-07-17T14:39:59.775Z] <<< [apiv2][status] POST https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/artifactregistry.googleapis.com:enable 200
+[debug] [2026-07-17T14:39:59.775Z] <<< [apiv2][body] POST https://serviceusage.googleapis.com/v1/projects/academia-b1705/services/artifactregistry.googleapis.com:enable [omitted]
+[debug] [2026-07-17T14:40:09.794Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:40:09.794Z] Checked if tokens are valid: true, expires at: 1784302284119
+[debug] [2026-07-17T14:40:09.795Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/academia-b1705/adminSdkConfig [none]
+[debug] [2026-07-17T14:40:20.100Z] *** [apiv2] error from fetch(https://firebase.googleapis.com/v1beta1/projects/academia-b1705/adminSdkConfig, {"headers":{},"method":"GET"}): ConnectTimeoutError: Connect Timeout Error (attempted addresses: 172.217.113.4:443, 172.217.117.4:443, 172.217.114.4:443, 172.217.112.4:443, 172.217.119.4:443, 172.217.118.4:443, 172.217.115.4:443, 172.217.116.4:443, timeout: 10000ms)
+[debug] [2026-07-17T14:40:25.108Z] Error: Timed out.
+    at Timeout._onTimeout (C:\Users\12406\AppData\Roaming\npm\node_modules\firebase-tools\lib\utils.js:296:49)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+[error] 
+[error] Error: An unexpected error has occurred.

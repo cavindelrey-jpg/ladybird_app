@@ -35,12 +35,21 @@ import '../../repositories/course_repository.dart';
 import '../../services/auth_service.dart';
 import '../../repositories/xp_repository.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/coming_soon_page.dart';
 import '../../pages/daily_challenge_page.dart';
+import '../../pages/search_page.dart';
+import '../../pages/notifications_page.dart';
 import '../library/library_page.dart';
 import '../library/library_reader_page.dart';
 import '../testing/xp_dashboard_page.dart';
 import '../testing/tests_subject_picker_page.dart';
+import '../academic_content/academic_content_page.dart';
+import '../clubs/clubs_page.dart';
+import '../magazine/magazine_feed_page.dart';
+import '../magazine/top_writers_page.dart';
+import '../announcements/announcements_page.dart';
+import '../courses_marketplace/courses_marketplace_page.dart';
+import '../courses/course_detail_page.dart';
+import '../admin/hero_slide_manager_page.dart';
 
 /// Local, slightly stronger "glow" shadow for this page's cards -- Gamma's
 /// own render used a near-invisible shadow (alpha .02-.03); the mockup
@@ -129,14 +138,14 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         ),
         IconButton(
           icon: const Icon(Icons.search_rounded, color: C.txt2),
-          onPressed: () {},
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => SearchPage(user: _u ?? AppUser.guest()))),
         ),
         Stack(clipBehavior: Clip.none, children: [
           IconButton(
             icon: const Icon(Icons.notifications_outlined, color: C.txt2),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const ComingSoonPage(
-                    title: 'Notifications', icon: Icons.notifications_outlined))),
+                builder: (_) => NotificationsPage(userId: _u?.id ?? ''))),
           ),
           if (!_isGuest)
             Positioned(top: 8, right: 6, child: Container(
@@ -316,10 +325,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: OutlinedButton.icon(
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => const ComingSoonPage(
-                        title: 'Hero Slide Manager',
-                        subtitle: 'Add the first Home banner (image + link).',
-                        icon: Icons.image_outlined))),
+                    builder: (_) => HeroSlideManagerPage(createdByUid: _u!.id))),
                 icon: const Icon(Icons.add_photo_alternate_outlined),
                 label: const Text('Add your first Home banner'),
               ),
@@ -408,23 +414,23 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   void _openHeroSlide(BuildContext context, HeroSlide slide) {
+    final user = _u ?? AppUser.guest();
     switch (slide.destination) {
       case HeroDestination.library:
         _open(context, const _LibraryDest());
         break;
       case HeroDestination.clubs:
-        _open(context, const ComingSoonPage(title: 'Clubs', icon: Icons.groups_rounded));
+        _open(context, ClubsPage(user: user));
         break;
       case HeroDestination.pastQuestions:
-        _open(context, const ComingSoonPage(
-            title: 'Past Questions', icon: Icons.description_rounded));
+        _open(context, AcademicContentPage(
+            user: user, initialTypeFilter: ContentType.pastPaper));
         break;
       case HeroDestination.magazine:
-        _open(context, const ComingSoonPage(
-            title: 'Magazine', icon: Icons.auto_stories_rounded));
+        _open(context, MagazineFeedPage(user: user));
         break;
       case HeroDestination.courses:
-        _open(context, const ComingSoonPage(title: 'Courses', icon: Icons.school_rounded));
+        _open(context, CoursesMarketplacePage(user: user));
         break;
       case HeroDestination.custom:
         break;
@@ -489,21 +495,23 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   void _openQuickAccess(BuildContext context, String label) {
+    final user = _u ?? AppUser.guest();
     switch (label) {
       case 'Magazine':
-        _open(context, const ComingSoonPage(title: 'Magazine', icon: Icons.auto_stories_rounded));
+        _open(context, MagazineFeedPage(user: user));
         break;
       case 'Clubs':
-        _open(context, const ComingSoonPage(title: 'Clubs', icon: Icons.groups_rounded));
+        _open(context, ClubsPage(user: user));
         break;
       case 'Library':
         _open(context, const _LibraryDest());
         break;
       case 'Past Questions':
-        _open(context, const ComingSoonPage(title: 'Past Questions', icon: Icons.description_rounded));
+        _open(context, AcademicContentPage(
+            user: user, initialTypeFilter: ContentType.pastPaper));
         break;
       case 'Quizzes':
-        _open(context, TestsSubjectPickerPage(user: _isGuest ? AppUser.guest() : _u!));
+        _open(context, TestsSubjectPickerPage(user: user));
         break;
     }
   }
@@ -720,25 +728,40 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: IntrinsicHeight(
         child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Expanded(child: _panel(title: 'Top Writers', child: _topWritersContent())),
+          Expanded(child: _panel(
+              title: 'Top Writers',
+              onTap: () => _open(context, const TopWritersPage()),
+              child: _topWritersContent())),
           const SizedBox(width: 12),
-          Expanded(child: _panel(title: 'Recent Announcements', child: _announcementsContent())),
+          Expanded(child: _panel(
+              title: 'Recent Announcements',
+              onTap: () => _open(context, AnnouncementsPage(
+                  user: _u ?? AppUser.guest(),
+                  canPost: !_isGuest && _u!.canPostAnnouncement)),
+              child: _announcementsContent())),
         ]),
       ),
     );
   }
 
-  Widget _panel({required String title, required Widget child}) {
-    return Container(
+  Widget _panel({required String title, required Widget child, VoidCallback? onTap}) {
+    final content = Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
           color: C.surf, borderRadius: BorderRadius.circular(Rad.md), boxShadow: _glow),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w800, color: C.txt)),
+        Row(children: [
+          Expanded(child: Text(title, style: GoogleFonts.sora(
+              fontSize: 12.5, fontWeight: FontWeight.w800, color: C.txt))),
+          if (onTap != null)
+            const Icon(Icons.chevron_right_rounded, size: 16, color: C.muted),
+        ]),
         const SizedBox(height: 14),
         child,
       ]),
     );
+    if (onTap == null) return content;
+    return GestureDetector(onTap: onTap, behavior: HitTestBehavior.opaque, child: content);
   }
 
   Widget _topWritersContent() {
@@ -910,7 +933,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
 
   Widget _recommendedCourseCard(BuildContext context, Course course) {
     return GestureDetector(
-      onTap: () => _open(context, const ComingSoonPage(title: 'Courses', icon: Icons.school_rounded)),
+      onTap: () => _open(context, CourseDetailPage(course: course, user: _u ?? AppUser.guest())),
       child: Container(
         width: 150,
         padding: const EdgeInsets.all(12),

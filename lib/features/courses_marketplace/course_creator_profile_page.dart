@@ -130,7 +130,8 @@ class CourseCreatorProfilePage extends StatelessWidget {
                   onTap: () {
                     if (c.published || _isOwnProfile) {
                       Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => CourseReaderPage(course: c, currentUser: currentUser)));
+                          builder: (_) => 
+                              CourseReaderPage(course: c, currentUser: currentUser)));
                     }
                   },
                   child: Row(children: [

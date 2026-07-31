@@ -125,7 +125,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           onPressed: () => Scaffold.of(ctx).openDrawer(),
         )),
         const SizedBox(width: 4),
-        AcademiaLogo(size: 34),
+        const AcademiaLogo(size: 34),
         const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -220,7 +220,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         color: C.surf3, shape: BoxShape.circle,
         border: Border.all(color: C.bdr, width: 1.5),
       ),
-      child: Icon(Icons.person_rounded, size: 32, color: C.muted),
+      child: const Icon(Icons.person_rounded, size: 32, color: C.muted),
     );
   }
 
@@ -781,7 +781,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         return Row(children: [
           Container(
             padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(color: C.goldp, shape: BoxShape.circle),
+            decoration: const BoxDecoration(color: C.goldp, shape: BoxShape.circle),
             child: Text('#1', style: GoogleFonts.sora(
                 fontSize: 9.5, fontWeight: FontWeight.w800, color: C.gold)),
           ),
@@ -814,7 +814,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: C.primaryBg, shape: BoxShape.circle),
+              decoration: const BoxDecoration(color: C.primaryBg, shape: BoxShape.circle),
               child: const Icon(Icons.campaign_rounded, color: C.primary, size: 20),
             ),
             const SizedBox(width: 8),
@@ -828,7 +828,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: C.primaryBg, shape: BoxShape.circle),
+            decoration: const BoxDecoration(color: C.primaryBg, shape: BoxShape.circle),
             child: const Icon(Icons.campaign_rounded, color: C.primary, size: 20),
           ),
           const SizedBox(width: 8),

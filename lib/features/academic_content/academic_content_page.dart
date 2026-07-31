@@ -589,6 +589,13 @@ class _LibraryDiscovery extends StatelessWidget {
             ),
           );
         }
+        if (snap.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text('Failed to load: ${snap.error}',
+                style: AppText.caption.copyWith(color: C.red, fontSize: 11)),
+          );
+        }
         final items = snap.data ?? const <AcademicContent>[];
         if (items.isEmpty) {
           return Padding(
@@ -624,6 +631,13 @@ class _LibraryDiscovery extends StatelessWidget {
             ]),
           )));
         }
+        if (snap.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text('Failed to load: ${snap.error}',
+                style: AppText.caption.copyWith(color: C.red, fontSize: 11)),
+          );
+        }
         final items = snap.data ?? const <AcademicContent>[];
         if (items.isEmpty) {
           return Padding(
@@ -640,6 +654,20 @@ class _LibraryDiscovery extends StatelessWidget {
     return FutureBuilder<Map<String, int>>(
       future: AcademicContentRepository.instance.subjectCountsOnce(institutionId: user.schoolId),
       builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(spacing: 10, runSpacing: 10,
+              children: List.generate(6, (_) => const ShimmerBlock(width: 155, height: 64, borderRadius: 14))),
+          );
+        }
+        if (snap.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text('Failed to load: ${snap.error}',
+                style: AppText.caption.copyWith(color: C.red, fontSize: 11)),
+          );
+        }
         final counts = snap.data ?? const <String, int>{};
         if (counts.isEmpty) {
           return Padding(
@@ -795,3 +823,4 @@ class _SavedRow extends StatelessWidget {
     );
   }
 }
+

@@ -39,6 +39,20 @@ extension ContentTypeExt on ContentType {
   }
 }
 
+/// Predefined, admin/system-controlled categories. This is the ONLY
+/// source of subject values allowed at upload time — never free text.
+/// Both the upload picker and the Library filter bar read from this list.
+const kAcademicSubjects = [
+  'Mathematics',
+  'Science',
+  'Languages',
+  'Social Studies',
+  'Computer Science',
+  'Arts & Literature',
+  'Business',
+  'Other',
+];
+
 class AcademicContent {
   final String id;
   final String title;
@@ -151,3 +165,4 @@ class AcademicContent {
     downloads: downloads ?? this.downloads,
   );
 }
+

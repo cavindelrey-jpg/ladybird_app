@@ -26,10 +26,10 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
-  final _subjectCtrl = TextEditingController();
   final _tagsCtrl = TextEditingController();
 
   ContentType _type = ContentType.note;
+  String _subject = kAcademicSubjects.first; // locked to predefined list — never free text
   File? _contentFile;
   String? _contentFileName;
   File? _thumbnailFile;
@@ -41,7 +41,6 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
   void dispose() {
     _titleCtrl.dispose();
     _descCtrl.dispose();
-    _subjectCtrl.dispose();
     _tagsCtrl.dispose();
     super.dispose();
   }
@@ -133,7 +132,7 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
       thumbnailUrl: thumbnailUrl,
       fileUrl: fileUrl,
       contentType: _type,
-      subject: _subjectCtrl.text.trim(),
+      subject: _subject,
       institutionId: institutionId,
       uploadedBy: widget.user.id,
       uploaderName: widget.user.name,
@@ -196,14 +195,27 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
               ),
               const SizedBox(height: 16),
 
-              // Subject
+              // Subject — locked to predefined categories, never free text
               const _SectionLabel('Subject *'),
               const SizedBox(height: 8),
-              _Field(
-                controller: _subjectCtrl,
-                hint: 'e.g. Physics, Mathematics…',
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Required' : null,
+              Wrap(
+                spacing: 8, runSpacing: 8,
+                children: kAcademicSubjects.map((s) {
+                  final selected = s == _subject;
+                  return ChoiceChip(
+                    label: Text(s),
+                    selected: selected,
+                    onSelected: (_) => setState(() => _subject = s),
+                    selectedColor: C.primary,
+                    labelStyle: TextStyle(
+                        color: selected ? Colors.white : C.txt,
+                        fontWeight: selected ? FontWeight.w600 : FontWeight.w400),
+                    backgroundColor: C.surf2,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(color: selected ? C.primary : C.bdr)),
+                  );
+                }).toList(),
               ),
               const SizedBox(height: 16),
 
@@ -517,3 +529,4 @@ class _ThumbnailPicker extends StatelessWidget {
     );
   }
 }
+

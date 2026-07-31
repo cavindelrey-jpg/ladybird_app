@@ -49,8 +49,7 @@ class AppDrawer extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
-                _item(context, Icons.home_rounded, 'Home',
-                    () => Navigator.of(context).pop()),
+                _item(context, Icons.home_rounded, 'Home', () {}),
                 _item(context, Icons.school_rounded, 'Courses', () {
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => CoursesMarketplacePage(user: user)));
@@ -256,3 +255,5 @@ class AppDrawer extends StatelessWidget {
     ));
   }
 }
+
+

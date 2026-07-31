@@ -38,7 +38,6 @@ import '../../widgets/widgets.dart';
 import '../../pages/daily_challenge_page.dart';
 import '../../pages/search_page.dart';
 import '../../pages/notifications_page.dart';
-import '../library/library_page.dart';
 import '../library/library_reader_page.dart';
 import '../testing/xp_dashboard_page.dart';
 import '../testing/tests_subject_picker_page.dart';
@@ -106,7 +105,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             _writersAndAnnouncementsRow(context),
             const SizedBox(height: 24),
             _sectionHeader('Recommended for You',
-                onViewAll: () => _open(context, const _LibraryDest())),
+                onViewAll: () => _open(context, AcademicContentPage(user: _u ?? AppUser.guest()))),
             const SizedBox(height: 12),
             _recommendedRow(context),
           ],
@@ -417,7 +416,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     final user = _u ?? AppUser.guest();
     switch (slide.destination) {
       case HeroDestination.library:
-        _open(context, const _LibraryDest());
+        _open(context, AcademicContentPage(user: user));
         break;
       case HeroDestination.clubs:
         _open(context, ClubsPage(user: user));
@@ -504,7 +503,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         _open(context, ClubsPage(user: user));
         break;
       case 'Library':
-        _open(context, const _LibraryDest());
+        _open(context, AcademicContentPage(user: user));
         break;
       case 'Past Questions':
         _open(context, AcademicContentPage(
@@ -516,14 +515,11 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     }
   }
 
-  void _open(BuildContext context, Widget destResolver) {
+  void _open(BuildContext context, Widget page) {
     // Guests browse read-only content freely — only actions that WRITE
     // data (liking, commenting, bookmarking, the Daily Challenge) ask for
     // sign-in, and those already do it inline where the action happens
     // rather than blocking navigation here.
-    final page = destResolver is _LibraryDest
-        ? LibraryPage(user: _u ?? AppUser.guest())
-        : destResolver;
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 
@@ -906,7 +902,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
 
   Widget _recommendedLibraryCard(BuildContext context, LibraryItem item) {
     return GestureDetector(
-      onTap: () => _open(context, const _LibraryDest()),
+      onTap: () => _open(context, AcademicContentPage(user: _u ?? AppUser.guest())),
       child: Container(
         width: 150,
         padding: const EdgeInsets.all(12),
@@ -956,8 +952,3 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 }
 
-// Marker widget used only to select LibraryPage in _open().
-class _LibraryDest extends StatelessWidget {
-  const _LibraryDest();
-  @override Widget build(BuildContext context) => const SizedBox.shrink();
-}

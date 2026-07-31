@@ -312,10 +312,20 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
         final counts = snap.data ?? const <String, int>{};
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Wrap(
-            spacing: 10, runSpacing: 10,
-            children: kCourseCategories.map((cat) {
+          child: GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: kCourseCategories.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 2.7,
+            ),
+            itemBuilder: (context, i) {
+              final cat = kCourseCategories[i];
               final count = counts[cat] ?? 0;
+              final color = _categoryColor(cat);
               return Material(
                 color: Colors.transparent,
                 borderRadius: BorderRadius.circular(Rad.md),
@@ -326,15 +336,14 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
                     setState(() => _category = cat);
                   },
                   child: Container(
-                    width: 150,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                         color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
                     child: Row(children: [
                       Container(
                         width: 34, height: 34,
-                        decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(9)),
-                        child: Icon(_kCategoryIcons[cat] ?? Icons.circle, size: 17, color: C.primary),
+                        decoration: BoxDecoration(color: color.withValues(alpha: .12), borderRadius: BorderRadius.circular(9)),
+                        child: Icon(_kCategoryIcons[cat] ?? Icons.circle, size: 17, color: color),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -348,7 +357,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
                   ),
                 ),
               );
-            }).toList(),
+            },
           ),
         );
       },

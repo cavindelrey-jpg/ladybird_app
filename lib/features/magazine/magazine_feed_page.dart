@@ -62,7 +62,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
   _FeedTab _tab = _FeedTab.forYou;
   String _sort = 'Newest';
 
-  bool get _canCompose => widget.user != null;
+  bool get _canCompose => widget.user != null && !widget.user!.isGuest;
   bool get _hasSchool => (widget.user?.schoolId ?? '').isNotEmpty;
 
   Stream<List<MagazineArticle>> _streamForTab() {
@@ -72,7 +72,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
       case _FeedTab.global:
         return repo.watchFeed();
       case _FeedTab.following:
-        if (widget.user == null) return Stream.value(const []);
+        if (widget.user == null || widget.user!.isGuest) return Stream.value(const []);
         return FollowRepository.instance.watchFollowingIds(widget.user!.id)
             .asyncExpand((ids) => repo.watchFeedFromAuthors(ids));
       case _FeedTab.local:
@@ -222,7 +222,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => const TopWritersPage())),
           ),
-        widget.user == null
+        widget.user == null || widget.user!.isGuest
             ? IconButton(
                 icon: const Icon(Icons.notifications_outlined, color: C.txt2),
                 onPressed: () => showToast(context, 'Sign in to see notifications'),
@@ -296,7 +296,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                   child: InkWell(
                     borderRadius: BorderRadius.circular(20),
                     onTap: () {
-                      if (needsUser && widget.user == null) {
+                      if (needsUser && (widget.user == null || widget.user!.isGuest)) {
                         showToast(context, 'Sign in to see who you follow');
                         return;
                       }
@@ -669,7 +669,7 @@ class _LikeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (currentUser == null) {
+    if (currentUser == null || currentUser!.isGuest) {
       return Row(children: [
         const Icon(Icons.favorite_border_rounded, size: 14, color: C.muted),
         const SizedBox(width: 3),
@@ -732,3 +732,4 @@ class _FeedSkeleton extends StatelessWidget {
     );
   }
 }
+

@@ -362,7 +362,7 @@ class _HomeShellState extends State<HomeShell> {
       if (i.hasFeature(InstitutionFeature.library))
         const _NavDef('Library', Icons.menu_book_rounded, Icons.menu_book_outlined, UserRole.student),
       const _NavDef('Magazine', Icons.auto_stories_rounded, Icons.auto_stories_outlined, UserRole.guest),
-      const _NavDef('Courses', Icons.school_rounded, Icons.school_outlined, UserRole.student),
+      const _NavDef('Courses', Icons.school_rounded, Icons.school_outlined, UserRole.guest),
       const _NavDef('Profile', Icons.person_rounded, Icons.person_outlined, UserRole.guest),
     ];
 
@@ -449,3 +449,7 @@ class _NavDef {
   final UserRole minRole;
   const _NavDef(this.label, this.filledIcon, this.outlinedIcon, this.minRole);
 }
+
+---
+
+## lib/screens/first_login_screen.dart

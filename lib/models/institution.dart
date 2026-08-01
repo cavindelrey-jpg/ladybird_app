@@ -1,3 +1,5 @@
+## lib/models/institution.dart
+
 // lib/models/institution.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -99,10 +101,11 @@ class Institution {
   );
 
   /// Branding used for Normal / Premium independent accounts — no school,
-  /// so only the school-agnostic features are enabled. Note: HomeShell's
-  /// "Courses" tab is currently unconditional regardless of feature flags
-  /// (see app_router.dart _buildNav) — that's a known follow-up, not
-  /// something this feature set can hide on its own yet.
+  /// so only the school-agnostic features are enabled. Note: `courses` is
+  /// intentionally absent here — it gates the school's own internal course
+  /// catalog feature (see SubscriptionTier.unlockedFeatures), unrelated to
+  /// the Courses marketplace tab in HomeShell, which is universal and
+  /// ungated (available to guests, independents, and every school tier).
   static Institution get independentDefault => const Institution(
     institutionId: 'independent', schoolCode: '', schoolName: 'Academia',
     tagline: 'Independent Member',

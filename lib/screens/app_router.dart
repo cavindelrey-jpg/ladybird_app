@@ -449,7 +449,3 @@ class _NavDef {
   final UserRole minRole;
   const _NavDef(this.label, this.filledIcon, this.outlinedIcon, this.minRole);
 }
-
----
-
-## lib/screens/first_login_screen.dart

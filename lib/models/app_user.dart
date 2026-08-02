@@ -37,6 +37,12 @@ class AppUser {
   final AccountType accountType;
   final AccountStatus status;
   final String? schoolId;
+
+  /// The enrollment serial number this account was created with, if any.
+  /// Kept for record-keeping / support (e.g. "which seat is this student
+  /// occupying") — the claim itself is already permanently recorded on the
+  /// SerialNumber doc, this is just a convenient back-reference on the user.
+  final String? serialNumber;
   final String? departmentId;
   final String classLevel;
   final String? subject;
@@ -89,6 +95,7 @@ class AppUser {
     this.accountType = AccountType.independent,
     this.status = AccountStatus.active,
     this.schoolId,
+    this.serialNumber,
     this.departmentId,
     this.classLevel = '',
     this.subject,
@@ -201,6 +208,7 @@ class AppUser {
     status: AccountStatus.values.firstWhere(
         (s) => s.name == d['status'], orElse: () => AccountStatus.active),
     schoolId: d['schoolId'],
+    serialNumber: d['serialNumber'],
     departmentId: d['departmentId'],
     classLevel: d['classLevel'] ?? '',
     subject: d['subject'],
@@ -236,7 +244,7 @@ class AppUser {
     'name': name, 'email': email, 'photoUrl': photoUrl,
     'role': role.name, 'roleName': roleName,
     'accountType': accountType.name, 'status': status.name,
-    'schoolId': schoolId, 'departmentId': departmentId,
+    'schoolId': schoolId, 'serialNumber': serialNumber, 'departmentId': departmentId,
     'classLevel': classLevel, 'subject': subject,
     'courseIds': courseIds,
     'isFirstLogin': isFirstLogin,
@@ -259,7 +267,7 @@ class AppUser {
     String? id, String? name, String? email, String? photoUrl,
     UserRole? role, String? roleName,
     AccountType? accountType, AccountStatus? status,
-    String? schoolId, String? departmentId,
+    String? schoolId, String? serialNumber, String? departmentId,
     String? classLevel, String? subject, List<String>? courseIds,
     bool? isFirstLogin, bool? adminAccessRevoked, bool? isPremium,
     String? bio, String? educationLevel, Map<String, int>? quickAccessUsage,
@@ -274,6 +282,7 @@ class AppUser {
     accountType: accountType ?? this.accountType,
     status: status ?? this.status,
     schoolId: schoolId ?? this.schoolId,
+    serialNumber: serialNumber ?? this.serialNumber,
     departmentId: departmentId ?? this.departmentId,
     classLevel: classLevel ?? this.classLevel,
     subject: subject ?? this.subject,

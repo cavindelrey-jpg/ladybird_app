@@ -105,13 +105,6 @@ class InstitutionProvider extends ChangeNotifier {
     return false;
   }
 
-  /// Activate an already-fetched Institution immediately — used by the
-  /// serial-number entry screen so the app visibly re-brands (logo, name,
-  /// colors) the moment a serial resolves, before the student has even
-  /// personalized their seat. This is the actual "morph" moment: branding
-  /// swap and account creation are two separate steps on purpose.
-  Future<void> activate(Institution institution) => _activate(institution, institution.schoolCode);
-
   /// Log out of the current institution (go back to school code entry).
   Future<void> clear() async {
     _watchSub?.cancel();

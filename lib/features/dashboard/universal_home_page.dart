@@ -17,7 +17,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
+import '../../providers/institution_provider.dart';
+import '../institution/institution_header_widget.dart';
 import '../../models/app_user.dart';
 import '../../models/hero_slide.dart';
 import '../../models/announcement.dart';
@@ -124,17 +127,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           onPressed: () => Scaffold.of(ctx).openDrawer(),
         )),
         const SizedBox(width: 4),
-        const AcademiaLogo(size: 34),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Academia', style: GoogleFonts.sora(
-                fontSize: 17, fontWeight: FontWeight.w800, color: C.txt)),
-            Text('Your Complete Smart School Platform',
-                style: GoogleFonts.inter(fontSize: 10, color: C.txt2),
-                overflow: TextOverflow.ellipsis),
-          ]),
-        ),
+        Expanded(child: _brandingBlock(context)),
         IconButton(
           icon: const Icon(Icons.search_rounded, color: C.txt2),
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(
@@ -154,6 +147,34 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         ]),
       ]),
     );
+  }
+
+  // -- Branding: this is THE spot that makes the app "become" a school's
+  // own app. Previously this row hardcoded the Academia name + logo no
+  // matter who was signed in — so a St. Michael student and a guest saw
+  // literally the same header. Now it watches InstitutionProvider: once an
+  // institution is actively loaded (i.e. the signed-in account is linked
+  // to a school via a claimed serial number), the school's own logo, name,
+  // and "Powered by Academia" subline render here instead. Independent /
+  // guest accounts keep the plain Academia identity.
+  Widget _brandingBlock(BuildContext context) {
+    final instProv = context.watch<InstitutionProvider>();
+    if (instProv.isLoaded) {
+      return const InstitutionHeader(compact: true);
+    }
+    return Row(children: [
+      const AcademiaLogo(size: 34),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Academia', style: GoogleFonts.sora(
+              fontSize: 17, fontWeight: FontWeight.w800, color: C.txt)),
+          Text('Your Complete Smart School Platform',
+              style: GoogleFonts.inter(fontSize: 10, color: C.txt2),
+              overflow: TextOverflow.ellipsis),
+        ]),
+      ),
+    ]);
   }
 
   // -- Greeting + Stats + Week dots ------------------------------------

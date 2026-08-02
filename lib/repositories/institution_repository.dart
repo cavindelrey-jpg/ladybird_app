@@ -31,43 +31,26 @@ class InstitutionRepository {
   // ─── Validation + fetch by code ──────────────────────────────────────────
 
   /// Validates a school code and returns the matching Institution, or failure.
-  ///
-  /// The institution's Firestore document ID *is* its schoolCode (see
-  /// create() below) — this is what lets AccountsRepository's seats
-  /// (scoped under schools/{schoolCode}/seats) and this institution's
-  /// branding (institutions/{schoolCode}) reference the same tenant with
-  /// one shared key. A claimed seat stores that same code as the user's
-  /// schoolId, so findById(user.schoolId) below resolves correctly instead
-  /// of silently missing (which is why re-branding never used to happen).
   Future<Result<Institution>> findByCode(String code) async {
     final validationError = validateCode(code);
     if (validationError != null) return Failure(validationError, null);
 
-    final normalized = code.trim().toUpperCase();
     try {
-      final doc = await _db.collection(_col).doc(normalized).get();
-      Institution inst;
-      Map<String, dynamic> data;
+      final snap = await _db
+          .collection(_col)
+          .where('schoolCode', isEqualTo: code.trim().toUpperCase())
+          .limit(1)
+          .get();
 
-      if (doc.exists && doc.data() != null) {
-        inst = Institution.fromFirestore(doc);
-        data = doc.data()!;
-      } else {
-        // Fallback for any institution created before doc-ID-as-code was
-        // the rule — matches by field instead of by document ID.
-        final snap = await _db
-            .collection(_col)
-            .where('schoolCode', isEqualTo: normalized)
-            .limit(1)
-            .get();
-        if (snap.docs.isEmpty) {
-          return const Failure(
-              'Invalid school code. Please check with your institution.', null);
-        }
-        inst = Institution.fromFirestore(snap.docs.first);
-        data = snap.docs.first.data();
+      if (snap.docs.isEmpty) {
+        return const Failure(
+            'Invalid school code. Please check with your institution.', null);
       }
 
+      final inst = Institution.fromFirestore(snap.docs.first);
+
+      // Check institution-level suspension flag
+      final data = snap.docs.first.data();
       if (data['suspended'] == true) {
         return const Failure(
             'This institution is temporarily suspended. Contact Academia support.', null);
@@ -182,20 +165,10 @@ class InstitutionRepository {
     return snap.docs.isNotEmpty;
   }
 
-  /// Doc ID = schoolCode (uppercased), not an auto-generated ID. This is
-  /// the whole fix that makes the app actually re-brand: seats live at
-  /// schools/{schoolCode}/seats, and a claimed seat stores schoolCode as
-  /// the user's schoolId — so this must be the same string, or
-  /// findById(schoolId) never finds the branding.
   Future<Result<String>> create(Institution institution) async {
     try {
-      final code = institution.schoolCode.trim().toUpperCase();
-      if (code.isEmpty) return const Failure('School code is required.', null);
-      if (await codeExists(code)) {
-        return const Failure('That school code is already taken.', null);
-      }
-      await _db.collection(_col).doc(code).set(institution.toFirestore());
-      return Success(code);
+      final ref = await _db.collection(_col).add(institution.toFirestore());
+      return Success(ref.id);
     } catch (e) {
       return Failure('Failed to create institution.', e);
     }

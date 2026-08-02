@@ -13,7 +13,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
-import '../institution/school_code_page.dart';
+import '../institution/serial_join_page.dart';
 import 'create_account_screen.dart';
 
 class AccountChoiceScreen extends StatelessWidget {
@@ -77,14 +77,14 @@ class AccountChoiceScreen extends StatelessWidget {
               iconBg: C.navy,
               iconOnDark: true,
               title: 'Student — My School',
-              subtitle: 'Enter the personal serial number your school gave '
-                  'you after fees are confirmed. Academia re-skins to your '
-                  "institution's own name, logo, and colors — just for you.",
+              subtitle: "Enter your personal serial number, issued when you "
+                  'paid your fees. The app becomes your school — its own '
+                  'name, logo, colors, courses, timetable, and announcements.',
               badge: 'SERIAL NUMBER',
               badgeColor: C.navy,
               badgeBg: C.surf3,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const SchoolCodePage())),
+                  builder: (_) => const SerialJoinPage())),
             ),
 
             const SizedBox(height: 28),

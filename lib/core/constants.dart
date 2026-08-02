@@ -28,6 +28,7 @@ class AppConstants {
   static const String colCalendar        = 'academic_calendar';
   static const String colCourses         = 'courses';
   static const String colInstitutions    = 'institutions';
+  static const String colSerials         = 'serials';
 
   // Top-level collections
   static const String colAuditLogs       = 'audit_logs';
@@ -65,6 +66,7 @@ class AppConstants {
   // SharedPreferences
   static const String prefInstitutionId  = 'institution_id';
   static const String prefSchoolCode     = 'school_code';
+  static const String prefSerialNumber   = 'serial_number';
   static const String prefUserId         = 'user_id';
   static const String prefLanguage       = 'language';
   static const String prefOnboardingDone = 'onboarding_done';

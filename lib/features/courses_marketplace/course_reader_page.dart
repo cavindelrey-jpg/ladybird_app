@@ -16,6 +16,7 @@ import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'course_creator_profile_page.dart';
 import 'course_composer_page.dart';
+import 'course_browse_page.dart';
 
 class CourseReaderPage extends StatefulWidget {
   final PublicCourse course;
@@ -93,7 +94,16 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                       child: Image.network(course.coverImageUrl!, height: 180, width: double.infinity, fit: BoxFit.cover),
                     ),
                   const SizedBox(height: 16),
-                  StatusBadge(label: course.category, color: C.primary),
+                  if (course.hasCurriculumPlacement) ...[
+                    _Breadcrumb(course: course, currentUser: widget.currentUser),
+                    const SizedBox(height: 10),
+                  ],
+                  Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                    StatusBadge(label: course.category, color: C.primary),
+                    if (course.difficulty.isNotEmpty)
+                      StatusBadge(label: course.difficulty, color: C.txt2, bg: C.surf2),
+                    StatusBadge(label: _readingTimeLabel(course), color: C.txt2, bg: C.surf2),
+                  ]),
                   if (course.tags.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Wrap(spacing: 6, runSpacing: 6, children: course.tags
@@ -104,6 +114,10 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                   Text(course.title, style: AppText.h1),
                   const SizedBox(height: 8),
                   Text(course.description, style: AppText.bodySm.copyWith(fontSize: 13.5)),
+                  if (course.prerequisiteIds.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _PrerequisitesLinks(course: course, currentUser: widget.currentUser),
+                  ],
                   const SizedBox(height: 14),
                   Material(
                     color: Colors.transparent,
@@ -135,6 +149,10 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                   _CourseBody(course: course),
                   const SizedBox(height: 24),
                   _CourseActionRow(course: course, currentUser: widget.currentUser),
+                  if (course.hasCurriculumPlacement) ...[
+                    const SizedBox(height: 24),
+                    _ContinueReadingSection(course: course, currentUser: widget.currentUser),
+                  ],
                   const SizedBox(height: 24),
                   const Divider(color: C.bdr2),
                   const SizedBox(height: 16),
@@ -377,6 +395,194 @@ class _CourseActionChip extends StatelessWidget {
             const SizedBox(width: 6),
             Text(label, style: AppText.bodySm.copyWith(color: color, fontWeight: FontWeight.w600)),
           ]),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Breadcrumb — Category → Subject → Level → Topic ─────────────
+// Only shown once a course has curriculum placement; the last segment
+// (the topic) opens the browse page focused on this lesson's siblings,
+// giving discovery-by-navigation as an alternative to search.
+String _readingTimeLabel(PublicCourse course) {
+  final words = course.body.trim().isEmpty ? 0 : course.body.trim().split(RegExp(r'\s+')).length;
+  final minutes = (words / 200).ceil().clamp(1, 999);
+  return '$minutes min read';
+}
+
+class _Breadcrumb extends StatelessWidget {
+  final PublicCourse course;
+  final AppUser? currentUser;
+  const _Breadcrumb({required this.course, required this.currentUser});
+
+  @override
+  Widget build(BuildContext context) {
+    final segments = [course.category, course.subject, course.level, course.topic];
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Rad.sm),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => CourseBrowsePage(
+                currentUser: currentUser,
+                initialCategory: course.category,
+                initialSubject: course.subject,
+                initialLevel: course.level,
+                initialTopic: course.topic))),
+        child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            for (var i = 0; i < segments.length; i++) ...[
+              if (i > 0) Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Icon(Icons.chevron_right_rounded, size: 14, color: C.muted),
+              ),
+              Text(segments[i], style: AppText.caption.copyWith(
+                  fontSize: 11.5, fontWeight: FontWeight.w600,
+                  color: i == segments.length - 1 ? C.primary : C.txt2)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "Read these first" — advisory links to lessons this one depends on.
+class _PrerequisitesLinks extends StatelessWidget {
+  final PublicCourse course;
+  final AppUser? currentUser;
+  const _PrerequisitesLinks({required this.course, required this.currentUser});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<PublicCourse>>(
+      future: Future.wait(course.prerequisiteIds.map(
+          (id) => PublicCourseRepository.instance.watchOne(id).first)).then(
+              (list) => list.whereType<PublicCourse>().toList()),
+      builder: (context, snap) {
+        final prereqs = snap.data ?? const <PublicCourse>[];
+        if (prereqs.isEmpty) return const SizedBox.shrink();
+        return Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Read first', style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w700, color: C.primary)),
+            const SizedBox(height: 4),
+            ...prereqs.map((p) => Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => CourseReaderPage(course: p, currentUser: currentUser))),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Text('• ${p.title}', style: AppText.caption.copyWith(fontSize: 12, color: C.primary)),
+                ),
+              ),
+            )),
+          ]),
+        );
+      },
+    );
+  }
+}
+
+/// Previous/next lesson in the same topic, plus a "more in this topic"
+/// rail — computed from the topic's ordered sequence, not hardcoded.
+class _ContinueReadingSection extends StatelessWidget {
+  final PublicCourse course;
+  final AppUser? currentUser;
+  const _ContinueReadingSection({required this.course, required this.currentUser});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<CourseSequenceContext>(
+      future: PublicCourseRepository.instance.continueReadingFor(course),
+      builder: (context, snap) {
+        final ctx = snap.data;
+        if (ctx == null) return const SizedBox.shrink();
+        final others = ctx.topicLessons.where((c) => c.id != course.id).toList();
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (ctx.previous != null || ctx.next != null)
+            Row(children: [
+              if (ctx.previous != null)
+                Expanded(child: _SequenceNavCard(
+                    label: 'Previous', course: ctx.previous!, currentUser: currentUser, alignEnd: false)),
+              if (ctx.previous != null && ctx.next != null) const SizedBox(width: 10),
+              if (ctx.next != null)
+                Expanded(child: _SequenceNavCard(
+                    label: 'Next', course: ctx.next!, currentUser: currentUser, alignEnd: true)),
+            ]),
+          if (others.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text('More in "${course.topic}"', style: AppText.h2.copyWith(fontSize: 14)),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 40,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: others.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, i) {
+                  final o = others[i];
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => CourseReaderPage(course: o, currentUser: currentUser))),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                            color: C.surf2, borderRadius: BorderRadius.circular(20), border: Border.all(color: C.bdr)),
+                        child: Text(o.title, style: AppText.caption.copyWith(fontSize: 12, color: C.txt2)),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ]);
+      },
+    );
+  }
+}
+
+class _SequenceNavCard extends StatelessWidget {
+  final String label;
+  final PublicCourse course;
+  final AppUser? currentUser;
+  final bool alignEnd;
+  const _SequenceNavCard({required this.label, required this.course, required this.currentUser, required this.alignEnd});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Rad.sm),
+        onTap: () => Navigator.of(context).pushReplacement(MaterialPageRoute(
+            builder: (_) => CourseReaderPage(course: course, currentUser: currentUser))),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+              color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr2)),
+          child: Column(
+            crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                if (!alignEnd) const Icon(Icons.chevron_left_rounded, size: 14, color: C.muted),
+                Text(label, style: AppText.caption.copyWith(fontSize: 10.5, color: C.muted)),
+                if (alignEnd) const Icon(Icons.chevron_right_rounded, size: 14, color: C.muted),
+              ]),
+              const SizedBox(height: 2),
+              Text(course.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  textAlign: alignEnd ? TextAlign.right : TextAlign.left,
+                  style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700)),
+            ],
+          ),
         ),
       ),
     );

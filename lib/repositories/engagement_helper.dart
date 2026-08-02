@@ -38,7 +38,12 @@ class EngagementHelper {
       if (existing.exists) {
         await ref.delete();
       } else {
-        await ref.set({timestampField: FieldValue.serverTimestamp()});
+        // `userId` is stored as a real field (in addition to being the
+        // doc ID) because a Firestore collectionGroup query can only
+        // filter on the *full document path* via FieldPath.documentId —
+        // never on a bare ID. Any "my saved/bookmarked X" lookup that
+        // spans multiple parent docs needs this field to filter on.
+        await ref.set({timestampField: FieldValue.serverTimestamp(), 'userId': userId});
       }
       return const Success(null);
     } catch (e) {

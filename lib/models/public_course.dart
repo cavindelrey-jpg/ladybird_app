@@ -42,6 +42,49 @@ class PublicCourse {
   /// see kCourseTags for the suggested picker list; custom tags allowed.
   List<String> tags;
 
+  // ── Curriculum hierarchy ──────────────────────────────────────────
+  // A course is really a single "lesson" that lives at a fixed address
+  // inside an academic tree: Category (existing `category` above) →
+  // Subject → Curriculum/Level → Topic → this lesson. All four of
+  // subject/level/topic/difficulty are free-text (autocompleted from
+  // what already exists, see PublicCourseRepository.hierarchyOptions),
+  // so a course written before this feature existed just has them
+  // blank and shows up under "Uncategorized" in the browser.
+
+  /// e.g. "History" — sits directly under `category` ("Social Studies").
+  String subject;
+
+  /// e.g. "GCE Advanced Level".
+  String level;
+
+  /// e.g. "World War I in Cameroon" — the unit/topic this lesson
+  /// belongs to. Siblings sharing the same (category, subject, level,
+  /// topic) tuple form one ordered sequence.
+  String topic;
+
+  /// e.g. "Advanced" — see kDifficultyLevels.
+  String difficulty;
+
+  /// Hidden sequence position within this course's topic. Never shown
+  /// to users — the composer only ever offers "before/between/after"
+  /// choices and computes this value (see PublicCourseRepository
+  /// .positionBefore/positionBetween/positionAfter). Large gaps
+  /// (100, 200, 300…) are left between siblings on purpose so a new
+  /// lesson can be inserted anywhere without renumbering the rest.
+  double order;
+
+  /// Course IDs that should be read before this one. Purely advisory —
+  /// shown as links on the reader page, not enforced.
+  List<String> prerequisiteIds;
+
+  /// True once this course has been placed somewhere in the curriculum
+  /// tree (subject/level/topic all set). Courses created before this
+  /// feature, or ones an author skips placement for, fall back to
+  /// showing only in the flat marketplace feed, not the hierarchy
+  /// browser.
+  bool get hasCurriculumPlacement =>
+      subject.trim().isNotEmpty && level.trim().isNotEmpty && topic.trim().isNotEmpty;
+
   String? coverImageUrl;
   bool published;
 
@@ -65,6 +108,12 @@ class PublicCourse {
     this.bodyDelta,
     this.category = 'Mathematics',
     List<String>? tags,
+    this.subject = '',
+    this.level = '',
+    this.topic = '',
+    this.difficulty = '',
+    this.order = 0,
+    List<String>? prerequisiteIds,
     this.coverImageUrl,
     this.published = true,
     this.enrolledCount = 0,
@@ -75,6 +124,7 @@ class PublicCourse {
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : tags = tags ?? [],
+        prerequisiteIds = prerequisiteIds ?? [],
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
@@ -91,6 +141,12 @@ class PublicCourse {
       bodyDelta: d['bodyDelta'],
       category: d['category'] ?? 'Mathematics',
       tags: List<String>.from(d['tags'] ?? const []),
+      subject: d['subject'] ?? '',
+      level: d['level'] ?? '',
+      topic: d['topic'] ?? '',
+      difficulty: d['difficulty'] ?? '',
+      order: (d['order'] ?? 0).toDouble(),
+      prerequisiteIds: List<String>.from(d['prerequisiteIds'] ?? const []),
       coverImageUrl: d['coverImageUrl'],
       published: d['published'] ?? true,
       enrolledCount: d['enrolledCount'] ?? 0,
@@ -113,6 +169,12 @@ class PublicCourse {
         'bodyDelta': bodyDelta,
         'category': category,
         'tags': tags,
+        'subject': subject,
+        'level': level,
+        'topic': topic,
+        'difficulty': difficulty,
+        'order': order,
+        'prerequisiteIds': prerequisiteIds,
         'coverImageUrl': coverImageUrl,
         'published': published,
         'enrolledCount': enrolledCount,
@@ -136,6 +198,9 @@ const kCourseTags = [
   'GCE O-Level', 'GCE A-Level', 'Beginner', 'Intermediate', 'Advanced',
   'Exam Prep', 'Past Papers', 'Practical',
 ];
+
+/// Difficulty picker options for a lesson's curriculum placement.
+const kDifficultyLevels = ['Beginner', 'Intermediate', 'Advanced'];
 
 class CourseComment {
   final String id;

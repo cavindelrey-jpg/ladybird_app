@@ -36,6 +36,32 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
   late final _descCtrl = TextEditingController(text: widget.existing?.description ?? '');
   late String _category = widget.existing?.category ?? kCourseCategories.first;
   late List<String> _tags = List<String>.from(widget.existing?.tags ?? const []);
+
+  // ── Curriculum placement ──────────────────────────────────────────
+  // Subject/Level/Topic are free text with autocomplete against what
+  // already exists (see HierarchyField); Difficulty is a fixed picker.
+  // None of this is required — an author can skip it and the course
+  // just won't appear in the hierarchy browser, only the flat feed.
+  late final _subjectCtrl = TextEditingController(text: widget.existing?.subject ?? '');
+  late final _levelCtrl = TextEditingController(text: widget.existing?.level ?? '');
+  late final _topicCtrl = TextEditingController(text: widget.existing?.topic ?? '');
+  late String _difficulty = widget.existing?.difficulty ?? '';
+  late List<String> _prerequisiteIds = List<String>.from(widget.existing?.prerequisiteIds ?? const []);
+
+  List<String> _subjectSuggestions = [];
+  List<String> _levelSuggestions = [];
+  List<String> _topicSuggestions = [];
+
+  /// The existing lesson sequence for the current Subject/Level/Topic —
+  /// used both for the Before/Between/After placement picker and the
+  /// prerequisites picker. Excludes this course itself when editing.
+  List<PublicCourse> _topicSequence = [];
+  bool _loadingSequence = false;
+
+  /// null = not placed yet / at the very start; otherwise the index in
+  /// `_topicSequence` this lesson comes immediately after. Length of
+  /// `_topicSequence` means "at the end".
+  int? _placementAfterIndex;
   late final quill.QuillController _quillCtrl = _initQuillController();
   final _editorFocusNode = FocusNode();
   final _editorScrollCtrl = ScrollController();
@@ -80,6 +106,10 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
   void initState() {
     super.initState();
     _autoSaveTimer = Timer.periodic(const Duration(seconds: 45), (_) => _autoSaveDraft());
+    _loadSubjectSuggestions();
+    if (_subjectCtrl.text.isNotEmpty) _loadLevelSuggestions();
+    if (_levelCtrl.text.isNotEmpty) _loadTopicSuggestions();
+    if (widget.existing?.hasCurriculumPlacement ?? false) _loadTopicSequence();
   }
 
   @override
@@ -87,10 +117,67 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     _autoSaveTimer?.cancel();
     _titleCtrl.dispose();
     _descCtrl.dispose();
+    _subjectCtrl.dispose();
+    _levelCtrl.dispose();
+    _topicCtrl.dispose();
     _quillCtrl.dispose();
     _editorFocusNode.dispose();
     _editorScrollCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSubjectSuggestions() async {
+    final subjects = await PublicCourseRepository.instance.subjectsIn(_category);
+    if (mounted) setState(() => _subjectSuggestions = subjects);
+  }
+
+  Future<void> _loadLevelSuggestions() async {
+    if (_subjectCtrl.text.trim().isEmpty) {
+      setState(() => _levelSuggestions = []);
+      return;
+    }
+    final levels = await PublicCourseRepository.instance.levelsIn(_category, _subjectCtrl.text.trim());
+    if (mounted) setState(() => _levelSuggestions = levels);
+  }
+
+  Future<void> _loadTopicSuggestions() async {
+    if (_subjectCtrl.text.trim().isEmpty || _levelCtrl.text.trim().isEmpty) {
+      setState(() => _topicSuggestions = []);
+      return;
+    }
+    final topics = await PublicCourseRepository.instance
+        .topicsIn(_category, _subjectCtrl.text.trim(), _levelCtrl.text.trim());
+    if (mounted) setState(() => _topicSuggestions = topics);
+  }
+
+  /// Loads the sibling lessons already in this topic — the source of
+  /// truth for both the placement picker and the prerequisites list.
+  /// Re-run whenever Subject/Level/Topic changes.
+  Future<void> _loadTopicSequence() async {
+    if (_subjectCtrl.text.trim().isEmpty || _levelCtrl.text.trim().isEmpty || _topicCtrl.text.trim().isEmpty) {
+      setState(() { _topicSequence = []; _placementAfterIndex = null; });
+      return;
+    }
+    setState(() => _loadingSequence = true);
+    final sequence = await PublicCourseRepository.instance.topicSequence(
+        _category, _subjectCtrl.text.trim(), _levelCtrl.text.trim(), _topicCtrl.text.trim());
+    sequence.removeWhere((c) => c.id == _workingCourse.id && c.id.isNotEmpty);
+    if (!mounted) return;
+    setState(() {
+      _topicSequence = sequence;
+      _loadingSequence = false;
+      // Default to "at the end" for a new lesson in this topic.
+      _placementAfterIndex ??= sequence.length;
+      if (_placementAfterIndex! > sequence.length) _placementAfterIndex = sequence.length;
+      // A prerequisite that's no longer in this topic (topic changed) is dropped.
+      _prerequisiteIds.removeWhere((id) => !sequence.any((c) => c.id == id));
+    });
+  }
+
+  void _onHierarchyChanged() {
+    _loadLevelSuggestions();
+    _loadTopicSuggestions();
+    _loadTopicSequence();
   }
 
   Future<void> _pickCover() async {
@@ -184,6 +271,27 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     _workingCourse.category = _category;
     _workingCourse.tags = _tags;
     _workingCourse.published = publish;
+    _workingCourse.subject = _subjectCtrl.text.trim();
+    _workingCourse.level = _levelCtrl.text.trim();
+    _workingCourse.topic = _topicCtrl.text.trim();
+    _workingCourse.difficulty = _difficulty;
+    _workingCourse.prerequisiteIds = _prerequisiteIds;
+
+    // Compute the hidden sequence position from the Before/Between/After
+    // choice — the author never types a number directly (see the
+    // repository's positionAtStart/positionBetween/positionAtEnd).
+    if (_workingCourse.hasCurriculumPlacement) {
+      final repo = PublicCourseRepository.instance;
+      final afterIndex = _placementAfterIndex ?? _topicSequence.length;
+      if (afterIndex <= 0) {
+        _workingCourse.order = repo.positionAtStart(_topicSequence);
+      } else if (afterIndex >= _topicSequence.length) {
+        _workingCourse.order = repo.positionAtEnd(_topicSequence);
+      } else {
+        _workingCourse.order = repo.positionBetween(
+            _topicSequence[afterIndex - 1], _topicSequence[afterIndex]);
+      }
+    }
 
     if (_workingCourse.id.isEmpty) {
       final result = await repo.create(_workingCourse);
@@ -198,6 +306,9 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
         title: _workingCourse.title, description: _workingCourse.description,
         body: _workingCourse.body, bodyDelta: _workingCourse.bodyDelta,
         category: _workingCourse.category, tags: _workingCourse.tags,
+        subject: _workingCourse.subject, level: _workingCourse.level,
+        topic: _workingCourse.topic, difficulty: _workingCourse.difficulty,
+        order: _workingCourse.order, prerequisiteIds: _workingCourse.prerequisiteIds,
         coverImageUrl: _workingCourse.coverImageUrl,
         published: _workingCourse.published,
       );
@@ -325,6 +436,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                       onTap: () {
                         HapticFeedback.selectionClick();
                         setState(() => _category = cat);
+                        _loadSubjectSuggestions();
                       },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 150),
@@ -347,6 +459,65 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                 selected: _tags,
                 suggestions: kCourseTags,
                 onChanged: (next) => setState(() => _tags = next),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                    color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr2)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Where does this lesson live?', style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text('Optional — place it in the curriculum tree so students can browse to it '
+                      'even if they never search for it.',
+                      style: AppText.caption.copyWith(fontSize: 11, color: C.txt2)),
+                  const SizedBox(height: 12),
+                  HierarchyField(
+                    label: 'Subject', hint: 'e.g. History',
+                    controller: _subjectCtrl, suggestions: _subjectSuggestions,
+                    onChanged: (_) => _onHierarchyChanged(),
+                  ),
+                  const SizedBox(height: 10),
+                  HierarchyField(
+                    label: 'Curriculum / Level', hint: 'e.g. GCE Advanced Level',
+                    controller: _levelCtrl, suggestions: _levelSuggestions,
+                    onChanged: (_) => _onHierarchyChanged(),
+                  ),
+                  const SizedBox(height: 10),
+                  HierarchyField(
+                    label: 'Unit / Topic', hint: 'e.g. World War I in Cameroon',
+                    controller: _topicCtrl, suggestions: _topicSuggestions,
+                    onChanged: (_) => _onHierarchyChanged(),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Difficulty', style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: C.txt2)),
+                  const SizedBox(height: 6),
+                  Wrap(spacing: 8, children: kDifficultyLevels.map((d) {
+                    final active = d == _difficulty;
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () {
+                          HapticFeedback.selectionClick();
+                          setState(() => _difficulty = active ? '' : d);
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: active ? C.primary : C.surf2,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: active ? C.primary : C.bdr),
+                          ),
+                          child: Text(d, style: AppText.caption.copyWith(
+                              fontSize: 11.5, fontWeight: FontWeight.w700,
+                              color: active ? Colors.white : C.txt2)),
+                        ),
+                      ),
+                    );
+                  }).toList()),
+                ]),
               ),
               const SizedBox(height: 20),
               TextField(
@@ -379,6 +550,24 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                   ),
                 ),
               ),
+              if (_topicCtrl.text.trim().isNotEmpty && _levelCtrl.text.trim().isNotEmpty &&
+                  _subjectCtrl.text.trim().isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _PlacementPicker(
+                  sequence: _topicSequence,
+                  loading: _loadingSequence,
+                  afterIndex: _placementAfterIndex ?? _topicSequence.length,
+                  onChanged: (i) => setState(() => _placementAfterIndex = i),
+                ),
+                if (_topicSequence.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  _PrerequisitesPicker(
+                    sequence: _topicSequence,
+                    selected: _prerequisiteIds,
+                    onChanged: (next) => setState(() => _prerequisiteIds = next),
+                  ),
+                ],
+              ],
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Container(
@@ -443,6 +632,111 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
           ),
         ),
       ])),
+    );
+  }
+}
+
+/// "Where does this lesson belong?" — the author picks a position
+/// relative to the existing sequence in this topic; the hidden
+/// numeric `order` is computed from that choice, never typed directly.
+class _PlacementPicker extends StatelessWidget {
+  final List<PublicCourse> sequence;
+  final bool loading;
+  final int afterIndex; // 0..sequence.length
+  final ValueChanged<int> onChanged;
+  const _PlacementPicker({
+    required this.sequence, required this.loading, required this.afterIndex, required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: ShimmerLine(width: 220, height: 14));
+    }
+    if (sequence.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: C.surf2, borderRadius: BorderRadius.circular(Rad.sm)),
+        child: Text('This is the first lesson in this topic.', style: AppText.caption.copyWith(color: C.txt2)),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr2)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Where does this lesson belong?', style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 10),
+        ...List.generate(sequence.length + 1, (i) {
+          final String label;
+          if (i == 0) {
+            label = 'Before "${sequence.first.title}"';
+          } else if (i == sequence.length) {
+            label = 'After "${sequence.last.title}"';
+          } else {
+            label = 'Between "${sequence[i - 1].title}" and "${sequence[i].title}"';
+          }
+          return RadioListTile<int>(
+            value: i,
+            groupValue: afterIndex,
+            onChanged: (v) { if (v != null) onChanged(v); },
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            activeColor: C.primary,
+            title: Text(label, style: AppText.bodySm),
+          );
+        }),
+      ]),
+    );
+  }
+}
+
+/// Purely advisory "read these first" links, picked from lessons
+/// already in the same topic sequence.
+class _PrerequisitesPicker extends StatelessWidget {
+  final List<PublicCourse> sequence;
+  final List<String> selected;
+  final ValueChanged<List<String>> onChanged;
+  const _PrerequisitesPicker({required this.sequence, required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Prerequisites (optional)', style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: C.txt2)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8, runSpacing: 8,
+          children: sequence.map((c) {
+            final active = selected.contains(c.id);
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  final next = List<String>.from(selected);
+                  active ? next.remove(c.id) : next.add(c.id);
+                  onChanged(next);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: active ? C.goldp : C.surf2,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: active ? C.gold : C.bdr),
+                  ),
+                  child: Text(c.title, style: AppText.caption.copyWith(
+                      fontSize: 11.5, fontWeight: FontWeight.w700,
+                      color: active ? C.gold : C.txt2)),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 }

@@ -11,6 +11,18 @@ import '../core/constants.dart';
 import '../core/result.dart';
 import 'engagement_helper.dart';
 
+/// Result of [PublicCourseRepository.continueReadingFor] — previous/next
+/// lesson within the same topic sequence, plus the topic's full lesson
+/// list for a "more in this topic" rail. Any of the lesson fields can be
+/// null (e.g. this is the first/last lesson in the topic, or the course
+/// isn't placed in the curriculum tree at all).
+class CourseSequenceContext {
+  final PublicCourse? previous;
+  final PublicCourse? next;
+  final List<PublicCourse> topicLessons;
+  const CourseSequenceContext({this.previous, this.next, this.topicLessons = const []});
+}
+
 class PublicCourseRepository {
   PublicCourseRepository._();
   static final PublicCourseRepository instance = PublicCourseRepository._();
@@ -75,6 +87,134 @@ class PublicCourseRepository {
       counts[cat] = (counts[cat] ?? 0) + 1;
     }
     return counts;
+  }
+
+  // ── Curriculum hierarchy ─────────────────────────────────
+  // Category → Subject → Level → Topic → ordered lessons. Nothing here
+  // is a fixed taxonomy table — subject/level/topic are free text on
+  // each course, and these queries just derive the distinct values
+  // that already exist, the same "grow from real data" approach as
+  // categoryCountsOnce() above. Bounded client-side aggregation is
+  // fine at this scale; revisit with a scheduled aggregate if the
+  // catalogue grows into the thousands.
+
+  /// Distinct subjects that already exist under [category].
+  Future<List<String>> subjectsIn(String category) async {
+    final snap = await _courses
+        .where('published', isEqualTo: true)
+        .where('category', isEqualTo: category)
+        .limit(500)
+        .get();
+    return _distinctNonEmpty(snap.docs.map((d) => d.data()['subject'] as String?));
+  }
+
+  /// Distinct curriculum/levels that already exist under [category] + [subject].
+  Future<List<String>> levelsIn(String category, String subject) async {
+    final snap = await _courses
+        .where('published', isEqualTo: true)
+        .where('category', isEqualTo: category)
+        .where('subject', isEqualTo: subject)
+        .limit(500)
+        .get();
+    return _distinctNonEmpty(snap.docs.map((d) => d.data()['level'] as String?));
+  }
+
+  /// Distinct topics that already exist under category + subject + level.
+  Future<List<String>> topicsIn(String category, String subject, String level) async {
+    final snap = await _courses
+        .where('published', isEqualTo: true)
+        .where('category', isEqualTo: category)
+        .where('subject', isEqualTo: subject)
+        .where('level', isEqualTo: level)
+        .limit(500)
+        .get();
+    return _distinctNonEmpty(snap.docs.map((d) => d.data()['topic'] as String?));
+  }
+
+  List<String> _distinctNonEmpty(Iterable<String?> values) {
+    final set = <String>{};
+    for (final v in values) {
+      if (v != null && v.trim().isNotEmpty) set.add(v);
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
+  /// The full, in-order lesson sequence for one topic — the "table of
+  /// contents" for e.g. Social Studies → History → GCE Advanced Level →
+  /// World War I in Cameroon. Ordered by the hidden `order` field.
+  Future<List<PublicCourse>> topicSequence(String category, String subject, String level, String topic) async {
+    final snap = await _courses
+        .where('published', isEqualTo: true)
+        .where('category', isEqualTo: category)
+        .where('subject', isEqualTo: subject)
+        .where('level', isEqualTo: level)
+        .where('topic', isEqualTo: topic)
+        .orderBy('order')
+        .get();
+    return snap.docs.map(PublicCourse.fromFirestore).toList();
+  }
+
+  /// Courses grouped into the curriculum tree, for the browse page —
+  /// one query per distinct (category, subject, level, topic) isn't
+  /// practical, so this pulls a bounded published set once and buckets
+  /// it client-side. Courses missing any hierarchy field are omitted;
+  /// they only show in the flat marketplace feed.
+  Future<Map<String, Map<String, Map<String, Map<String, List<PublicCourse>>>>>> curriculumTreeOnce() async {
+    final snap = await _courses.where('published', isEqualTo: true).limit(1000).get();
+    final tree = <String, Map<String, Map<String, Map<String, List<PublicCourse>>>>>{};
+    for (final doc in snap.docs) {
+      final course = PublicCourse.fromFirestore(doc);
+      if (!course.hasCurriculumPlacement) continue;
+      final byCategory = tree.putIfAbsent(course.category, () => {});
+      final bySubject = byCategory.putIfAbsent(course.subject, () => {});
+      final byLevel = bySubject.putIfAbsent(course.level, () => {});
+      final byTopic = byLevel.putIfAbsent(course.topic, () => []);
+      byTopic.add(course);
+    }
+    for (final byCategory in tree.values) {
+      for (final bySubject in byCategory.values) {
+        for (final byLevel in bySubject.values) {
+          for (final lessons in byLevel.values) {
+            lessons.sort((a, b) => a.order.compareTo(b.order));
+          }
+        }
+      }
+    }
+    return tree;
+  }
+
+  // ── Sequence placement — "where does this lesson belong?" ────────
+  // Large gaps between positions (100, 200, 300…) so a new lesson can
+  // be slotted in anywhere later without renumbering existing ones.
+  // The composer never lets an author type a number directly — it
+  // offers Before/Between/After choices against the existing sequence
+  // and calls one of these to compute the hidden value.
+
+  static const double _gap = 100;
+
+  double positionAtStart(List<PublicCourse> existingSequence) =>
+      existingSequence.isEmpty ? _gap : existingSequence.first.order - _gap;
+
+  double positionAtEnd(List<PublicCourse> existingSequence) =>
+      existingSequence.isEmpty ? _gap : existingSequence.last.order + _gap;
+
+  double positionBetween(PublicCourse before, PublicCourse after) =>
+      (before.order + after.order) / 2;
+
+  /// Previous/next lesson relative to [course] within its own topic,
+  /// plus the topic's full sequence. Returns an empty context (all
+  /// nulls) if the course isn't placed in the curriculum tree.
+  Future<CourseSequenceContext> continueReadingFor(PublicCourse course) async {
+    if (!course.hasCurriculumPlacement) return const CourseSequenceContext();
+    final sequence = await topicSequence(course.category, course.subject, course.level, course.topic);
+    final index = sequence.indexWhere((c) => c.id == course.id);
+    if (index == -1) return CourseSequenceContext(topicLessons: sequence);
+    return CourseSequenceContext(
+      previous: index > 0 ? sequence[index - 1] : null,
+      next: index < sequence.length - 1 ? sequence[index + 1] : null,
+      topicLessons: sequence,
+    );
   }
 
   // ── CRUD ─────────────────────────────────────────────────
@@ -189,7 +329,7 @@ class PublicCourseRepository {
   Stream<List<PublicCourse>> watchBookmarkedCourses(String userId) {
     return _db
         .collectionGroup(AppConstants.colBookmarks)
-        .where(FieldPath.documentId, isEqualTo: userId)
+        .where('userId', isEqualTo: userId)
         .snapshots()
         .asyncMap((snap) async {
       final courseIds = snap.docs

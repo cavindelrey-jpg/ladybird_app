@@ -731,3 +731,90 @@ class TagMultiSelect extends StatelessWidget {
     );
   }
 }
+
+/// A single free-text field with autocomplete against whatever values
+/// already exist at this level of the curriculum tree — e.g. typing
+/// into the Subject field under "Social Studies" suggests "History"
+/// once any course already uses it. Nothing stops a genuinely new
+/// value; suggestions are just there to keep the tree from splintering
+/// into near-duplicate spellings ("History" vs "history").
+class HierarchyField extends StatelessWidget {
+  final String label;
+  final String hint;
+  final TextEditingController controller;
+  final List<String> suggestions;
+  final bool enabled;
+  final ValueChanged<String>? onChanged;
+
+  const HierarchyField({
+    super.key,
+    required this.label,
+    required this.hint,
+    required this.controller,
+    this.suggestions = const [],
+    this.enabled = true,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: C.txt2)),
+        const SizedBox(height: 6),
+        RawAutocomplete<String>(
+          textEditingController: controller,
+          focusNode: FocusNode(),
+          optionsBuilder: (value) {
+            if (value.text.trim().isEmpty) return suggestions;
+            final q = value.text.toLowerCase();
+            return suggestions.where((s) => s.toLowerCase().contains(q));
+          },
+          onSelected: onChanged,
+          fieldViewBuilder: (context, textController, focusNode, onSubmit) => TextField(
+            controller: textController,
+            focusNode: focusNode,
+            enabled: enabled,
+            onChanged: onChanged,
+            style: AppText.body,
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: AppText.body.copyWith(color: C.txt3),
+              filled: true,
+              fillColor: C.surf2,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: C.bdr),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: C.bdr),
+              ),
+            ),
+          ),
+          optionsViewBuilder: (context, onSelected, options) => Align(
+            alignment: Alignment.topLeft,
+            child: Material(
+              elevation: 4,
+              borderRadius: BorderRadius.circular(10),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 200, maxWidth: 320),
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  children: options.map((o) => ListTile(
+                        dense: true,
+                        title: Text(o, style: AppText.body),
+                        onTap: () => onSelected(o),
+                      )).toList(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

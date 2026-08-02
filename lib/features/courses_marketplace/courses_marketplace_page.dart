@@ -23,6 +23,7 @@ import '../../pages/profile_page.dart';
 import 'course_reader_page.dart';
 import 'course_composer_page.dart';
 import 'course_creator_profile_page.dart';
+import 'course_browse_page.dart';
 
 const _kCategoryIcons = <String, IconData>{
   'Mathematics':      Icons.functions_rounded,
@@ -80,6 +81,8 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
                 _heroBanner(context),
                 const SizedBox(height: 18),
                 _categoryChips(),
+                const SizedBox(height: 14),
+                _browseByCurriculumCta(context),
                 const SizedBox(height: 20),
                 if (_category == null) ...[
                   _sectionHeader('Featured Courses',
@@ -138,6 +141,42 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
               MaterialPageRoute(builder: (_) => ProfilePage(user: widget.user!))),
         ),
       ]),
+    );
+  }
+
+  /// Entry point into the hierarchical "table of contents" browser
+  /// (course_browse_page.dart) — the alternative to finding a lesson
+  /// only through search or the flat feed below.
+  Widget _browseByCurriculumCta(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Material(
+        color: C.primaryBg,
+        borderRadius: BorderRadius.circular(Rad.md),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(Rad.md),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => CourseBrowsePage(currentUser: widget.user)));
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.primary.withOpacity(0.25))),
+            child: Row(children: [
+              const Icon(Icons.account_tree_outlined, size: 20, color: C.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Browse by Curriculum', style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, color: C.primary)),
+                  Text('Subject → Level → Topic → Lessons', style: AppText.caption.copyWith(fontSize: 11, color: C.txt2)),
+                ]),
+              ),
+              const Icon(Icons.chevron_right_rounded, size: 18, color: C.primary),
+            ]),
+          ),
+        ),
+      ),
     );
   }
 

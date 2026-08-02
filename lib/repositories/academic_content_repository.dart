@@ -166,7 +166,7 @@ class AcademicContentRepository {
       if (existing.exists) {
         await ref.delete();
       } else {
-        await ref.set({'savedAt': FieldValue.serverTimestamp()});
+        await ref.set({'savedAt': FieldValue.serverTimestamp(), 'userId': userId});
       }
       return const Success(null);
     } catch (e) {
@@ -177,7 +177,7 @@ class AcademicContentRepository {
   /// A user's saved content, newest-saved first.
   Stream<List<AcademicContent>> watchSavedContent(String userId) {
     return _db.collectionGroup(AppConstants.colSaves)
-        .where(FieldPath.documentId, isEqualTo: userId)
+        .where('userId', isEqualTo: userId)
         .snapshots()
         .asyncMap((snap) async {
       final ids = snap.docs.map((d) => d.reference.parent.parent?.id).whereType<String>().toList();
@@ -200,7 +200,7 @@ class AcademicContentRepository {
   Future<void> recordView(String contentId, String userId) async {
     try {
       await _db.collection(_col).doc(contentId).collection(AppConstants.colRecentViews).doc(userId)
-          .set({'viewedAt': FieldValue.serverTimestamp()});
+          .set({'viewedAt': FieldValue.serverTimestamp(), 'userId': userId});
     } catch (_) {
       // best-effort — a failed recency update shouldn't block viewing the content
     }
@@ -209,7 +209,7 @@ class AcademicContentRepository {
   /// Most-recently-viewed content for this user.
   Stream<List<AcademicContent>> watchRecentlyViewed(String userId, {int limit = 10}) {
     return _db.collectionGroup(AppConstants.colRecentViews)
-        .where(FieldPath.documentId, isEqualTo: userId)
+        .where('userId', isEqualTo: userId)
         .snapshots()
         .asyncMap((snap) async {
       final entries = snap.docs
@@ -246,6 +246,7 @@ class AcademicContentRepository {
         'page': page,
         'totalPages': totalPages,
         'updatedAt': FieldValue.serverTimestamp(),
+        'userId': userId,
       }).timeout(const Duration(seconds: 10));
     } catch (_) {
       // best-effort
@@ -274,7 +275,7 @@ class AcademicContentRepository {
   Future<({AcademicContent content, int page, int totalPages})?> continueReading(String userId) async {
     try {
       final snap = await _db.collectionGroup(AppConstants.colReadPositions)
-          .where(FieldPath.documentId, isEqualTo: userId)
+          .where('userId', isEqualTo: userId)
           .get();
       if (snap.docs.isEmpty) return null;
       final sorted = snap.docs.toList()

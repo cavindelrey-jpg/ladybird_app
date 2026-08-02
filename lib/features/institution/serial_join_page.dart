@@ -18,6 +18,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
+import '../../core/result.dart';
 import '../../models/institution.dart';
 import '../../models/serial_number.dart';
 import '../../repositories/serial_repository.dart';

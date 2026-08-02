@@ -780,7 +780,7 @@ class HierarchyField extends StatelessWidget {
             style: AppText.body,
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: AppText.body.copyWith(color: C.txt3),
+              hintStyle: AppText.body.copyWith(color: C.muted),
               filled: true,
               fillColor: C.surf2,
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

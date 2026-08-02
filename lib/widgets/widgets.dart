@@ -1,9 +1,12 @@
 // lib/widgets/widgets.dart
 // Academia shared widget library — Material 3, animated, accessible.
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+import '../models/public_course.dart';
 import '../theme/app_theme.dart';
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -738,83 +741,278 @@ class TagMultiSelect extends StatelessWidget {
 /// once any course already uses it. Nothing stops a genuinely new
 /// value; suggestions are just there to keep the tree from splintering
 /// into near-duplicate spellings ("History" vs "history").
-class HierarchyField extends StatelessWidget {
-  final String label;
-  final String hint;
-  final TextEditingController controller;
-  final List<String> suggestions;
-  final bool enabled;
-  final ValueChanged<String>? onChanged;
+/// Curriculum-tree picker: shows existing values (Subject/Level/Topic)
+/// as tappable chips so you SELECT one rather than retype it — the
+/// only way a new value gets created is via the explicit "+ Create
+/// new" chip. This is deliberately stricter than free-text
+/// autocomplete: autocomplete still lets someone type "Cameroon" when
+/// "Cameroonon" already exists and silently create a duplicate
+/// sibling; forcing a tap removes that failure mode entirely.
+/// Emoji choices offered when creating a new curriculum node — kept to
+/// a small, broadly-applicable set rather than trying to cover every
+/// subject; a picture beats "Uncategorized" even if it's only roughly
+/// on-topic.
+const kCurriculumIconChoices = [
+  '📘','📗','📕','🔬','🧮','🌍','💻','🎨','📊','⚗️','🧬','📐','🏛️','🎭','🎵','⚽',
+];
 
-  const HierarchyField({
+class HierarchyPicker extends StatefulWidget {
+  final String label;
+  final String value;
+  final List<String> options;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+
+  /// option label -> chosen look, for showing existing nodes as more
+  /// than plain text. Missing entries fall back to a letter-avatar.
+  final Map<String, CurriculumIcon> icons;
+
+  /// Called with the chosen emoji whenever the user picks one while
+  /// creating a new node (empty string if they clear it).
+  final ValueChanged<String>? onIconPicked;
+
+  /// Called with the chosen photo file while creating a new node
+  /// (null if they clear it). Upload happens on save, not here.
+  final ValueChanged<File?>? onImagePicked;
+
+  /// The photo currently staged for the new node, so it survives
+  /// rebuilds (e.g. periodic autosave) instead of resetting.
+  final File? pickedImage;
+
+  const HierarchyPicker({
     super.key,
     required this.label,
-    required this.hint,
-    required this.controller,
-    this.suggestions = const [],
+    required this.value,
+    required this.options,
+    required this.onChanged,
+    this.icons = const {},
+    this.onIconPicked,
+    this.onImagePicked,
+    this.pickedImage,
     this.enabled = true,
-    this.onChanged,
   });
+
+  @override
+  State<HierarchyPicker> createState() => _HierarchyPickerState();
+}
+
+class _HierarchyPickerState extends State<HierarchyPicker> {
+  late bool _creatingNew = widget.value.isNotEmpty && !widget.options.contains(widget.value);
+  late final TextEditingController _newCtrl = TextEditingController(text: _creatingNew ? widget.value : '');
+  String _newIcon = '';
+
+  @override
+  void didUpdateWidget(covariant HierarchyPicker old) {
+    super.didUpdateWidget(old);
+    // If the value we're holding shows up in the (now-refreshed) options
+    // list — e.g. someone else just created "History" while we were
+    // mid-typing the same thing — drop out of "creating new" mode.
+    if (_creatingNew && widget.options.contains(widget.value)) {
+      setState(() => _creatingNew = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _newCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null) return;
+    // Photo and emoji are mutually exclusive so the tile shows exactly
+    // one thing — picking a photo clears any emoji already chosen.
+    setState(() => _newIcon = '');
+    widget.onIconPicked?.call('');
+    widget.onImagePicked?.call(File(picked.path));
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: C.txt2)),
+        Text(widget.label, style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: C.txt2)),
         const SizedBox(height: 6),
-        RawAutocomplete<String>(
-          textEditingController: controller,
-          focusNode: FocusNode(),
-          optionsBuilder: (value) {
-            if (value.text.trim().isEmpty) return suggestions;
-            final q = value.text.toLowerCase();
-            return suggestions.where((s) => s.toLowerCase().contains(q));
-          },
-          onSelected: onChanged,
-          fieldViewBuilder: (context, textController, focusNode, onSubmit) => TextField(
-            controller: textController,
-            focusNode: focusNode,
-            enabled: enabled,
-            onChanged: onChanged,
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          ...widget.options.map((o) {
+            final active = !_creatingNew && o == widget.value;
+            return _chip(o, active, () {
+              setState(() => _creatingNew = false);
+              widget.onChanged(o);
+            }, icon: widget.icons[o]?.emoji, thumbUrl: widget.icons[o]?.imageUrl);
+          }),
+          _chip('+ Create new', _creatingNew, () => setState(() => _creatingNew = true), outline: true),
+        ]),
+        if (_creatingNew) ...[
+          const SizedBox(height: 8),
+          TextField(
+            controller: _newCtrl,
+            autofocus: true,
+            enabled: widget.enabled,
+            onChanged: widget.onChanged,
             style: AppText.body,
             decoration: InputDecoration(
-              hintText: hint,
+              hintText: 'New ${widget.label.toLowerCase()}',
               hintStyle: AppText.body.copyWith(color: C.muted),
               filled: true,
               fillColor: C.surf2,
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: C.bdr),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(color: C.bdr),
-              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: C.bdr)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: C.bdr)),
             ),
           ),
-          optionsViewBuilder: (context, onSelected, options) => Align(
-            alignment: Alignment.topLeft,
-            child: Material(
-              elevation: 4,
-              borderRadius: BorderRadius.circular(10),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 200, maxWidth: 320),
-                child: ListView(
-                  padding: EdgeInsets.zero,
-                  shrinkWrap: true,
-                  children: options.map((o) => ListTile(
-                        dense: true,
-                        title: Text(o, style: AppText.body),
-                        onTap: () => onSelected(o),
-                      )).toList(),
+          if (widget.onIconPicked != null) ...[
+            const SizedBox(height: 8),
+            Text('Give it a look (optional) — an emoji, or your own photo',
+                style: AppText.caption.copyWith(fontSize: 11, color: C.txt2)),
+            const SizedBox(height: 6),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                child: Wrap(spacing: 6, runSpacing: 6, children: kCurriculumIconChoices.map((e) {
+                  final active = e == _newIcon;
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () {
+                      setState(() => _newIcon = active ? '' : e);
+                      widget.onIconPicked!(_newIcon);
+                      if (!active) widget.onImagePicked?.call(null); // mutually exclusive with a photo
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 36, height: 36, alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: active ? C.primaryBg : C.surf2,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: active ? C.primary : C.bdr),
+                      ),
+                      child: Text(e, style: const TextStyle(fontSize: 17)),
+                    ),
+                  );
+                }).toList()),
+              ),
+              const SizedBox(width: 10),
+              if (widget.pickedImage != null)
+                Stack(clipBehavior: Clip.none, children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.file(widget.pickedImage!, width: 44, height: 44, fit: BoxFit.cover),
+                  ),
+                  Positioned(
+                    top: -6, right: -6,
+                    child: InkWell(
+                      onTap: () => widget.onImagePicked?.call(null),
+                      child: Container(
+                        width: 20, height: 20, alignment: Alignment.center,
+                        decoration: const BoxDecoration(color: C.red, shape: BoxShape.circle),
+                        child: const Icon(Icons.close_rounded, size: 13, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ])
+              else if (widget.onImagePicked != null)
+                InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: _pickImage,
+                  child: Container(
+                    width: 44, height: 44, alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                        color: C.surf2, borderRadius: BorderRadius.circular(10), border: Border.all(color: C.bdr)),
+                    child: const Icon(Icons.add_photo_alternate_outlined, size: 20, color: C.txt2),
+                  ),
                 ),
-              ),
-            ),
-          ),
-        ),
+            ]),
+          ],
+        ],
       ],
+    );
+  }
+
+  Widget _chip(String label, bool active, VoidCallback onTap, {bool outline = false, String? icon, String? thumbUrl}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: widget.enabled ? onTap : null,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: active ? C.primary : (outline ? Colors.transparent : C.surf2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: active ? C.primary : C.bdr),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (thumbUrl != null && thumbUrl.isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Image.network(thumbUrl, width: 16, height: 16, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox(width: 16, height: 16)),
+              ),
+              const SizedBox(width: 5),
+            ] else if (icon != null && icon.isNotEmpty) ...[
+              Text(icon, style: const TextStyle(fontSize: 13)),
+              const SizedBox(width: 5),
+            ],
+            Text(label, style: AppText.caption.copyWith(
+                fontSize: 12, fontWeight: FontWeight.w700,
+                color: active ? Colors.white : (outline ? C.primary : C.txt2))),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// A letter-avatar fallback for any curriculum node without a chosen
+/// look — deterministic color from the label so the same subject
+/// always gets the same tint, Wikipedia-card style rather than a bare
+/// line of text. An uploaded photo (local file while composing, or a
+/// network URL once saved) takes priority over the emoji, which in
+/// turn takes priority over the letter.
+class HierarchyAvatar extends StatelessWidget {
+  final String label;
+  final String? icon;
+  final String? imageUrl;
+  final File? localImage;
+  final double size;
+  const HierarchyAvatar({
+    super.key, required this.label, this.icon, this.imageUrl, this.localImage, this.size = 44,
+  });
+
+  static const _palette = [0xFF3B5BA9, 0xFF2E8B57, 0xFFB2531D, 0xFF7A4FB5, 0xFFB0446E, 0xFF1F8A8A];
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage = localImage != null || (imageUrl != null && imageUrl!.isNotEmpty);
+    if (hasImage) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(size * 0.28),
+        child: localImage != null
+            ? Image.file(localImage!, width: size, height: size, fit: BoxFit.cover)
+            : Image.network(imageUrl!, width: size, height: size, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _fallback()),
+      );
+    }
+    return _fallback();
+  }
+
+  Widget _fallback() {
+    final hasIcon = icon != null && icon!.isNotEmpty;
+    final colorSeed = label.isEmpty ? 0 : label.codeUnitAt(0);
+    final color = Color(_palette[colorSeed % _palette.length]);
+    return Container(
+      width: size, height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: hasIcon ? color.withOpacity(0.12) : color,
+        borderRadius: BorderRadius.circular(size * 0.28),
+      ),
+      child: hasIcon
+          ? Text(icon!, style: TextStyle(fontSize: size * 0.5))
+          : Text(label.isEmpty ? '?' : label[0].toUpperCase(),
+              style: TextStyle(fontSize: size * 0.42, fontWeight: FontWeight.w800, color: Colors.white)),
     );
   }
 }

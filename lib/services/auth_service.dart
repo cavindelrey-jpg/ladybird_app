@@ -89,29 +89,54 @@ class AuthService {
     return user;
   }
 
+  /// Personalizes a pre-provisioned seat into a real, sign-in-able account.
+  /// [schoolCode] must be the same string as the institution's document ID
+  /// (InstitutionRepository now keys institutions by schoolCode for
+  /// exactly this reason) — it's what gets stored as the user's schoolId,
+  /// which is how _IndependentUserGate re-loads the correct branding on
+  /// every future launch. A serial number is {schoolCode}-{seatId}; by the
+  /// time this is called the caller has already run
+  /// AccountsRepository.resolveSeat() to confirm the seat is claimable, so
+  /// this only re-checks the temp password (the actual "is this really
+  /// you" gate) and does the one-way claim.
   Future<AppUser> claimLinkedSeat({
     required String schoolCode, required String seatId,
     required String tempPassword, required String newEmail,
     required String newPassword, required String studentName,
   }) async {
-    final seatRef = _db.collection(AppConstants.colSchools).doc(schoolCode)
+    final code = schoolCode.trim().toUpperCase();
+    final seatRef = _db.collection(AppConstants.colSchools).doc(code)
         .collection(AppConstants.colSeats).doc(seatId);
     final seatDoc = await seatRef.get();
     if (!seatDoc.exists) throw Exception('Seat not found.');
     final data = seatDoc.data()!;
-    if (data['claimed'] == true) throw Exception('Account already activated.');
-    if (data['tempPassword'] != tempPassword) throw Exception('Incorrect temporary password.');
+    if (data['adminAccessRevoked'] == true) {
+      throw Exception('This serial number has already been activated.');
+    }
+    if (data['tempPassword'] != tempPassword) {
+      throw Exception('Incorrect temporary password. Ask your school administrator to confirm it.');
+    }
     final cred = await _auth.createUserWithEmailAndPassword(email: newEmail, password: newPassword);
     final uid  = cred.user!.uid;
     final user = AppUser(
       id: uid, name: studentName, email: newEmail,
       role: UserRole.student, roleName: 'School Student',
       accountType: AccountType.linked, status: AccountStatus.active,
-      schoolId: schoolCode, classLevel: data['classLevel'] ?? '',
+      schoolId: code, classLevel: data['classLevel'] ?? '',
       isFirstLogin: true, adminAccessRevoked: true,
     );
     await _db.collection(AppConstants.colUsers).doc(uid).set(user.toFirestore());
-    await seatRef.update({'claimed': true, 'claimedByUid': uid, 'tempPassword': '••••••••'});
+    // One-way: temp password is destroyed and adminAccessRevoked flips, so
+    // this exact serial number can never be claimed a second time —
+    // including by someone who screenshots/forwards it after this point.
+    await seatRef.update({
+      'status': AccountStatus.active.name,
+      'adminAccessRevoked': true,
+      'studentName': studentName,
+      'claimedByUid': uid,
+      'claimedAt': FieldValue.serverTimestamp(),
+      'tempPassword': '••••••••',
+    });
     return user;
   }
 

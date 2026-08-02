@@ -89,6 +89,63 @@ class PublicCourseRepository {
     return counts;
   }
 
+  // ── Curriculum node icons ─────────────────────────────────────────
+  // Subject/Level/Topic aren't documents of their own — they're just
+  // distinct strings on courses — so an icon picked for one lives in
+  // its own small lookup collection, keyed by its place in the tree.
+  // Falls back to a generated letter-avatar wherever nothing was set
+  // (see HierarchyTile in the browse page), so this is enhancement,
+  // not a requirement.
+
+  static String subjectIconKey(String category, String subject) => 'subject::$category::$subject';
+  static String levelIconKey(String category, String subject, String level) =>
+      'level::$category::$subject::$level';
+  static String topicIconKey(String category, String subject, String level, String topic) =>
+      'topic::$category::$subject::$level::$topic';
+
+  CollectionReference<Map<String, dynamic>> get _curriculumIcons => _db.collection('curriculum_icons');
+
+  /// All node->look assignments made so far. Small, bounded collection
+  /// (one doc per unique subject/level/topic), safe to pull in full.
+  Future<Map<String, CurriculumIcon>> curriculumIconsOnce() async {
+    final snap = await _curriculumIcons.limit(2000).get();
+    return {
+      for (final d in snap.docs)
+        d.id: CurriculumIcon(
+          emoji: d.data()['icon'] as String? ?? '',
+          imageUrl: d.data()['imageUrl'] as String? ?? '',
+        ),
+    };
+  }
+
+  /// Assigns/updates the look for one tree node. Pass whichever of
+  /// `emoji`/`imageUrl` the author picked; passing both empty clears
+  /// the node back to the default letter-avatar.
+  Future<void> setCurriculumIcon(String key, {String emoji = '', String imageUrl = ''}) async {
+    final docId = key.replaceAll('/', '-');
+    if (emoji.isEmpty && imageUrl.isEmpty) {
+      await _curriculumIcons.doc(docId).delete().catchError((_) {});
+    } else {
+      await _curriculumIcons.doc(docId).set({'icon': emoji, 'imageUrl': imageUrl, 'key': key});
+    }
+  }
+
+  /// Uploads a photo for one Subject/Level/Topic node, returning its
+  /// download URL. Storage path is derived from the same tree-path key
+  /// used for the Firestore lookup doc, so it's stable across renames
+  /// of the *category* (subject/level/topic strings are the identity).
+  Future<Result<String>> uploadCurriculumNodeImage({required String key, required File imageFile}) async {
+    try {
+      final docId = key.replaceAll('/', '-');
+      final ref = FirebaseStorage.instance.ref('curriculum_icons/$docId.jpg');
+      await ref.putFile(imageFile).timeout(const Duration(seconds: 60), onTimeout: () => throw Exception(
+              'Image upload is taking too long. Check your connection and try again.'));
+      return Success(await ref.getDownloadURL());
+    } catch (e) {
+      return Failure('Failed to upload image', e);
+    }
+  }
+
   // ── Curriculum hierarchy ─────────────────────────────────
   // Category → Subject → Level → Topic → ordered lessons. Nothing here
   // is a fixed taxonomy table — subject/level/topic are free text on

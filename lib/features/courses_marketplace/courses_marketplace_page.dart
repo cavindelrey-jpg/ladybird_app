@@ -145,34 +145,48 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
   }
 
   /// Entry point into the hierarchical "table of contents" browser
-  /// (course_browse_page.dart) — the alternative to finding a lesson
-  /// only through search or the flat feed below.
+  /// (course_browse_page.dart) — deliberately big and colorful, not a
+  /// slim row, since it's an equally valid front door into the
+  /// marketplace as search or the category chips above it.
   Widget _browseByCurriculumCta(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Material(
-        color: C.primaryBg,
-        borderRadius: BorderRadius.circular(Rad.md),
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(Rad.lg),
         child: InkWell(
-          borderRadius: BorderRadius.circular(Rad.md),
+          borderRadius: BorderRadius.circular(Rad.lg),
           onTap: () {
             HapticFeedback.selectionClick();
             Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => CourseBrowsePage(currentUser: widget.user)));
           },
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.primary.withOpacity(0.25))),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+                colors: [C.gold, C.gold.withOpacity(0.75)],
+              ),
+              borderRadius: BorderRadius.circular(Rad.lg),
+            ),
             child: Row(children: [
-              const Icon(Icons.account_tree_outlined, size: 20, color: C.primary),
-              const SizedBox(width: 12),
+              Container(
+                width: 56, height: 56,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.22), borderRadius: BorderRadius.circular(16)),
+                child: const Icon(Icons.travel_explore_rounded, size: 30, color: Colors.white),
+              ),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Browse by Curriculum', style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, color: C.primary)),
-                  Text('Subject → Level → Topic → Lessons', style: AppText.caption.copyWith(fontSize: 11, color: C.txt2)),
+                  Text('Browse by Curriculum', style: AppText.h2.copyWith(fontSize: 17, color: Colors.white)),
+                  const SizedBox(height: 3),
+                  Text('Subject → Level → Topic → Lessons',
+                      style: AppText.bodySm.copyWith(fontSize: 12.5, color: Colors.white.withOpacity(0.9))),
                 ]),
               ),
-              const Icon(Icons.chevron_right_rounded, size: 18, color: C.primary),
+              const Icon(Icons.arrow_forward_rounded, size: 22, color: Colors.white),
             ]),
           ),
         ),

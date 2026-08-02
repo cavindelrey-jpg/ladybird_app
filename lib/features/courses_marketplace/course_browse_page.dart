@@ -40,6 +40,7 @@ enum _BrowseLevel { category, subject, level, topic }
 class _CourseBrowsePageState extends State<CourseBrowsePage> {
   // Full tree: category -> subject -> level -> topic -> ordered lessons.
   Map<String, Map<String, Map<String, Map<String, List<PublicCourse>>>>> _tree = {};
+  Map<String, CurriculumIcon> _icons = {};
   bool _loading = true;
 
   String? _category;
@@ -58,9 +59,14 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
   }
 
   Future<void> _load() async {
-    final tree = await PublicCourseRepository.instance.curriculumTreeOnce();
+    final repo = PublicCourseRepository.instance;
+    final results = await Future.wait([repo.curriculumTreeOnce(), repo.curriculumIconsOnce()]);
     if (!mounted) return;
-    setState(() { _tree = tree; _loading = false; });
+    setState(() {
+      _tree = results[0] as Map<String, Map<String, Map<String, Map<String, List<PublicCourse>>>>>;
+      _icons = results[1] as Map<String, CurriculumIcon>;
+      _loading = false;
+    });
   }
 
   _BrowseLevel get _currentLevel {
@@ -147,14 +153,36 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
   /// than tracking a 5th enum level — `_topic` doubles as "show lessons".
   String? get _breadcrumbTopic => _topic;
 
+  /// Icon lookup for the level currently being browsed — categories
+  /// fall back to a letter-avatar (they already have their own iconography
+  /// elsewhere in the app); subject/level/topic use whatever was assigned
+  /// via the composer, same fallback otherwise.
+  CurriculumIcon _iconFor(String label) {
+    switch (_currentLevel) {
+      case _BrowseLevel.category:
+        return CurriculumIcon.none;
+      case _BrowseLevel.subject:
+        return _icons[PublicCourseRepository.subjectIconKey(_category!, label)] ?? CurriculumIcon.none;
+      case _BrowseLevel.level:
+        return _icons[PublicCourseRepository.levelIconKey(_category!, _subject!, label)] ?? CurriculumIcon.none;
+      case _BrowseLevel.topic:
+        return _icons[PublicCourseRepository.topicIconKey(_category!, _subject!, _level!, label)] ?? CurriculumIcon.none;
+    }
+  }
+
   Widget _buildList(List<String> items, ValueChanged<String> onTap, {bool isTopic = false}) {
     if (items.isEmpty) {
       return Center(child: Text('Nothing here yet.', style: AppText.bodySm.copyWith(color: C.txt2)));
     }
-    return ListView.separated(
+    // Icon tiles rather than plain text rows — a picture (or at least a
+    // colored letter) is easier to scan and recognize on a second visit
+    // than a line of text, closer to how a Wikipedia topic list reads.
+    return GridView.builder(
       padding: const EdgeInsets.all(20),
       itemCount: items.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.92,
+      ),
       itemBuilder: (context, i) {
         final label = items[i];
         final count = isTopic ? (_tree[_category!]?[_subject!]?[_level!]?[label]?.length ?? 0) : null;
@@ -168,14 +196,17 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
               onTap(label);
             },
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr2)),
-              child: Row(children: [
-                Expanded(child: Text(label, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700))),
-                if (count != null)
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                HierarchyAvatar(label: label, icon: _iconFor(label).emoji, imageUrl: _iconFor(label).imageUrl, size: 48),
+                const Spacer(),
+                Text(label, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                if (count != null) ...[
+                  const SizedBox(height: 2),
                   Text('$count lesson${count == 1 ? '' : 's'}', style: AppText.caption.copyWith(color: C.txt2)),
-                const SizedBox(width: 6),
-                const Icon(Icons.chevron_right_rounded, size: 18, color: C.muted),
+                ],
               ]),
             ),
           ),

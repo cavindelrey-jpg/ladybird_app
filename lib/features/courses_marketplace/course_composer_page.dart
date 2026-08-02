@@ -39,14 +39,30 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
 
   // ── Curriculum placement ──────────────────────────────────────────
   // Subject/Level/Topic are free text with autocomplete against what
-  // already exists (see HierarchyField); Difficulty is a fixed picker.
+  // already exists (see HierarchyPicker); Difficulty is a fixed picker.
   // None of this is required — an author can skip it and the course
   // just won't appear in the hierarchy browser, only the flat feed.
-  late final _subjectCtrl = TextEditingController(text: widget.existing?.subject ?? '');
-  late final _levelCtrl = TextEditingController(text: widget.existing?.level ?? '');
-  late final _topicCtrl = TextEditingController(text: widget.existing?.topic ?? '');
+  late String _subject = widget.existing?.subject ?? '';
+  late String _level = widget.existing?.level ?? '';
+  late String _topic = widget.existing?.topic ?? '';
   late String _difficulty = widget.existing?.difficulty ?? '';
   late List<String> _prerequisiteIds = List<String>.from(widget.existing?.prerequisiteIds ?? const []);
+
+  /// Icons picked while creating a brand-new Subject/Level/Topic this
+  /// session — empty means "don't touch the existing assignment".
+  String _newSubjectIcon = '';
+  String _newLevelIcon = '';
+  String _newTopicIcon = '';
+
+  /// Photos picked while creating a brand-new Subject/Level/Topic this
+  /// session — uploaded on save, mutually exclusive with the emoji above.
+  File? _newSubjectImage;
+  File? _newLevelImage;
+  File? _newTopicImage;
+
+  /// All existing node->look assignments, loaded once; chip display
+  /// only needs the slice for the current scope, computed on the fly.
+  Map<String, CurriculumIcon> _iconMap = {};
 
   List<String> _subjectSuggestions = [];
   List<String> _levelSuggestions = [];
@@ -107,8 +123,9 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     super.initState();
     _autoSaveTimer = Timer.periodic(const Duration(seconds: 45), (_) => _autoSaveDraft());
     _loadSubjectSuggestions();
-    if (_subjectCtrl.text.isNotEmpty) _loadLevelSuggestions();
-    if (_levelCtrl.text.isNotEmpty) _loadTopicSuggestions();
+    _loadIconMap();
+    if (_subject.isNotEmpty) _loadLevelSuggestions();
+    if (_level.isNotEmpty) _loadTopicSuggestions();
     if (widget.existing?.hasCurriculumPlacement ?? false) _loadTopicSequence();
   }
 
@@ -117,14 +134,34 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     _autoSaveTimer?.cancel();
     _titleCtrl.dispose();
     _descCtrl.dispose();
-    _subjectCtrl.dispose();
-    _levelCtrl.dispose();
-    _topicCtrl.dispose();
     _quillCtrl.dispose();
     _editorFocusNode.dispose();
     _editorScrollCtrl.dispose();
     super.dispose();
   }
+
+  Future<void> _loadIconMap() async {
+    final icons = await PublicCourseRepository.instance.curriculumIconsOnce();
+    if (mounted) setState(() => _iconMap = icons);
+  }
+
+  /// Subject label -> look, scoped to the current category.
+  Map<String, CurriculumIcon> get _subjectIcons => {
+        for (final s in _subjectSuggestions)
+          s: _iconMap[PublicCourseRepository.subjectIconKey(_category, s)] ?? CurriculumIcon.none,
+      };
+
+  /// Level label -> look, scoped to the current category+subject.
+  Map<String, CurriculumIcon> get _levelIcons => {
+        for (final l in _levelSuggestions)
+          l: _iconMap[PublicCourseRepository.levelIconKey(_category, _subject, l)] ?? CurriculumIcon.none,
+      };
+
+  /// Topic label -> look, scoped to the current category+subject+level.
+  Map<String, CurriculumIcon> get _topicIcons => {
+        for (final t in _topicSuggestions)
+          t: _iconMap[PublicCourseRepository.topicIconKey(_category, _subject, _level, t)] ?? CurriculumIcon.none,
+      };
 
   Future<void> _loadSubjectSuggestions() async {
     final subjects = await PublicCourseRepository.instance.subjectsIn(_category);
@@ -132,21 +169,21 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
   }
 
   Future<void> _loadLevelSuggestions() async {
-    if (_subjectCtrl.text.trim().isEmpty) {
+    if (_subject.trim().isEmpty) {
       setState(() => _levelSuggestions = []);
       return;
     }
-    final levels = await PublicCourseRepository.instance.levelsIn(_category, _subjectCtrl.text.trim());
+    final levels = await PublicCourseRepository.instance.levelsIn(_category, _subject.trim());
     if (mounted) setState(() => _levelSuggestions = levels);
   }
 
   Future<void> _loadTopicSuggestions() async {
-    if (_subjectCtrl.text.trim().isEmpty || _levelCtrl.text.trim().isEmpty) {
+    if (_subject.trim().isEmpty || _level.trim().isEmpty) {
       setState(() => _topicSuggestions = []);
       return;
     }
     final topics = await PublicCourseRepository.instance
-        .topicsIn(_category, _subjectCtrl.text.trim(), _levelCtrl.text.trim());
+        .topicsIn(_category, _subject.trim(), _level.trim());
     if (mounted) setState(() => _topicSuggestions = topics);
   }
 
@@ -154,13 +191,13 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
   /// truth for both the placement picker and the prerequisites list.
   /// Re-run whenever Subject/Level/Topic changes.
   Future<void> _loadTopicSequence() async {
-    if (_subjectCtrl.text.trim().isEmpty || _levelCtrl.text.trim().isEmpty || _topicCtrl.text.trim().isEmpty) {
+    if (_subject.trim().isEmpty || _level.trim().isEmpty || _topic.trim().isEmpty) {
       setState(() { _topicSequence = []; _placementAfterIndex = null; });
       return;
     }
     setState(() => _loadingSequence = true);
     final sequence = await PublicCourseRepository.instance.topicSequence(
-        _category, _subjectCtrl.text.trim(), _levelCtrl.text.trim(), _topicCtrl.text.trim());
+        _category, _subject.trim(), _level.trim(), _topic.trim());
     sequence.removeWhere((c) => c.id == _workingCourse.id && c.id.isNotEmpty);
     if (!mounted) return;
     setState(() {
@@ -174,9 +211,21 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     });
   }
 
-  void _onHierarchyChanged() {
+  void _onSubjectChanged(String v) {
+    setState(() { _subject = v; _level = ''; _topic = ''; _newLevelIcon = ''; _newTopicIcon = ''; _newLevelImage = null; _newTopicImage = null; });
     _loadLevelSuggestions();
     _loadTopicSuggestions();
+    _loadTopicSequence();
+  }
+
+  void _onLevelChanged(String v) {
+    setState(() { _level = v; _topic = ''; _newTopicIcon = ''; _newTopicImage = null; });
+    _loadTopicSuggestions();
+    _loadTopicSequence();
+  }
+
+  void _onTopicChanged(String v) {
+    setState(() => _topic = v);
     _loadTopicSequence();
   }
 
@@ -271,9 +320,9 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     _workingCourse.category = _category;
     _workingCourse.tags = _tags;
     _workingCourse.published = publish;
-    _workingCourse.subject = _subjectCtrl.text.trim();
-    _workingCourse.level = _levelCtrl.text.trim();
-    _workingCourse.topic = _topicCtrl.text.trim();
+    _workingCourse.subject = _subject.trim();
+    _workingCourse.level = _level.trim();
+    _workingCourse.topic = _topic.trim();
     _workingCourse.difficulty = _difficulty;
     _workingCourse.prerequisiteIds = _prerequisiteIds;
 
@@ -328,7 +377,40 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
       if (mounted) setState(() => _error = message);
       return false;
     }
+    await _persistNewIcons(repo);
     return true;
+  }
+
+  /// Save whatever look (emoji or photo) was picked while creating a
+  /// new Subject/Level/Topic this session. Doesn't touch nodes the
+  /// author didn't change anything for.
+  Future<void> _persistNewIcons(PublicCourseRepository repo) async {
+    if (_subject.isNotEmpty) {
+      await _persistOneIcon(repo,
+          key: PublicCourseRepository.subjectIconKey(_category, _subject),
+          emoji: _newSubjectIcon, image: _newSubjectImage);
+    }
+    if (_subject.isNotEmpty && _level.isNotEmpty) {
+      await _persistOneIcon(repo,
+          key: PublicCourseRepository.levelIconKey(_category, _subject, _level),
+          emoji: _newLevelIcon, image: _newLevelImage);
+    }
+    if (_subject.isNotEmpty && _level.isNotEmpty && _topic.isNotEmpty) {
+      await _persistOneIcon(repo,
+          key: PublicCourseRepository.topicIconKey(_category, _subject, _level, _topic),
+          emoji: _newTopicIcon, image: _newTopicImage);
+    }
+  }
+
+  Future<void> _persistOneIcon(PublicCourseRepository repo,
+      {required String key, required String emoji, required File? image}) async {
+    if (emoji.isEmpty && image == null) return;
+    String imageUrl = '';
+    if (image != null) {
+      final upload = await repo.uploadCurriculumNodeImage(key: key, imageFile: image);
+      if (upload is Success<String>) imageUrl = upload.value;
+    }
+    await repo.setCurriculumIcon(key, emoji: emoji, imageUrl: imageUrl);
   }
 
   Future<void> _delete() async {
@@ -472,22 +554,34 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                       'even if they never search for it.',
                       style: AppText.caption.copyWith(fontSize: 11, color: C.txt2)),
                   const SizedBox(height: 12),
-                  HierarchyField(
-                    label: 'Subject', hint: 'e.g. History',
-                    controller: _subjectCtrl, suggestions: _subjectSuggestions,
-                    onChanged: (_) => _onHierarchyChanged(),
+                  HierarchyPicker(
+                    label: 'Subject',
+                    value: _subject, options: _subjectSuggestions,
+                    icons: _subjectIcons,
+                    onIconPicked: (icon) => setState(() => _newSubjectIcon = icon),
+                    onImagePicked: (file) => setState(() => _newSubjectImage = file),
+                    pickedImage: _newSubjectImage,
+                    onChanged: _onSubjectChanged,
                   ),
                   const SizedBox(height: 10),
-                  HierarchyField(
-                    label: 'Curriculum / Level', hint: 'e.g. GCE Advanced Level',
-                    controller: _levelCtrl, suggestions: _levelSuggestions,
-                    onChanged: (_) => _onHierarchyChanged(),
+                  HierarchyPicker(
+                    label: 'Curriculum / Level',
+                    value: _level, options: _levelSuggestions,
+                    icons: _levelIcons,
+                    onIconPicked: (icon) => setState(() => _newLevelIcon = icon),
+                    onImagePicked: (file) => setState(() => _newLevelImage = file),
+                    pickedImage: _newLevelImage,
+                    onChanged: _onLevelChanged,
                   ),
                   const SizedBox(height: 10),
-                  HierarchyField(
-                    label: 'Unit / Topic', hint: 'e.g. World War I in Cameroon',
-                    controller: _topicCtrl, suggestions: _topicSuggestions,
-                    onChanged: (_) => _onHierarchyChanged(),
+                  HierarchyPicker(
+                    label: 'Unit / Topic',
+                    value: _topic, options: _topicSuggestions,
+                    icons: _topicIcons,
+                    onIconPicked: (icon) => setState(() => _newTopicIcon = icon),
+                    onImagePicked: (file) => setState(() => _newTopicImage = file),
+                    pickedImage: _newTopicImage,
+                    onChanged: _onTopicChanged,
                   ),
                   const SizedBox(height: 12),
                   Text('Difficulty', style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: C.txt2)),
@@ -550,8 +644,8 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                   ),
                 ),
               ),
-              if (_topicCtrl.text.trim().isNotEmpty && _levelCtrl.text.trim().isNotEmpty &&
-                  _subjectCtrl.text.trim().isNotEmpty) ...[
+              if (_topic.trim().isNotEmpty && _level.trim().isNotEmpty &&
+                  _subject.trim().isNotEmpty) ...[
                 const SizedBox(height: 16),
                 _PlacementPicker(
                   sequence: _topicSequence,

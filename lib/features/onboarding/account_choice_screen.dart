@@ -77,10 +77,10 @@ class AccountChoiceScreen extends StatelessWidget {
               iconBg: C.navy,
               iconOnDark: true,
               title: 'Student — My School',
-              subtitle: "Enter your school's code. Academia re-skins to "
-                  'your institution — its name, logo, courses, timetable, '
-                  'and announcements.',
-              badge: 'SCHOOL CODE',
+              subtitle: 'Enter the personal serial number your school gave '
+                  'you after fees are confirmed. Academia re-skins to your '
+                  "institution's own name, logo, and colors — just for you.",
+              badge: 'SERIAL NUMBER',
               badgeColor: C.navy,
               badgeBg: C.surf3,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(

@@ -202,6 +202,17 @@ const kCourseTags = [
 /// Difficulty picker options for a lesson's curriculum placement.
 const kDifficultyLevels = ['Beginner', 'Intermediate', 'Advanced'];
 
+/// A Subject/Level/Topic node's chosen look — an uploaded photo takes
+/// priority over an emoji if somehow both are set; neither is required
+/// (see HierarchyAvatar's letter-avatar fallback in widgets.dart).
+class CurriculumIcon {
+  final String emoji;
+  final String imageUrl;
+  const CurriculumIcon({this.emoji = '', this.imageUrl = ''});
+  bool get isEmpty => emoji.isEmpty && imageUrl.isEmpty;
+  static const none = CurriculumIcon();
+}
+
 class CourseComment {
   final String id;
   final String courseId;

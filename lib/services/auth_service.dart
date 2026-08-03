@@ -55,6 +55,7 @@ class AuthService {
   }) async {
     final cred = await _auth.createUserWithEmailAndPassword(email: email, password: password);
     final uid  = cred.user!.uid;
+    await cred.user!.getIdToken(true); // avoid auth-token propagation race, see note above
     final user = AppUser(
       id: uid, name: name, email: email,
       role: role, accountType: AccountType.independent, status: AccountStatus.active,
@@ -79,6 +80,7 @@ class AuthService {
   Future<AppUser> signInWithGoogleCredential(fb.AuthCredential credential) async {
     final cred = await _auth.signInWithCredential(credential);
     final uid  = cred.user!.uid;
+    await cred.user!.getIdToken(true); // avoid auth-token propagation race, see note above
     final doc  = await _db.collection(AppConstants.colUsers).doc(uid).get();
     if (doc.exists) return AppUser.fromFirestore(uid, doc.data()!);
     final user = AppUser(
@@ -140,6 +142,18 @@ class AuthService {
     final cred = await _auth.createUserWithEmailAndPassword(
         email: email, password: password);
     final uid = cred.user!.uid;
+
+    // Force-refresh the ID token before the very next Firestore write.
+    // Without this, there's a known race: createUserWithEmailAndPassword
+    // signs the user in locally right away, but the fresh ID token can
+    // take a moment to propagate to the Firestore SDK's request layer.
+    // If the serial-claim transaction (or the user-doc write right after
+    // it) fires before that propagation finishes, security rules see
+    // request.auth as null for that one request and deny it with
+    // "permission-denied" — even though the account was just created
+    // successfully a moment earlier. Awaiting a forced refresh here
+    // closes that window.
+    await cred.user!.getIdToken(true);
 
     final claimResult =
         await SerialRepository.instance.claim(code: normalizedSerial, uid: uid);

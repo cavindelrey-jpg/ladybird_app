@@ -233,15 +233,27 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
 
   Widget _avatar() {
     if (!_isGuest && (_u!.photoUrl ?? '').isNotEmpty) {
-      return CircleAvatar(radius: 30, backgroundImage: NetworkImage(_u!.photoUrl!));
+      return Container(
+        width: 62, height: 62,
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(colors: [C.gold, Color(0xFFE8C765)]),
+        ),
+        child: CircleAvatar(radius: 29, backgroundImage: NetworkImage(_u!.photoUrl!)),
+      );
     }
     return Container(
       width: 60, height: 60,
       decoration: BoxDecoration(
-        color: C.surf3, shape: BoxShape.circle,
-        border: Border.all(color: C.bdr, width: 1.5),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: [C.gold.withValues(alpha: .18), C.gold.withValues(alpha: .06)],
+        ),
+        shape: BoxShape.circle,
+        border: Border.all(color: C.gold.withValues(alpha: .35), width: 1.5),
       ),
-      child: const Icon(Icons.person_rounded, size: 32, color: C.muted),
+      child: const Icon(Icons.person_rounded, size: 32, color: C.gold),
     );
   }
 
@@ -271,7 +283,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             child: Container(
               height: 64,
               decoration: BoxDecoration(
-                  color: C.surf, borderRadius: BorderRadius.circular(16), boxShadow: _glow),
+                  color: C.surf, borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: C.bdr2, width: 1), boxShadow: _glow),
               child: Row(children: [
                 for (var i = 0; i < segments.length; i++) ...[
                   if (i > 0) Container(width: 1, height: 36, color: C.bdr2),
@@ -519,11 +532,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 decoration: BoxDecoration(borderRadius: radius, boxShadow: _glow),
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: color.withValues(alpha: .1), shape: BoxShape.circle),
-                    child: Icon(icon, color: color, size: 22),
-                  ),
+                  IconBadge(icon: icon, color: color, size: 46, iconSize: 22),
                   const SizedBox(height: 10),
                   Text(label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: C.txt)),

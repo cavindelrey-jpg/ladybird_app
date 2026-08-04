@@ -1,17 +1,20 @@
 // lib/widgets/app_background.dart
-// Every page in the design-system audit either used a flat C.bg color
-// or nothing at all (43 confirmed page files, only 8 with any gradient
-// anywhere). Rather than hand-edit 43 files with 43 slightly different
-// gradients, this is the one shared wrapper the design doc's own
-// "Design Tokens" / "Consistency" principles call for — every page
-// wraps its Scaffold body in this instead of a bare color.
+// The shared background wrapper behind ~43 pages. Previous version was a
+// flat, near-invisible linear tint (alpha .05) fading to the base gray —
+// "subtle enough not to fight card content" was the design goal, and the
+// result reads as an unstyled default rather than a designed surface.
 //
-// Usage:
+// This version keeps the exact same contract (Positioned.fill decoration
+// behind whatever the page already draws, zero layout impact) but gives
+// it real visual character: a warm, asymmetric two-glow lighting setup in
+// the brand navy/gold instead of a flat pastel wash — closer to how
+// premium apps (Stripe, Linear, Vercel) light a page than to a generic
+// "light blue at the top" template gradient.
+//
+// Usage unchanged:
 //   Scaffold(
 //     body: AppBackground(child: <your existing page content>),
 //   )
-// Replaces `backgroundColor: C.bg` on the Scaffold — leave that off (or
-// keep it as a fallback) since this paints the real background itself.
 
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
@@ -25,35 +28,64 @@ class AppBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final topColor = tint == AppBackgroundTint.navy
-        ? C.navy.withValues(alpha: .06)
-        : C.primary.withValues(alpha: .05);
+    final glowA = tint == AppBackgroundTint.navy
+        ? C.navy.withValues(alpha: .16)
+        : C.primary.withValues(alpha: .13);
 
     return Stack(children: [
-      // The gradient itself: a soft tint at the top fading to the
-      // standard flat background by roughly a third of the way down —
-      // subtle enough not to fight card content, present enough that
-      // the screen doesn't read as flat white/gray.
+      Positioned.fill(child: ColoredBox(color: C.bg)),
+      // Primary light source: an off-center radial glow anchored high and
+      // slightly right of center, the way a studio key-light is placed —
+      // not dead-center, which reads as a flat "template gradient".
       Positioned.fill(
         child: DecoratedBox(
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter, end: Alignment.bottomCenter,
-              colors: [topColor, C.bg],
-              stops: const [0.0, 0.35],
+            gradient: RadialGradient(
+              center: const Alignment(0.4, -1.05),
+              radius: 1.15,
+              colors: [glowA, glowA.withValues(alpha: 0), Colors.transparent],
+              stops: const [0.0, 0.55, 1.0],
             ),
           ),
         ),
       ),
-      // Very low-opacity academic watermark shapes, per the design
-      // doc's "Educational Personality" rule — decorative only, must
-      // never sit where it could reduce text contrast, so it's pinned
-      // to the top-right corner, out of the way of body content.
-      const Positioned(
-        top: 60, right: -20,
+      // Fill light: a second, smaller, cooler-toned glow low on the
+      // opposite side — this asymmetric two-source setup is what keeps a
+      // gradient from reading as a flat "light-blue-at-the-top" wash; it
+      // gives the canvas actual depth instead of a single uniform fade.
+      Positioned.fill(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: const Alignment(-0.9, -0.55),
+              radius: 0.9,
+              colors: [
+                C.gold.withValues(alpha: .07),
+                C.gold.withValues(alpha: 0),
+              ],
+              stops: const [0.0, 1.0],
+            ),
+          ),
+        ),
+      ),
+      // Decorative watermark — larger and more present than a barely-there
+      // 0.04-alpha accent, but still fully out of the way of body content
+      // (top-right corner, above where any card grid starts).
+      Positioned(
+        top: 44, right: -34,
+        child: Transform.rotate(
+          angle: -0.12,
+          child: Opacity(
+            opacity: 0.05,
+            child: Icon(Icons.auto_stories_rounded, size: 190, color: C.navy),
+          ),
+        ),
+      ),
+      Positioned(
+        top: 150, right: 60,
         child: Opacity(
-          opacity: 0.04,
-          child: Icon(Icons.auto_stories_rounded, size: 140, color: C.navy),
+          opacity: 0.035,
+          child: Icon(Icons.workspace_premium_rounded, size: 56, color: C.gold),
         ),
       ),
       child,

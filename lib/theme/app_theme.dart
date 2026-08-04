@@ -260,13 +260,16 @@ class AppText {
   AppText._();
 
   static TextStyle get display => GoogleFonts.sora(
-      fontSize: 28, fontWeight: FontWeight.w800, height: 1.2, color: C.txt);
+      fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
+      letterSpacing: -0.5, color: C.txt);
 
   static TextStyle get h1 => GoogleFonts.sora(
-      fontSize: 22, fontWeight: FontWeight.w800, height: 1.25, color: C.txt);
+      fontSize: 23, fontWeight: FontWeight.w800, height: 1.2,
+      letterSpacing: -0.4, color: C.txt);
 
   static TextStyle get h2 => GoogleFonts.sora(
-      fontSize: 18, fontWeight: FontWeight.w700, height: 1.3, color: C.txt);
+      fontSize: 18, fontWeight: FontWeight.w700, height: 1.3,
+      letterSpacing: -0.2, color: C.txt);
 
   /// Card titles, list-item primary text, section headers.
   static TextStyle get title => GoogleFonts.sora(

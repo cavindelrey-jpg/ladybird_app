@@ -547,27 +547,57 @@ class _LibraryDiscovery extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(Rad.lg)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Your learning\nresources in one place',
-              style: AppText.h1.copyWith(fontSize: 19, height: 1.25)),
-          const SizedBox(height: 8),
-          Text('Save content for offline use and access it anytime, anywhere.',
-              style: AppText.bodySm.copyWith(fontSize: 12.5)),
-          const SizedBox(height: 14),
-          ElevatedButton.icon(
-            onPressed: () => showToast(context,
-                'Saved items are bookmarked in your account — full on-device '
-                'offline caching is a planned upgrade, not built yet.'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: C.navy, foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            icon: const Icon(Icons.download_rounded, size: 16),
-            label: Text('How offline works', style: AppText.caption.copyWith(
-                fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+        padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [C.navy, C.navy2],
           ),
+          borderRadius: BorderRadius.circular(Rad.lg),
+          boxShadow: [
+            BoxShadow(color: C.navy.withValues(alpha: .28),
+                blurRadius: 24, offset: const Offset(0, 12)),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(children: [
+          Positioned(right: -18, top: -18,
+            child: Opacity(opacity: .10,
+              child: Icon(Icons.auto_stories_rounded, size: 130, color: C.gold))),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Your learning\nresources in one place',
+                style: AppText.display.copyWith(fontSize: 21, height: 1.2, color: Colors.white)),
+            const SizedBox(height: 8),
+            Text('Save content for offline use and access it anytime, anywhere.',
+                style: AppText.bodySm.copyWith(fontSize: 12.5, color: Colors.white.withValues(alpha: .68))),
+            const SizedBox(height: 18),
+            Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(11),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(11),
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  showToast(context,
+                      'Saved items are bookmarked in your account — full on-device '
+                      'offline caching is a planned upgrade, not built yet.');
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: C.gold,
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.download_rounded, size: 16, color: C.navy),
+                    const SizedBox(width: 8),
+                    Text('How offline works', style: AppText.caption.copyWith(
+                        fontSize: 12.5, fontWeight: FontWeight.w800, color: C.navy)),
+                  ]),
+                ),
+              ),
+            ),
+          ]),
         ]),
       ),
     );
@@ -692,10 +722,10 @@ class _LibraryDiscovery extends StatelessWidget {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
                     child: Row(children: [
-                      Container(
-                        width: 34, height: 34,
-                        decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(9)),
-                        child: Icon(_kSubjectIcons[entry.key] ?? Icons.book_outlined, size: 17, color: C.primary),
+                      IconBadge(
+                        icon: _kSubjectIcons[entry.key] ?? Icons.book_outlined,
+                        color: C.primary, size: 38, iconSize: 18,
+                        radius: BorderRadius.circular(11),
                       ),
                       const SizedBox(width: 10),
                       Expanded(

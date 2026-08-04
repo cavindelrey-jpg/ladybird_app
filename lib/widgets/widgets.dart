@@ -69,6 +69,42 @@ class SecondaryBtn extends StatelessWidget {
 /// get a real Material ripple + a light haptic tick — GestureDetector gives
 /// zero visual/tactile response on tap, which is the single biggest reason
 /// the app read as unresponsive; this fixes it everywhere ACard is reused.
+/// A richer alternative to `Container(color: c.withValues(alpha: .1), shape:
+/// circle)` — the flat single-alpha tint circle used almost everywhere in
+/// the app for icon badges. That pattern is honest but reads as an
+/// unstyled default; this adds a diagonal gradient, a hairline ring in the
+/// same hue, and a soft color-matched glow so the badge has real depth
+/// instead of sitting flush with the surface behind it.
+class IconBadge extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final double size;
+  final double iconSize;
+  final BorderRadius? radius; // null = circle
+  const IconBadge({super.key, required this.icon, required this.color,
+      this.size = 44, this.iconSize = 20, this.radius});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size, height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: [color.withValues(alpha: .24), color.withValues(alpha: .09)],
+        ),
+        shape: radius == null ? BoxShape.circle : BoxShape.rectangle,
+        borderRadius: radius,
+        border: Border.all(color: color.withValues(alpha: .16), width: 1),
+        boxShadow: [BoxShadow(color: color.withValues(alpha: .16),
+            blurRadius: 14, offset: const Offset(0, 5))],
+      ),
+      child: Icon(icon, color: color, size: iconSize),
+    );
+  }
+}
+
 class ACard extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;

@@ -29,13 +29,22 @@ class XpBalanceBadge extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             onTap: onTap,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: C.goldp, borderRadius: BorderRadius.circular(20)),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft, end: Alignment.bottomRight,
+                  colors: [C.goldp, Color(0xFFF5E5B8)],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: C.gold.withValues(alpha: .35), width: 1),
+                boxShadow: [BoxShadow(color: C.gold.withValues(alpha: .18),
+                    blurRadius: 10, offset: const Offset(0, 3))],
+              ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 const Icon(Icons.bolt_rounded, size: 14, color: C.gold),
                 const SizedBox(width: 3),
                 Text('$balance', style: AppText.label.copyWith(
-                    fontSize: 11.5, color: C.gold, letterSpacing: 0)),
+                    fontSize: 11.5, fontWeight: FontWeight.w800, color: C.gold, letterSpacing: 0)),
               ]),
             ),
           ),

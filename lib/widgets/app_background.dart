@@ -18,6 +18,7 @@
 
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 
 enum AppBackgroundTint { blue, navy }
 
@@ -28,12 +29,17 @@ class AppBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Reads the dark-aware token set so this doesn't paint a light
+    // background underneath a page that switched itself to dark —
+    // AppColors.of() falls back to the light palette on pages that
+    // haven't been converted yet, so this is safe either way.
+    final c = AppColors.of(context);
     final glowA = tint == AppBackgroundTint.navy
-        ? C.navy.withValues(alpha: .16)
-        : C.primary.withValues(alpha: .13);
+        ? c.navy.withValues(alpha: .16)
+        : c.primary.withValues(alpha: .13);
 
     return Stack(children: [
-      Positioned.fill(child: ColoredBox(color: C.bg)),
+      Positioned.fill(child: ColoredBox(color: c.bg)),
       // Primary light source: an off-center radial glow anchored high and
       // slightly right of center, the way a studio key-light is placed —
       // not dead-center, which reads as a flat "template gradient".
@@ -60,8 +66,8 @@ class AppBackground extends StatelessWidget {
               center: const Alignment(-0.9, -0.55),
               radius: 0.9,
               colors: [
-                C.gold.withValues(alpha: .07),
-                C.gold.withValues(alpha: 0),
+                c.gold.withValues(alpha: .07),
+                c.gold.withValues(alpha: 0),
               ],
               stops: const [0.0, 1.0],
             ),
@@ -77,7 +83,7 @@ class AppBackground extends StatelessWidget {
           angle: -0.12,
           child: Opacity(
             opacity: 0.05,
-            child: Icon(Icons.auto_stories_rounded, size: 190, color: C.navy),
+            child: Icon(Icons.auto_stories_rounded, size: 190, color: c.navy),
           ),
         ),
       ),
@@ -85,7 +91,7 @@ class AppBackground extends StatelessWidget {
         top: 150, right: 60,
         child: Opacity(
           opacity: 0.035,
-          child: Icon(Icons.workspace_premium_rounded, size: 56, color: C.gold),
+          child: Icon(Icons.workspace_premium_rounded, size: 56, color: c.gold),
         ),
       ),
       child,

@@ -20,6 +20,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../providers/institution_provider.dart';
 import '../institution/institution_header_widget.dart';
 import '../../models/app_user.dart';
@@ -76,6 +77,12 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   bool get _isGuest => widget.user == null;
   AppUser? get _u => widget.user;
 
+  // Dark-mode-aware color tokens — every color reference in this file
+  // reads from here instead of the static `C.xxx` constants, so this
+  // screen actually responds to the theme toggle instead of staying
+  // hardcoded light like the rest of the app currently does.
+  AppColors get ac => AppColors.of(context);
+
   @override
   void initState() {
     super.initState();
@@ -89,7 +96,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: C.bg,
+      color: ac.bg,
       child: SafeArea(
         child: ListView(
           padding: const EdgeInsets.only(bottom: 24),
@@ -124,26 +131,26 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
       child: Row(children: [
         Builder(builder: (ctx) => IconButton(
-          icon: const Icon(Icons.menu_rounded, color: C.txt),
+          icon: Icon(Icons.menu_rounded, color: ac.txt),
           onPressed: () => Scaffold.of(ctx).openDrawer(),
         )),
         const SizedBox(width: 4),
         Expanded(child: _brandingBlock(context)),
         IconButton(
-          icon: const Icon(Icons.search_rounded, color: C.txt2),
+          icon: Icon(Icons.search_rounded, color: ac.txt2),
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => SearchPage(user: _u ?? AppUser.guest()))),
         ),
         Stack(clipBehavior: Clip.none, children: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: C.txt2),
+            icon: Icon(Icons.notifications_outlined, color: ac.txt2),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => NotificationsPage(userId: _u?.id ?? ''))),
           ),
           if (!_isGuest)
             Positioned(top: 8, right: 6, child: Container(
               width: 9, height: 9,
-              decoration: const BoxDecoration(color: C.red, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: ac.red, shape: BoxShape.circle),
             )),
         ]),
       ]),
@@ -169,9 +176,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Academia', style: GoogleFonts.sora(
-              fontSize: 17, fontWeight: FontWeight.w800, color: C.txt)),
+              fontSize: 17, fontWeight: FontWeight.w800, color: ac.txt)),
           Text('Your Complete Smart School Platform',
-              style: GoogleFonts.inter(fontSize: 10, color: C.txt2),
+              style: GoogleFonts.inter(fontSize: 10, color: ac.txt2),
               overflow: TextOverflow.ellipsis),
         ]),
       ),
@@ -200,17 +207,17 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                   children: [
                 Text(_isGuest ? 'Browsing as' : 'Welcome back,',
                     maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(fontSize: 12.5, color: C.txt2)),
+                    style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2)),
                 Text(_isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name),
                     maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.sora(fontSize: 16.5, fontWeight: FontWeight.w800, color: C.txt)),
+                    style: GoogleFonts.sora(fontSize: 16.5, fontWeight: FontWeight.w800, color: ac.txt)),
                 const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(12)),
                   child: Text(_isGuest ? 'Guest' : _u!.roleLabel,
                       maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.sora(fontSize: 10.5, fontWeight: FontWeight.w700, color: C.primary)),
+                      style: GoogleFonts.sora(fontSize: 10.5, fontWeight: FontWeight.w700, color: ac.primary)),
                 ),
               ]),
             ),
@@ -238,7 +245,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: const LinearGradient(colors: [C.gold, Color(0xFFE8C765)]),
+          gradient: LinearGradient(colors: [ac.gold, Color(0xFFE8C765)]),
         ),
         child: CircleAvatar(radius: 29, backgroundImage: NetworkImage(_u!.photoUrl!)),
       );
@@ -248,12 +255,12 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [C.gold.withValues(alpha: .18), C.gold.withValues(alpha: .06)],
+          colors: [ac.gold.withValues(alpha: .18), ac.gold.withValues(alpha: .06)],
         ),
         shape: BoxShape.circle,
-        border: Border.all(color: C.gold.withValues(alpha: .35), width: 1.5),
+        border: Border.all(color: ac.gold.withValues(alpha: .35), width: 1.5),
       ),
-      child: const Icon(Icons.person_rounded, size: 32, color: C.gold),
+      child: Icon(Icons.person_rounded, size: 32, color: ac.gold),
     );
   }
 
@@ -271,9 +278,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       builder: (context, snap) {
         final lifetimeXp = _isGuest ? 0 : (snap.data?.$2 ?? 0);
         final segments = [
-          (Icons.local_fire_department_rounded, C.org, _isGuest ? '0' : '${_u!.streakDays}', 'Day Streak'),
-          (Icons.star_rounded, C.gold, '$lifetimeXp', 'XP Points'),
-          (Icons.menu_book_rounded, C.pur, _isGuest ? '0' : '${_u!.courseIds.length}', 'Courses'),
+          (Icons.local_fire_department_rounded, ac.org, _isGuest ? '0' : '${_u!.streakDays}', 'Day Streak'),
+          (Icons.star_rounded, ac.gold, '$lifetimeXp', 'XP Points'),
+          (Icons.menu_book_rounded, ac.pur, _isGuest ? '0' : '${_u!.courseIds.length}', 'Courses'),
         ];
         return Material(
           color: Colors.transparent,
@@ -283,11 +290,11 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             child: Container(
               height: 64,
               decoration: BoxDecoration(
-                  color: C.surf, borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: C.bdr2, width: 1), boxShadow: _glow),
+                  color: ac.surf, borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: ac.bdr2, width: 1), boxShadow: _glow),
               child: Row(children: [
                 for (var i = 0; i < segments.length; i++) ...[
-                  if (i > 0) Container(width: 1, height: 36, color: C.bdr2),
+                  if (i > 0) Container(width: 1, height: 36, color: ac.bdr2),
                   Expanded(child: _statSegment(segments[i])),
                 ],
               ]),
@@ -308,13 +315,13 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         Flexible(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.sora(fontSize: 14.5, fontWeight: FontWeight.w800, color: C.txt)),
+                style: GoogleFonts.sora(fontSize: 14.5, fontWeight: FontWeight.w800, color: ac.txt)),
             Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(fontSize: 8.5, color: C.txt2)),
+                style: GoogleFonts.inter(fontSize: 8.5, color: ac.txt2)),
           ]),
         ),
         const SizedBox(width: 2),
-        const Icon(Icons.chevron_right_rounded, size: 13, color: C.muted),
+        Icon(Icons.chevron_right_rounded, size: 13, color: ac.muted),
       ]),
     );
   }
@@ -335,14 +342,14 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       final isToday = i == todayIdx;
       return Column(children: [
         done
-            ? const Icon(Icons.check_circle_rounded, color: C.gold, size: 19)
+            ? Icon(Icons.check_circle_rounded, color: ac.gold, size: 19)
             : Container(
                 width: 16, height: 16,
                 decoration: BoxDecoration(
-                  color: isToday ? C.bdr : C.bdr2, shape: BoxShape.circle),
+                  color: isToday ? ac.bdr : ac.bdr2, shape: BoxShape.circle),
               ),
         const SizedBox(height: 3),
-        Text(labels[i], style: GoogleFonts.inter(fontSize: 10, color: C.txt2)),
+        Text(labels[i], style: GoogleFonts.inter(fontSize: 10, color: ac.txt2)),
       ]);
     }));
   }
@@ -385,7 +392,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Material(
-        color: C.navy,
+        color: ac.navy,
         borderRadius: radius,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -427,12 +434,12 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(10)),
+                    decoration: BoxDecoration(color: ac.gold, borderRadius: BorderRadius.circular(10)),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       Text(slide.ctaLabel, style: GoogleFonts.sora(
-                          fontSize: 12, fontWeight: FontWeight.w700, color: C.navy)),
+                          fontSize: 12, fontWeight: FontWeight.w700, color: ac.navy)),
                       const SizedBox(width: 4),
-                      const Icon(Icons.arrow_forward_rounded, size: 14, color: C.navy),
+                      Icon(Icons.arrow_forward_rounded, size: 14, color: ac.navy),
                     ]),
                   ),
                   if (totalSlides > 1)
@@ -440,7 +447,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                       margin: const EdgeInsets.symmetric(horizontal: 3),
                       width: 6, height: 6,
                       decoration: BoxDecoration(
-                        color: i == _bannerIndex ? C.gold : Colors.white54,
+                        color: i == _bannerIndex ? ac.gold : Colors.white54,
                         shape: BoxShape.circle,
                       ),
                     ))),
@@ -481,7 +488,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(title, style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w800, color: C.txt)),
+        Text(title, style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w800, color: ac.txt)),
         if (onViewAll != null)
           Material(
             color: Colors.transparent,
@@ -491,7 +498,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                 child: Text('View All', style: GoogleFonts.sora(
-                    fontSize: 13, fontWeight: FontWeight.w700, color: C.primary)),
+                    fontSize: 13, fontWeight: FontWeight.w700, color: ac.primary)),
               ),
             ),
           ),
@@ -502,11 +509,11 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   // -- Quick Access -- fixed 5, per your call (no "New" badge) ----------
   Widget _quickAccessRow(BuildContext context) {
     final items = <(String, IconData, Color)>[
-      ('Magazine', Icons.menu_book_rounded, C.pur),
-      ('Clubs', Icons.groups_rounded, C.gold),
-      ('Library', Icons.import_contacts_rounded, C.primary),
-      ('Past Questions', Icons.description_rounded, C.grn),
-      ('Quizzes', Icons.assignment_rounded, C.org),
+      ('Magazine', Icons.menu_book_rounded, ac.pur),
+      ('Clubs', Icons.groups_rounded, ac.gold),
+      ('Library', Icons.import_contacts_rounded, ac.primary),
+      ('Past Questions', Icons.description_rounded, ac.grn),
+      ('Quizzes', Icons.assignment_rounded, ac.org),
     ];
     return SizedBox(
       height: 100,
@@ -519,7 +526,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           final (label, icon, color) = items[i];
           final radius = BorderRadius.circular(Rad.md);
           return Material(
-            color: C.surf,
+            color: ac.surf,
             borderRadius: radius,
             child: InkWell(
               borderRadius: radius,
@@ -535,7 +542,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                   IconBadge(icon: icon, color: color, size: 46, iconSize: 22),
                   const SizedBox(height: 10),
                   Text(label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: C.txt)),
+                      style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: ac.txt)),
                 ]),
               ),
             ),
@@ -598,24 +605,24 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-          color: C.surf, borderRadius: BorderRadius.circular(Rad.md), boxShadow: _glow),
+          color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), boxShadow: _glow),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.show_chart_rounded, size: 15, color: C.primary),
+          Icon(Icons.show_chart_rounded, size: 15, color: ac.primary),
           const SizedBox(width: 4),
           Expanded(child: Text("Today's Progress", style: GoogleFonts.sora(
-              fontSize: 11.5, fontWeight: FontWeight.w700, color: C.txt))),
+              fontSize: 11.5, fontWeight: FontWeight.w700, color: ac.txt))),
           if (pct != null)
             Text('${(pct * 100).round()}%', style: GoogleFonts.sora(
-                fontSize: 11.5, fontWeight: FontWeight.w800, color: C.txt)),
+                fontSize: 11.5, fontWeight: FontWeight.w800, color: ac.txt)),
         ]),
         const SizedBox(height: 10),
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
             value: pct ?? 0,
-            backgroundColor: C.bdr2,
-            valueColor: const AlwaysStoppedAnimation(C.primary),
+            backgroundColor: ac.bdr2,
+            valueColor: AlwaysStoppedAnimation(ac.primary),
             minHeight: 6,
           ),
         ),
@@ -632,26 +639,26 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               child: Row(children: [
                 Container(
                   padding: const EdgeInsets.all(9),
-                  decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(9)),
-                  child: const Icon(Icons.menu_book_rounded, color: C.primary, size: 18),
+                  decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(9)),
+                  child: Icon(Icons.menu_book_rounded, color: ac.primary, size: 18),
                 ),
                 const SizedBox(width: 9),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Continue Reading', style: GoogleFonts.inter(fontSize: 9.5, color: C.primary)),
+                    Text('Continue Reading', style: GoogleFonts.inter(fontSize: 9.5, color: ac.primary)),
                     Text(_u!.continueReadingTitle ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: C.txt)),
+                        style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: ac.txt)),
                     Text(total != null ? 'Page $page of $total' : 'Page $page',
-                        style: GoogleFonts.inter(fontSize: 9.5, color: C.muted)),
+                        style: GoogleFonts.inter(fontSize: 9.5, color: ac.muted)),
                   ]),
                 ),
-                const Icon(Icons.chevron_right_rounded, color: C.muted, size: 16),
+                Icon(Icons.chevron_right_rounded, color: ac.muted, size: 16),
               ]),
             ),
           )
         else
           Text('No reading in progress -- open something from the Library to start.',
-              style: GoogleFonts.inter(fontSize: 10.5, color: C.muted, height: 1.3)),
+              style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted, height: 1.3)),
       ]),
     );
   }
@@ -696,25 +703,25 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             return _challengeShell(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  const Icon(Icons.local_fire_department_rounded, color: C.org, size: 15),
+                  Icon(Icons.local_fire_department_rounded, color: ac.org, size: 15),
                   const SizedBox(width: 4),
                   Text('Daily Challenge', style: GoogleFonts.sora(
-                      fontSize: 11.5, fontWeight: FontWeight.w700, color: C.pur)),
+                      fontSize: 11.5, fontWeight: FontWeight.w700, color: ac.pur)),
                 ]),
                 const SizedBox(height: 8),
                 Text(challenge.title, style: GoogleFonts.sora(
-                    fontSize: 12.5, fontWeight: FontWeight.w800, color: C.txt)),
+                    fontSize: 12.5, fontWeight: FontWeight.w800, color: ac.txt)),
                 const SizedBox(height: 4),
                 Row(children: [
-                  const Icon(Icons.assignment_rounded, size: 12, color: C.pur),
+                  Icon(Icons.assignment_rounded, size: 12, color: ac.pur),
                   const SizedBox(width: 4),
                   Text('${challenge.questions.length} Questions',
-                      style: GoogleFonts.inter(fontSize: 10, color: C.pur)),
+                      style: GoogleFonts.inter(fontSize: 10, color: ac.pur)),
                   const SizedBox(width: 8),
-                  const Icon(Icons.star_rounded, size: 12, color: C.gold),
+                  Icon(Icons.star_rounded, size: 12, color: ac.gold),
                   const SizedBox(width: 2),
                   Text('+${challenge.xpPerCorrect * challenge.questions.length} XP',
-                      style: GoogleFonts.inter(fontSize: 10, color: C.txt2)),
+                      style: GoogleFonts.inter(fontSize: 10, color: ac.txt2)),
                 ]),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -726,8 +733,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                       if (done == true && mounted) setState(() {});
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: attempted ? C.bdr : C.pur,
-                      foregroundColor: attempted ? C.txt2 : Colors.white,
+                      backgroundColor: attempted ? ac.bdr : ac.pur,
+                      foregroundColor: attempted ? ac.txt2 : Colors.white,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 9),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
@@ -757,7 +764,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   Widget _challengeShell({required Widget child}) => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [C.purb, Color(0xFFEDE4FF)],
+          gradient: LinearGradient(colors: [ac.purBg, Color(0xFFEDE4FF)],
               begin: Alignment.topLeft, end: Alignment.bottomRight),
           borderRadius: BorderRadius.circular(Rad.md),
         ),
@@ -767,13 +774,13 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   Widget _lockedChallengeCard({required String message}) => _challengeShell(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            const Icon(Icons.local_fire_department_rounded, color: C.org, size: 15),
+            Icon(Icons.local_fire_department_rounded, color: ac.org, size: 15),
             const SizedBox(width: 4),
             Text('Daily Challenge', style: GoogleFonts.sora(
-                fontSize: 11.5, fontWeight: FontWeight.w700, color: C.pur)),
+                fontSize: 11.5, fontWeight: FontWeight.w700, color: ac.pur)),
           ]),
           const SizedBox(height: 10),
-          Text(message, style: GoogleFonts.inter(fontSize: 11, color: C.txt2, height: 1.3)),
+          Text(message, style: GoogleFonts.inter(fontSize: 11, color: ac.txt2, height: 1.3)),
         ]),
       );
 
@@ -804,9 +811,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     final inner = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Expanded(child: Text(title, style: GoogleFonts.sora(
-            fontSize: 12.5, fontWeight: FontWeight.w800, color: C.txt))),
+            fontSize: 12.5, fontWeight: FontWeight.w800, color: ac.txt))),
         if (onTap != null)
-          const Icon(Icons.chevron_right_rounded, size: 16, color: C.muted),
+          Icon(Icons.chevron_right_rounded, size: 16, color: ac.muted),
       ]),
       const SizedBox(height: 14),
       child,
@@ -814,12 +821,12 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     if (onTap == null) {
       return Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: C.surf, borderRadius: radius, boxShadow: _glow),
+        decoration: BoxDecoration(color: ac.surf, borderRadius: radius, boxShadow: _glow),
         child: inner,
       );
     }
     return Material(
-      color: C.surf,
+      color: ac.surf,
       borderRadius: radius,
       child: InkWell(
         borderRadius: radius,
@@ -847,15 +854,15 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         }
         if (writers.isEmpty) {
           return Text('No published articles yet.',
-              style: GoogleFonts.inter(fontSize: 10.5, color: C.muted, height: 1.3));
+              style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted, height: 1.3));
         }
         final top = writers.first;
         return Row(children: [
           Container(
             padding: const EdgeInsets.all(6),
-            decoration: const BoxDecoration(color: C.goldp, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: ac.goldBg, shape: BoxShape.circle),
             child: Text('#1', style: GoogleFonts.sora(
-                fontSize: 9.5, fontWeight: FontWeight.w800, color: C.gold)),
+                fontSize: 9.5, fontWeight: FontWeight.w800, color: ac.gold)),
           ),
           const SizedBox(width: 8),
           UserAvatar(
@@ -866,12 +873,12 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(top.authorName, maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: C.txt)),
+                  style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: ac.txt)),
               Text('${top.totalReads} reads . ${top.totalComments} comments',
-                  style: GoogleFonts.inter(fontSize: 9, color: C.muted)),
+                  style: GoogleFonts.inter(fontSize: 9, color: ac.muted)),
             ]),
           ),
-          const Icon(Icons.emoji_events_rounded, color: C.gold, size: 16),
+          Icon(Icons.emoji_events_rounded, color: ac.gold, size: 16),
         ]);
       },
     );
@@ -886,30 +893,30 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(color: C.primaryBg, shape: BoxShape.circle),
-              child: const Icon(Icons.campaign_rounded, color: C.primary, size: 20),
+              decoration: BoxDecoration(color: ac.primaryBg, shape: BoxShape.circle),
+              child: Icon(Icons.campaign_rounded, color: ac.primary, size: 20),
             ),
             const SizedBox(width: 8),
             Expanded(child: Text(
                 'No announcements yet. Magazine posts, paper uploads, and club '
                 'news will show up here.',
-                style: GoogleFonts.inter(fontSize: 9, color: C.muted, height: 1.3))),
+                style: GoogleFonts.inter(fontSize: 9, color: ac.muted, height: 1.3))),
           ]);
         }
         final a = items.first;
         return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: const BoxDecoration(color: C.primaryBg, shape: BoxShape.circle),
-            child: const Icon(Icons.campaign_rounded, color: C.primary, size: 20),
+            decoration: BoxDecoration(color: ac.primaryBg, shape: BoxShape.circle),
+            child: Icon(Icons.campaign_rounded, color: ac.primary, size: 20),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(a.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(fontSize: 10.5, color: C.txt, height: 1.3)),
+                  style: GoogleFonts.inter(fontSize: 10.5, color: ac.txt, height: 1.3)),
               const SizedBox(height: 3),
-              Text(_timeAgo(a.date), style: GoogleFonts.inter(fontSize: 9, color: C.muted)),
+              Text(_timeAgo(a.date), style: GoogleFonts.inter(fontSize: 9, color: ac.muted)),
             ]),
           ),
         ]);
@@ -939,7 +946,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text('Nothing to recommend yet -- Library and Courses are still empty.',
-                style: GoogleFonts.inter(fontSize: 12, color: C.muted)),
+                style: GoogleFonts.inter(fontSize: 12, color: ac.muted)),
           );
         }
         return SizedBox(
@@ -979,7 +986,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   Widget _recommendedLibraryCard(BuildContext context, LibraryItem item) {
     final radius = BorderRadius.circular(Rad.md);
     return Material(
-      color: C.purb,
+      color: ac.purBg,
       borderRadius: radius,
       child: InkWell(
         borderRadius: radius,
@@ -992,18 +999,18 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           padding: const EdgeInsets.all(12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              const Icon(Icons.description_rounded, size: 12, color: C.pur),
+              Icon(Icons.description_rounded, size: 12, color: ac.pur),
               const SizedBox(width: 4),
               Text(item.type.name, style: GoogleFonts.inter(
-                  fontSize: 10, fontWeight: FontWeight.w600, color: C.pur)),
+                  fontSize: 10, fontWeight: FontWeight.w600, color: ac.pur)),
             ]),
             const SizedBox(height: 8),
             Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, height: 1.2)),
             const Spacer(),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Expanded(child: Text(item.size, style: GoogleFonts.inter(fontSize: 10, color: C.txt2))),
-              const Icon(Icons.bookmark_outline_rounded, size: 16, color: C.pur),
+              Expanded(child: Text(item.size, style: GoogleFonts.inter(fontSize: 10, color: ac.txt2))),
+              Icon(Icons.bookmark_outline_rounded, size: 16, color: ac.pur),
             ]),
           ]),
         ),
@@ -1014,7 +1021,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   Widget _recommendedCourseCard(BuildContext context, Course course) {
     final radius = BorderRadius.circular(Rad.md);
     return Material(
-      color: C.blub,
+      color: ac.bluBg,
       borderRadius: radius,
       child: InkWell(
         borderRadius: radius,
@@ -1027,16 +1034,16 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           padding: const EdgeInsets.all(12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              const Icon(Icons.school_rounded, size: 12, color: C.blu),
+              Icon(Icons.school_rounded, size: 12, color: ac.blu),
               const SizedBox(width: 4),
               Text('Course', style: GoogleFonts.inter(
-                  fontSize: 10, fontWeight: FontWeight.w600, color: C.blu)),
+                  fontSize: 10, fontWeight: FontWeight.w600, color: ac.blu)),
             ]),
             const SizedBox(height: 8),
             Text(course.name, maxLines: 2, overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, height: 1.2)),
             const Spacer(),
-            Text(course.code, style: GoogleFonts.inter(fontSize: 10, color: C.txt2)),
+            Text(course.code, style: GoogleFonts.inter(fontSize: 10, color: ac.txt2)),
           ]),
         ),
       ),

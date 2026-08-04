@@ -14,9 +14,14 @@
 // html mockup shared in chat) — this is not a fresh palette, it's that
 // same palette translated into Flutter.
 //
-// Currently wired into: universal_home_page.dart (Home). Every other
-// screen still reads `C.xxx` directly and stays light-only until it
-// gets the same treatment — see the follow-up list in chat.
+// Currently wired into: main.dart (MaterialApp.darkTheme/themeMode via
+// ThemeProvider — this is what makes the toggle in Settings actually do
+// something), app_background.dart (so the shared page backdrop follows
+// the toggle even on pages that haven't converted their own colors yet),
+// and universal_home_page.dart (Home — every color reference converted
+// from `C.xxx` to `AppColors.of(context)`). Every other screen still
+// reads `C.xxx` directly and stays light-only regardless of the toggle
+// until it gets the same conversion.
 
 import 'package:flutter/material.dart';
 

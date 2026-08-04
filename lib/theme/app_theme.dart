@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'app_colors.dart';
 
 /// Academia Design System colour tokens.
 class C {
@@ -57,6 +58,7 @@ class AppTheme {
 
   static final ThemeData light = ThemeData(
     useMaterial3: true,
+    brightness: Brightness.light,
     scaffoldBackgroundColor: C.bg,
     colorScheme: ColorScheme.fromSeed(
       seedColor: C.navy,
@@ -92,10 +94,6 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         minimumSize: const Size(double.infinity, 52),
         textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-        // Subtle pressed/hover state layer — Material 3 buttons render flat
-        // without this, which reads inert on a premium surface. Kept dark
-        // (not the M3 default light overlay) since the fill is already
-        // brand-colored.
         overlayColor: Colors.black.withValues(alpha: .08),
         animationDuration: Dur.fast,
       ),
@@ -136,9 +134,6 @@ class AppTheme {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: C.surf,
       indicatorColor: C.primaryBg,
-      // Explicit stadium (pill/capsule) indicator behind the active tab —
-      // Material 3 defaults to this shape already, made explicit here so
-      // it can't silently regress if the M3 default ever changes.
       indicatorShape: const StadiumBorder(),
       labelTextStyle: WidgetStateProperty.all(
           const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
@@ -164,6 +159,120 @@ class AppTheme {
       foregroundColor: C.navy,
       elevation: 2,
     ),
+    extensions: const [AppColors.light],
+  );
+
+  // ── Dark ──────────────────────────────────────────────────────────────
+  // Mirrors `light` field-for-field but sourced from `AppColors.dark`
+  // instead of the hardcoded `C.xxx` constants — `C` itself stays a
+  // light-only compile-time constant (see app_colors.dart's file comment
+  // for why), so this is built from the dark token set directly rather
+  // than trying to make `C` context-aware.
+  static final ThemeData dark = ThemeData(
+    useMaterial3: true,
+    brightness: Brightness.dark,
+    scaffoldBackgroundColor: AppColors.dark.bg,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: AppColors.dark.primary,
+      primary: AppColors.dark.primary,
+      secondary: AppColors.dark.gold,
+      surface: AppColors.dark.surf,
+      brightness: Brightness.dark,
+    ),
+    appBarTheme: AppBarTheme(
+      backgroundColor: AppColors.dark.surf,
+      foregroundColor: AppColors.dark.txt,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: false,
+      surfaceTintColor: Colors.transparent,
+      iconTheme: IconThemeData(color: AppColors.dark.txt),
+    ),
+    cardTheme: CardThemeData(
+      color: AppColors.dark.surf,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.dark.bdr),
+      ),
+      surfaceTintColor: Colors.transparent,
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.dark.primary,
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: AppColors.dark.primary.withValues(alpha: .4),
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        minimumSize: const Size(double.infinity, 52),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        overlayColor: Colors.white.withValues(alpha: .08),
+        animationDuration: Dur.fast,
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.dark.primary,
+        side: BorderSide(color: AppColors.dark.primary, width: 1.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        overlayColor: AppColors.dark.primary.withValues(alpha: .1),
+        animationDuration: Dur.fast,
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.dark.primary,
+        overlayColor: AppColors.dark.primary.withValues(alpha: .1),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.xs)),
+      ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: AppColors.dark.surf3,
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.dark.bdr)),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.dark.bdr)),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.dark.primary, width: 1.5)),
+      errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: AppColors.dark.red)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      hintStyle: TextStyle(color: AppColors.dark.muted),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: AppColors.dark.surf,
+      indicatorColor: AppColors.dark.primaryBg,
+      indicatorShape: const StadiumBorder(),
+      labelTextStyle: WidgetStateProperty.all(
+          const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return IconThemeData(color: AppColors.dark.primary, size: 22);
+        }
+        return IconThemeData(color: AppColors.dark.muted, size: 22);
+      }),
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: AppColors.dark.surf3,
+      selectedColor: AppColors.dark.primaryBg,
+      labelStyle: const TextStyle(fontSize: 12),
+      side: BorderSide(color: AppColors.dark.bdr),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    ),
+    dividerColor: AppColors.dark.bdr,
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: AppColors.dark.gold,
+      foregroundColor: AppColors.dark.navy,
+      elevation: 2,
+    ),
+    extensions: const [AppColors.dark],
   );
 }
 

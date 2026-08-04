@@ -16,6 +16,7 @@
 // honest empty/locked state instead of Gamma's hardcoded placeholders.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
@@ -367,66 +368,72 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _bannerCard(BuildContext context, HeroSlide slide, int totalSlides) {
+    final radius = BorderRadius.circular(Rad.xl);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: GestureDetector(
-        onTap: () => _openHeroSlide(context, slide),
-        child: Container(
-          height: 160,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Rad.xl),
-            color: C.navy,
-            image: (slide.imageUrl != null && slide.imageUrl!.isNotEmpty)
-                ? DecorationImage(image: NetworkImage(slide.imageUrl!), fit: BoxFit.cover)
-                : null,
-          ),
-          child: Container(
+      child: Material(
+        color: C.navy,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            _openHeroSlide(context, slide);
+          },
+          child: Ink(
+            height: 160,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(Rad.xl),
-              gradient: LinearGradient(
-                colors: [Colors.black.withValues(alpha: .82), Colors.transparent],
-                begin: Alignment.centerLeft, end: Alignment.centerRight,
-              ),
+              image: (slide.imageUrl != null && slide.imageUrl!.isNotEmpty)
+                  ? DecorationImage(image: NetworkImage(slide.imageUrl!), fit: BoxFit.cover)
+                  : null,
             ),
-            padding: const EdgeInsets.all(20),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(slide.headline, style: GoogleFonts.sora(
-                  fontSize: 21, fontWeight: FontWeight.w800, color: Colors.white)),
-              const SizedBox(height: 6),
-              Text(slide.subtext, style: GoogleFonts.inter(
-                  fontSize: 12.5, color: Colors.white70, height: 1.3)),
-              if (slide.statLine.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Row(children: [
-                  const Icon(Icons.workspace_premium_outlined, color: Colors.white60, size: 15),
-                  const SizedBox(width: 6),
-                  Text(slide.statLine,
-                      style: GoogleFonts.inter(fontSize: 11.5, color: Colors.white)),
-                ]),
-              ],
-              const Spacer(),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(10)),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text(slide.ctaLabel, style: GoogleFonts.sora(
-                        fontSize: 12, fontWeight: FontWeight.w700, color: C.navy)),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.arrow_forward_rounded, size: 14, color: C.navy),
-                  ]),
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xD1000000), Colors.transparent],
+                  begin: Alignment.centerLeft, end: Alignment.centerRight,
                 ),
-                if (totalSlides > 1)
-                  Row(children: List.generate(totalSlides, (i) => Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
-                    width: 6, height: 6,
-                    decoration: BoxDecoration(
-                      color: i == _bannerIndex ? C.gold : Colors.white54,
-                      shape: BoxShape.circle,
-                    ),
-                  ))),
+              ),
+              padding: const EdgeInsets.all(20),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(slide.headline, style: GoogleFonts.sora(
+                    fontSize: 21, fontWeight: FontWeight.w800, color: Colors.white)),
+                const SizedBox(height: 6),
+                Text(slide.subtext, style: GoogleFonts.inter(
+                    fontSize: 12.5, color: Colors.white70, height: 1.3)),
+                if (slide.statLine.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    const Icon(Icons.workspace_premium_outlined, color: Colors.white60, size: 15),
+                    const SizedBox(width: 6),
+                    Text(slide.statLine,
+                        style: GoogleFonts.inter(fontSize: 11.5, color: Colors.white)),
+                  ]),
+                ],
+                const Spacer(),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(10)),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(slide.ctaLabel, style: GoogleFonts.sora(
+                          fontSize: 12, fontWeight: FontWeight.w700, color: C.navy)),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.arrow_forward_rounded, size: 14, color: C.navy),
+                    ]),
+                  ),
+                  if (totalSlides > 1)
+                    Row(children: List.generate(totalSlides, (i) => Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: 6, height: 6,
+                      decoration: BoxDecoration(
+                        color: i == _bannerIndex ? C.gold : Colors.white54,
+                        shape: BoxShape.circle,
+                      ),
+                    ))),
+                ]),
               ]),
-            ]),
+            ),
           ),
         ),
       ),
@@ -463,10 +470,17 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Text(title, style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w800, color: C.txt)),
         if (onViewAll != null)
-          GestureDetector(
-            onTap: onViewAll,
-            child: Text('View All', style: GoogleFonts.sora(
-                fontSize: 13, fontWeight: FontWeight.w700, color: C.primary)),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(Rad.xs),
+              onTap: onViewAll,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: Text('View All', style: GoogleFonts.sora(
+                    fontSize: 13, fontWeight: FontWeight.w700, color: C.primary)),
+              ),
+            ),
           ),
       ]),
     );
@@ -490,23 +504,31 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) {
           final (label, icon, color) = items[i];
-          return GestureDetector(
-            onTap: () => _openQuickAccess(context, label),
-            child: Container(
-              width: 80,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                color: C.surf, borderRadius: BorderRadius.circular(Rad.md), boxShadow: _glow),
-              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: color.withValues(alpha: .1), shape: BoxShape.circle),
-                  child: Icon(icon, color: color, size: 22),
-                ),
-                const SizedBox(height: 10),
-                Text(label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: C.txt)),
-              ]),
+          final radius = BorderRadius.circular(Rad.md);
+          return Material(
+            color: C.surf,
+            borderRadius: radius,
+            child: InkWell(
+              borderRadius: radius,
+              onTap: () {
+                HapticFeedback.selectionClick();
+                _openQuickAccess(context, label);
+              },
+              child: Container(
+                width: 80,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(borderRadius: radius, boxShadow: _glow),
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: color.withValues(alpha: .1), shape: BoxShape.circle),
+                    child: Icon(icon, color: color, size: 22),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: C.txt)),
+                ]),
+              ),
             ),
           );
         },
@@ -590,26 +612,33 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         ),
         const SizedBox(height: 14),
         if (hasReading)
-          GestureDetector(
-            onTap: () => _reopenContinueReading(context),
-            child: Row(children: [
-              Container(
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(9)),
-                child: const Icon(Icons.menu_book_rounded, color: C.primary, size: 18),
-              ),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Continue Reading', style: GoogleFonts.inter(fontSize: 9.5, color: C.primary)),
-                  Text(_u!.continueReadingTitle ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: C.txt)),
-                  Text(total != null ? 'Page $page of $total' : 'Page $page',
-                      style: GoogleFonts.inter(fontSize: 9.5, color: C.muted)),
-                ]),
-              ),
-              const Icon(Icons.chevron_right_rounded, color: C.muted, size: 16),
-            ]),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(Rad.xs),
+              onTap: () {
+                HapticFeedback.lightImpact();
+                _reopenContinueReading(context);
+              },
+              child: Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(9)),
+                  child: const Icon(Icons.menu_book_rounded, color: C.primary, size: 18),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Continue Reading', style: GoogleFonts.inter(fontSize: 9.5, color: C.primary)),
+                    Text(_u!.continueReadingTitle ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: C.txt)),
+                    Text(total != null ? 'Page $page of $total' : 'Page $page',
+                        style: GoogleFonts.inter(fontSize: 9.5, color: C.muted)),
+                  ]),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: C.muted, size: 16),
+              ]),
+            ),
           )
         else
           Text('No reading in progress -- open something from the Library to start.',
@@ -762,23 +791,40 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _panel({required String title, required Widget child, VoidCallback? onTap}) {
-    final content = Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-          color: C.surf, borderRadius: BorderRadius.circular(Rad.md), boxShadow: _glow),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Text(title, style: GoogleFonts.sora(
-              fontSize: 12.5, fontWeight: FontWeight.w800, color: C.txt))),
-          if (onTap != null)
-            const Icon(Icons.chevron_right_rounded, size: 16, color: C.muted),
-        ]),
-        const SizedBox(height: 14),
-        child,
+    final radius = BorderRadius.circular(Rad.md);
+    final inner = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Expanded(child: Text(title, style: GoogleFonts.sora(
+            fontSize: 12.5, fontWeight: FontWeight.w800, color: C.txt))),
+        if (onTap != null)
+          const Icon(Icons.chevron_right_rounded, size: 16, color: C.muted),
       ]),
+      const SizedBox(height: 14),
+      child,
+    ]);
+    if (onTap == null) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: C.surf, borderRadius: radius, boxShadow: _glow),
+        child: inner,
+      );
+    }
+    return Material(
+      color: C.surf,
+      borderRadius: radius,
+      child: InkWell(
+        borderRadius: radius,
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(borderRadius: radius, boxShadow: _glow),
+          child: inner,
+        ),
+      ),
     );
-    if (onTap == null) return content;
-    return GestureDetector(onTap: onTap, behavior: HitTestBehavior.opaque, child: content);
   }
 
   Widget _topWritersContent() {
@@ -922,52 +968,68 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _recommendedLibraryCard(BuildContext context, LibraryItem item) {
-    return GestureDetector(
-      onTap: () => _open(context, AcademicContentPage(user: _u ?? AppUser.guest())),
-      child: Container(
-        width: 150,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: C.purb, borderRadius: BorderRadius.circular(Rad.md)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Icon(Icons.description_rounded, size: 12, color: C.pur),
-            const SizedBox(width: 4),
-            Text(item.type.name, style: GoogleFonts.inter(
-                fontSize: 10, fontWeight: FontWeight.w600, color: C.pur)),
+    final radius = BorderRadius.circular(Rad.md);
+    return Material(
+      color: C.purb,
+      borderRadius: radius,
+      child: InkWell(
+        borderRadius: radius,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          _open(context, AcademicContentPage(user: _u ?? AppUser.guest()));
+        },
+        child: Container(
+          width: 150,
+          padding: const EdgeInsets.all(12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.description_rounded, size: 12, color: C.pur),
+              const SizedBox(width: 4),
+              Text(item.type.name, style: GoogleFonts.inter(
+                  fontSize: 10, fontWeight: FontWeight.w600, color: C.pur)),
+            ]),
+            const SizedBox(height: 8),
+            Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, height: 1.2)),
+            const Spacer(),
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Expanded(child: Text(item.size, style: GoogleFonts.inter(fontSize: 10, color: C.txt2))),
+              const Icon(Icons.bookmark_outline_rounded, size: 16, color: C.pur),
+            ]),
           ]),
-          const SizedBox(height: 8),
-          Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, height: 1.2)),
-          const Spacer(),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Expanded(child: Text(item.size, style: GoogleFonts.inter(fontSize: 10, color: C.txt2))),
-            const Icon(Icons.bookmark_outline_rounded, size: 16, color: C.pur),
-          ]),
-        ]),
+        ),
       ),
     );
   }
 
   Widget _recommendedCourseCard(BuildContext context, Course course) {
-    return GestureDetector(
-      onTap: () => _open(context, CourseDetailPage(course: course, user: _u ?? AppUser.guest())),
-      child: Container(
-        width: 150,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: C.blub, borderRadius: BorderRadius.circular(Rad.md)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Icon(Icons.school_rounded, size: 12, color: C.blu),
-            const SizedBox(width: 4),
-            Text('Course', style: GoogleFonts.inter(
-                fontSize: 10, fontWeight: FontWeight.w600, color: C.blu)),
+    final radius = BorderRadius.circular(Rad.md);
+    return Material(
+      color: C.blub,
+      borderRadius: radius,
+      child: InkWell(
+        borderRadius: radius,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          _open(context, CourseDetailPage(course: course, user: _u ?? AppUser.guest()));
+        },
+        child: Container(
+          width: 150,
+          padding: const EdgeInsets.all(12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.school_rounded, size: 12, color: C.blu),
+              const SizedBox(width: 4),
+              Text('Course', style: GoogleFonts.inter(
+                  fontSize: 10, fontWeight: FontWeight.w600, color: C.blu)),
+            ]),
+            const SizedBox(height: 8),
+            Text(course.name, maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, height: 1.2)),
+            const Spacer(),
+            Text(course.code, style: GoogleFonts.inter(fontSize: 10, color: C.txt2)),
           ]),
-          const SizedBox(height: 8),
-          Text(course.name, maxLines: 2, overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, height: 1.2)),
-          const Spacer(),
-          Text(course.code, style: GoogleFonts.inter(fontSize: 10, color: C.txt2)),
-        ]),
+        ),
       ),
     );
   }

@@ -52,11 +52,13 @@ class InstitutionThemeEngine {
         style: ElevatedButton.styleFrom(
           backgroundColor: primary,
           foregroundColor: Colors.white,
+          disabledBackgroundColor: _withAlpha(primary, 0.4),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           elevation: 0,
           textStyle: GoogleFonts.getFont(institution.fontFamily,
               fontWeight: FontWeight.w700, fontSize: 15),
+          overlayColor: Colors.black.withValues(alpha: .08),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -65,6 +67,7 @@ class InstitutionThemeEngine {
           side: BorderSide(color: primary, width: 1.5),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          overlayColor: _withAlpha(primary, 0.06),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -101,8 +104,9 @@ class InstitutionThemeEngine {
       cardTheme: CardThemeData(
         color: Colors.white,
         elevation: 0,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFFE2E8F0))),
         surfaceTintColor: Colors.transparent,
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(

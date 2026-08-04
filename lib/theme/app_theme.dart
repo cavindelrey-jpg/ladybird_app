@@ -87,10 +87,17 @@ class AppTheme {
       style: ElevatedButton.styleFrom(
         backgroundColor: C.primary,
         foregroundColor: Colors.white,
+        disabledBackgroundColor: C.primary.withValues(alpha: .4),
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         minimumSize: const Size(double.infinity, 52),
         textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        // Subtle pressed/hover state layer — Material 3 buttons render flat
+        // without this, which reads inert on a premium surface. Kept dark
+        // (not the M3 default light overlay) since the fill is already
+        // brand-colored.
+        overlayColor: Colors.black.withValues(alpha: .08),
+        animationDuration: Dur.fast,
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -98,6 +105,15 @@ class AppTheme {
         foregroundColor: C.primary,
         side: const BorderSide(color: C.primary, width: 1.5),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        overlayColor: C.primary.withValues(alpha: .06),
+        animationDuration: Dur.fast,
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: C.primary,
+        overlayColor: C.primary.withValues(alpha: .06),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.xs)),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -164,19 +180,44 @@ class Rad {
 }
 
 /// Standard elevation shadows.
+///
+/// Each level is two stacked shadows rather than one: a tight, low-alpha
+/// "contact" shadow close to the surface, plus a soft, wider "ambient"
+/// shadow further out. A single flat blur reads like a CSS default; two
+/// layered shadows at different spreads is what makes elevation look
+/// physical instead of pasted-on — the same trick real design systems
+/// (Material's own elevation tokens, Apple's HIG shadows) use.
 class Shad {
   static List<BoxShadow> get sm => [
+    BoxShadow(color: Colors.black.withValues(alpha: .05),
+        blurRadius: 2, offset: const Offset(0, 1)),
     BoxShadow(color: Colors.black.withValues(alpha: .04),
-        blurRadius: 8, offset: const Offset(0, 2))
+        blurRadius: 8, offset: const Offset(0, 2)),
   ];
   static List<BoxShadow> get md => [
-    BoxShadow(color: Colors.black.withValues(alpha: .06),
-        blurRadius: 16, offset: const Offset(0, 4))
+    BoxShadow(color: Colors.black.withValues(alpha: .05),
+        blurRadius: 4, offset: const Offset(0, 1)),
+    BoxShadow(color: Colors.black.withValues(alpha: .07),
+        blurRadius: 20, offset: const Offset(0, 6)),
   ];
   static List<BoxShadow> get lg => [
-    BoxShadow(color: Colors.black.withValues(alpha: .10),
-        blurRadius: 24, offset: const Offset(0, 8))
+    BoxShadow(color: Colors.black.withValues(alpha: .06),
+        blurRadius: 6, offset: const Offset(0, 2)),
+    BoxShadow(color: Colors.black.withValues(alpha: .11),
+        blurRadius: 32, offset: const Offset(0, 12)),
   ];
+}
+
+/// Motion tokens — every animated transition in the app should reach for
+/// one of these instead of a bespoke `Duration(milliseconds: ...)`, so
+/// interactions feel like one consistent hand rather than whatever felt
+/// right on each individual screen.
+class Dur {
+  Dur._();
+  static const Duration fast = Duration(milliseconds: 150);   // taps, toggles
+  static const Duration med  = Duration(milliseconds: 280);   // entrances, sheets
+  static const Duration slow = Duration(milliseconds: 450);   // full-screen transitions
+  static const Curve curve   = Curves.easeOutCubic;
 }
 
 /// Semantic colour helpers by role.

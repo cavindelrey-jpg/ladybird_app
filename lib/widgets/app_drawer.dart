@@ -8,7 +8,6 @@
 // this drawer only controls navigation, not the read/write gate itself.
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import '../models/app_user.dart';
 import '../models/institution.dart';
@@ -47,7 +46,7 @@ class AppDrawer extends StatelessWidget {
           const Divider(height: 1, color: C.bdr2),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
               children: [
                 _item(context, Icons.home_rounded, 'Home', () {}),
                 _item(context, Icons.school_rounded, 'Courses', () {
@@ -95,7 +94,7 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => MessagesHomePage(user: user!)));
                   }
                 }),
-                const Divider(height: 24, color: C.bdr2),
+                const Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: C.bdr2),
                 _item(context, Icons.person_outline_rounded, 'Profile', () {
                   if (_isGuest) {
                     _goSignIn(context);
@@ -124,14 +123,14 @@ class AppDrawer extends StatelessWidget {
                     () => Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => const HelpSupportPage()))),
                 if (!_isGuest && user!.hasMinRole(UserRole.lecturer)) ...[
-                  const Divider(height: 24, color: C.bdr2),
+                  const Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: C.bdr2),
                   _item(context, Icons.rate_review_rounded, 'Grading Queue', () {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => GradingPage(grader: user!)));
                   }),
                 ],
                 if (!_isGuest && user!.canManagePlatform) ...[
-                  const Divider(height: 24, color: C.bdr2),
+                  const Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: C.bdr2),
                   _item(context, Icons.admin_panel_settings_rounded, 'Admin Panel', () {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => AdminPanelPage(user: user!)));
@@ -171,10 +170,12 @@ class AppDrawer extends StatelessWidget {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(_isGuest ? 'Guest' : (user!.name.isEmpty ? 'Member' : user!.name),
-                style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
-            const SizedBox(height: 2),
+                style: AppText.title.copyWith(fontSize: 15, color: Colors.white),
+                overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 3),
             Text(_isGuest ? 'Browsing — sign in for full access' : user!.roleLabel,
-                style: GoogleFonts.inter(fontSize: 11, color: Colors.white70)),
+                style: AppText.caption.copyWith(color: Colors.white70),
+                overflow: TextOverflow.ellipsis),
           ]),
         ),
       ]),
@@ -198,12 +199,18 @@ class AppDrawer extends StatelessWidget {
 
   Widget _item(BuildContext context, IconData icon, String label, VoidCallback onTap,
       {Color? color}) {
-    return ListTile(
-      leading: Icon(icon, color: color ?? C.txt2, size: 22),
-      title: Text(label, style: GoogleFonts.inter(
-          fontSize: 14, fontWeight: FontWeight.w600, color: color ?? C.txt)),
-      onTap: () { Navigator.of(context).pop(); onTap(); },
-      dense: true,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      child: ListTile(
+        leading: Icon(icon, color: color ?? C.txt2, size: 22),
+        title: Text(label, style: AppText.subtitle.copyWith(
+            fontSize: 14, color: color ?? C.txt)),
+        onTap: () { Navigator.of(context).pop(); onTap(); },
+        dense: true,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.xs)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+        minLeadingWidth: 28,
+      ),
     );
   }
 
@@ -223,9 +230,10 @@ class AppDrawer extends StatelessWidget {
               backgroundColor: C.gold, foregroundColor: C.navy,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.md)),
               elevation: 0,
+              overlayColor: Colors.black.withValues(alpha: .08),
             ),
             child: Text('Create Free Account',
-                style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700)),
+                style: AppText.button.copyWith(fontSize: 13, color: C.navy)),
           ),
         ),
       );
@@ -234,13 +242,13 @@ class AppDrawer extends StatelessWidget {
       padding: const EdgeInsets.all(8),
       child: ListTile(
         leading: const Icon(Icons.logout_rounded, color: C.red, size: 20),
-        title: Text('Sign Out', style: GoogleFonts.inter(
-            fontSize: 13, fontWeight: FontWeight.w600, color: C.red)),
+        title: Text('Sign Out', style: AppText.subtitle.copyWith(fontSize: 13, color: C.red)),
         onTap: () {
           Navigator.of(context).pop();
           AuthService.instance.signOut();
         },
         dense: true,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.xs)),
       ),
     );
   }

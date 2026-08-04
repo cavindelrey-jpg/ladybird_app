@@ -2,7 +2,7 @@
 // Modernized login — immersive navy gradient, animated entry, email+password.
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../models/models.dart';
 import '../services/auth_service.dart';
@@ -89,21 +89,20 @@ class _LoginScreenState extends State<LoginScreen>
         padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(dCtx).viewInsets.bottom + 24),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-          Text('Reset your password', style: GoogleFonts.sora(
-              fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
+          Text('Reset your password', style: AppText.h2.copyWith(fontSize: 17)),
           const SizedBox(height: 8),
           Text(
             sent
                 ? 'If an account exists for that email, a reset link is on its way. Check your inbox (and spam folder).'
                 : "Enter the email on your account. We'll send you a link to reset your password.",
-            style: GoogleFonts.inter(fontSize: 13, color: C.txt2),
+            style: AppText.bodySm,
           ),
           const SizedBox(height: 16),
           if (!sent) ...[
             TextField(
               controller: emailCtrl,
               keyboardType: TextInputType.emailAddress,
-              style: GoogleFonts.inter(fontSize: 14),
+              style: AppText.body.copyWith(fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Email address',
                 filled: true,
@@ -119,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen>
             ),
             if (localError != null) ...[
               const SizedBox(height: 10),
-              Text(localError!, style: GoogleFonts.inter(fontSize: 12, color: C.red)),
+              Text(localError!, style: AppText.bodySm.copyWith(fontSize: 12, color: C.red)),
             ],
             const SizedBox(height: 18),
             SizedBox(
@@ -148,12 +147,13 @@ class _LoginScreenState extends State<LoginScreen>
                   backgroundColor: C.gold, foregroundColor: C.navy,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.md)),
                   elevation: 0,
+                  overlayColor: Colors.black.withValues(alpha: .08),
                 ),
                 child: sending
                     ? const SizedBox(width: 18, height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2, color: C.navy))
-                    : Text('Send reset link', style: GoogleFonts.sora(
-                        fontSize: 14, fontWeight: FontWeight.w700)),
+                    : Text('Send reset link', style: AppText.button.copyWith(
+                        fontSize: 14, color: C.navy)),
               ),
             ),
           ] else
@@ -161,7 +161,8 @@ class _LoginScreenState extends State<LoginScreen>
               width: double.infinity, height: 48,
               child: OutlinedButton(
                 onPressed: () => Navigator.of(dCtx).pop(),
-                child: Text('Done', style: GoogleFonts.sora(fontWeight: FontWeight.w700)),
+                child: Text('Done', style: AppText.subtitle.copyWith(
+                    fontSize: 14, fontWeight: FontWeight.w700, color: C.primary)),
               ),
             ),
         ]),
@@ -196,18 +197,16 @@ class _LoginScreenState extends State<LoginScreen>
 
                     // School name + motto
                     Text(widget.school.name,
-                        style: GoogleFonts.sora(fontSize: 26, fontWeight: FontWeight.w800,
-                            color: Colors.white)),
-                    const SizedBox(height: 4),
+                        style: AppText.display.copyWith(fontSize: 26, color: Colors.white)),
+                    const SizedBox(height: 6),
                     Text(widget.school.motto,
-                        style: GoogleFonts.inter(fontSize: 13,
+                        style: AppText.bodySm.copyWith(
                             color: Colors.white.withValues(alpha: .55))),
                     const SizedBox(height: 48),
 
                     // Section label
-                    Text('SIGN IN', style: GoogleFonts.sora(fontSize: 10,
-                        fontWeight: FontWeight.w700, letterSpacing: 1.5,
-                        color: C.gold)),
+                    Text('SIGN IN', style: AppText.label.copyWith(
+                        fontSize: 10.5, letterSpacing: 1.5, color: C.gold)),
                     const SizedBox(height: 16),
 
                     // Error banner
@@ -250,8 +249,7 @@ class _LoginScreenState extends State<LoginScreen>
                         style: TextButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 4)),
                         child: Text('Forgot password?',
-                            style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600,
-                                color: C.gold)),
+                            style: AppText.subtitle.copyWith(fontSize: 12.5, color: C.gold)),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -265,7 +263,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                     // Footer
                     Center(child: Text('Powered by Academia',
-                        style: GoogleFonts.inter(fontSize: 11,
+                        style: AppText.caption.copyWith(
                             color: Colors.white.withValues(alpha: .3)))),
                   ]),
                 ),
@@ -343,7 +341,7 @@ class _ErrorBanner extends StatelessWidget {
         const Icon(Icons.error_outline_rounded, color: C.red, size: 18),
         const SizedBox(width: 10),
         Expanded(child: Text(message,
-            style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: .9)))),
+            style: AppText.bodySm.copyWith(color: Colors.white.withValues(alpha: .9)))),
       ]),
     );
   }
@@ -355,20 +353,37 @@ class _SignInButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity, height: 54,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [C.gold, Color(0xFFEBB83A)]),
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [BoxShadow(
-            color: C.gold.withValues(alpha: .35),
-            blurRadius: 16, offset: const Offset(0, 6))],
+    final radius = BorderRadius.circular(14);
+    return Container(
+      width: double.infinity, height: 54,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [C.gold, Color(0xFFEBB83A)]),
+        borderRadius: radius,
+        boxShadow: [
+          BoxShadow(color: C.gold.withValues(alpha: .15),
+              blurRadius: 4, offset: const Offset(0, 1)),
+          BoxShadow(color: C.gold.withValues(alpha: .32),
+              blurRadius: 20, offset: const Offset(0, 8)),
+        ],
+      ),
+      // Material+InkWell instead of a bare GestureDetector — matches the
+      // ripple + haptic feedback every other tappable surface in the app
+      // gives (ACard, buttons), so the highest-stakes tap in the whole
+      // flow doesn't feel deader than everything around it.
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: radius,
+        child: InkWell(
+          borderRadius: radius,
+          splashColor: C.navy.withValues(alpha: .08),
+          highlightColor: C.navy.withValues(alpha: .05),
+          onTap: () {
+            HapticFeedback.lightImpact();
+            onTap();
+          },
+          child: Center(child: Text('Sign In →', style: AppText.button.copyWith(
+              fontSize: 16, fontWeight: FontWeight.w800, color: C.navy))),
         ),
-        child: Center(child: Text('Sign In →',
-            style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w800,
-                color: C.navy))),
       ),
     );
   }

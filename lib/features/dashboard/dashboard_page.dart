@@ -2,7 +2,6 @@
 // Redesigned dashboard: animated welcome, role hero, live stats, events, announcements.
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/models.dart';
 import '../../repositories/announcement_repository.dart';
 import '../../repositories/calendar_repository.dart';
@@ -89,18 +88,20 @@ class _DashHeader extends StatelessWidget {
             bg: RoleColors.bg(user.role.name), fg: rc),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Welcome back', style: GoogleFonts.inter(fontSize: 12, color: C.txt2)),
-          Text(user.name, style: GoogleFonts.sora(
-              fontSize: 17, fontWeight: FontWeight.w700, color: C.txt),
+          Text('Welcome back', style: AppText.caption.copyWith(fontSize: 12, color: C.txt2)),
+          const SizedBox(height: 1),
+          Text(user.name, style: AppText.h2.copyWith(fontSize: 17),
               overflow: TextOverflow.ellipsis),
         ])),
+        const SizedBox(width: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
               color: RoleColors.bg(user.role.name),
-              borderRadius: BorderRadius.circular(Rad.xs)),
-          child: Text(user.roleLabel, style: TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w700, color: rc)),
+              borderRadius: BorderRadius.circular(Rad.xs),
+              border: Border.all(color: rc.withValues(alpha: .16), width: 1)),
+          child: Text(user.roleLabel, style: AppText.label.copyWith(
+              fontSize: 10.5, letterSpacing: 0.3, color: rc)),
         ),
       ]),
     );
@@ -177,11 +178,10 @@ class _HeroBanner extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text(title, style: GoogleFonts.sora(
-                    fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white)),
+                Text(title, style: AppText.h2.copyWith(fontSize: 16, color: Colors.white)),
                 const SizedBox(height: 6),
-                Text(sub, style: GoogleFonts.inter(
-                    fontSize: 12, color: Colors.white.withValues(alpha: .8), height: 1.4)),
+                Text(sub, style: AppText.bodySm.copyWith(
+                    color: Colors.white.withValues(alpha: .8))),
               ]),
         ),
       ]),
@@ -231,19 +231,20 @@ class _LiveEvents extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Row(children: [
               Container(width: 46, height: 46,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(color: col.withValues(alpha: .1),
-                      borderRadius: BorderRadius.circular(Rad.sm)),
+                      borderRadius: BorderRadius.circular(Rad.sm),
+                      border: Border.all(color: col.withValues(alpha: .14), width: 1)),
                   child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Text('${e.startDate.day}', style: GoogleFonts.sora(
-                        fontSize: 16, fontWeight: FontWeight.w800, color: col)),
+                    Text('${e.startDate.day}', style: AppText.h2.copyWith(fontSize: 16, color: col)),
                     Text(_monthAbbr(e.startDate.month),
-                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: col)),
+                        style: AppText.label.copyWith(fontSize: 9, letterSpacing: 0.2, color: col)),
                   ])),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(e.title, style: GoogleFonts.sora(
-                    fontSize: 13, fontWeight: FontWeight.w700, color: C.txt),
+                Text(e.title, style: AppText.title.copyWith(fontSize: 13),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 4),
                 StatusBadge(label: e.typeLabel, color: col),
               ])),
             ]),

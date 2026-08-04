@@ -4,7 +4,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/public_course.dart';
 import '../theme/app_theme.dart';
@@ -34,7 +33,7 @@ class PrimaryBtn extends StatelessWidget {
                 child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
             : Row(mainAxisSize: MainAxisSize.min, children: [
                 if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
-                Text(label, style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700)),
+                Text(label, style: AppText.button),
               ]),
       ),
     );
@@ -55,7 +54,7 @@ class SecondaryBtn extends StatelessWidget {
         onPressed: onTap,
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
-          Text(label, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
+          Text(label, style: AppText.subtitle.copyWith(fontSize: 14, color: C.primary)),
         ]),
       ),
     );
@@ -133,27 +132,30 @@ class EmptyState extends StatelessWidget {
         padding: const EdgeInsets.all(40),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(
-            width: 80, height: 80,
+            width: 76, height: 76,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: C.surf3, borderRadius: BorderRadius.circular(Rad.xl)),
-            child: Icon(icon, size: 36, color: C.muted),
+              color: C.surf3,
+              shape: BoxShape.circle,
+              border: Border.all(color: C.bdr2, width: 1),
+            ),
+            child: Icon(icon, size: 32, color: C.muted),
           ),
-          const SizedBox(height: 16),
-          Text(title, style: GoogleFonts.sora(
-              fontSize: 16, fontWeight: FontWeight.w700, color: C.txt),
+          const SizedBox(height: 20),
+          Text(title, style: AppText.title.copyWith(fontSize: 16),
               textAlign: TextAlign.center),
           if (subtitle != null) ...[
-            const SizedBox(height: 8),
-            Text(subtitle!, style: GoogleFonts.inter(fontSize: 13, color: C.txt2),
+            const SizedBox(height: 6),
+            Text(subtitle!, style: AppText.bodySm,
                 textAlign: TextAlign.center),
           ],
           if (actionLabel != null && onAction != null) ...[
             const SizedBox(height: 24),
             SizedBox(
-              width: 160,
+              width: 180, height: 44,
               child: ElevatedButton(
                 onPressed: onAction,
-                child: Text(actionLabel!),
+                child: Text(actionLabel!, style: AppText.button.copyWith(fontSize: 13)),
               ),
             ),
           ],
@@ -314,10 +316,13 @@ class LoadingView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const CircularProgressIndicator(),
+        const SizedBox(
+          width: 28, height: 28,
+          child: CircularProgressIndicator(strokeWidth: 2.5, color: C.primary),
+        ),
         if (message != null) ...[
           const SizedBox(height: 16),
-          Text(message!, style: GoogleFonts.inter(color: C.txt2, fontSize: 13)),
+          Text(message!, style: AppText.bodySm),
         ],
       ]),
     );
@@ -340,22 +345,29 @@ class ErrorView extends StatelessWidget {
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(
-            width: 72, height: 72,
-            decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(Rad.xl)),
-            child: const Icon(Icons.wifi_off_rounded, size: 32, color: C.red),
+            width: 68, height: 68,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: C.redb,
+              shape: BoxShape.circle,
+              border: Border.all(color: C.red.withValues(alpha: .12), width: 1),
+            ),
+            child: const Icon(Icons.wifi_off_rounded, size: 28, color: C.red),
           ),
-          const SizedBox(height: 16),
-          Text('Something went wrong', style: GoogleFonts.sora(
-              fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
-          const SizedBox(height: 8),
-          Text(message, style: GoogleFonts.inter(fontSize: 13, color: C.txt2),
+          const SizedBox(height: 20),
+          Text('Something went wrong', style: AppText.title.copyWith(fontSize: 16)),
+          const SizedBox(height: 6),
+          Text(message, style: AppText.bodySm,
               textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis),
           if (onRetry != null) ...[
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: const Text('Try again'),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 44,
+              child: ElevatedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: Text('Try again', style: AppText.button.copyWith(fontSize: 13)),
+              ),
             ),
           ],
         ]),
@@ -377,13 +389,13 @@ class StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: bg ?? color.withValues(alpha: .12),
         borderRadius: BorderRadius.circular(Rad.xs),
       ),
-      child: Text(label, style: TextStyle(
-          fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+      child: Text(label, style: AppText.label.copyWith(
+          fontSize: 10, letterSpacing: 0.3, color: color)),
     );
   }
 }
@@ -408,9 +420,11 @@ class GradeBadge extends StatelessWidget {
     return Container(
       width: 28, height: 28,
       decoration: BoxDecoration(
-          color: col.withValues(alpha: .12), borderRadius: BorderRadius.circular(Rad.xs)),
+          color: col.withValues(alpha: .12),
+          borderRadius: BorderRadius.circular(Rad.xs),
+          border: Border.all(color: col.withValues(alpha: .18), width: 1)),
       child: Center(child: Text(grade,
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: col))),
+          style: AppText.title.copyWith(fontSize: 13, fontWeight: FontWeight.w800, color: col))),
     );
   }
 }
@@ -440,14 +454,12 @@ class AnnCard extends StatelessWidget {
             const StatusBadge(label: 'URGENT', color: C.red, bg: C.redb),
           ],
           const Spacer(),
-          Text(date, style: GoogleFonts.inter(fontSize: 11, color: C.muted)),
+          Text(date, style: AppText.caption),
         ]),
-        const SizedBox(height: 8),
-        Text(title, style: GoogleFonts.sora(
-            fontSize: 14, fontWeight: FontWeight.w700, color: C.txt)),
-        const SizedBox(height: 5),
-        Text(body, style: GoogleFonts.inter(
-            fontSize: 13, color: C.txt2, height: 1.5),
+        const SizedBox(height: 10),
+        Text(title, style: AppText.title.copyWith(fontSize: 14)),
+        const SizedBox(height: 4),
+        Text(body, style: AppText.bodySm,
             maxLines: 3, overflow: TextOverflow.ellipsis),
       ]),
     );
@@ -508,14 +520,19 @@ class SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(children: [
-      Text(title, style: GoogleFonts.sora(
-          fontSize: 14, fontWeight: FontWeight.w700, color: C.txt)),
+      Text(title, style: AppText.title.copyWith(fontSize: 14)),
       const Spacer(),
       if (action != null)
-        GestureDetector(
-          onTap: onAction,
-          child: Text(action!, style: GoogleFonts.inter(
-              fontSize: 12, color: C.primary, fontWeight: FontWeight.w600)),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(Rad.xs),
+            onTap: onAction,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Text(action!, style: AppText.subtitle.copyWith(fontSize: 12, color: C.primary)),
+            ),
+          ),
         ),
     ]);
   }
@@ -548,10 +565,8 @@ class StatCard extends StatelessWidget {
             Text(trend!, style: TextStyle(fontSize: 10, color: color.withValues(alpha: .7))),
         ]),
         const SizedBox(height: 10),
-        Text(value, style: GoogleFonts.sora(
-            fontSize: 22, fontWeight: FontWeight.w800, color: color)),
-        Text(label, style: GoogleFonts.inter(
-            fontSize: 11, color: color.withValues(alpha: .8))),
+        Text(value, style: AppText.display.copyWith(fontSize: 22, color: color)),
+        Text(label, style: AppText.caption.copyWith(color: color.withValues(alpha: .8))),
       ]),
     );
   }
@@ -573,8 +588,8 @@ class AcademiaLogo extends StatelessWidget {
       errorBuilder: (_, __, ___) => Container(
         width: size, height: size,
         decoration: BoxDecoration(color: C.navy, borderRadius: BorderRadius.circular(size * 0.22)),
-        child: Center(child: Text('A', style: GoogleFonts.sora(
-            fontSize: size * 0.5, fontWeight: FontWeight.w800, color: C.gold))),
+        child: Center(child: Text('A', style: AppText.display.copyWith(
+            fontSize: size * 0.5, color: C.gold))),
       ),
     );
   }
@@ -587,9 +602,10 @@ class AcademiaLogo extends StatelessWidget {
 void showToast(BuildContext context, String msg, {bool isError = false}) {
   ScaffoldMessenger.of(context).clearSnackBars();
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-    content: Text(msg, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500)),
+    content: Text(msg, style: AppText.subtitle.copyWith(color: Colors.white, fontSize: 13)),
     behavior: SnackBarBehavior.floating,
     backgroundColor: isError ? C.red : C.navy,
+    elevation: 6,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.sm)),
     margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
     duration: Duration(seconds: isError ? 4 : 2),

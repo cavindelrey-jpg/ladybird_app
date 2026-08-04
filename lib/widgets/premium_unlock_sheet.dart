@@ -6,8 +6,8 @@
 // true server-side. This sheet does not set isPremium itself.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 
 class PremiumUnlockSheet extends StatefulWidget {
@@ -98,16 +98,16 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
             Row(children: [
               Container(
                 width: 44, height: 44,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(color: C.goldp, borderRadius: BorderRadius.circular(Rad.sm)),
                 child: const Icon(Icons.workspace_premium_rounded, color: C.gold, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Unlock Premium',
-                      style: GoogleFonts.sora(fontSize: 17, fontWeight: FontWeight.w800, color: C.txt)),
+                  Text('Unlock Premium', style: AppText.h2.copyWith(fontSize: 17)),
                   Text('Every past question, every school, every board.',
-                      style: GoogleFonts.inter(fontSize: 12, color: C.txt2)),
+                      style: AppText.bodySm),
                 ]),
               ),
               IconButton(
@@ -118,17 +118,19 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
             const SizedBox(height: 20),
 
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(color: C.goldp, borderRadius: BorderRadius.circular(Rad.md)),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: C.goldp,
+                borderRadius: BorderRadius.circular(Rad.md),
+                border: Border.all(color: C.gold.withValues(alpha: .18)),
+              ),
               child: Text('5,000 FCFA — one time',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.sora(fontSize: 17, fontWeight: FontWeight.w800, color: C.navy)),
+                  style: AppText.display.copyWith(fontSize: 18, color: C.navy)),
             ),
             const SizedBox(height: 20),
 
-            Text('PAYMENT METHOD',
-                style: GoogleFonts.sora(fontSize: 10, fontWeight: FontWeight.w700,
-                    letterSpacing: 1, color: C.txt2)),
+            Text('PAYMENT METHOD', style: AppText.label.copyWith(letterSpacing: 1)),
             const SizedBox(height: 10),
             Row(children: [
               Expanded(
@@ -154,12 +156,12 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
             TextFormField(
               controller: _phoneController,
               keyboardType: TextInputType.phone,
-              style: GoogleFonts.inter(fontSize: 14, color: C.txt),
+              style: AppText.body.copyWith(fontSize: 14),
               decoration: InputDecoration(
                 hintText: '6XX XXX XXX',
-                hintStyle: GoogleFonts.inter(fontSize: 14, color: C.muted),
+                hintStyle: AppText.body.copyWith(fontSize: 14, color: C.muted),
                 prefixText: '+237 ',
-                prefixStyle: GoogleFonts.inter(fontSize: 14, color: C.txt),
+                prefixStyle: AppText.body.copyWith(fontSize: 14),
                 filled: true, fillColor: C.surf3,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md),
                     borderSide: BorderSide.none),
@@ -175,7 +177,7 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
 
             if (_errorMessage != null) ...[
               Text(_errorMessage!,
-                  style: GoogleFonts.inter(color: C.red, fontSize: 13), textAlign: TextAlign.center),
+                  style: AppText.bodySm.copyWith(color: C.red), textAlign: TextAlign.center),
               const SizedBox(height: 12),
             ],
 
@@ -187,19 +189,19 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
                   backgroundColor: C.navy, foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.md)),
                   elevation: 0,
+                  overlayColor: Colors.white.withValues(alpha: .1),
                 ),
                 child: _isLoading
                     ? const SizedBox(width: 20, height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                    : Text('Pay Now', style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700)),
+                    : Text('Pay Now', style: AppText.button),
               ),
             ),
             const SizedBox(height: 10),
             Center(
               child: TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: Text('Skip for now',
-                    style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: C.txt2)),
+                child: Text('Skip for now', style: AppText.subtitle.copyWith(fontSize: 13)),
               ),
             ),
             const SizedBox(height: 12),
@@ -223,13 +225,13 @@ class _PendingDialog extends StatelessWidget {
       title: Row(children: [
         const Icon(Icons.check_circle_outline_rounded, color: C.grn),
         const SizedBox(width: 8),
-        Expanded(child: Text('Prompt sent', style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700))),
+        Expanded(child: Text('Prompt sent', style: AppText.h2.copyWith(fontSize: 16))),
       ]),
       content: Text(
         'Check your phone for the $label PIN prompt to approve the '
         '5,000 FCFA payment. Premium access unlocks automatically once '
         'it\'s confirmed.',
-        style: GoogleFonts.inter(fontSize: 13, color: C.txt2, height: 1.5),
+        style: AppText.bodySm.copyWith(height: 1.5),
       ),
       actions: [
         TextButton(
@@ -237,7 +239,7 @@ class _PendingDialog extends StatelessWidget {
             Navigator.of(context).pop(); // dialog
             Navigator.of(context).pop(); // sheet
           },
-          child: const Text('Got it'),
+          child: Text('Got it', style: AppText.subtitle.copyWith(color: C.primary)),
         ),
       ],
     );
@@ -259,20 +261,29 @@ class _ProviderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: .12) : C.surf3,
-          border: Border.all(color: isSelected ? color : C.bdr, width: isSelected ? 1.6 : 1),
-          borderRadius: BorderRadius.circular(Rad.md),
+    final radius = BorderRadius.circular(Rad.md);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: radius,
+      child: InkWell(
+        borderRadius: radius,
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: isSelected ? color.withValues(alpha: .12) : C.surf3,
+            border: Border.all(color: isSelected ? color : C.bdr, width: isSelected ? 1.6 : 1),
+            borderRadius: radius,
+          ),
+          child: Column(children: [
+            CircleAvatar(radius: 10, backgroundColor: color),
+            const SizedBox(height: 8),
+            Text(label, style: AppText.title.copyWith(fontSize: 12)),
+          ]),
         ),
-        child: Column(children: [
-          CircleAvatar(radius: 10, backgroundColor: color),
-          const SizedBox(height: 8),
-          Text(label, style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, color: C.txt)),
-        ]),
       ),
     );
   }

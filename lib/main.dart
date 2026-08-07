@@ -33,7 +33,7 @@ Future<void> main() async {
     ErrorWidget.builder = (details) => _ErrorFallback(details: details);
 
     // Firebase init
-    await Firebase.initializeApp();
+await Firebase.initializeApp(); // Ensure no secrets in client bundle
 
     // Route Flutter framework errors (build/layout/paint) to Crashlytics as
     // fatal, instead of just printing to console and moving on.

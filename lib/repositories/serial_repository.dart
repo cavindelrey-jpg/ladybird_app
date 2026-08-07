@@ -4,8 +4,8 @@
 // atomically claiming it so the same serial can never be used twice — even
 // under concurrent attempts (two people racing to redeem a leaked serial).
 
-import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../core/constants.dart';
 import '../core/result.dart';
 import '../models/institution.dart';
@@ -16,6 +16,7 @@ class SerialRepository {
   static final SerialRepository instance = SerialRepository._();
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseFunctions _fn = FirebaseFunctions.instance;
 
   // ─── Validation ───────────────────────────────────────────────────────
 
@@ -83,11 +84,13 @@ class SerialRepository {
     }
   }
 
-  // ─── Claim (atomic) ───────────────────────────────────────────────────
+  // ─── Claim (server-enforced) ────────────────────────────────────────
 
-  /// Marks a serial claimed by [uid], inside a transaction so two people
-  /// racing on the same leaked serial can't both succeed — whoever's
-  /// transaction commits first wins, the other gets a clean failure.
+  /// Marks a serial claimed by [uid]. This now calls the `claimSerial`
+  /// Cloud Function instead of writing to Firestore directly — the
+  /// atomic transaction lives server-side, so a modified/rooted client
+  /// can no longer forge a claim by calling Firestore directly (rules
+  /// deny client writes to `serials/*` — see firestore.rules).
   /// Called by AuthService immediately after the Firebase Auth user is
   /// created, as part of account creation.
   Future<Result<void>> claim({
@@ -95,51 +98,43 @@ class SerialRepository {
     required String uid,
   }) async {
     final normalized = code.trim().toUpperCase();
-    final ref = _db.collection(AppConstants.colSerials).doc(normalized);
-
     try {
-      await _db.runTransaction((tx) async {
-        final snap = await tx.get(ref);
-        if (!snap.exists) {
-          throw Exception("Serial number no longer exists.");
-        }
-        final serial = SerialNumber.fromFirestore(snap.id, snap.data()!);
-        if (serial.status != SerialStatus.unclaimed) {
-          throw Exception('This serial number has already been claimed.');
-        }
-        tx.update(ref, {
-          'status': SerialStatus.claimed.name,
-          'claimedByUid': uid,
-          'claimedAt': FieldValue.serverTimestamp(),
-        });
+      await _fn.httpsCallable('claimSerial').call({
+        'code': normalized,
+        // uid is also read server-side from context.auth — sent here only
+        // for logging/back-compat, the function does not trust this value.
+        'uid': uid,
       });
       return const Success(null);
+    } on FirebaseFunctionsException catch (e) {
+      return Failure(e.message ?? 'This serial number could not be claimed.', e);
     } catch (e) {
-      return Failure(e.toString().replaceFirst('Exception: ', ''), e);
+      return Failure(e.toString(), e);
     }
   }
 
   /// Releases a claim — used only as rollback if account creation fails
   /// *after* the serial was claimed but before the user doc was written
-  /// (e.g. Firestore write failure right after Auth succeeded).
+  /// (e.g. Firestore write failure right after Auth succeeded). Calls the
+  /// `releaseSerial` Cloud Function, which only allows the uid that holds
+  /// the claim to release it.
   Future<void> release(String code) async {
     final normalized = code.trim().toUpperCase();
     try {
-      await _db.collection(AppConstants.colSerials).doc(normalized).update({
-        'status': SerialStatus.unclaimed.name,
-        'claimedByUid': null,
-        'claimedAt': null,
-      });
+      await _fn.httpsCallable('releaseSerial').call({'code': normalized});
     } catch (_) {
       // best-effort rollback only
     }
   }
 
-  // ─── Admin: batch generation ──────────────────────────────────────────
+  // ─── Admin: batch generation (server-enforced) ────────────────────────
 
   /// Generates [count] fresh, unclaimed serials for [institutionId] — e.g.
   /// when a school signs a contract for 720 seats. Codes are prefixed with
   /// [institutionPrefix] (e.g. "SM" for St. Michael) for readability.
+  /// Calls the `generateSerials` Cloud Function — admin-only server-side,
+  /// so a client can no longer mint free seats by writing to Firestore
+  /// directly (rules deny client writes to `serials/*`).
   Future<Result<List<String>>> generateBatch({
     required String institutionId,
     required String institutionPrefix,
@@ -147,27 +142,16 @@ class SerialRepository {
     String? classLevel,
   }) async {
     try {
-      final rng = Random.secure();
-      final codes = <String>[];
-      final batch = _db.batch();
-
-      while (codes.length < count) {
-        final suffix = List.generate(6, (_) => rng.nextInt(36))
-            .map((n) => n < 10 ? n.toString() : String.fromCharCode(55 + n))
-            .join();
-        final code = '${institutionPrefix.toUpperCase()}-$suffix';
-        if (codes.contains(code)) continue; // extremely unlikely collision
-        codes.add(code);
-        final ref = _db.collection(AppConstants.colSerials).doc(code);
-        batch.set(ref, SerialNumber(
-          code: code,
-          institutionId: institutionId,
-          classLevel: classLevel,
-        ).toFirestore());
-      }
-
-      await batch.commit();
+      final result = await _fn.httpsCallable('generateSerials').call({
+        'institutionId': institutionId,
+        'institutionPrefix': institutionPrefix,
+        'count': count,
+        if (classLevel != null) 'classLevel': classLevel,
+      });
+      final codes = List<String>.from(result.data['codes'] as List);
       return Success(codes);
+    } on FirebaseFunctionsException catch (e) {
+      return Failure(e.message ?? 'Failed to generate serial numbers.', e);
     } catch (e) {
       return Failure('Failed to generate serial numbers: $e', e);
     }
@@ -187,9 +171,10 @@ class SerialRepository {
 
   Future<Result<void>> revoke(String code) async {
     try {
-      await _db.collection(AppConstants.colSerials).doc(code.trim().toUpperCase())
-          .update({'status': SerialStatus.revoked.name});
+      await _fn.httpsCallable('revokeSerial').call({'code': code.trim().toUpperCase()});
       return const Success(null);
+    } on FirebaseFunctionsException catch (e) {
+      return Failure(e.message ?? 'Failed to revoke serial number.', e);
     } catch (e) {
       return Failure('Failed to revoke serial number.', e);
     }

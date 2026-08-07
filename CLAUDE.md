@@ -1,90 +1,58 @@
-# Academia — Claude Code project notes
+# Autopilot Mode — Standing Instructions
 
-Flutter app (Material 3, Firebase, Provider). `lib/` layout:
+This file is auto-loaded by Claude Code every session started inside this
+project. It is what makes "autopilot" actually work — read it before
+starting any task from the numbered playbook files.
 
-- `core/` — shared primitives (`Result<T>` sealed class for success/failure,
-  `docx_parser.dart`, `debouncer.dart`, `constants.dart`)
-- `theme/` — single source of truth for colours/typography. Colour tokens
-  live in the `C` class (`theme/app_theme.dart`). `theme/app_colors.dart`
-  is a separate, intentional dark-mode `ThemeExtension` — additive, not a
-  duplicate (see its own header comment: `C` stays untouched on purpose
-  because it's used in hundreds of `const` constructors). Currently wired
-  into Home only.
-- `models/` — plain data classes, aggregated via `models/models.dart`
-- `repositories/` — data access, return `Result<T>`, not raw exceptions.
-  Every Firestore/Storage write needs a `.timeout(...)` — a missing one
-  on a stalled connection looks exactly like a frozen button and cost
-  real debugging time to trace once already.
-- `services/` — cross-cutting singletons (analytics, auth, config, crash reporting)
-- `providers/` — `ChangeNotifier` app state
-- `screens/` — top-level routing/auth screens
-- `features/<n>/` — one folder per feature, each with a barrel file
-  (e.g. `features/academic_content/academic_content.dart`)
-- `widgets/` — shared widgets, aggregated via `widgets/widgets.dart`.
-  `widgets/app_background.dart` is the shared gradient-background wrapper
-  every content page's Scaffold body should use — see "known gotchas" below.
-- `pages/` — legacy/misc standalone pages not yet moved into `features/`
+## Core rule: never idle waiting on me
 
-## Conventions already in use — follow them, don't invent new patterns
-- Repositories/services return `Result<T>` (`core/result.dart`); UI checks
-  `is Success<T>` / `is Failure<T>`, never throws for expected failure paths.
-- Barrel files (`x/x.dart`) re-export a folder's public API — update them
-  when adding/removing a file in that folder.
-- Colour/spacing/typography come from `theme/`, not literals.
-- `main.dart` wires global error handling through `runZonedGuarded` +
-  `FlutterError.onError` + Crashlytics — don't bypass it with stray
-  `try/catch` that swallows errors silently.
-- Bottom nav is fixed: Home, Library, Magazine, Courses, Profile — same
-  for every account type. Do not add per-feature tabs back.
-- Shared engagement logic (like/bookmark toggling) lives in
-  `repositories/engagement_helper.dart` — reuse it for new content types.
-- No fabricated/hardcoded data or fake stats, ever — a hardcoded "3"
-  notification badge and a fake quiz card were both found and removed
-  for exactly this reason during earlier passes on this project.
+- Do not stop a task to ask a clarifying question and then sit idle.
+- If a decision is ambiguous, pick the most reasonable default given the
+  context of this project, write down the assumption you made, and
+  continue immediately.
+- If you genuinely must ask something, ask it once, then **do not block**
+  — proceed with your stated default right away rather than waiting for
+  a reply. Treat silence as approval of the default you proposed.
+- Log every assumption/default you make to `docs/AUTOPILOT_LOG.md` as you
+  go (create it if it doesn't exist), one line per decision, so I can
+  review the full list afterward instead of being interrupted for each
+  one individually.
 
-## Known gotchas (do not rediscover these the hard way)
-- `flutter_quill` toolbar widgets require `FlutterQuillLocalizations.delegate`
-  registered in MaterialApp's `localizationsDelegates`. If missing, any
-  screen with a Quill toolbar throws on first build, in a tight loop,
-  with zero visible symptom other than "the button does nothing." This
-  is fixed in main.dart already — if this exact symptom reappears, check
-  that fix wasn't reverted before doing anything else.
-- `share_plus` is pinned to `^9.0.0` on this project — use
-  `Share.share(text)`, NOT the newer `SharePlus.instance.share(ShareParams(...))`
-  API from later major versions.
-- Any Firestore query combining `.where(fieldA)` with `.orderBy(fieldB)`
-  on a different field needs a composite index (`firestore.indexes.json`),
-  or the stream throws `FAILED_PRECONDITION`. If the calling StreamBuilder
-  doesn't check `snapshot.hasError`, this looks exactly like "the list is
-  just empty" — always check hasError before concluding a query is wrong.
-- `flutter`/`dart` may not resolve on PATH inside a restricted Claude
-  Code shell even when they work fine in a normal terminal — resolve the
-  full path first if bare commands fail.
-- `flutter analyze`/`flutter build` can hit a hard "requires approval"
-  wall in an unattended `-p` session regardless of `--allowedTools`
-  patterns. Fix: unattended sessions use `--dangerously-skip-permissions`.
-- Automated find-and-wrap edits (e.g. wrapping every Scaffold body in a
-  shared widget) are risky when a file has a variable, field, or ternary
-  ALSO named/shaped like the target pattern (e.g. `body:` matching an
-  `Announcement.body` string field before the real Scaffold's `body:`).
-  Balanced parens after an edit does NOT mean the edit landed in the
-  right place — verify by reading the actual diff context, not just a
-  paren-count check, especially for ternary expressions (`x ? A : B`)
-  where naive first-paren-matching grabs only the first branch.
+## The only things worth actually stopping for
 
-## House rules for this polishing pass
-1. One task from `polish/TASKS.md` per commit. Small, reviewable diffs.
-2. Never change public widget/API signatures used across files without
-   grepping for all call sites first and updating them in the same commit.
-3. Run `dart format .` and `flutter analyze` before considering a task done;
-   a task isn't complete if analyze introduces new warnings.
-4. Don't touch generated files, `pubspec.lock`, or anything under `build/`.
-5. If a task turns out to be bigger than one commit, split it into
-   sub-checkboxes in `polish/TASKS.md` instead of doing a giant diff.
-6. No behavior changes disguised as "polish" — refactors must be
-   functionally identical unless the task explicitly says otherwise.
-7. Never stop and wait for input mid-task in an unattended run. If
-   something needs a live device, a design decision, or credentials —
-   skip it, log one line to `polish/logs/` or REPORT.md, and move on.
-8. Prefer honest partial completion over claiming something is done
-   without `flutter analyze` actually confirming it.
+Stop and wait for a real answer from me only if the action is one of:
+- Deleting or force-pushing anything outside this local repo (a remote
+  branch, a shared branch, a production Firebase project)
+- Spending real money (a paid API call, a paid service signup)
+- Permanently deleting production/live data (not local dev data, not
+  test data)
+
+Everything else — file structure, naming, which default color/copy to
+use for a placeholder, which of two reasonable implementations to pick —
+decide it yourself and move on. That's the point of autopilot mode.
+
+## Session hygiene (this is what keeps autopilot safe)
+
+- Commit after every completed step in the playbook files, with a clear
+  message. Git history is the actual undo button here — that's what
+  makes it safe to not stop and ask permission for every small decision.
+- Run `flutter analyze` after any change touching more than ~10 files
+  before continuing to the next step.
+- Never work directly on `main`/`master` — confirm you're on the correct
+  feature branch (per each playbook file's instructions) before making
+  changes.
+
+## Recommended way to launch a fully unattended run
+
+For a step you want to run genuinely hands-off (e.g. overnight, or while
+you're presenting somewhere else), start it as:
+
+```
+claude --permission-mode acceptEdits -p "<paste the day's prompt block>"
+```
+
+`acceptEdits` auto-approves file edits without a manual prompt each time,
+which — combined with the rules above — is what removes essentially all
+the stopping points. Reserve `--dangerously-skip-permissions` (full
+bypass, including shell commands) only for a session you're actively
+watching, since it also skips confirmation on destructive shell commands.

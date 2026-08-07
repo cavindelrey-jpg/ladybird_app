@@ -57,6 +57,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.3
   # Already a transitive dep of flutter_quill (used internally for its
   # rich-paste HTML->Delta conversion) — declared directly so the
   # section-3 paste-structure test can import it without an analyzer lint.
@@ -72,10 +73,20 @@ flutter:
 
 flutter_launcher_icons:
   android: true
-  ios: false
-  image_path: "assets/icon/academia_icon.png"
-  adaptive_icon_background: "#000000"
-  adaptive_icon_foreground: "assets/icon/academia_icon.png"
+  ios: true
+  image_path: "assets/icon/academia_logo.png"
+  remove_alpha_ios: true
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon/academia_logo.png"
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: "assets/icon/academia_logo.png"
+  android_12:
+    color: "#FFFFFF"
+    image: "assets/icon/academia_logo.png"
+  android: true
+  ios: true
 
 dependency_overrides:
   web: ^1.1.1

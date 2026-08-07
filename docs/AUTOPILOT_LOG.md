@@ -31,3 +31,41 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
   not part of the numbered task list. Will not commit them as part of code-change commits;
   may fold into a single "misc scratch files" commit at the end if they're still untracked
   and clutter is worth resolving, otherwise leaving as local untracked scratch is harmless.
+
+## Session resume (2026-08-08)
+
+- **Local Flutter SDK was broken before any app work could start**:
+  `C:\flutter\bin\cache\dart-sdk` was completely empty (mid-upgrade corruption —
+  `dart-sdk.old1`/`dart-sdk.old2` backups existed alongside it) and the SDK checkout
+  itself had uncommitted local edits to `bin/internal/engine.version` and
+  `packages/flutter_tools/gradle/.../FlutterExtension.kt`, causing every `flutter`/`dart`
+  invocation to fail (`Wrong full snapshot version` looping forever, or plain
+  "cannot find the path specified"). This is local machine tooling, not part of the
+  project repo, so fixing it doesn't touch any user work: ran
+  `git checkout -- bin/internal/engine.version packages/flutter_tools/.../FlutterExtension.kt`
+  inside `C:\flutter` to drop the stray local edits back to the pinned commit, deleted
+  the entire corrupted `bin/cache` directory, and let `flutter --version` re-provision
+  a clean cache from scratch (network download, ~3 min). Confirmed working:
+  Flutter 3.41.5 / Dart 3.11.3. Also noticed an unrelated stray
+  `C:\flutter\zVideo Clips (2).exe` (untracked, not part of the Flutter SDK) sitting in
+  the SDK checkout root — did not touch it (not blocking, not part of this project),
+  but flagging it here since an unexplained .exe in a dev-tooling directory is worth
+  the user's own eyes at some point.
+- **`dart run <pkg>` intermittently fails inside this sandboxed shell** with unrelated-looking
+  errors (`dart.bat`'s own text fed to the Dart parser, or `error launching git: Access is
+  denied` from flutter_tools' engine-version check) — appears to be transient sandboxed
+  process-spawn flakiness (same class of issue as sporadic `EPERM uv_spawn powershell.exe`
+  seen earlier), not a real SDK problem, since immediate retries (or invoking
+  `bin\cache\dart-sdk\bin\dart.exe` directly instead of the `dart.bat` wrapper) succeed.
+  Standing approach for the rest of this session: on an unexplained flutter/dart command
+  failure, retry once or fall back to the direct `dart-sdk\bin\dart.exe` path before
+  treating it as a real bug.
+- **Task 1 (icon/splash) root cause**: `pubspec.yaml`'s `flutter_launcher_icons`/
+  `flutter_native_splash` config pointed at `assets/icon/academia_icon.png`, a file that
+  no longer exists — the actual new logo lives at `assets/icon/academia_logo.png`. This
+  had already been half-fixed (uncommitted `pubspec.yaml` edit pointing at the right
+  filename, plus adding the `flutter_native_splash` dependency) before this session
+  picked back up; the generators had just never actually been run. Ran
+  `dart run flutter_launcher_icons` and `dart run flutter_native_splash:create` — both
+  succeeded and regenerated Android mipmap/drawable icons, iOS AppIcon.appiconset,
+  LaunchScreen storyboard, and web icons/splash from the new logo.

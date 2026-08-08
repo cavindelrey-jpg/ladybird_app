@@ -305,4 +305,15 @@ class ClubRepository {
       return Failure('Failed to update club', e);
     }
   }
+
+  /// Founder or school staff only (mirrors firestore.rules' clubs delete
+  /// rule) -- the club settings page is the only caller.
+  Future<Result<void>> deleteClub(String clubId) async {
+    try {
+      await _db.collection(AppConstants.colClubs).doc(clubId).delete();
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to delete club', e);
+    }
+  }
 }

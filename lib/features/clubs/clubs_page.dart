@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../models/models.dart';
 import '../../repositories/club_repository.dart';
 import '../../core/result.dart';
@@ -20,6 +21,7 @@ import '../../pages/notifications_page.dart';
 import '../messages/messages_home_page.dart';
 import 'create_club_page.dart';
 import 'club_members_page.dart';
+import 'club_settings_page.dart';
 
 class ClubsPage extends StatefulWidget {
   final AppUser user;
@@ -627,10 +629,33 @@ class _ClubDetailPageState extends State<ClubDetailPage>
           Tab(text: 'CHAT'), Tab(text: 'ANNOUNCEMENTS')]),
         actions: [
           IconButton(
+            icon: const Icon(Icons.share_outlined),
+            tooltip: 'Invite members',
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              Share.share(
+                  '${widget.club.emoji} Join "${widget.club.name}" on Academia!\n\n'
+                  '${widget.club.description}\n\n'
+                  'Open the Academia app, go to Clubs, and search for it to join.');
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.group_outlined),
             tooltip: 'Members',
             onPressed: () => Navigator.push(context, MaterialPageRoute(
                 builder: (_) => ClubMembersPage(club: widget.club, currentUser: widget.user))),
+          ),
+          StreamBuilder<ClubRole>(
+            stream: ClubRepository.instance.watchUserRole(widget.club.id, widget.user.id),
+            builder: (context, snap) {
+              if (snap.data != ClubRole.admin) return const SizedBox.shrink();
+              return IconButton(
+                icon: const Icon(Icons.settings_outlined),
+                tooltip: 'Club settings',
+                onPressed: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => ClubSettingsPage(club: widget.club, currentUser: widget.user))),
+              );
+            },
           ),
         ],
       ),

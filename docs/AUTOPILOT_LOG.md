@@ -144,6 +144,19 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
   offline support for image/video/docx for now (video especially has
   real storage-budget implications that deserve their own decision, not
   a default-on autopilot call) — those three still open over network.
+- **Part 6 (club membership/admin)**: audited first — this was already
+  very complete (4-tier visitor/member/moderator/admin roles, promote/
+  demote, remove-with-can't-remove-last-admin guard, member list with
+  profiles, join-request approve/decline moderation, all mirrored
+  server-side in firestore.rules). Only two real gaps: no invite
+  mechanism and no way to edit/delete an existing club (only create).
+  Added both minimally rather than over-building: Invite reuses the
+  existing `share_plus` pattern already used by Courses/Magazine share
+  buttons (a share-sheet message, not a new invite-notification system —
+  building acceptance/notification-type plumbing for this felt
+  disproportionate given how much bigger Parts 7-19 still are). Added
+  `ClubSettingsPage` (admin-only edit + founder-only delete, reusing
+  create_club_page's form patterns) and `ClubRepository.deleteClub()`.
 - **Part 1 item 2, "Today's Progress dead button" claim**: audited
   `_progressCard` — it's not actually dead. It opens LibraryReaderPage via
   a real InkWell when `continueReadingItemId` is set, and shows an honest

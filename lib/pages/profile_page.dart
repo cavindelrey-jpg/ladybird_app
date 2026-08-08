@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../models/models.dart';
 import '../services/auth_service.dart';
 import '../providers/institution_provider.dart';
@@ -22,31 +22,33 @@ class ProfilePage extends StatelessWidget {
   final Institution? institution;
   const ProfilePage({super.key, required this.user, this.institution});
 
-  static Color _roleColor(UserRole r) {
+  static Color _roleColor(AppColors ac, UserRole r) {
     switch (r) {
-      case UserRole.superAdmin:     return C.pur;
-      case UserRole.schoolAdmin:    return C.primary;
-      case UserRole.departmentAdmin:return C.blu;
-      case UserRole.lecturer:       return C.gold;
-      case UserRole.student:        return C.grn;
-      case UserRole.guest:          return C.muted;
+      case UserRole.superAdmin:     return ac.pur;
+      case UserRole.schoolAdmin:    return ac.primary;
+      case UserRole.departmentAdmin:return ac.blu;
+      case UserRole.lecturer:       return ac.gold;
+      case UserRole.student:        return ac.grn;
+      case UserRole.guest:          return ac.muted;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final inst = institution;
-    final rc   = _roleColor(user.role);
+    final rc   = _roleColor(ac, user.role);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        title: Text('Profile', style: GoogleFonts.sora(fontWeight: FontWeight.w700)),
+        backgroundColor: ac.bg,
+        title: Text('Profile', style: GoogleFonts.sora(fontWeight: FontWeight.w700, color: ac.txt)),
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => SettingsPage(user: user))),
-            icon: const Icon(Icons.settings_outlined, color: C.txt2),
+            icon: Icon(Icons.settings_outlined, color: ac.txt2),
             tooltip: 'Settings',
           ),
           TextButton.icon(
@@ -54,9 +56,9 @@ class ProfilePage extends StatelessWidget {
               await AuthService.instance.signOut();
               if (context.mounted) context.read<InstitutionProvider>().clear();
             },
-            icon: const Icon(Icons.logout_rounded, size: 18, color: C.red),
+            icon: Icon(Icons.logout_rounded, size: 18, color: ac.red),
             label: Text('Sign Out',
-                style: GoogleFonts.inter(fontSize: 13, color: C.red, fontWeight: FontWeight.w600)),
+                style: GoogleFonts.inter(fontSize: 13, color: ac.red, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -102,7 +104,7 @@ class ProfilePage extends StatelessWidget {
                       style: GoogleFonts.sora(fontSize: 28, fontWeight: FontWeight.w700, color: rc))),
                 ),
           const SizedBox(height: 12),
-          Text(user.name, style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.w700)),
+          Text(user.name, style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.w700, color: ac.txt)),
           const SizedBox(height: 4),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -115,11 +117,11 @@ class ProfilePage extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Text(user.bio, textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(fontSize: 13, color: C.txt2, height: 1.5)),
+                  style: GoogleFonts.inter(fontSize: 13, color: ac.txt2, height: 1.5)),
             )
           else
             Text('No bio yet — tell people a bit about yourself.',
-                style: GoogleFonts.inter(fontSize: 12, color: C.muted, fontStyle: FontStyle.italic)),
+                style: GoogleFonts.inter(fontSize: 12, color: ac.muted, fontStyle: FontStyle.italic)),
           const SizedBox(height: 14),
           OutlinedButton.icon(
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
@@ -159,7 +161,7 @@ class ProfilePage extends StatelessWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: Text('School', style: GoogleFonts.sora(
-                  fontSize: 13, fontWeight: FontWeight.w700, color: C.txt2)),
+                  fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt2)),
             ),
             const SizedBox(height: 10),
             // These used to each be their own bottom-nav tab — a school
@@ -213,25 +215,26 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final row = Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: C.surf,
-          borderRadius: BorderRadius.circular(12), border: Border.all(color: C.bdr)),
+      decoration: BoxDecoration(color: ac.surf,
+          borderRadius: BorderRadius.circular(12), border: Border.all(color: ac.bdr)),
       child: Row(children: [
-        Icon(icon, size: 18, color: C.primary),
+        Icon(icon, size: 18, color: ac.primary),
         const SizedBox(width: 12),
-        Text(label, style: GoogleFonts.inter(fontSize: 13, color: C.txt2)),
+        Text(label, style: GoogleFonts.inter(fontSize: 13, color: ac.txt2)),
         if (value.isNotEmpty) ...[
           const Spacer(),
           Flexible(child: Text(value,
-              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: C.txt),
+              style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: ac.txt),
               textAlign: TextAlign.end)),
         ] else
           const Spacer(),
         if (onTap != null) ...[
           const SizedBox(width: 6),
-          const Icon(Icons.chevron_right_rounded, size: 16, color: C.muted),
+          Icon(Icons.chevron_right_rounded, size: 16, color: ac.muted),
         ],
       ]),
     );

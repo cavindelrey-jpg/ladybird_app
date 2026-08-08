@@ -207,6 +207,29 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
   `institutions` rule (per-institution-admin write access) since the
   current file's superAdmin-only rule is a deliberate documented choice,
   not a bug, and nothing reported it as broken.
+- **Parts 10-11 (Profile/Settings audit, real dark mode)**: Settings was
+  already essentially complete for item 24 — Edit Profile, Change
+  Password, Switch School, Notification Preferences, Help & Support,
+  About, Sign Out, AND a working Light/Dark/System theme toggle already
+  existed. Profile (item 23) was also already complete on content (avatar,
+  bio, academic info, bookmarks, school-feature-gated nav) — the real gap
+  in both was Part 11: `theme/app_colors.dart`'s own header comment
+  already documents that `C.xxx` (the original static palette) can't
+  safely be made dynamic in one shot -- it's used inside "hundreds" of
+  `const` widget constructors app-wide, and turning it dynamic would
+  break every one of those `const` sites at once with no reliable way to
+  verify all of them here. That comment also records that only
+  universal_home_page.dart (Home) and settings_page.dart had been
+  converted to the dark-aware `AppColors.of(context)` pattern so far —
+  every other screen (confirmed via
+  `grep -rl 'C\.bg\|C\.txt\|C\.surf' lib/` — 69 files) still reads the
+  light-only `C.xxx` constants directly and stays light regardless of
+  the toggle. Converted `profile_page.dart` (explicitly named in this
+  Part) using the same proven pattern. Given Parts 13-19 are each
+  comparable in size or larger, did NOT attempt the other ~65 files —
+  that's real, valuable, but genuinely multi-hour mechanical work on its
+  own, better done as its own dedicated pass than squeezed in here.
+  Re-run the grep above to get the current remaining-file list.
 - **Part 1 item 2, "Today's Progress dead button" claim**: audited
   `_progressCard` — it's not actually dead. It opens LibraryReaderPage via
   a real InkWell when `continueReadingItemId` is set, and shows an honest

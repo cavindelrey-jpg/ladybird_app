@@ -70,6 +70,18 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
     return _cachedFeedStream!;
   }
 
+  // Same "don't recreate on every build" reasoning as _feedStream above —
+  // these two also render only in the _category == null view, exactly
+  // when search-box keystrokes rebuild the page, so they were being
+  // re-fetched from Firestore on every keystroke too.
+  Future<List<PublicCourse>>? _cachedFeaturedFuture;
+  Future<List<PublicCourse>> get _featuredFuture =>
+      _cachedFeaturedFuture ??= PublicCourseRepository.instance.watchFeaturedOnce();
+
+  Future<Map<String, int>>? _cachedCategoryCountsFuture;
+  Future<Map<String, int>> get _categoryCountsFuture =>
+      _cachedCategoryCountsFuture ??= PublicCourseRepository.instance.categoryCountsOnce();
+
   bool get _canCreate => widget.user != null;
 
   @override
@@ -329,7 +341,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
 
   Widget _featuredRow(BuildContext context) {
     return FutureBuilder<List<PublicCourse>>(
-      future: PublicCourseRepository.instance.watchFeaturedOnce(),
+      future: _featuredFuture,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return SizedBox(
@@ -380,7 +392,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
 
   Widget _popularTopics() {
     return FutureBuilder<Map<String, int>>(
-      future: PublicCourseRepository.instance.categoryCountsOnce(),
+      future: _categoryCountsFuture,
       builder: (context, snap) {
         final counts = snap.data ?? const <String, int>{};
         return Padding(

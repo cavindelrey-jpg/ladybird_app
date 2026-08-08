@@ -813,13 +813,39 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   // -- Recommended for You -- mix of Library + Courses --------------------
+  //
+  // Cached by (schoolId, guest) rather than called fresh in build() --
+  // unrelated setState() calls elsewhere on this page (e.g. returning from
+  // the Daily Challenge, line ~613) rebuild this whole ListView, and an
+  // inline `future: _loadRecommended()` would hand FutureBuilder a new
+  // Future identity every time, re-issuing the Library + Course reads for
+  // no reason -- same bug class already fixed for the banner carousel and
+  // the Clubs/Courses search streams.
+  String? _recommendedKey;
+  Future<List<Object>>? _cachedRecommendedFuture;
+  Future<List<Object>> get _recommendedFuture {
+    final key = '${_u?.schoolId}:$_isGuest';
+    if (_cachedRecommendedFuture == null || _recommendedKey != key) {
+      _recommendedKey = key;
+      _cachedRecommendedFuture = _loadRecommended();
+    }
+    return _cachedRecommendedFuture!;
+  }
+
   Widget _recommendedRow(BuildContext context) {
     return FutureBuilder<List<Object>>(
-      future: _loadRecommended(),
+      future: _recommendedFuture,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const SizedBox(height: 140,
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+        }
+        if (snap.hasError) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text("Couldn't load recommendations -- ${snap.error}",
+                style: GoogleFonts.inter(fontSize: 12, color: ac.red)),
+          );
         }
         final items = snap.data ?? const [];
         if (items.isEmpty) {

@@ -355,3 +355,30 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
     `flutter analyze` pass the moment this repo is opened somewhere with
     network access, before trusting this session's multi-file edits at
     face value.
+
+- **Part 13 completed (loading/performance audit)**: dispatched an audit
+  across the remaining pages (Homepage/Curriculum/Library/Courses search
+  were already fixed in earlier sessions). Findings and fixes:
+  - Clubs (`clubs_page.dart`), Browse Courses (`course_browse_page.dart`),
+    and Profile (`profile_page.dart`, stateless / no direct reads) were
+    already solid — no changes.
+  - `search_page.dart`: deliberate per-category error swallowing (a
+    comment already explains one failing collection must not blank the
+    other three tabs) meant a fully-offline search rendered as four
+    silent "no results" tabs with no way to tell that from a genuine
+    empty result. Added per-tab `_xFailed` flags set by `_safe()`, each
+    tab now shows a real `ErrorView` with retry when its own query threw,
+    while preserving the original per-tab independence.
+  - `courses_marketplace_page.dart`: `_featuredRow`/`_popularTopics` both
+    called their repository methods inline inside `FutureBuilder(future:
+    ...)` in `build()` — same re-fetch-on-every-keystroke bug the
+    adjacent `_feedStream` getter was already fixed for, just missed on
+    these two. Added `_featuredFuture`/`_categoryCountsFuture` cached
+    getters mirroring `_feedStream`'s pattern.
+  - `universal_home_page.dart` `_recommendedRow`: `_loadRecommended()` was
+    called inline in `build()`, so any unrelated setState on the page
+    (e.g. returning from Daily Challenge) re-issued the Library+Courses
+    reads; also had no error branch (an unexpected exception silently
+    rendered as "Nothing to recommend yet"). Added a cached
+    `_recommendedFuture` keyed by `(schoolId, guest)` plus a
+    `snap.hasError` branch.

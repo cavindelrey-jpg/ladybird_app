@@ -31,6 +31,10 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
   List<Club> _clubs = [];
   List<Map<String, dynamic>> _users = [];
   List<PublicCourse> _courses = [];
+  // Per-tab failure flags — distinguishes "genuinely no results" from
+  // "this category's query threw" so a fully-offline search doesn't
+  // silently render as four empty tabs.
+  bool _contentFailed = false, _clubsFailed = false, _usersFailed = false, _coursesFailed = false;
 
   @override
   void initState() {
@@ -47,11 +51,12 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
     // three tabs. Previously a single rejected Future in Future.wait
     // failed the whole search silently (no catch), leaving every tab
     // stuck showing zero results.
+    bool contentFailed = false, clubsFailed = false, usersFailed = false, coursesFailed = false;
     final results = await Future.wait([
-      _safe(() => LibraryRepository.instance.search(query, schoolId: widget.user.schoolId), <LibraryItem>[]),
-      _safe(() => ClubRepository.instance.searchClubs(query), <Club>[]),
-      _safe(() => MessagingRepository.instance.searchUsers(query), <Map<String, dynamic>>[]),
-      _safe(() => PublicCourseRepository.instance.watchLatest().first, <PublicCourse>[]),
+      _safe(() => LibraryRepository.instance.search(query, schoolId: widget.user.schoolId), <LibraryItem>[], (f) => contentFailed = f),
+      _safe(() => ClubRepository.instance.searchClubs(query), <Club>[], (f) => clubsFailed = f),
+      _safe(() => MessagingRepository.instance.searchUsers(query), <Map<String, dynamic>>[], (f) => usersFailed = f),
+      _safe(() => PublicCourseRepository.instance.watchLatest().first, <PublicCourse>[], (f) => coursesFailed = f),
     ]);
 
     setState(() {
@@ -60,15 +65,22 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
       _users = results[2] as List<Map<String, dynamic>>;
       _courses = (results[3] as List<PublicCourse>)
           .where((c) => c.title.toLowerCase().contains(query.toLowerCase())).toList();
+      _contentFailed = contentFailed;
+      _clubsFailed = clubsFailed;
+      _usersFailed = usersFailed;
+      _coursesFailed = coursesFailed;
       _isLoading = false;
     });
   }
 
-  Future<T> _safe<T>(Future<T> Function() run, T fallback) async {
+  Future<T> _safe<T>(Future<T> Function() run, T fallback, void Function(bool failed) setFailed) async {
     try {
-      return await run();
+      final r = await run();
+      setFailed(false);
+      return r;
     } catch (e, st) {
       CrashService.instance.recordError(e, st, context: 'SearchPage._performSearch');
+      setFailed(true);
       return fallback;
     }
   }
@@ -108,6 +120,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
   }
 
   Widget _buildLibraryList() {
+    if (_contentFailed) return ErrorView(message: "Couldn't search the Library — check your connection.", onRetry: () => _performSearch(_ctrl.text));
     if (_content.isEmpty) return const EmptyState(icon: Icons.search, title: 'No content found');
     return ListView.builder(
       itemCount: _content.length,
@@ -121,6 +134,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
   }
 
   Widget _buildClubList() {
+    if (_clubsFailed) return ErrorView(message: "Couldn't search Clubs — check your connection.", onRetry: () => _performSearch(_ctrl.text));
     if (_clubs.isEmpty) return const EmptyState(icon: Icons.groups, title: 'No clubs found');
     return ListView.builder(
       itemCount: _clubs.length,
@@ -133,6 +147,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
   }
 
   Widget _buildUserList() {
+    if (_usersFailed) return ErrorView(message: "Couldn't search People — check your connection.", onRetry: () => _performSearch(_ctrl.text));
     if (_users.isEmpty) return const EmptyState(icon: Icons.person, title: 'No users found');
     return ListView.builder(
       itemCount: _users.length,
@@ -148,6 +163,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
   }
 
   Widget _buildCourseList() {
+    if (_coursesFailed) return ErrorView(message: "Couldn't search Courses — check your connection.", onRetry: () => _performSearch(_ctrl.text));
     if (_courses.isEmpty) return const EmptyState(icon: Icons.school, title: 'No courses found');
     return ListView.builder(
       itemCount: _courses.length,

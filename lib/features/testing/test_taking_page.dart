@@ -13,6 +13,7 @@ import '../../models/app_user.dart';
 import '../../models/test.dart';
 import '../../repositories/test_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../core/result.dart';
 import 'test_result_page.dart';
@@ -27,6 +28,8 @@ class TestTakingPage extends StatefulWidget {
 }
 
 class _TestTakingPageState extends State<TestTakingPage> {
+  AppColors get ac => AppColors.of(context);
+
   final Map<String, int> _mcqAnswers = {};
   final Map<String, TextEditingController> _textControllers = {};
   bool _submitting = false;
@@ -121,7 +124,7 @@ class _TestTakingPageState extends State<TestTakingPage> {
   Widget build(BuildContext context) {
     final test = widget.test;
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(title: Text(test.title, style: AppText.h2)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
@@ -149,9 +152,9 @@ class _TestTakingPageState extends State<TestTakingPage> {
     return ACard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          StatusBadge(label: 'Q${index + 1} · ${q.points} pts', color: C.primary),
+          StatusBadge(label: 'Q${index + 1} · ${q.points} pts', color: ac.primary),
           const Spacer(),
-          StatusBadge(label: q.type.label, color: C.pur),
+          StatusBadge(label: q.type.label, color: ac.pur),
         ]),
         const SizedBox(height: 10),
         Text(q.prompt, style: AppText.body),
@@ -177,15 +180,15 @@ class _TestTakingPageState extends State<TestTakingPage> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: _mcqAnswers[q.id] == i ? C.primaryBg : C.surf2,
+                  color: _mcqAnswers[q.id] == i ? ac.primaryBg : ac.surf2,
                   borderRadius: BorderRadius.circular(Rad.sm),
-                  border: Border.all(color: _mcqAnswers[q.id] == i ? C.primary : C.bdr),
+                  border: Border.all(color: _mcqAnswers[q.id] == i ? ac.primary : ac.bdr),
                 ),
                 child: Row(children: [
                   Icon(
                     _mcqAnswers[q.id] == i ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
                     size: 18,
-                    color: _mcqAnswers[q.id] == i ? C.primary : C.muted,
+                    color: _mcqAnswers[q.id] == i ? ac.primary : ac.muted,
                   ),
                   const SizedBox(width: 10),
                   Expanded(child: Text(q.options[i], style: AppText.bodySm)),

@@ -8,6 +8,7 @@ import '../../models/app_user.dart';
 import '../../models/test.dart';
 import '../../repositories/test_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import 'test_taking_page.dart';
 
@@ -16,18 +17,19 @@ class TestsListPage extends StatelessWidget {
   final String subject;
   const TestsListPage({super.key, required this.user, required this.subject});
 
-  Color _difficultyColor(TestDifficulty d) {
+  Color _difficultyColor(AppColors ac, TestDifficulty d) {
     switch (d) {
-      case TestDifficulty.easy:   return C.grn;
-      case TestDifficulty.medium: return C.gold;
-      case TestDifficulty.hard:   return C.red;
+      case TestDifficulty.easy:   return ac.grn;
+      case TestDifficulty.medium: return ac.gold;
+      case TestDifficulty.hard:   return ac.red;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(title: Text(subject, style: AppText.h2)),
       body: StreamBuilder<List<Test>>(
         stream: TestRepository.instance.watchTestsBySubject(subject, institutionId: user.schoolId),
@@ -54,7 +56,7 @@ class TestsListPage extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, i) {
               final test = tests[i];
-              final color = _difficultyColor(test.difficulty);
+              final color = _difficultyColor(ac, test.difficulty);
               return ACard(
                 onTap: user.isGuest
                     ? () => showToast(context, 'Sign in to take a test', isError: true)
@@ -71,16 +73,16 @@ class TestsListPage extends StatelessWidget {
                   ],
                   const SizedBox(height: 10),
                   Row(children: [
-                    const Icon(Icons.help_outline_rounded, size: 14, color: C.muted),
+                    Icon(Icons.help_outline_rounded, size: 14, color: ac.muted),
                     const SizedBox(width: 4),
                     Text('${test.questionCount} question${test.questionCount == 1 ? '' : 's'}', style: AppText.caption),
                     const SizedBox(width: 14),
-                    const Icon(Icons.grade_outlined, size: 14, color: C.muted),
+                    Icon(Icons.grade_outlined, size: 14, color: ac.muted),
                     const SizedBox(width: 4),
                     Text('${test.totalPossiblePoints} pts', style: AppText.caption),
                     if (test.hasManualGrading) ...[
                       const SizedBox(width: 14),
-                      const Icon(Icons.rate_review_outlined, size: 14, color: C.muted),
+                      Icon(Icons.rate_review_outlined, size: 14, color: ac.muted),
                       const SizedBox(width: 4),
                       Text('Some answers reviewed manually', style: AppText.caption),
                     ],

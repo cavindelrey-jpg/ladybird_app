@@ -8,30 +8,32 @@ import 'package:flutter/material.dart';
 import '../../models/test.dart';
 import '../../models/test_attempt.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 
 class TestResultPage extends StatelessWidget {
   final TestAttempt attempt;
   const TestResultPage({super.key, required this.attempt});
 
-  Color _scoreColor(double pct) {
-    if (pct >= 80) return C.grn;
-    if (pct >= 60) return C.gold;
-    if (pct >= 40) return C.org;
-    return C.red;
+  Color _scoreColor(AppColors ac, double pct) {
+    if (pct >= 80) return ac.grn;
+    if (pct >= 60) return ac.gold;
+    if (pct >= 40) return ac.org;
+    return ac.red;
   }
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final graded = attempt.responses.where((r) => r.graded).toList();
     final pending = attempt.responses.where((r) => !r.graded).toList();
     final gradedPoints = graded.fold(0, (s, r) => s + (r.pointsAwarded ?? 0));
     final gradedMax = graded.fold(0, (s, r) => s + r.maxPoints);
     final scorePct = gradedMax == 0 ? 0.0 : (gradedPoints / gradedMax * 100);
-    final color = _scoreColor(scorePct);
+    final color = _scoreColor(ac, scorePct);
 
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(title: Text(attempt.testTitle, style: AppText.h2)),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -57,12 +59,12 @@ class TestResultPage extends StatelessWidget {
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(color: C.goldp, borderRadius: BorderRadius.circular(20)),
+                decoration: BoxDecoration(color: ac.goldBg, borderRadius: BorderRadius.circular(20)),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.bolt_rounded, color: C.gold, size: 18),
+                  Icon(Icons.bolt_rounded, color: ac.gold, size: 18),
                   const SizedBox(width: 6),
                   Text('+${attempt.totalXpAwarded} XP so far',
-                      style: AppText.bodySm.copyWith(color: C.gold, fontWeight: FontWeight.w800)),
+                      style: AppText.bodySm.copyWith(color: ac.gold, fontWeight: FontWeight.w800)),
                 ]),
               ),
             ]),
@@ -70,15 +72,15 @@ class TestResultPage extends StatelessWidget {
           if (pending.isNotEmpty) ...[
             const SizedBox(height: 16),
             ACard(
-              color: C.orgb,
+              color: ac.orgBg,
               child: Row(children: [
-                const Icon(Icons.hourglass_top_rounded, color: C.org),
+                Icon(Icons.hourglass_top_rounded, color: ac.org),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     '${pending.length} answer${pending.length == 1 ? '' : 's'} still awaiting review. '
                     'You\'ll earn more XP once ${pending.length == 1 ? 'it is' : 'they are'} graded.',
-                    style: AppText.bodySm.copyWith(color: C.org),
+                    style: AppText.bodySm.copyWith(color: ac.org),
                   ),
                 ),
               ]),
@@ -88,7 +90,7 @@ class TestResultPage extends StatelessWidget {
           SectionHeader(title: 'Question Breakdown'),
           const SizedBox(height: 10),
           for (final r in attempt.responses) ...[
-            _responseTile(r),
+            _responseTile(ac, r),
             const SizedBox(height: 10),
           ],
           const SizedBox(height: 20),
@@ -98,14 +100,14 @@ class TestResultPage extends StatelessWidget {
     );
   }
 
-  Widget _responseTile(QuestionResponse r) {
+  Widget _responseTile(AppColors ac, QuestionResponse r) {
     return ACard(
       child: Row(children: [
         Icon(
           !r.graded
               ? Icons.hourglass_empty_rounded
               : (r.pointsAwarded == r.maxPoints ? Icons.check_circle_rounded : Icons.info_rounded),
-          color: !r.graded ? C.muted : (r.pointsAwarded == r.maxPoints ? C.grn : C.gold),
+          color: !r.graded ? ac.muted : (r.pointsAwarded == r.maxPoints ? ac.grn : ac.gold),
           size: 20,
         ),
         const SizedBox(width: 12),

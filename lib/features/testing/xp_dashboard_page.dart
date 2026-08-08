@@ -20,6 +20,7 @@ import '../../repositories/test_repository.dart';
 import '../../services/auth_service.dart';
 import '../../core/xp_rules.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import 'test_result_page.dart';
 
@@ -29,8 +30,9 @@ class XpDashboardPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(title: Text('XP Dashboard', style: AppText.h2)),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -56,13 +58,14 @@ class XpDashboardPage extends StatelessWidget {
     return StreamBuilder<(int, int)>(
       stream: XpRepository.instance.watchBalance(user.id),
       builder: (context, snap) {
+        final ac = AppColors.of(context);
         final balance = snap.data?.$1 ?? 0;
         final lifetime = snap.data?.$2 ?? 0;
         final level = levelForXp(lifetime);
         final progress = levelProgress(lifetime);
         final pct = progress.span == 0 ? 1.0 : (progress.into / progress.span).clamp(0.0, 1.0);
         return GradientCard(
-          colors: const [C.navy, C.navy2],
+          colors: [ac.navy, ac.navy2],
           height: 170,
           child: Padding(
             padding: const EdgeInsets.all(20),
@@ -70,12 +73,12 @@ class XpDashboardPage extends StatelessWidget {
               Row(children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(20)),
+                  decoration: BoxDecoration(color: ac.gold, borderRadius: BorderRadius.circular(20)),
                   child: Text('Level $level',
-                      style: AppText.label.copyWith(color: C.navy, fontSize: 12)),
+                      style: AppText.label.copyWith(color: ac.navy, fontSize: 12)),
                 ),
                 const Spacer(),
-                Icon(Icons.bolt_rounded, color: C.gold, size: 20),
+                Icon(Icons.bolt_rounded, color: ac.gold, size: 20),
                 const SizedBox(width: 4),
                 Text('$balance spendable',
                     style: AppText.bodySm.copyWith(color: Colors.white70)),
@@ -88,7 +91,7 @@ class XpDashboardPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 child: LinearProgressIndicator(
                   value: pct, minHeight: 8,
-                  backgroundColor: Colors.white24, color: C.gold,
+                  backgroundColor: Colors.white24, color: ac.gold,
                 ),
               ),
               const SizedBox(height: 6),
@@ -106,6 +109,7 @@ class XpDashboardPage extends StatelessWidget {
       stream: AuthService.instance.currentAppUserStream(),
       initialData: user,
       builder: (context, snap) {
+        final ac = AppColors.of(context);
         final u = snap.data ?? user;
         final now = DateTime.now();
         final monday = now.subtract(Duration(days: now.weekday - 1));
@@ -114,7 +118,7 @@ class XpDashboardPage extends StatelessWidget {
         return ACard(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              const Icon(Icons.local_fire_department_rounded, color: C.org, size: 22),
+              Icon(Icons.local_fire_department_rounded, color: ac.org, size: 22),
               const SizedBox(width: 8),
               Text('${u.streakDays} day streak', style: AppText.title),
             ]),
@@ -136,8 +140,8 @@ class XpDashboardPage extends StatelessWidget {
                   width: 28, height: 28,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: done ? C.org : C.surf3,
-                    border: Border.all(color: done ? C.org : C.bdr),
+                    color: done ? ac.org : ac.surf3,
+                    border: Border.all(color: done ? ac.org : ac.bdr),
                   ),
                   child: done
                       ? const Icon(Icons.check_rounded, size: 15, color: Colors.white)
@@ -157,6 +161,7 @@ class XpDashboardPage extends StatelessWidget {
     return StreamBuilder<List<TestAttempt>>(
       stream: TestRepository.instance.watchAttemptHistory(user.id, limit: 10),
       builder: (context, snap) {
+        final ac = AppColors.of(context);
         if (snap.connectionState == ConnectionState.waiting) {
           return const ShimmerCard(height: 70);
         }
@@ -177,14 +182,14 @@ class XpDashboardPage extends StatelessWidget {
                 Container(
                   width: 40, height: 40,
                   decoration: BoxDecoration(
-                    color: a.fullyGraded ? C.grnb : C.orgb,
+                    color: a.fullyGraded ? ac.grnBg : ac.orgBg,
                     shape: BoxShape.circle,
                   ),
                   child: Center(
                     child: Text('${a.scorePercent.round()}%',
                         style: AppText.caption.copyWith(
                             fontWeight: FontWeight.w800,
-                            color: a.fullyGraded ? C.grn : C.org, fontSize: 10)),
+                            color: a.fullyGraded ? ac.grn : ac.org, fontSize: 10)),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -194,7 +199,7 @@ class XpDashboardPage extends StatelessWidget {
                     Text('${a.subject} · +${a.totalXpAwarded} XP', style: AppText.caption),
                   ]),
                 ),
-                if (!a.fullyGraded) const StatusBadge(label: 'Pending', color: C.org),
+                if (!a.fullyGraded) StatusBadge(label: 'Pending', color: ac.org),
               ]),
             ),
             const SizedBox(height: 10),
@@ -208,6 +213,7 @@ class XpDashboardPage extends StatelessWidget {
     return StreamBuilder<List<XpTransaction>>(
       stream: XpRepository.instance.watchHistory(user.id, limit: 20),
       builder: (context, snap) {
+        final ac = AppColors.of(context);
         if (snap.connectionState == ConnectionState.waiting) {
           return const ShimmerCard(height: 70);
         }
@@ -226,7 +232,7 @@ class XpDashboardPage extends StatelessWidget {
               child: Row(children: [
                 Icon(
                   t.type == XpTransactionType.earn ? Icons.add_circle_rounded : Icons.remove_circle_rounded,
-                  color: t.type == XpTransactionType.earn ? C.grn : C.red,
+                  color: t.type == XpTransactionType.earn ? ac.grn : ac.red,
                   size: 18,
                 ),
                 const SizedBox(width: 10),
@@ -234,7 +240,7 @@ class XpDashboardPage extends StatelessWidget {
                 Text(
                   '${t.type == XpTransactionType.earn ? '+' : '-'}${t.amount} XP',
                   style: AppText.subtitle.copyWith(
-                      color: t.type == XpTransactionType.earn ? C.grn : C.red),
+                      color: t.type == XpTransactionType.earn ? ac.grn : ac.red),
                 ),
               ]),
             ),

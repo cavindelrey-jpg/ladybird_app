@@ -16,6 +16,7 @@ import '../../models/test.dart' show QuestionTypeExt;
 import '../../models/test_attempt.dart';
 import '../../repositories/test_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../core/result.dart';
 
@@ -26,8 +27,9 @@ class GradingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(title: Text('Grading Queue', style: AppText.h2)),
       body: StreamBuilder<List<TestAttempt>>(
         stream: TestRepository.instance.watchPendingGradingQueue(subject: subjectFilter),
@@ -63,7 +65,7 @@ class GradingPage extends StatelessWidget {
                       Text('${a.userName} · ${a.subject}', style: AppText.caption),
                     ]),
                   ),
-                  StatusBadge(label: '$pendingCount pending', color: C.org),
+                  StatusBadge(label: '$pendingCount pending', color: ac.org),
                 ]),
               );
             },
@@ -83,6 +85,8 @@ class _AttemptGradingDetailPage extends StatefulWidget {
 }
 
 class _AttemptGradingDetailPageState extends State<_AttemptGradingDetailPage> {
+  AppColors get ac => AppColors.of(context);
+
   final Map<String, TextEditingController> _pointsCtrl = {};
   final Map<String, TextEditingController> _feedbackCtrl = {};
   final Set<String> _saving = {};
@@ -130,7 +134,7 @@ class _AttemptGradingDetailPageState extends State<_AttemptGradingDetailPage> {
   Widget build(BuildContext context) {
     final a = widget.attempt;
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(title: Text('${a.userName} · ${a.testTitle}', style: AppText.h2)),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -149,9 +153,9 @@ class _AttemptGradingDetailPageState extends State<_AttemptGradingDetailPage> {
     return ACard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          StatusBadge(label: r.type.label, color: C.pur),
+          StatusBadge(label: r.type.label, color: ac.pur),
           const Spacer(),
-          if (alreadyGraded) const StatusBadge(label: 'Graded', color: C.grn),
+          if (alreadyGraded) StatusBadge(label: 'Graded', color: ac.grn),
         ]),
         const SizedBox(height: 10),
         for (final line in r.textAnswer) ...[

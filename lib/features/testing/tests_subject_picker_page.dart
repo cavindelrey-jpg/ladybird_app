@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../../models/app_user.dart';
 import '../../repositories/test_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import 'tests_list_page.dart';
 import 'xp_dashboard_page.dart';
@@ -21,6 +22,8 @@ class TestsSubjectPickerPage extends StatefulWidget {
 }
 
 class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
+  AppColors get ac => AppColors.of(context);
+
   Future<Map<String, int>>? _counts;
 
   @override
@@ -37,13 +40,13 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
   Widget build(BuildContext context) {
     final isGuest = widget.user.isGuest;
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
         title: Text('Tests & Quizzes', style: AppText.h2),
         actions: [
           if (!isGuest)
             IconButton(
-              icon: const Icon(Icons.bolt_rounded, color: C.gold),
+              icon: Icon(Icons.bolt_rounded, color: ac.gold),
               tooltip: 'XP Dashboard',
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => XpDashboardPage(user: widget.user))),
@@ -85,8 +88,8 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
                   child: Row(children: [
                     Container(
                       width: 44, height: 44,
-                      decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
-                      child: const Icon(Icons.menu_book_rounded, color: C.primary, size: 22),
+                      decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
+                      child: Icon(Icons.menu_book_rounded, color: ac.primary, size: 22),
                     ),
                     const SizedBox(width: 14),
                     Expanded(
@@ -96,7 +99,7 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
                         Text('$count test${count == 1 ? '' : 's'} available', style: AppText.caption),
                       ]),
                     ),
-                    const Icon(Icons.chevron_right_rounded, color: C.muted),
+                    Icon(Icons.chevron_right_rounded, color: ac.muted),
                   ]),
                 );
               },

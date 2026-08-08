@@ -12,6 +12,7 @@ import '../../models/models.dart';
 import '../../repositories/course_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'course_detail_page.dart';
@@ -25,6 +26,7 @@ class CoursesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     // Independent (non-school-linked) users have no schoolId, so there's no
     // school-scoped course catalogue for them — querying with an empty
     // schoolId would hit an invalid Firestore path. Show an explanatory
@@ -32,7 +34,7 @@ class CoursesPage extends StatelessWidget {
     // Library, which is where independent-user academic content lives.
     if (_isIndependent) {
       return Scaffold(
-        backgroundColor: C.bg,
+        backgroundColor: ac.bg,
         appBar: AppBar(
           title: Text('Courses', style: AppText.title),
           automaticallyImplyLeading: false,
@@ -41,7 +43,7 @@ class CoursesPage extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(32),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.school_outlined, size: 48, color: C.muted),
+              Icon(Icons.school_outlined, size: 48, color: ac.muted),
               const SizedBox(height: 12),
               Text('Courses are organized by school',
                   style: AppText.title.copyWith(fontSize: 15), textAlign: TextAlign.center),
@@ -63,7 +65,7 @@ class CoursesPage extends StatelessWidget {
         ? CourseRepository.instance.watchForLecturer(_sid, user.id)
         : CourseRepository.instance.watchAll(_sid);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
         title: Text('Courses', style: AppText.title),
         automaticallyImplyLeading: false,
@@ -81,7 +83,7 @@ class CoursesPage extends StatelessWidget {
           final courses = snap.data ?? [];
           if (courses.isEmpty) {
             return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.school_outlined, size: 48, color: C.muted),
+              Icon(Icons.school_outlined, size: 48, color: ac.muted),
               const SizedBox(height: 12),
               Text('No courses available', style: AppText.bodySm),
             ]));
@@ -170,6 +172,7 @@ class _CourseListSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
       itemCount: 4,
@@ -177,7 +180,7 @@ class _CourseListSkeleton extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-            color: C.surf, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.bdr)),
+            color: ac.surf, borderRadius: BorderRadius.circular(16), border: Border.all(color: ac.bdr)),
         child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           ShimmerLine(width: 60, height: 12),
           SizedBox(height: 8),
@@ -196,17 +199,21 @@ class _CourseCard extends StatelessWidget {
   final String sid;
   const _CourseCard({required this.course, required this.user, required this.sid});
 
-  static const _palette = [C.primary, C.grn, C.pur, C.org, C.blu, C.red];
-  Color get _accent => _palette[course.name.hashCode.abs() % _palette.length];
+  Color _accent(AppColors ac) {
+    final palette = [ac.primary, ac.grn, ac.pur, ac.org, ac.blu, ac.red];
+    return palette[course.name.hashCode.abs() % palette.length];
+  }
   bool get _enrolled => user.courseIds.contains(course.id);
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final accent = _accent(ac);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-          color: C.surf, borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: C.bdr)),
+          color: ac.surf, borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: ac.bdr)),
       clipBehavior: Clip.antiAlias,
       child: Material(
         color: Colors.transparent,
@@ -217,7 +224,7 @@ class _CourseCard extends StatelessWidget {
                 builder: (_) => CourseDetailPage(course: course, user: user)));
           },
           child: Column(children: [
-            Container(height: 5, color: _accent),
+            Container(height: 5, color: accent),
             Padding(
               padding: const EdgeInsets.all(14),
               child: Row(children: [
@@ -226,10 +233,10 @@ class _CourseCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                       decoration: BoxDecoration(
-                          color: _accent.withValues(alpha: 0.1),
+                          color: accent.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(6)),
                       child: Text(course.code.isEmpty ? 'GEN' : course.code,
-                          style: AppText.label.copyWith(fontSize: 10, color: _accent, letterSpacing: 0.2))),
+                          style: AppText.label.copyWith(fontSize: 10, color: accent, letterSpacing: 0.2))),
                     const SizedBox(width: 8),
                     Text('${course.credits} cr.', style: AppText.caption.copyWith(fontSize: 11)),
                   ]),
@@ -249,7 +256,7 @@ class _CourseCard extends StatelessWidget {
                             if (context.mounted) showToast(context, 'Unenrolled');
                           },
                           style: OutlinedButton.styleFrom(
-                              foregroundColor: C.red, side: const BorderSide(color: C.red)),
+                              foregroundColor: ac.red, side: BorderSide(color: ac.red)),
                           child: const Text('Drop'))
                       : ElevatedButton(
                           onPressed: () async {
@@ -260,7 +267,7 @@ class _CourseCard extends StatelessWidget {
                           child: const Text('Enroll')),
                 if (user.canManageSchool)
                   IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 18, color: C.muted),
+                    icon: Icon(Icons.delete_outline, size: 18, color: ac.muted),
                     onPressed: () async {
                       HapticFeedback.heavyImpact();
                       await CourseRepository.instance.delete(sid, course.id);

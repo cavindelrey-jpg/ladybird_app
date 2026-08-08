@@ -11,24 +11,28 @@ import '../../models/models.dart';
 import '../../repositories/course_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
-
-const _kPalette = [C.primary, C.grn, C.pur, C.org, C.blu, C.red];
 
 class CourseDetailPage extends StatelessWidget {
   final Course course;
   final AppUser user;
   const CourseDetailPage({super.key, required this.course, required this.user});
 
-  Color get _accent => _kPalette[course.name.hashCode.abs() % _kPalette.length];
+  Color _accent(AppColors ac) {
+    final palette = [ac.primary, ac.grn, ac.pur, ac.org, ac.blu, ac.red];
+    return palette[course.name.hashCode.abs() % palette.length];
+  }
 
   bool get _canEdit => user.canManageSchool || course.lecturerId == user.id;
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final accent = _accent(ac);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: AppBackground(child: StreamBuilder<Course?>(
         // Live — if a lecturer edits this course while a student has it
         // open, the change appears without a manual refresh.
@@ -40,19 +44,19 @@ class CourseDetailPage extends StatelessWidget {
 
           return CustomScrollView(slivers: [
             SliverAppBar(
-              backgroundColor: C.bg,
+              backgroundColor: ac.bg,
               elevation: 0,
               pinned: true,
-              iconTheme: const IconThemeData(color: C.txt),
+              iconTheme: IconThemeData(color: ac.txt),
               actions: [
                 if (_canEdit)
                   IconButton(
-                    icon: const Icon(Icons.edit_outlined, color: C.txt),
+                    icon: Icon(Icons.edit_outlined, color: ac.txt),
                     onPressed: () => _showEdit(context, c),
                   ),
                 if (user.canManageSchool)
                   IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded, color: C.red),
+                    icon: Icon(Icons.delete_outline_rounded, color: ac.red),
                     onPressed: () => _confirmDelete(context, c),
                   ),
               ],
@@ -65,9 +69,9 @@ class CourseDetailPage extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                          color: _accent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                          color: accent.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
                       child: Text(c.code.isEmpty ? 'GEN' : c.code,
-                          style: AppText.label.copyWith(fontSize: 12, color: _accent, letterSpacing: 0.4)),
+                          style: AppText.label.copyWith(fontSize: 12, color: accent, letterSpacing: 0.4)),
                     ),
                     const SizedBox(width: 10),
                     Text('${c.credits} credits', style: AppText.caption.copyWith(fontSize: 12)),
@@ -85,7 +89,7 @@ class CourseDetailPage extends StatelessWidget {
                       radius: 14,
                     ),
                     const SizedBox(width: 8),
-                    Text(c.lecturerName, style: AppText.subtitle.copyWith(color: C.txt)),
+                    Text(c.lecturerName, style: AppText.subtitle.copyWith(color: ac.txt)),
                   ]),
                   const SizedBox(height: 20),
                   Row(children: [
@@ -145,6 +149,7 @@ class CourseDetailPage extends StatelessWidget {
   }
 
   void _confirmDelete(BuildContext context, Course c) {
+    final ac = AppColors.of(context);
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -163,7 +168,7 @@ class CourseDetailPage extends StatelessWidget {
                 showToast(context, 'Course deleted');
               }
             },
-            child: const Text('Delete', style: TextStyle(color: C.red)),
+            child: Text('Delete', style: TextStyle(color: ac.red)),
           ),
         ],
       ),
@@ -236,13 +241,14 @@ class _InfoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: C.surf3, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: ac.surf3, borderRadius: BorderRadius.circular(20)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 13, color: C.txt2),
+        Icon(icon, size: 13, color: ac.txt2),
         const SizedBox(width: 5),
-        Text(label, style: AppText.caption.copyWith(fontSize: 11.5, color: C.txt2)),
+        Text(label, style: AppText.caption.copyWith(fontSize: 11.5, color: ac.txt2)),
       ]),
     );
   }

@@ -6,6 +6,7 @@ import '../repositories/library_repository.dart';
 import '../repositories/club_repository.dart';
 import '../repositories/messaging_repository.dart';
 import '../repositories/public_course_repository.dart';
+import '../services/analytics_service.dart';
 import '../widgets/widgets.dart';
 import '../widgets/app_background.dart';
 import '../features/clubs/clubs_page.dart';
@@ -41,11 +42,16 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
     if (query.trim().isEmpty) return;
     setState(() => _isLoading = true);
 
+    // Each category is independent — one failing (e.g. a permission or
+    // index error on a single collection) must not blank out the other
+    // three tabs. Previously a single rejected Future in Future.wait
+    // failed the whole search silently (no catch), leaving every tab
+    // stuck showing zero results.
     final results = await Future.wait([
-      LibraryRepository.instance.search(query, schoolId: widget.user.schoolId),
-      ClubRepository.instance.searchClubs(query),
-      MessagingRepository.instance.searchUsers(query),
-      PublicCourseRepository.instance.watchLatest().first, // Simplified for demo
+      _safe(() => LibraryRepository.instance.search(query, schoolId: widget.user.schoolId), <LibraryItem>[]),
+      _safe(() => ClubRepository.instance.searchClubs(query), <Club>[]),
+      _safe(() => MessagingRepository.instance.searchUsers(query), <Map<String, dynamic>>[]),
+      _safe(() => PublicCourseRepository.instance.watchLatest().first, <PublicCourse>[]),
     ]);
 
     setState(() {
@@ -56,6 +62,15 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
           .where((c) => c.title.toLowerCase().contains(query.toLowerCase())).toList();
       _isLoading = false;
     });
+  }
+
+  Future<T> _safe<T>(Future<T> Function() run, T fallback) async {
+    try {
+      return await run();
+    } catch (e, st) {
+      CrashService.instance.recordError(e, st, context: 'SearchPage._performSearch');
+      return fallback;
+    }
   }
 
   @override

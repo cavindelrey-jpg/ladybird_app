@@ -12,14 +12,17 @@ class HeroSlideRepository {
 
   final _col = FirebaseFirestore.instance.collection('heroSlides');
 
-  Stream<List<HeroSlide>> watchActive() => _col
+  Stream<List<HeroSlide>> watchActive({HeroPlacement placement = HeroPlacement.home}) => _col
+      .where('placement', isEqualTo: placement.name)
       .where('active', isEqualTo: true)
       .orderBy('order')
       .snapshots()
       .map((s) => s.docs.map(HeroSlide.fromFirestore).toList());
 
-  /// All slides including inactive ones — for the admin manager UI.
-  Stream<List<HeroSlide>> watchAll() => _col
+  /// All slides including inactive ones, for one placement — the admin
+  /// manager UI's per-surface tab.
+  Stream<List<HeroSlide>> watchAll({HeroPlacement placement = HeroPlacement.home}) => _col
+      .where('placement', isEqualTo: placement.name)
       .orderBy('order')
       .snapshots()
       .map((s) => s.docs.map(HeroSlide.fromFirestore).toList());

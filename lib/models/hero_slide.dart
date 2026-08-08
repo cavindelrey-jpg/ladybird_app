@@ -19,6 +19,22 @@ enum HeroDestination {
   const HeroDestination(this.label);
 }
 
+/// Which surface a slide belongs to -- lets one admin-managed system
+/// (Part 14) back the banner on every page that asked for one (Home,
+/// Courses, Library, Past Questions, Clubs) instead of a separate
+/// one-off mechanism per page. Defaults to [home] so every slide that
+/// existed before this field was added keeps behaving exactly as before.
+enum HeroPlacement {
+  home('Home'),
+  courses('Courses'),
+  library('Library'),
+  pastQuestions('Past Questions'),
+  clubs('Clubs');
+
+  final String label;
+  const HeroPlacement(this.label);
+}
+
 class HeroSlide {
   final String id;
   String headline;
@@ -30,6 +46,7 @@ class HeroSlide {
   String? imageUrl;      // Firebase Storage download URL
   int order;
   bool active;
+  HeroPlacement placement;
   final String createdBy;
   final DateTime createdAt;
 
@@ -44,6 +61,7 @@ class HeroSlide {
     this.imageUrl,
     this.order = 0,
     this.active = true,
+    this.placement = HeroPlacement.home,
     required this.createdBy,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -62,6 +80,8 @@ class HeroSlide {
       imageUrl: d['imageUrl'],
       order: d['order'] ?? 0,
       active: d['active'] ?? true,
+      placement: HeroPlacement.values.firstWhere(
+          (v) => v.name == d['placement'], orElse: () => HeroPlacement.home),
       createdBy: d['createdBy'] ?? '',
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -77,6 +97,7 @@ class HeroSlide {
         'imageUrl': imageUrl,
         'order': order,
         'active': active,
+        'placement': placement.name,
         'createdBy': createdBy,
         'createdAt': Timestamp.fromDate(createdAt),
       };

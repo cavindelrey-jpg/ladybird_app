@@ -15,9 +15,16 @@ import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 
-class HeroSlideManagerPage extends StatelessWidget {
+class HeroSlideManagerPage extends StatefulWidget {
   final String createdByUid;
   const HeroSlideManagerPage({super.key, required this.createdByUid});
+
+  @override
+  State<HeroSlideManagerPage> createState() => _HeroSlideManagerPageState();
+}
+
+class _HeroSlideManagerPageState extends State<HeroSlideManagerPage> {
+  HeroPlacement _placement = HeroPlacement.home;
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +33,7 @@ class HeroSlideManagerPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: C.bg, elevation: 0,
         iconTheme: const IconThemeData(color: C.txt),
-        title: Text('Home Banners', style: GoogleFonts.sora(
+        title: Text('Banners', style: GoogleFonts.sora(
             fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
         actions: [
           IconButton(
@@ -35,44 +42,63 @@ class HeroSlideManagerPage extends StatelessWidget {
           ),
         ],
       ),
-      body: AppBackground(child: StreamBuilder<List<HeroSlide>>(
-        stream: HeroSlideRepository.instance.watchAll(),
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const LoadingView();
-          }
-          final slides = snap.data ?? const <HeroSlide>[];
-          if (slides.isEmpty) {
-            return EmptyState(
-              icon: Icons.image_outlined,
-              title: 'No Home banners yet',
-              subtitle: 'Add one to start filling the Home carousel.',
-              actionLabel: 'Add Banner',
-              onAction: () => _openEditor(context, null),
+      body: AppBackground(child: Column(children: [
+        // One admin system, every page that needed its own banner
+        // (Home/Courses/Library/Past Questions/Clubs) -- this picks which
+        // surface's slides are being managed below.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Wrap(spacing: 8, runSpacing: 8, children: HeroPlacement.values.map((p) {
+            final selected = p == _placement;
+            return ChoiceChip(
+              label: Text(p.label),
+              selected: selected,
+              onSelected: (_) => setState(() => _placement = p),
+              selectedColor: C.primary,
+              labelStyle: TextStyle(color: selected ? Colors.white : C.txt),
+              backgroundColor: C.surf2,
             );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: slides.length,
-            itemBuilder: (context, i) {
-              final s = slides[i];
-              return _SlideCard(
-                slide: s,
-                canMoveUp: i > 0,
-                canMoveDown: i < slides.length - 1,
-                onEdit: () => _openEditor(context, s),
-                onDelete: () => _confirmDelete(context, s),
-                onMoveUp: () => _swap(slides, i, i - 1),
-                onMoveDown: () => _swap(slides, i, i + 1),
-                onToggleActive: (v) {
-                  s.active = v;
-                  HeroSlideRepository.instance.update(s);
-                },
+          }).toList()),
+        ),
+        Expanded(child: StreamBuilder<List<HeroSlide>>(
+          stream: HeroSlideRepository.instance.watchAll(placement: _placement),
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const LoadingView();
+            }
+            final slides = snap.data ?? const <HeroSlide>[];
+            if (slides.isEmpty) {
+              return EmptyState(
+                icon: Icons.image_outlined,
+                title: 'No ${_placement.label} banners yet',
+                subtitle: 'Add one to start filling this carousel.',
+                actionLabel: 'Add Banner',
+                onAction: () => _openEditor(context, null),
               );
-            },
-          );
-        },
-      )),
+            }
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: slides.length,
+              itemBuilder: (context, i) {
+                final s = slides[i];
+                return _SlideCard(
+                  slide: s,
+                  canMoveUp: i > 0,
+                  canMoveDown: i < slides.length - 1,
+                  onEdit: () => _openEditor(context, s),
+                  onDelete: () => _confirmDelete(context, s),
+                  onMoveUp: () => _swap(slides, i, i - 1),
+                  onMoveDown: () => _swap(slides, i, i + 1),
+                  onToggleActive: (v) {
+                    s.active = v;
+                    HeroSlideRepository.instance.update(s);
+                  },
+                );
+              },
+            );
+          },
+        )),
+      ])),
     );
   }
 
@@ -89,7 +115,7 @@ class HeroSlideManagerPage extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Delete banner?'),
-        content: Text('This removes "${slide.headline}" from the Home carousel.'),
+        content: Text('This removes "${slide.headline}" from the ${_placement.label} carousel.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
@@ -106,7 +132,8 @@ class HeroSlideManagerPage extends StatelessWidget {
 
   void _openEditor(BuildContext context, HeroSlide? existing) {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => _SlideEditorPage(existing: existing, createdByUid: createdByUid),
+      builder: (_) => _SlideEditorPage(
+          existing: existing, createdByUid: widget.createdByUid, initialPlacement: _placement),
     ));
   }
 }
@@ -174,7 +201,8 @@ class _SlideCard extends StatelessWidget {
 class _SlideEditorPage extends StatefulWidget {
   final HeroSlide? existing;
   final String createdByUid;
-  const _SlideEditorPage({this.existing, required this.createdByUid});
+  final HeroPlacement initialPlacement;
+  const _SlideEditorPage({this.existing, required this.createdByUid, required this.initialPlacement});
 
   @override
   State<_SlideEditorPage> createState() => _SlideEditorPageState();
@@ -187,6 +215,7 @@ class _SlideEditorPageState extends State<_SlideEditorPage> {
   late final _ctaCtrl = TextEditingController(text: widget.existing?.ctaLabel ?? 'Explore Now');
   late final _customRouteCtrl = TextEditingController(text: widget.existing?.customRoute ?? '');
   late HeroDestination _destination = widget.existing?.destination ?? HeroDestination.magazine;
+  late HeroPlacement _placement = widget.existing?.placement ?? widget.initialPlacement;
   File? _pickedImage;
   bool _saving = false;
   String? _error;
@@ -213,13 +242,14 @@ class _SlideEditorPageState extends State<_SlideEditorPage> {
 
     final repo = HeroSlideRepository.instance;
     var slide = widget.existing ?? HeroSlide(
-      id: '', headline: '', subtext: '', createdBy: widget.createdByUid,
+      id: '', headline: '', subtext: '', createdBy: widget.createdByUid, placement: _placement,
     );
     slide.headline = _headlineCtrl.text.trim();
     slide.subtext = _subtextCtrl.text.trim();
     slide.ctaLabel = _ctaCtrl.text.trim().isEmpty ? 'Explore Now' : _ctaCtrl.text.trim();
     slide.destination = _destination;
     slide.customRoute = _destination == HeroDestination.custom ? _customRouteCtrl.text.trim() : null;
+    slide.placement = _placement;
 
     Result<String>? createResult;
     if (_isNew) {
@@ -235,6 +265,7 @@ class _SlideEditorPageState extends State<_SlideEditorPage> {
         headline: slide.headline, subtext: slide.subtext, ctaLabel: slide.ctaLabel,
         destination: slide.destination, customRoute: slide.customRoute,
         imageUrl: slide.imageUrl, order: slide.order, active: slide.active,
+        placement: slide.placement,
         createdBy: slide.createdBy,
       );
     }
@@ -297,6 +328,19 @@ class _SlideEditorPageState extends State<_SlideEditorPage> {
             _text(_subtextCtrl, 'Subtext', maxLines: 2),
             const SizedBox(height: 14),
             _text(_ctaCtrl, 'Button Label'),
+            const SizedBox(height: 14),
+            DropdownButtonFormField<HeroPlacement>(
+              initialValue: _placement,
+              decoration: InputDecoration(
+                labelText: 'Shows on',
+                filled: true, fillColor: C.surf3,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
+              ),
+              items: HeroPlacement.values
+                  .map((p) => DropdownMenuItem(value: p, child: Text(p.label)))
+                  .toList(),
+              onChanged: (v) => setState(() => _placement = v!),
+            ),
             const SizedBox(height: 14),
             DropdownButtonFormField<HeroDestination>(
               initialValue: _destination,

@@ -78,6 +78,15 @@
       { "fieldPath": "active", "order": "ASCENDING" },
       { "fieldPath": "order", "order": "ASCENDING" }
     ]},
+    { "collectionGroup": "heroSlides", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "placement", "order": "ASCENDING" },
+      { "fieldPath": "active", "order": "ASCENDING" },
+      { "fieldPath": "order", "order": "ASCENDING" }
+    ]},
+    { "collectionGroup": "heroSlides", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "placement", "order": "ASCENDING" },
+      { "fieldPath": "order", "order": "ASCENDING" }
+    ]},
 
     { "collectionGroup": "library", "queryScope": "COLLECTION", "fields": [
       { "fieldPath": "schoolId", "order": "ASCENDING" },

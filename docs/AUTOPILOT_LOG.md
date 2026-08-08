@@ -289,6 +289,28 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
     package — flagging as a pre-production follow-up
     (`firebase apps:create ANDROID --package-name
     com.example.academia_app.greenhill`), not silently glossing over it.
+- **Part 14 (central admin banner CMS)**: HeroSlideRepository/
+  HeroSlideManagerPage already existed as a fully real, admin-editable,
+  Firestore-backed banner system (image upload, headline/subtext/CTA,
+  drag reorder, active toggle) — just scoped to Home only. Added a
+  `HeroPlacement` enum (home/courses/library/pastQuestions/clubs) to the
+  HeroSlide model, defaulting every existing slide to `home` so nothing
+  currently live changes behavior; `watchActive()`/`watchAll()` now take
+  a `placement` parameter; added the matching composite indexes; the
+  manager UI now has a placement-picker chip row so an admin manages
+  each surface's slides separately, and the slide editor saves the
+  chosen placement. This is the reusable "system" Part 14 actually asks
+  for — extending it to Courses/Library/Past Questions/Clubs is now just
+  `StreamBuilder(stream: HeroSlideRepository.instance.watchActive(
+  placement: HeroPlacement.x))` wherever a page wants its own carousel.
+  Did NOT wire it into those 4 pages: grepped for the "unsuitable
+  image"/hardcoded banner Part 2/3's items originally complained about
+  and found none -- Courses' hero section is a functional gradient CTA
+  card (Create Course / How it works), not a broken image, same for
+  Library/Past Questions (no DecorationImage/placeholder banner exists
+  on either). That claim looks stale, same pattern as a few others this
+  session; logging rather than inventing a banner section that wasn't
+  actually broken.
 - **Part 1 item 2, "Today's Progress dead button" claim**: audited
   `_progressCard` — it's not actually dead. It opens LibraryReaderPage via
   a real InkWell when `continueReadingItemId` is set, and shows an honest

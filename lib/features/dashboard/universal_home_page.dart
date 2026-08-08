@@ -22,6 +22,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
+import '../../config/branding.dart';
 import '../../providers/institution_provider.dart';
 import '../institution/institution_header_widget.dart';
 import '../../models/app_user.dart';
@@ -170,13 +171,13 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       return const InstitutionHeader(compact: true);
     }
     return Row(children: [
-      const AcademiaLogo(size: 34),
+      const BrandLogo(size: 34),
       const SizedBox(width: 10),
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Academia', style: GoogleFonts.sora(
+          Text(Branding.current.appName, style: GoogleFonts.sora(
               fontSize: 17, fontWeight: FontWeight.w800, color: ac.txt)),
-          Text('Your Complete Smart School Platform',
+          Text(Branding.current.tagline,
               style: GoogleFonts.inter(fontSize: 10, color: ac.txt2),
               overflow: TextOverflow.ellipsis),
         ]),

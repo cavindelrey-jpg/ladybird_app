@@ -16,6 +16,7 @@ import 'providers/theme_provider.dart';
 import 'screens/app_router.dart';
 import 'services/analytics_service.dart';
 import 'services/config_service.dart';
+import 'config/branding.dart';
 
 Future<void> main() async {
   // runZonedGuarded catches errors that occur outside Flutter's own build/
@@ -43,6 +44,13 @@ await Firebase.initializeApp(); // Ensure no secrets in client bundle
 
     // Remote config (non-blocking — uses defaults if Firestore is unavailable)
     await ConfigService.instance.initialize();
+
+    // Branding (which product this build is: Academia platform or a
+    // school white-label like Green Hill) — must resolve before runApp
+    // so the very first frame already has the right name/colors/logo,
+    // not a flash of Academia defaults. Falls back to Academia on any
+    // load failure rather than blocking startup (see branding.dart).
+    await Branding.load();
 
     // Status bar style
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -81,7 +89,7 @@ class AcademiaApp extends StatelessWidget {
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) => MaterialApp(
-          title: 'Academia',
+          title: Branding.current.appName,
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light.copyWith(
             pageTransitionsTheme: const PageTransitionsTheme(builders: {

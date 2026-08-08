@@ -23,6 +23,26 @@
           "other_platform_oauth_client": []
         }
       }
+    },
+    {
+      "_comment": "greenhill flavor's applicationId needs an exact package_name match here or the google-services Gradle plugin fails the build entirely. This entry reuses the SAME mobilesdk_app_id/api_key as the academia client above rather than being a real, separately-registered Firebase Android app -- adequate for local/demo builds (Auth and Firestore key off the shared api_key+project_id, both correct here), but Crashlytics/Analytics won't attribute correctly to this app_id since it isn't actually registered under this package name. Before a real release, run `firebase apps:create ANDROID --package-name com.example.academia_app.greenhill` (or via console) and replace this entry with its real output.",
+      "client_info": {
+        "mobilesdk_app_id": "1:415070142496:android:77f1be36a89a6fd7657c45",
+        "android_client_info": {
+          "package_name": "com.example.academia_app.greenhill"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtT8IiEeIeNwscDmNJ-vNglgaPYfkBUN8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
     }
   ],
   "configuration_version": "1"

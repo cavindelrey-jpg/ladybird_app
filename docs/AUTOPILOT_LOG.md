@@ -230,6 +230,65 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
   that's real, valuable, but genuinely multi-hour mechanical work on its
   own, better done as its own dedicated pass than squeezed in here.
   Re-run the grep above to get the current remaining-file list.
+- **Part 17 (Green Hill branding)**: built the full compile-time split.
+  `lib/config/app_config.dart` (AppConfig.mode from APP_MODE dart-define)
+  and `lib/config/branding.dart` (Branding class loaded from
+  assets/branding/<BRAND_ID>.json, BRAND_ID dart-define, defaults to
+  'academia', falls back to hardcoded Academia values on any load
+  failure). Wrote academia.json and green_hill.json with placeholder
+  values myself per the explicit standing instruction — picked forest
+  green/deep green/gold (#1B5E3A/#0D2818/#D4A72C) for "Green Hill Academy"
+  as a distinct palette from Academia's navy/blue/gold, deliberately
+  different enough to read as a different product at a glance.
+  - No real Green Hill logo file exists, so `BrandLogo` (widgets.dart)
+    mirrors `AcademiaLogo`'s existing resilience pattern: reads
+    Branding.current.logoAssetPath, falls back to a colored initials
+    badge via errorBuilder when the asset is missing. Green Hill's real
+    logo can be dropped in later at exactly
+    assets/branding/green_hill_logo.png with no code changes.
+  - Wired Branding.current into: MaterialApp title, AppTheme's
+    ColorScheme.fromSeed (both light/dark) for Material's own default
+    component colors, and Home's `_brandingBlock` (the pre-existing,
+    explicitly-designated "this is where the app becomes a school's own
+    app" seam) for the independent/no-claimed-institution case. Did NOT
+    attempt to re-theme the ~69 files' hardcoded `C.primary`/`C.gold`/
+    `C.navy` usage — same infeasible-in-one-shot problem as the dark-mode
+    audit, and for the same reason (hundreds of `const` call sites, no
+    safe way to verify all of them here). So branding coverage is
+    partial by the same honest tradeoff as dark mode: title/theme-seed/
+    Home-header are brand-aware, most hand-styled screens still render
+    Academia's fixed colors regardless of BRAND_ID.
+  - Native splash can't be wired at Flutter-runtime at all (it renders
+    before Flutter starts) -- that needs its own
+    `flutter_native_splash:create -f <config>` run per flavor at build
+    time. Did not run it for Green Hill since there's no real logo asset
+    yet (would bake in a broken image reference); Academia's existing
+    splash from Part 1 is unaffected.
+  - School-only nav: the actual school-administrative block (Notices/
+    Calendar/Timetable/Assignments/Grades/Attendance) lives in
+    ProfilePage's `inst != null` section, not the drawer — the drawer
+    itself is all CORE features. Added `&& AppConfig.isSchoolMode` there
+    so even a user genuinely linked to an institution never sees it on
+    an Academia-platform build. Admin Panel intentionally left ungated —
+    it's platform-level (Register a School, Create Seats), how Academia
+    onboards new school clients like Green Hill in the first place, not
+    school-internal administration.
+  - `applicationId`: added Android product flavors (`academia` = existing
+    `com.example.academia_app`, `greenhill` = distinct
+    `com.example.academia_app.greenhill`), AndroidManifest label now
+    reads `@string/app_name` (flavor-specific resValue). google-services
+    Gradle plugin requires an exact package_name match per applicationId
+    or the build fails outright, so added a second `client` entry to
+    google-services.json for the greenhill package, reusing the same
+    api_key/mobilesdk_app_id as the real academia entry rather than a
+    genuinely separate Firebase Android app registration (no console/CLI
+    access to create one here). Documented inline in the JSON: adequate
+    for local/demo builds (Auth/Firestore key off the shared api_key +
+    project_id, both correct), but Crashlytics/Analytics won't attribute
+    correctly to this app_id since it isn't really registered under that
+    package — flagging as a pre-production follow-up
+    (`firebase apps:create ANDROID --package-name
+    com.example.academia_app.greenhill`), not silently glossing over it.
 - **Part 1 item 2, "Today's Progress dead button" claim**: audited
   `_progressCard` — it's not actually dead. It opens LibraryReaderPage via
   a real InkWell when `continueReadingItemId` is set, and shows an honest

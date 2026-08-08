@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_colors.dart';
+import '../config/app_config.dart';
 import '../models/models.dart';
 import '../services/auth_service.dart';
 import '../providers/institution_provider.dart';
@@ -156,7 +157,14 @@ class ProfilePage extends StatelessWidget {
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => BookmarksPage(user: user)))),
 
-          if (inst != null) ...[
+          // School-administrative nav (Notices/Calendar/Timetable/
+          // Assignments/Grades/Attendance) is reserved for school-branded
+          // builds (APP_MODE=school, i.e. Green Hill) even when the
+          // signed-in user is genuinely linked to an institution with
+          // these features enabled -- the Academia *platform* build's own
+          // identity isn't "a school administration app", so it never
+          // surfaces this block regardless of who's signed in.
+          if (inst != null && AppConfig.isSchoolMode) ...[
             const SizedBox(height: 24),
             Align(
               alignment: Alignment.centerLeft,

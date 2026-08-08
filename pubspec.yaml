@@ -70,6 +70,7 @@ flutter:
     - assets/logos/
     - assets/images/
     - assets/icon/
+    - assets/branding/
 
 flutter_launcher_icons:
   android: true

@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
+import '../config/branding.dart';
 
 /// Academia Design System colour tokens.
 class C {
@@ -60,10 +61,19 @@ class AppTheme {
     useMaterial3: true,
     brightness: Brightness.light,
     scaffoldBackgroundColor: C.bg,
+    // Seeded from Branding.current rather than the hardcoded C.navy/C.gold
+    // so a Green Hill build's default Material components (FAB, default
+    // buttons, selection handles, etc.) pick up its color instead of
+    // Academia's. Partial coverage, not a full re-theme: the ~69 files
+    // that draw with C.primary/C.gold/C.navy directly (same set flagged
+    // in the dark-mode audit) still render Academia's fixed palette —
+    // making them branding-aware is the same class of mechanical,
+    // multi-hour, per-file work as the dark-mode conversion, and out of
+    // scope here for the same reason. See docs/AUTOPILOT_LOG.md.
     colorScheme: ColorScheme.fromSeed(
-      seedColor: C.navy,
-      primary: C.navy,
-      secondary: C.gold,
+      seedColor: Branding.current.primaryColor,
+      primary: Branding.current.primaryColor,
+      secondary: Branding.current.accentColor,
       surface: C.surf,
       brightness: Brightness.light,
     ),
@@ -172,10 +182,12 @@ class AppTheme {
     useMaterial3: true,
     brightness: Brightness.dark,
     scaffoldBackgroundColor: AppColors.dark.bg,
+    // Same branding seed as the light theme above — see that comment for
+    // the partial-coverage tradeoff.
     colorScheme: ColorScheme.fromSeed(
-      seedColor: AppColors.dark.primary,
-      primary: AppColors.dark.primary,
-      secondary: AppColors.dark.gold,
+      seedColor: Branding.current.primaryColor,
+      primary: Branding.current.primaryColor,
+      secondary: Branding.current.accentColor,
       surface: AppColors.dark.surf,
       brightness: Brightness.dark,
     ),

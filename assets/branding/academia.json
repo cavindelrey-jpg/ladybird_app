@@ -1,0 +1,9 @@
+{
+  "appName": "Academia",
+  "tagline": "Your Complete Smart School Platform",
+  "primaryColor": "#1A56DB",
+  "secondaryColor": "#0A1F44",
+  "accentColor": "#C9A227",
+  "logoAssetPath": "assets/icon/academia_logo.png",
+  "splashAssetPath": "assets/icon/academia_logo.png"
+}

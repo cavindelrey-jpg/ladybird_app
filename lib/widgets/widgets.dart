@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/public_course.dart';
 import '../theme/app_theme.dart';
+import '../config/branding.dart';
 
 // ════════════════════════════════════════════════════════════════════════════
 // BUTTONS
@@ -626,6 +627,32 @@ class AcademiaLogo extends StatelessWidget {
         decoration: BoxDecoration(color: C.navy, borderRadius: BorderRadius.circular(size * 0.22)),
         child: Center(child: Text('A', style: AppText.display.copyWith(
             fontSize: size * 0.5, color: C.gold))),
+      ),
+    );
+  }
+}
+
+/// The white-label counterpart to [AcademiaLogo] — reads
+/// Branding.current.logoAssetPath instead of the hardcoded Academia
+/// file. Falls back to an initials badge in the brand's own color when
+/// that asset doesn't exist yet (e.g. Green Hill's real logo hasn't been
+/// dropped in at assets/branding/green_hill_logo.png), same resilience
+/// pattern as AcademiaLogo's own fallback.
+class BrandLogo extends StatelessWidget {
+  final double size;
+  const BrandLogo({super.key, this.size = 56});
+
+  @override
+  Widget build(BuildContext context) {
+    final b = Branding.current;
+    return Image.asset(
+      b.logoAssetPath,
+      width: size, height: size, fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => Container(
+        width: size, height: size,
+        decoration: BoxDecoration(color: b.secondaryColor, borderRadius: BorderRadius.circular(size * 0.22)),
+        child: Center(child: Text(b.appName.isNotEmpty ? b.appName[0].toUpperCase() : '?',
+            style: AppText.display.copyWith(fontSize: size * 0.5, color: b.accentColor))),
       ),
     );
   }

@@ -32,6 +32,15 @@ class ClubsPage extends StatefulWidget {
 class _ClubsPageState extends State<ClubsPage> {
   String _searchQuery = '';
 
+  // Created once and reused across rebuilds -- StreamBuilder resets to its
+  // "waiting" state (dropping the whole ListView, including the search bar
+  // itself) whenever it's handed a stream with a different identity, and
+  // building this inline in `build()` created a brand-new .snapshots()
+  // stream on every keystroke's setState. That's what made the Clubs
+  // search bar appear to vanish while typing.
+  late final Stream<List<Club>> _clubsStream =
+      ClubRepository.instance.watchClubs(schoolId: widget.user.schoolId);
+
   bool get _canCreate => !widget.user.isGuest;
 
   @override
@@ -40,7 +49,7 @@ class _ClubsPageState extends State<ClubsPage> {
       backgroundColor: C.bg,
       body: AppBackground(child: SafeArea(
         child: StreamBuilder<List<Club>>(
-          stream: ClubRepository.instance.watchClubs(schoolId: widget.user.schoolId),
+          stream: _clubsStream,
           builder: (context, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return const _ClubsSkeleton();
@@ -64,7 +73,7 @@ class _ClubsPageState extends State<ClubsPage> {
                 const SizedBox(height: 20),
                 _myClubsSection(context, filtered),
                 const SizedBox(height: 24),
-                _discoverClubsSection(context, filtered),
+                _discoverClubsSection(context, filtered, allClubs),
                 const SizedBox(height: 20),
                 _infoCards(context),
               ],
@@ -170,13 +179,25 @@ class _ClubsPageState extends State<ClubsPage> {
     );
   }
 
-  Widget _discoverClubsSection(BuildContext context, List<Club> allClubs) {
+  Widget _discoverClubsSection(BuildContext context, List<Club> allClubs, List<Club> unfilteredClubs) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text('Discover Clubs', style: AppText.h2.copyWith(fontSize: 16))),
-          Text('See all', style: AppText.subtitle.copyWith(color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(Rad.xs),
+              onTap: () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => AllClubsPage(clubs: unfilteredClubs, user: widget.user))),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: Text('See all', style: AppText.subtitle.copyWith(
+                    color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+              ),
+            ),
+          ),
         ]),
         const SizedBox(height: 12),
         if (allClubs.isEmpty)
@@ -364,7 +385,8 @@ class _DiscoverClubCard extends StatelessWidget {
   final Club club;
   final AppUser user;
   final VoidCallback onOpen;
-  const _DiscoverClubCard({required this.club, required this.user, required this.onOpen});
+  final bool fullWidth;
+  const _DiscoverClubCard({required this.club, required this.user, required this.onOpen, this.fullWidth = false});
 
   static const _palette = [C.pur, C.org, C.grn, C.blu, C.gold];
   Color get _accent => _palette[club.name.hashCode.abs() % _palette.length];
@@ -400,7 +422,7 @@ class _DiscoverClubCard extends StatelessWidget {
 
   Widget _card(BuildContext context, {required bool joined, required bool pending}) {
     return Container(
-      width: 200,
+      width: fullWidth ? double.infinity : 200,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -421,10 +443,20 @@ class _DiscoverClubCard extends StatelessWidget {
                   color: club.requiresApproval ? C.pur : C.grn)),
         ]),
         const SizedBox(height: 6),
-        Expanded(
-          child: Text(club.description, style: AppText.caption.copyWith(fontSize: 10.5, height: 1.3),
-              maxLines: 2, overflow: TextOverflow.ellipsis),
-        ),
+        // Expanded only makes sense inside the horizontal preview's fixed-
+        // height card; the vertical "See all" list has no bounded height
+        // to expand into, so it just wraps the text directly there.
+        if (fullWidth)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(club.description, style: AppText.caption.copyWith(fontSize: 10.5, height: 1.3),
+                maxLines: 2, overflow: TextOverflow.ellipsis),
+          )
+        else
+          Expanded(
+            child: Text(club.description, style: AppText.caption.copyWith(fontSize: 10.5, height: 1.3),
+                maxLines: 2, overflow: TextOverflow.ellipsis),
+          ),
         Row(children: [
           const Icon(Icons.people_alt_outlined, size: 12, color: C.muted),
           const SizedBox(width: 3),
@@ -470,6 +502,42 @@ class _DiscoverClubCard extends StatelessWidget {
         showToast(context, result is Success ? '✅ Welcome to ${club.name}!' : 'Failed to join');
       }
     }
+  }
+}
+
+/// Full scrollable list behind Discover Clubs' "See all" -- the homepage
+/// section only shows a horizontally-scrolling preview of every club, so
+/// this is the same data in an actually-scannable vertical list rather
+/// than a real paginated fetch (there's nothing more to page in; the
+/// preview already held every club).
+class AllClubsPage extends StatelessWidget {
+  final List<Club> clubs;
+  final AppUser user;
+  const AllClubsPage({super.key, required this.clubs, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: C.bg,
+      appBar: AppBar(
+        backgroundColor: C.bg, elevation: 0,
+        iconTheme: const IconThemeData(color: C.txt),
+        title: Text('Discover Clubs', style: AppText.title),
+      ),
+      body: AppBackground(child: clubs.isEmpty
+          ? const EmptyState(icon: Icons.groups_outlined, title: 'No clubs on Academia yet',
+              subtitle: 'Be the first to create one.')
+          : ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: clubs.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (_, i) => _DiscoverClubCard(
+                club: clubs[i], user: user, fullWidth: true,
+                onOpen: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => ClubDetailPage(club: clubs[i], user: user))),
+              ),
+            )),
+    );
   }
 }
 

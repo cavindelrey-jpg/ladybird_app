@@ -122,6 +122,7 @@ class ClubMessage {
   final String senderInitials;
   final String text;
   final DateTime time;
+  final bool deleted;
 
   const ClubMessage({
     required this.id,
@@ -130,6 +131,7 @@ class ClubMessage {
     required this.senderInitials,
     required this.text,
     required this.time,
+    this.deleted = false,
   });
 
   factory ClubMessage.fromFirestore(DocumentSnapshot doc) {
@@ -141,6 +143,7 @@ class ClubMessage {
       senderInitials: d['senderInitials'] ?? '',
       text: d['text'] ?? '',
       time: (d['time'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      deleted: d['deleted'] ?? false,
     );
   }
 

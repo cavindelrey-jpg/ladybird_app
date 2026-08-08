@@ -337,6 +337,35 @@ class MessagingRepository {
     }
   }
 
+  /// Soft-deletes one of the caller's own messages: clears the content,
+  /// flips `deleted`, keeps the doc (sender/timestamp) so the thread shows
+  /// a "message deleted" placeholder instead of a confusing gap. Only the
+  /// sender can do this — enforced both here and in firestore.rules.
+  Future<Result<void>> deleteMessage({
+    required String conversationId,
+    required String messageId,
+    required String userId,
+  }) async {
+    try {
+      final ref = _conversations.doc(conversationId).collection(AppConstants.colMessages).doc(messageId);
+      final doc = await ref.get();
+      if (!doc.exists || doc.data()?['senderId'] != userId) {
+        return const Failure('You can only delete your own messages', null);
+      }
+      await ref.update({
+        'deleted': true,
+        'text': '',
+        'imageUrl': null,
+        'videoUrl': null,
+        'fileUrl': null,
+        'fileName': null,
+      });
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to delete message', e);
+    }
+  }
+
   /// Marks every message not yet read by [userId] as read — called on
   /// opening a conversation. Fetches recent messages and filters
   /// client-side (Firestore can't query "array doesn't contain X"

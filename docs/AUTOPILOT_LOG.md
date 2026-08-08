@@ -157,6 +157,22 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
   disproportionate given how much bigger Parts 7-19 still are). Added
   `ClubSettingsPage` (admin-only edit + founder-only delete, reusing
   create_club_page's form patterns) and `ClubRepository.deleteClub()`.
+- **Parts 7-8 (club chat + general messaging, "WhatsApp/Telegram-tier")**:
+  audited both first. General DM messaging (chat_conversation_page.dart)
+  was already far more built than expected — typing indicators, read
+  receipts, date separators, link previews, photo/video/file attachments
+  with real upload progress + automatic retry, and an honest "Voice/video
+  calling isn't built yet" toast rather than a fake call button. Club
+  chat was much thinner (plain text only, no delete). Given how much
+  larger Parts 9 and 11-19 still are, did NOT attempt full WhatsApp
+  parity (reactions, forward, pin, mute, voice messages, calling) —
+  implemented the one feature both surfaces were genuinely missing and
+  that's realistic to do properly in the time left: sender-only soft-
+  delete (own messages only, content cleared, doc kept so the thread
+  shows "This message was deleted" instead of a gap), enforced in
+  firestore.rules as well as the repositories, not just the UI. Logging
+  reactions/forward/pin/mute/voice/calling as explicitly deferred rather
+  than fudged.
 - **Part 1 item 2, "Today's Progress dead button" claim**: audited
   `_progressCard` — it's not actually dead. It opens LibraryReaderPage via
   a real InkWell when `continueReadingItemId` is set, and shows an honest

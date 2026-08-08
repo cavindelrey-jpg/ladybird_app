@@ -302,11 +302,15 @@ service cloud.firestore {
       }
 
       // Club chat — matches ClubRepository.watchMessages/sendMessage.
-      // Simple append-only model: members post, nobody edits after send.
+      // Senders can soft-delete their own message (clears text, flips
+      // `deleted`) — everything else about a sent message is immutable.
       match /messages/{messageId} {
         allow read: if isSignedIn();
         allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
-        allow update, delete: if false;
+        allow update: if isSignedIn() && resource.data.senderId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'text']) &&
+          request.resource.data.deleted == true;
+        allow delete: if false;
       }
 
       // Membership + the mod structure (visitor < member < moderator <
@@ -431,11 +435,19 @@ service cloud.firestore {
           request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
         allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid &&
           request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
-        // Only the readBy array may change after creation (read receipts) —
-        // anyone in the conversation can mark a message as read by them.
+        // Two independent update shapes: (1) anyone in the conversation
+        // can mark a message as read by them (readBy only), or (2) the
+        // sender can soft-delete their own message (clears content,
+        // flips `deleted`) — everything else stays immutable.
         allow update: if isSignedIn() &&
           request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']);
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy'])
+            || (resource.data.senderId == request.auth.uid &&
+                request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['deleted', 'text', 'imageUrl', 'videoUrl', 'fileUrl', 'fileName']) &&
+                request.resource.data.deleted == true)
+          );
         allow delete: if false;
       }
     }

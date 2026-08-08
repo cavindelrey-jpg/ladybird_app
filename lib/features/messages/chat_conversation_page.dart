@@ -384,13 +384,52 @@ class _MessageBubble extends StatelessWidget {
 
   String? get _linkUrl => LinkPreviewService.instance.firstUrl(message.text);
 
+  Future<void> _confirmDelete(BuildContext context) async {
+    HapticFeedback.mediumImpact();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete message?'),
+        content: const Text('This will replace it with "This message was deleted" for both of you.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: C.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await MessagingRepository.instance.deleteMessage(
+        conversationId: message.conversationId, messageId: message.id, userId: message.senderId,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (message.deleted) {
+      return Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: C.surf3, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.bdr),
+          ),
+          child: Text('This message was deleted',
+              style: AppText.bodySm.copyWith(fontSize: 13, fontStyle: FontStyle.italic, color: C.muted)),
+        ),
+      );
+    }
     final read = message.readBy.contains(otherUserId);
     final linkUrl = _linkUrl;
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
+      child: GestureDetector(
+        onLongPress: isMe ? () => _confirmDelete(context) : null,
+        child: Container(
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
@@ -447,6 +486,7 @@ class _MessageBubble extends StatelessWidget {
             ],
           ]),
         ]),
+        ),
       ),
     );
   }

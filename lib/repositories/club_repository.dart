@@ -204,6 +204,24 @@ class ClubRepository {
     }
   }
 
+  /// Soft-delete -- same reasoning as MessagingRepository.deleteMessage:
+  /// keeps the doc so the thread shows a placeholder instead of a gap,
+  /// sender-only both here and in firestore.rules.
+  Future<Result<void>> deleteMessage(String clubId, String messageId, String userId) async {
+    try {
+      final ref = _db.collection(AppConstants.colClubs).doc(clubId)
+          .collection(AppConstants.colMessages).doc(messageId);
+      final doc = await ref.get();
+      if (!doc.exists || doc.data()?['senderId'] != userId) {
+        return const Failure('You can only delete your own messages', null);
+      }
+      await ref.update({'deleted': true, 'text': ''});
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to delete message', e);
+    }
+  }
+
   // ── Create ─────────────────────────────────────────────
 
   Future<Result<String>> createClub(

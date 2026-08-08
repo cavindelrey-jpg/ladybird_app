@@ -715,18 +715,23 @@ class _ChatTab extends StatelessWidget {
                                 child: Text(m.senderName,
                                     style: const TextStyle(
                                         fontSize: 10, fontWeight: FontWeight.w600, color: C.muted))),
-                          Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              constraints: BoxConstraints(
-                                  maxWidth: MediaQuery.of(context).size.width * .65),
-                              decoration: BoxDecoration(
-                                color: isMe ? C.primary : Colors.white,
-                                borderRadius: BorderRadius.circular(14),
-                                border: isMe ? null : Border.all(color: C.bdr),
-                              ),
-                              child: Text(m.text,
-                                  style: TextStyle(
-                                      fontSize: 13, color: isMe ? Colors.white : C.txt))),
+                          GestureDetector(
+                            onLongPress: (isMe && !m.deleted) ? () => _confirmDelete(context, m) : null,
+                            child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                constraints: BoxConstraints(
+                                    maxWidth: MediaQuery.of(context).size.width * .65),
+                                decoration: BoxDecoration(
+                                  color: m.deleted ? C.surf3 : (isMe ? C.primary : Colors.white),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: (isMe && !m.deleted) ? null : Border.all(color: C.bdr),
+                                ),
+                                child: Text(m.deleted ? 'This message was deleted' : m.text,
+                                    style: TextStyle(
+                                        fontSize: 13,
+                                        fontStyle: m.deleted ? FontStyle.italic : FontStyle.normal,
+                                        color: m.deleted ? C.muted : (isMe ? Colors.white : C.txt)))),
+                          ),
                           Padding(padding: const EdgeInsets.only(top: 3),
                               child: Text(
                                   '${m.time.hour.toString().padLeft(2, '0')}:'
@@ -782,6 +787,27 @@ class _ChatTab extends StatelessWidget {
         ]),
       ),
     ]);
+  }
+
+  Future<void> _confirmDelete(BuildContext context, ClubMessage m) async {
+    HapticFeedback.mediumImpact();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete message?'),
+        content: const Text('This will replace it with "This message was deleted" for everyone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: C.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ClubRepository.instance.deleteMessage(club.id, m.id, user.id);
+    }
   }
 }
 

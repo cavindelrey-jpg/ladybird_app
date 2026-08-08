@@ -141,6 +141,7 @@ class ChatMessage {
   final String? fileName;
   final DateTime sentAt;
   final List<String> readBy;
+  final bool deleted;
 
   const ChatMessage({
     required this.id,
@@ -154,6 +155,7 @@ class ChatMessage {
     this.fileName,
     required this.sentAt,
     this.readBy = const [],
+    this.deleted = false,
   });
 
   factory ChatMessage.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc, String conversationId) {
@@ -170,6 +172,7 @@ class ChatMessage {
       fileName: d['fileName'],
       sentAt: (d['sentAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       readBy: List<String>.from(d['readBy'] ?? []),
+      deleted: d['deleted'] ?? false,
     );
   }
 

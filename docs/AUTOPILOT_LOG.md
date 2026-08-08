@@ -317,3 +317,41 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
   "No reading in progress" message (not a broken tap target) when it
   isn't. No code change made; noting the claim was stale rather than
   silently ignoring it.
+
+## Session resume (2026-08-08, later same session) — environment blocker
+
+- Committed pending uncommitted work found sitting in the tree at session
+  start: the Part 14 HeroSlide `HeroPlacement` extension (per-page banner
+  placement) — was fully written but never committed. Now commit `8c6cc2f`.
+- **`flutter analyze`/`flutter`/`dart` stopped working entirely at session
+  start**: `C:\flutter\bin\cache\dart-sdk` was empty again (same corruption
+  class as the 2026-08-08 session-start entry above — `dart-sdk.old1`/
+  `dart-sdk.old2` backups sitting alongside it). Tried the same fix as
+  before (delete the empty cache, let Flutter re-provision) — this time it
+  failed differently: **this sandboxed shell has no outbound network
+  access at all**. `Invoke-WebRequest`/`Start-BitsTransfer` to
+  `storage.googleapis.com` fail with "The remote name could not be
+  resolved" (DNS doesn't even resolve), confirmed as a real network gap,
+  not sandbox process-spawn flakiness (checked by trying curl/npm registry
+  too — same failure class). This means **no `flutter`/`dart`/`npm`
+  command can run in this session at all** — not analyze, not build, not
+  pub get, not npm install. Nothing to fix on the repo side; this is a
+  host/sandbox network policy outside the project.
+  - Did NOT leave the SDK broken: restored the working `dart-sdk.old1`
+    backup back to `dart-sdk` (confirmed `dart.exe --version` runs) rather
+    than leaving an empty, half-downloaded directory in place. Deleted
+    `engine-dart-sdk.stamp` earlier while chasing this, which means the
+    **next `flutter` invocation (once network exists again) will detect a
+    stamp/version mismatch and attempt to re-download** — expected and
+    harmless the moment real network access is available, but flagging so
+    a future session doesn't mistake the re-download prompt for a new
+    problem.
+  - Practical consequence for the rest of this session: every remaining
+    FULL_BUILD_LIST item that would normally be checked with
+    `flutter analyze` (dark-mode file conversions, Part 16's architecture
+    split, anything touching many files/imports at once) is being done by
+    careful reading/grepping instead of compiler verification. Higher risk
+    of an unnoticed typo or bad import than usual — worth an actual
+    `flutter analyze` pass the moment this repo is opened somewhere with
+    network access, before trusting this session's multi-file edits at
+    face value.

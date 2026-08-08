@@ -29,6 +29,23 @@
       { "fieldPath": "contentType", "order": "ASCENDING" },
       { "fieldPath": "title", "order": "ASCENDING" }
     ]},
+    { "collectionGroup": "academic_content", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "contentType", "order": "ASCENDING" },
+      { "fieldPath": "uploadDate", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "academic_content", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "subject", "order": "ASCENDING" },
+      { "fieldPath": "uploadDate", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "academic_content", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "contentType", "order": "ASCENDING" },
+      { "fieldPath": "subject", "order": "ASCENDING" },
+      { "fieldPath": "uploadDate", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "academic_content", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "contentType", "order": "ASCENDING" },
+      { "fieldPath": "title", "order": "ASCENDING" }
+    ]},
 
     { "collectionGroup": "assignments", "queryScope": "COLLECTION", "fields": [
       { "fieldPath": "lecturerId", "order": "ASCENDING" },

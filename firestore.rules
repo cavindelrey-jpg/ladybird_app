@@ -180,6 +180,56 @@ service cloud.firestore {
       allow create, update, delete: if canPostAnnouncement();
     }
 
+    // ── library/{id} ──────────────────────────────────────────────────
+    // Legacy/simple content collection still read by LibraryRepository
+    // (Home's Library banner + Recommended for You, the Library tab, and
+    // homepage Search) — this had NO rule at all before (default-deny),
+    // which is why all of those threw permission-denied. Same public-read
+    // shape as academic_content; `views` is a narrow public counter any
+    // signed-in viewer can bump (mirrors articles' likeCount pattern),
+    // full-document writes stay lecturer+.
+    match /library/{id} {
+      allow read: if true;
+      allow create, delete: if canUploadContent();
+      allow update: if canUploadContent()
+        || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views'])
+            && request.resource.data.views is int
+            && request.resource.data.views == resource.data.views + 1);
+    }
+
+    // ── dailyChallenges/{dateKey} ─────────────────────────────────────
+    // Also had no rule at all (default-deny) — Home's Daily Challenge card
+    // silently showed "No challenge today" for every user because
+    // getToday() threw permission-denied and the FutureBuilder just
+    // treated the error the same as "no data". Challenge content itself
+    // is signed-in readable; only lecturer+ seed/edit it.
+    match /dailyChallenges/{dateKey} {
+      allow read: if isSignedIn();
+      allow write: if canPostAnnouncement();
+
+      // One attempt doc per user, doc ID == their uid — append-only, so
+      // an answered challenge can't be silently rewritten to retry.
+      match /attempts/{userId} {
+        allow read: if isOwner(userId) || canPostAnnouncement();
+        // Client computes correctCount/xpAwarded itself (it already has
+        // the answer key from reading the parent doc) — same
+        // defense-in-depth trust model as xpTransactions above, not a
+        // full guarantee. Bound both against the actual challenge shape
+        // so a write can't self-report more than the max possible score.
+        allow create: if isSignedIn() && request.auth.uid == userId &&
+          request.resource.data.correctCount is int &&
+          request.resource.data.correctCount >= 0 &&
+          request.resource.data.correctCount <=
+            get(/databases/$(database)/documents/dailyChallenges/$(dateKey)).data.questions.size() &&
+          request.resource.data.xpAwarded is int &&
+          request.resource.data.xpAwarded >= 0 &&
+          request.resource.data.xpAwarded <=
+            get(/databases/$(database)/documents/dailyChallenges/$(dateKey)).data.questions.size() *
+            get(/databases/$(database)/documents/dailyChallenges/$(dateKey)).data.xpPerCorrect;
+        allow update, delete: if false;
+      }
+    }
+
     // ── academic_content/{id} ─────────────────────────────────────────
     match /academic_content/{id} {
       allow read: if true; // guests browse the Content Library read-only

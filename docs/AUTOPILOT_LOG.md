@@ -402,3 +402,47 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
   to Parts 18/19 rather than spending the whole session on one part —
   resuming this is pure repetition of the now-proven pattern, safe to
   pick up in any future session file-by-file.
+
+## Session continuation (2026-08-08, network restored)
+
+- Picked back up after a discontinuity mid-session (context/process
+  boundary, not a user action — confirmed via git log that a prior
+  continuation of this same autopilot run had already committed real
+  additional progress: more of Part 13, Part 16's classification
+  (`docs/ARCHITECTURE_REPORT.md`), and 8 more dark-mode file conversions
+  for Part 11). Verified nothing was lost: `git status` was clean, all
+  in-flight work was already committed. Re-checked the "no network at
+  all" blocker logged just above — **network is back**
+  (`storage.googleapis.com` resolves and responds again), confirmed
+  `flutter --version` is re-provisioning the Dart SDK cache now that it
+  can reach the network (expected, per this session's own note that the
+  next invocation would trigger exactly this).
+- **Part 16**: reviewed `docs/ARCHITECTURE_REPORT.md` — the classification
+  is thorough and the "defer the physical move" call was sound
+  (164-file mass move with real import-rewrite risk). Now that network/
+  analyze access is back, the move itself is technically executable, but
+  it's explicitly optional in `02_DAY2_BRANDING_AND_SPLIT.md` ("only if
+  time allows") and has zero effect on anything a demo audience would
+  see (pure internal reorganization). Leaving it deferred as documented
+  rather than spending remaining session time on a refactor with no
+  demo-visible payoff — Parts 15/18/19 have more real value left to
+  extract from the time remaining.
+- **Part 15 (automation pipeline, quizzes/tests half)**: the Courses half
+  was already covered in Part 2 (verified compile-course.js end to end
+  against real AI-authored content). Built the matching piece for
+  Quizzes/Tests: `academia_compiler/compile-quiz.js`, same CLI shape and
+  --write/--serviceAccount flow as compile-course.js on purpose (one
+  compiler, two content types). Source format is JSON, not Markdown —
+  quiz questions are structured data (type/prompt/options/correctIndex/
+  points), not prose, so JSON is the honest source-of-truth format here
+  rather than forcing them through a Markdown parser. Validates against
+  Test/TestQuestion's exact shape (lib/models/test.dart): rejects an
+  out-of-range correctIndex, a missing options list, non-positive
+  points, an unrecognized question type, before ever touching Firestore.
+  Wrote a real 5-question Calculus quiz (`quiz-calculus.json`, 4 MCQ +
+  1 structured, matching the existing Calculus course content from Part
+  2 for narrative continuity) and dry-compiled it successfully. Same
+  publish blocker as compile-course.js: no Firebase service account key
+  available in this session, so `--write` hasn't been exercised end to
+  end against real Firestore, only validated through the dry-run
+  compile + schema checks.

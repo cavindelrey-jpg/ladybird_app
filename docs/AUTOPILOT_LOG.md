@@ -382,3 +382,23 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
     rendered as "Nothing to recommend yet"). Added a cached
     `_recommendedFuture` keyed by `(schoolId, guest)` plus a
     `snap.hasError` branch.
+
+- **Part 11 dark-mode conversion, in progress**: converted `lib/features/testing/`
+  (6 files) and `lib/features/courses/` (2 files) from `C.xxx` to
+  `AppColors.of(context)`. Confirmed via grep that both directories now
+  have zero remaining `C.` references. Two files (`courses_page.dart`'s
+  `_CourseCard`, `course_detail_page.dart`'s top-level `_kPalette`) used a
+  `static const`/top-level-const color palette outside `build()` — the
+  general blocker flagged in the Part 16 architecture report for the same
+  pattern in `clubs_page.dart`. Restructured both into instance/plain
+  methods taking `AppColors ac` as a parameter, computed once per
+  `build()` and threaded through, rather than a compile-time constant.
+  This is the reusable fix for that pattern wherever it recurs.
+  8 of the 67 originally-flagged files are done; 59 remain (full grouped
+  list captured by the earlier scoping pass — re-run
+  `grep -rl 'C\.bg\b\|C\.txt\b\|C\.surf\b' lib/` for the current exact
+  list). Given the size of this pass (67 files, no compiler in this
+  session to verify each), pausing dark-mode work here to give real time
+  to Parts 18/19 rather than spending the whole session on one part —
+  resuming this is pure repetition of the now-proven pattern, safe to
+  pick up in any future session file-by-file.

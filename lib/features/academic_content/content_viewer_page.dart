@@ -49,6 +49,13 @@ class ContentViewerPage extends StatelessWidget {
   final String? contentId;
   final String? userId;
 
+  /// Path to a device-local copy from AcademicContentRepository's offline
+  /// download (see content_details_page's "Save for offline"). When set
+  /// and the kind is PDF, reads from disk instead of the network — the
+  /// one format actually wired up to read offline so far (see
+  /// docs/AUTOPILOT_LOG.md for the scope note on image/video/docx).
+  final String? localFilePath;
+
   const ContentViewerPage({
     super.key,
     required this.fileUrl,
@@ -56,6 +63,7 @@ class ContentViewerPage extends StatelessWidget {
     required this.kind,
     this.contentId,
     this.userId,
+    this.localFilePath,
   });
 
   @override
@@ -72,7 +80,8 @@ class ContentViewerPage extends StatelessWidget {
       ),
       body: switch (kind) {
         ViewableFileKind.image => _ImageViewer(url: fileUrl),
-        ViewableFileKind.pdf => _PdfViewer(url: fileUrl, contentId: contentId, userId: userId),
+        ViewableFileKind.pdf => _PdfViewer(
+            url: fileUrl, localFilePath: localFilePath, contentId: contentId, userId: userId),
         ViewableFileKind.video => _VideoViewer(url: fileUrl),
         ViewableFileKind.docx => _DocxViewer(url: fileUrl),
       },
@@ -109,9 +118,10 @@ class _ImageViewer extends StatelessWidget {
 /// initialPage from the start rather than jumping after first render.
 class _PdfViewer extends StatefulWidget {
   final String url;
+  final String? localFilePath;
   final String? contentId;
   final String? userId;
-  const _PdfViewer({required this.url, this.contentId, this.userId});
+  const _PdfViewer({required this.url, this.localFilePath, this.contentId, this.userId});
 
   @override
   State<_PdfViewer> createState() => _PdfViewerState();
@@ -135,7 +145,7 @@ class _PdfViewerState extends State<_PdfViewer> {
       builder: (context, snap) {
         if (!snap.hasData) return const Center(child: CircularProgressIndicator());
         return _PdfViewerBody(
-          url: widget.url, initialPage: snap.data!,
+          url: widget.url, localFilePath: widget.localFilePath, initialPage: snap.data!,
           contentId: widget.contentId, userId: widget.userId,
         );
       },
@@ -145,11 +155,12 @@ class _PdfViewerState extends State<_PdfViewer> {
 
 class _PdfViewerBody extends StatefulWidget {
   final String url;
+  final String? localFilePath;
   final int initialPage;
   final String? contentId;
   final String? userId;
   const _PdfViewerBody({
-    required this.url, required this.initialPage, this.contentId, this.userId,
+    required this.url, this.localFilePath, required this.initialPage, this.contentId, this.userId,
   });
 
   @override
@@ -164,7 +175,12 @@ class _PdfViewerBodyState extends State<_PdfViewerBody> {
   void initState() {
     super.initState();
     _controller = PdfControllerPinch(
-      document: PdfDocument.openData(_fetchBytes(widget.url)),
+      // Offline copy first (no network round trip at all), network
+      // fallback otherwise -- see content_details_page's "Save for
+      // offline" for what actually populates localFilePath.
+      document: widget.localFilePath != null
+          ? PdfDocument.openFile(widget.localFilePath!)
+          : PdfDocument.openData(_fetchBytes(widget.url)),
       initialPage: widget.initialPage,
     );
   }

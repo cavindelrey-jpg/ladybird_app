@@ -4,6 +4,7 @@
 // Design pass: named AppText scale, reading-appropriate line-height on
 // the description, haptic on download.
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -76,9 +77,23 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
                     icon: Icon(saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
                         color: saved ? C.grn : C.txt2),
                     tooltip: saved ? 'Saved' : 'Save for offline',
-                    onPressed: () {
+                    onPressed: () async {
                       HapticFeedback.lightImpact();
-                      AcademicContentRepository.instance.toggleSave(item.id, widget.user.id);
+                      final wasSaved = saved;
+                      await AcademicContentRepository.instance.toggleSave(item.id, widget.user.id);
+                      if (wasSaved) {
+                        // Un-saving also drops the locally-downloaded file
+                        // rather than leaving an orphaned copy on disk.
+                        await AcademicContentRepository.instance.removeOfflineFile(item.id);
+                      } else if ((item.fileUrl ?? '').isNotEmpty) {
+                        // Fire-and-forget: "Save for offline" should
+                        // actually put the file on the device, not just
+                        // bookmark it. Best-effort -- a failed download
+                        // here still leaves the bookmark saved, and the
+                        // content simply opens over the network like
+                        // before.
+                        unawaited(AcademicContentRepository.instance.downloadForOffline(item));
+                      }
                     },
                   );
                 },
@@ -285,10 +300,12 @@ class _DownloadButtonState extends State<_DownloadButton> {
     final kind = _viewableKind;
     if (kind != null) {
       await AcademicContentRepository.instance.incrementDownloads(widget.item.id);
+      final localPath = await AcademicContentRepository.instance.offlineFilePath(widget.item.id);
       if (!mounted) return;
       await Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => ContentViewerPage(
           fileUrl: widget.item.fileUrl!,
+          localFilePath: localPath,
           title: widget.item.title,
           kind: kind,
           contentId: widget.item.id,

@@ -119,6 +119,31 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
   would be pure duplication — building the one generic system once under
   Part 14 and pointing Parts 2/3/4's banner items at it instead of
   re-implementing per page.
+- **Part 3 item 9, "dynamic tags" claim**: audited content_upload_page.dart —
+  `subject` is already a fixed, admin-selected category system
+  (`kAcademicSubjects` ChoiceChips, explicitly "locked to predefined
+  categories, never free text" per an existing code comment), same
+  pattern as Courses. Grepped every `.tags` usage app-wide: `tags` is
+  free-text but only ever used as (a) a search-relevance boost in
+  AcademicContentRepository.search() and (b) display-only badges — never
+  a filtering/navigation dimension anywhere. So the actual "every upload
+  creates a new tag" structural problem doesn't exist; the real
+  navigation categories were already fixed. No rebuild needed; noting
+  the claim was stale rather than building a redundant category system.
+- **Part 3 item 11 (Save Offline vs Continue Learning)**: these already
+  had genuinely separate data sources (per-user `saves` subcollection vs
+  `recentViews`/`readPositions`) — the actual gap was that "Save for
+  offline" only ever wrote a Firestore bookmark and, by the code's own
+  prior comment, "still requires network to open." Implemented real
+  on-device download: `AcademicContentRepository.downloadForOffline()`
+  streams the file to app-local storage via `path_provider`, tracks the
+  path in SharedPreferences, and the bookmark toggle now fires it
+  automatically (un-saving deletes the local copy too). Wired the PDF
+  viewer specifically to open from the local file when present, since
+  PDFs are the dominant Library/Past-Papers format. Scoped out real
+  offline support for image/video/docx for now (video especially has
+  real storage-budget implications that deserve their own decision, not
+  a default-on autopilot call) — those three still open over network.
 - **Part 1 item 2, "Today's Progress dead button" claim**: audited
   `_progressCard` — it's not actually dead. It opens LibraryReaderPage via
   a real InkWell when `continueReadingItemId` is set, and shows an honest

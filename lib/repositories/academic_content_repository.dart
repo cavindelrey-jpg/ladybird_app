@@ -4,6 +4,9 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/academic_content.dart';
 import '../core/constants.dart';
 import '../core/result.dart';
@@ -150,10 +153,16 @@ class AcademicContentRepository {
   }
 
   // ─── Saved for Offline ──────────────────────────────────────────────────
-  // Honest scope note: this is a "saved to my list" marker, persisted in
-  // Firestore — NOT true on-device file caching yet (that needs actual
-  // local storage + download management, a separate, bigger follow-up).
-  // A saved item still requires network to open until that's built.
+  // Two distinct, separately-tracked concepts:
+  //  - "Saved" (toggleSave/watchIsSaved below): a bookmark marker in
+  //    Firestore, powers "my saved list" across devices. Does NOT imply
+  //    the file is actually on this device.
+  //  - "Downloaded" (downloadForOffline/offlineFilePath below): the file's
+  //    bytes actually written to local device storage, tracked in
+  //    SharedPreferences (per-device, deliberately not synced — a
+  //    download on one device doesn't mean it exists on another). This is
+  //    the part that used to not exist at all despite the "Save for
+  //    offline" label implying it did.
 
   Stream<bool> watchIsSaved(String contentId, String userId) => _db
       .collection(_col).doc(contentId).collection(AppConstants.colSaves).doc(userId)
@@ -189,6 +198,79 @@ class AcademicContentRepository {
       }
       return items;
     });
+  }
+
+  // ─── Offline download (real on-device file caching) ─────────────────────
+
+  static const _offlinePrefsPrefix = 'offline_content_path_';
+
+  /// Local file path for [contentId] if it's actually been downloaded to
+  /// this device, else null. Cheap SharedPreferences lookup plus an
+  /// existence check (the file may have been cleared by the OS/user
+  /// without the app knowing).
+  Future<String?> offlineFilePath(String contentId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final path = prefs.getString('$_offlinePrefsPrefix$contentId');
+    if (path == null) return null;
+    return File(path).existsSync() ? path : null;
+  }
+
+  /// Downloads the content's file to app-local storage and records the
+  /// path so it can be opened without network afterward. Reports 0.0-1.0
+  /// progress where the response provides a content-length.
+  Future<Result<String>> downloadForOffline(
+    AcademicContent item, {
+    void Function(double)? onProgress,
+  }) async {
+    final url = item.fileUrl;
+    if (url == null || url.isEmpty) {
+      return const Failure('This item has no file to download.', null);
+    }
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final offlineDir = Directory('${dir.path}/offline_content');
+      if (!await offlineDir.exists()) await offlineDir.create(recursive: true);
+      final ext = url.contains('.') ? url.split('.').last.split('?').first : 'bin';
+      final localPath = '${offlineDir.path}/${item.id}.$ext';
+
+      final request = http.Request('GET', Uri.parse(url));
+      final response = await request.send().timeout(const Duration(minutes: 5));
+      if (response.statusCode >= 400) {
+        return Failure('Download failed (server returned ${response.statusCode}).', null);
+      }
+      final total = response.contentLength ?? 0;
+      var received = 0;
+      final file = File(localPath);
+      final sink = file.openWrite();
+      await response.stream.map((chunk) {
+        received += chunk.length;
+        if (total > 0) onProgress?.call(received / total);
+        return chunk;
+      }).pipe(sink);
+      await sink.close();
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('$_offlinePrefsPrefix${item.id}', localPath);
+      return Success(localPath);
+    } catch (e) {
+      return Failure('Download failed — check your connection and try again.', e);
+    }
+  }
+
+  /// Deletes the locally-downloaded file (if any) and forgets its path.
+  /// Does not touch the separate "saved" bookmark.
+  Future<void> removeOfflineFile(String contentId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final path = prefs.getString('$_offlinePrefsPrefix$contentId');
+    if (path != null) {
+      try {
+        final f = File(path);
+        if (await f.exists()) await f.delete();
+      } catch (_) {
+        // best-effort
+      }
+      await prefs.remove('$_offlinePrefsPrefix$contentId');
+    }
   }
 
   // ─── Recently viewed (real data — powers "Continue Learning") ──────────

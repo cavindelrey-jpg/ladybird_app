@@ -593,18 +593,36 @@ class _ClubDetailPageState extends State<ClubDetailPage>
 
   @override
   Widget build(BuildContext context) {
+    // Custom club banners were fully wired up on the create flow (image
+    // picker -> Storage upload -> Club.bannerUrl) but nothing ever
+    // rendered them -- every club looked identical regardless of what
+    // was uploaded. Shows as a tinted header behind the title when set;
+    // falls back to the plain AppBar exactly as before when it isn't.
+    final hasBanner = (widget.club.bannerUrl ?? '').isNotEmpty;
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: hasBanner ? 96 : kToolbarHeight,
+        flexibleSpace: hasBanner
+            ? Stack(fit: StackFit.expand, children: [
+                Image.network(widget.club.bannerUrl!, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(color: C.navy)),
+                Container(decoration: const BoxDecoration(gradient: LinearGradient(
+                    colors: [Color(0xB3000000), Color(0x33000000)],
+                    begin: Alignment.bottomCenter, end: Alignment.topCenter))),
+              ])
+            : null,
         title: Row(children: [
           Text(widget.club.emoji, style: const TextStyle(fontSize: 20)),
           const SizedBox(width: 8),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(widget.club.name,
-                style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700)),
+                style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700,
+                    color: hasBanner ? Colors.white : null)),
             Text('${widget.club.memberCount} members',
-                style: const TextStyle(fontSize: 11, color: C.muted)),
+                style: TextStyle(fontSize: 11, color: hasBanner ? Colors.white70 : C.muted)),
           ]),
         ]),
+        iconTheme: hasBanner ? const IconThemeData(color: Colors.white) : null,
         bottom: TabBar(controller: _tabs, tabs: const [
           Tab(text: 'CHAT'), Tab(text: 'ANNOUNCEMENTS')]),
         actions: [

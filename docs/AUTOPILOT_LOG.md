@@ -97,6 +97,28 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
   `cached_network_image` (not already a dependency) — NetworkImage's
   built-in ImageCache already caches by URL, and the real perf win here
   was stopping the whole-homepage rebuild, not the image loading itself.
+- **Part 2 item 6 (course automation)**: found `course-mathematics.md`,
+  `course-computer-science.md` (+ a duplicate `(1)` copy) already sitting
+  at the app root — real, well-formed course content in
+  COMPILER-PROCESS.md's exact format, `creatorName: Claude`, from an
+  earlier session. Dry-compiled both through
+  `academia_compiler/compile-course.js` — both succeed (3 lessons each,
+  valid Delta JSON, one AI-image placeholder each). **Blocked on
+  publishing**: COMPILER-PROCESS.md Step 0.4 requires a Firebase service
+  account key for the `--write` step, none exists locally
+  (`academia_compiler/node_modules/firebase-admin` also isn't installed
+  yet), and the doc's own explicit instruction is to stop and ask the
+  human for that key rather than invent one or request it be pasted into
+  chat/logs — a real credential, not a design decision autopilot should
+  route around. Compiled JSON previews are in
+  `academia_compiler/output/` ready to publish the moment a service
+  account key is provided at (e.g.) `academia_compiler/serviceAccountKey.json`.
+- **Banner admin-config, consolidated**: Parts 2/3/4/14 each separately
+  ask for an admin-configurable banner (Courses/Library/Past Questions/
+  Clubs promo + a general CMS). Building four one-off banner mechanisms
+  would be pure duplication — building the one generic system once under
+  Part 14 and pointing Parts 2/3/4's banner items at it instead of
+  re-implementing per page.
 - **Part 1 item 2, "Today's Progress dead button" claim**: audited
   `_progressCard` — it's not actually dead. It opens LibraryReaderPage via
   a real InkWell when `continueReadingItemId` is set, and shows an honest

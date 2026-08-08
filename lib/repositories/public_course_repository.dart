@@ -31,6 +31,27 @@ class PublicCourseRepository {
   CollectionReference<Map<String, dynamic>> get _courses =>
       _db.collection(AppConstants.colPublicCourses);
 
+  // In-memory cache for the curriculum browse tree -- curriculumTreeOnce()
+  // downloads up to 1000 full course/lesson documents (bodies included) to
+  // build what's really just a category/subject/level/topic navigation
+  // tree, and CourseBrowsePage re-ran it on every single open. The tree
+  // changes rarely (only when content is published/edited), so a short
+  // TTL cache turns "Browse My Curriculum" from a full 1000-doc refetch
+  // into an instant repeat-open for the common case within a session.
+  Map<String, Map<String, Map<String, Map<String, List<PublicCourse>>>>>? _treeCache;
+  DateTime? _treeCacheAt;
+  Map<String, CurriculumIcon>? _iconsCache;
+  DateTime? _iconsCacheAt;
+  static const _cacheTtl = Duration(minutes: 5);
+
+  /// Drop the cached tree/icons immediately -- call after publishing,
+  /// editing, or re-placing a course so the browse view reflects it
+  /// without waiting out the TTL.
+  void invalidateCurriculumCache() {
+    _treeCache = null;
+    _iconsCache = null;
+  }
+
   // ── Feed queries ─────────────────────────────────────────
 
   Stream<List<PublicCourse>> watchLatest({int limit = 30}) => _courses
@@ -108,14 +129,20 @@ class PublicCourseRepository {
   /// All node->look assignments made so far. Small, bounded collection
   /// (one doc per unique subject/level/topic), safe to pull in full.
   Future<Map<String, CurriculumIcon>> curriculumIconsOnce() async {
+    if (_iconsCache != null && DateTime.now().difference(_iconsCacheAt!) < _cacheTtl) {
+      return _iconsCache!;
+    }
     final snap = await _curriculumIcons.limit(2000).get();
-    return {
+    final icons = {
       for (final d in snap.docs)
         d.id: CurriculumIcon(
           emoji: d.data()['icon'] as String? ?? '',
           imageUrl: d.data()['imageUrl'] as String? ?? '',
         ),
     };
+    _iconsCache = icons;
+    _iconsCacheAt = DateTime.now();
+    return icons;
   }
 
   /// Assigns/updates the look for one tree node. Pass whichever of
@@ -218,6 +245,9 @@ class PublicCourseRepository {
   /// it client-side. Courses missing any hierarchy field are omitted;
   /// they only show in the flat marketplace feed.
   Future<Map<String, Map<String, Map<String, Map<String, List<PublicCourse>>>>>> curriculumTreeOnce() async {
+    if (_treeCache != null && DateTime.now().difference(_treeCacheAt!) < _cacheTtl) {
+      return _treeCache!;
+    }
     final snap = await _courses.where('published', isEqualTo: true).limit(1000).get();
     final tree = <String, Map<String, Map<String, Map<String, List<PublicCourse>>>>>{};
     for (final doc in snap.docs) {
@@ -238,6 +268,8 @@ class PublicCourseRepository {
         }
       }
     }
+    _treeCache = tree;
+    _treeCacheAt = DateTime.now();
     return tree;
   }
 
@@ -281,6 +313,7 @@ class PublicCourseRepository {
       final ref = await _courses.add(course.toFirestore())
           .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
               'Saving is taking too long. Check your connection and try again.'));
+      invalidateCurriculumCache();
       return Success(ref.id);
     } catch (e) {
       return Failure('Failed to create course', e);
@@ -292,6 +325,7 @@ class PublicCourseRepository {
       await _courses.doc(course.id).set(course.toFirestore(), SetOptions(merge: true))
           .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
               'Saving is taking too long. Check your connection and try again.'));
+      invalidateCurriculumCache();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update course', e);
@@ -301,6 +335,7 @@ class PublicCourseRepository {
   Future<Result<void>> delete(String id) async {
     try {
       await _courses.doc(id).delete();
+      invalidateCurriculumCache();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to delete course', e);

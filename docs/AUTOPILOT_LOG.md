@@ -69,3 +69,37 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
   `dart run flutter_launcher_icons` and `dart run flutter_native_splash:create` — both
   succeeded and regenerated Android mipmap/drawable icons, iOS AppIcon.appiconset,
   LaunchScreen storyboard, and web icons/splash from the new logo.
+
+## Scope pivot (2026-08-08, later same session)
+
+- User confirmed `FULL_BUILD_LIST.md` (the 19-part, 35-item mega-scope) as
+  the authoritative spec for the rest of this session, superseding the
+  narrower 3-day-demo scope in `00_INDEX_AND_GOAL.md`/Day 1-3 files where
+  they conflict (messaging rebuild, quiz/course auto-gen, dark mode audit,
+  banner CMS, architecture split, and a full Next.js website are now
+  in-scope, not deferred). Explicitly confirmed by the user after I flagged
+  the contradiction rather than silently picking one. Re-pointed task
+  tracking at the 19 Parts; Part 1 items 1-4 were already done under the
+  narrower scope and carry over unchanged (logo, library/dailyChallenges
+  Firestore rules, dead-button/nav fixes, search resilience).
+- From here on, log entries are terser than the entries above — 35 items
+  is too many to narrate at that length and still make progress. Full
+  detail lives in commit messages per item instead; this log is for
+  decisions that aren't obvious from the diff itself.
+- **Part 1 item 5 (home banner)**: root cause was the PageView's index and
+  the HeroSlideRepository stream both living on the whole homepage's
+  State, so every swipe (a) rebuilt the entire homepage (greeting/stats/
+  quick access/progress/writers/recommended, not just the banner) and (b)
+  re-subscribed to `watchActive()` fresh each time (same "new stream every
+  build" class of bug as the Clubs search fix). Extracted into its own
+  `_HomeBannerCarousel` StatefulWidget with its own PageController/index/
+  stream, plus a 30s `Timer.periodic` for auto-advance. Did not add
+  `cached_network_image` (not already a dependency) — NetworkImage's
+  built-in ImageCache already caches by URL, and the real perf win here
+  was stopping the whole-homepage rebuild, not the image loading itself.
+- **Part 1 item 2, "Today's Progress dead button" claim**: audited
+  `_progressCard` — it's not actually dead. It opens LibraryReaderPage via
+  a real InkWell when `continueReadingItemId` is set, and shows an honest
+  "No reading in progress" message (not a broken tap target) when it
+  isn't. No code change made; noting the claim was stale rather than
+  silently ignoring it.

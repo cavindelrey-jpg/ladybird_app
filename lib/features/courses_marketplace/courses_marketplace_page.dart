@@ -49,6 +49,27 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
   bool _searchOpen = false;
   String _searchQuery = '';
 
+  // Cached per-category, NOT recreated on every build. Typing in the
+  // search box calls setState() on every keystroke to update
+  // _searchQuery -- previously that rebuilt this whole page and called
+  // PublicCourseRepository.instance.watchLatest()/watchByCategory()
+  // fresh inline, handing StreamBuilder a brand-new Stream identity each
+  // time. That resets it to its "waiting" state on every keystroke,
+  // flashing the shimmer skeleton and reconnecting to Firestore
+  // needlessly (same bug class as the Clubs search bar fix). Only
+  // recompute when the category actually changes.
+  String? _feedStreamCategory;
+  Stream<List<PublicCourse>>? _cachedFeedStream;
+  Stream<List<PublicCourse>> get _feedStream {
+    if (_cachedFeedStream == null || _feedStreamCategory != _category) {
+      _feedStreamCategory = _category;
+      _cachedFeedStream = _category == null
+          ? PublicCourseRepository.instance.watchLatest()
+          : PublicCourseRepository.instance.watchByCategory(_category!);
+    }
+    return _cachedFeedStream!;
+  }
+
   bool get _canCreate => widget.user != null;
 
   @override
@@ -98,13 +119,12 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
                   _sectionHeader('Latest from Contributors',
                       onSeeAll: () => showToast(context, 'Scroll down for more — a dedicated feed is coming soon.')),
                   const SizedBox(height: 12),
-                  _contributorFeed(context, stream: PublicCourseRepository.instance.watchLatest(), searchQuery: _searchQuery),
+                  _contributorFeed(context, stream: _feedStream, searchQuery: _searchQuery),
                 ] else ...[
                   _sectionHeader(_category!,
                       onSeeAll: () => showToast(context, 'Scroll down for more — a dedicated feed is coming soon.')),
                   const SizedBox(height: 12),
-                  _contributorFeed(context,
-                      stream: PublicCourseRepository.instance.watchByCategory(_category!), searchQuery: _searchQuery),
+                  _contributorFeed(context, stream: _feedStream, searchQuery: _searchQuery),
                 ],
                 if (_canCreate) _createCourseCta(context),
               ],

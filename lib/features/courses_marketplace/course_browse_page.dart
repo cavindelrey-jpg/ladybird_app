@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import '../../models/app_user.dart';
 import '../../models/public_course.dart';
 import '../../repositories/public_course_repository.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
@@ -60,13 +61,23 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
 
   Future<void> _load() async {
     final repo = PublicCourseRepository.instance;
-    final results = await Future.wait([repo.curriculumTreeOnce(), repo.curriculumIconsOnce()]);
-    if (!mounted) return;
-    setState(() {
-      _tree = results[0] as Map<String, Map<String, Map<String, Map<String, List<PublicCourse>>>>>;
-      _icons = results[1] as Map<String, CurriculumIcon>;
-      _loading = false;
-    });
+    try {
+      final results = await Future.wait([repo.curriculumTreeOnce(), repo.curriculumIconsOnce()]);
+      if (!mounted) return;
+      setState(() {
+        _tree = results[0] as Map<String, Map<String, Map<String, Map<String, List<PublicCourse>>>>>;
+        _icons = results[1] as Map<String, CurriculumIcon>;
+        _loading = false;
+      });
+    } catch (e, st) {
+      // A failure here previously left the page spinning forever (no
+      // catch at all) -- fall back to an empty tree so the page at least
+      // reaches its real "nothing here yet" empty state instead of
+      // hanging, and record the failure rather than swallowing it.
+      CrashService.instance.recordError(e, st, context: 'CourseBrowsePage._load');
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
   }
 
   _BrowseLevel get _currentLevel {

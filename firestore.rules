@@ -149,6 +149,25 @@ service cloud.firestore {
         allow read, create, update: if isOwner(uid);
         allow delete: if false;
       }
+
+      // Magazine bookmarks — matches MagazineRepository.toggleBookmark/
+      // watchBookmarkedArticles. Also had no rule (default-deny); distinct
+      // from public_courses/{id}/bookmarks/{userId} below, which was
+      // already covered.
+      match /bookmarks/{articleId} {
+        allow read, create, delete: if isOwner(uid);
+      }
+    }
+
+    // ── curriculum_icons/{id} ─────────────────────────────────────────
+    // Also had no rule (default-deny) — broke CourseBrowsePage.load()
+    // entirely (Future.wait([curriculumTreeOnce(), curriculumIconsOnce()])
+    // fails as a whole when either call throws, so Browse Courses was
+    // stuck on its loading spinner forever, not just missing icons).
+    // Same "any signed-in user creates their own" model as public_courses.
+    match /curriculum_icons/{id} {
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     // ── schools/{schoolId} ────────────────────────────────────────────
@@ -164,6 +183,19 @@ service cloud.firestore {
         allow update: if isSignedIn(); // claim flow sets claimed/claimedByUid
         allow create, delete: if canManageSchool() && isOwnSchool(schoolId);
       }
+    }
+
+    // ── serials/{code} ────────────────────────────────────────────────
+    // Also missing entirely (default-deny) -- broke SerialRepository.
+    // preview()'s pre-account-creation branding lookup. Client may only
+    // read; claim/generate/revoke/release all go through Cloud Functions
+    // (Admin SDK, bypasses these rules) per firestore.rules.snippet /
+    // docs/AUTOPILOT_LOG.md's note on the serial-code security hardening
+    // baseline commit -- "no client writes" is a real enforcement
+    // boundary here, not just a UI convention.
+    match /serials/{code} {
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     // ── institutions/{id} ─────────────────────────────────────────────
@@ -578,6 +610,33 @@ service cloud.firestore {
       // with the Admin SDK (bypasses these rules entirely) once the MoMo
       // confirmation function exists — client should never mark its own
       // subscription active directly.
+    }
+
+    // ── tests/{id}, testAttempts/{id} ───────────────────────────────────
+    // Also had NO rule at all (default-deny) — this is why "Quizzes"
+    // appeared empty regardless of seeded content: TestRepository's own
+    // header comment already flagged this exact gap ("hasn't been
+    // updated for the tests/testAttempts collections yet").
+    match /tests/{id} {
+      allow read: if resource.data.published == true ||
+        (isSignedIn() && (resource.data.createdBy == request.auth.uid || canManageSchool()));
+      allow create: if canUploadContent() && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if canUploadContent() &&
+        (resource.data.createdBy == request.auth.uid || canManageSchool());
+    }
+    match /testAttempts/{id} {
+      // Lecturer+ also read every attempt for the grading queue
+      // (TestRepository.watchPendingGradingQueue isn't scoped to one
+      // student), students read only their own.
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || canUploadContent());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      // Grading (TestRepository.gradeResponse) only ever touches these
+      // four fields, done by a lecturer+ who isn't the attempt's owner.
+      allow update: if isSignedIn() && canUploadContent() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['responses', 'status', 'gradedAt', 'totalXpAwarded']);
+      allow delete: if false;
     }
 
     // ── app_config/{id} ───────────────────────────────────────────────

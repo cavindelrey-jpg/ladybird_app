@@ -173,6 +173,40 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
   firestore.rules as well as the repositories, not just the UI. Logging
   reactions/forward/pin/mute/voice/calling as explicitly deferred rather
   than fudged.
+- **Part 9 (Quizzes & Tests, "appear empty")**: audited before building
+  anything new, per the pattern that's held all session — and this was
+  the biggest finding of the sweep. The Testing/Quiz system was already
+  fully built: MCQ auto-grading, a structured/long-form manual grading
+  queue with an actual GradingPage wired into the drawer nav, XP
+  integration, honest documentation of the one real gap (no AI grader
+  wired up). TestRepository's own header comment even already flagged
+  the exact bug: "firestore.rules ... hasn't been updated for the
+  tests/testAttempts collections yet." Confirmed `tests`/`testAttempts`
+  had zero rules (default-deny) — exactly why Quizzes "appeared empty"
+  regardless of what's actually seeded. Added rules matching
+  TestRepository's real write shapes (published-or-own-draft read;
+  lecturer+ create/edit own test; student creates own attempt; lecturer+
+  update ONLY responses/status/gradedAt/totalXpAwarded, matching
+  gradeResponse() exactly). Indexes were already correct — only rules
+  were missing. Did not build a new quiz system; there wasn't a
+  structural gap here, just this same missing-rules pattern.
+- **Part 12 (system-wide Firestore audit) pulled forward**: given the
+  same missing-rules bug has now hit `library`, `dailyChallenges`,
+  `tests`, `testAttempts`, did a full sweep of every `.collection(...)`
+  call across lib/repositories against firestore.rules rather than wait
+  to hit each one individually. Found two more: `curriculum_icons`
+  (default-deny was worse than cosmetic here — CourseBrowsePage.load()
+  has no try/catch around `Future.wait([...curriculumIconsOnce()])`, so
+  this actually hung Browse Courses on its loading spinner forever, not
+  just missing icons; added the rule AND a try/catch as defense-in-depth)
+  and `users/{uid}/bookmarks/{articleId}` (Magazine bookmarks). Also
+  merged the pre-existing `firestore.rules.snippet`'s `serials/{code}`
+  block (client read-only, all writes via Cloud Functions) — flagged as
+  a to-consult reference in the very first log entry of this session,
+  now actually relevant. Did NOT merge the snippet's alternate
+  `institutions` rule (per-institution-admin write access) since the
+  current file's superAdmin-only rule is a deliberate documented choice,
+  not a bug, and nothing reported it as broken.
 - **Part 1 item 2, "Today's Progress dead button" claim**: audited
   `_progressCard` — it's not actually dead. It opens LibraryReaderPage via
   a real InkWell when `continueReadingItemId` is set, and shows an honest

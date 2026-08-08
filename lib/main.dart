@@ -13,7 +13,6 @@ import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
 import 'providers/institution_provider.dart';
 import 'providers/theme_provider.dart';
-import 'providers/theme_provider.dart';
 import 'screens/app_router.dart';
 import 'services/analytics_service.dart';
 import 'services/config_service.dart';

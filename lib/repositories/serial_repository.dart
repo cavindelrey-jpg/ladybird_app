@@ -5,7 +5,7 @@
 // under concurrent attempts (two people racing to redeem a leaked serial).
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import 'package:cloud_functions/cloud_functions.dart' hide Result;
 import '../core/constants.dart';
 import '../core/result.dart';
 import '../models/institution.dart';

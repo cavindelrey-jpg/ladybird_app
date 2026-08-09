@@ -20,9 +20,12 @@ android {
     defaultConfig {
         applicationId = "com.example.academia_app"
         minSdk = flutter.minSdkVersion
-        ndk {
-            abiFilters.addAll(listOf("arm64-v8a", "x86_64"))
-        }
+        // No manual ndk.abiFilters here -- Flutter's own --split-per-abi
+        // flag injects its own `splits { abi { ... } }` block, and Gradle
+        // refuses to have both set at once ("Conflicting configuration").
+        // Restrict architectures via `flutter build ... --target-platform
+        // android-arm64` at build time instead (see build.gradle.kts'
+        // flavor comment below for the full command).
     }
 
     buildTypes {

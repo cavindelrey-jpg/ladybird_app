@@ -23,3 +23,9 @@ android/GeneratedPluginRegistrant.java
 .DS_Store
 Thumbs.db
 lib.zip
+
+# Secrets — never commit live credentials
+*firebase-adminsdk*.json
+serviceAccountKey.json
+*.pem
+*.key

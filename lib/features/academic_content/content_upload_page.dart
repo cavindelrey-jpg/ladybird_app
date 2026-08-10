@@ -11,7 +11,7 @@ import '../../core/result.dart';
 import '../../models/app_user.dart';
 import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 
 import '../../widgets/app_background.dart';
 class ContentUploadPage extends StatefulWidget {
@@ -152,10 +152,11 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
     if (!mounted) return;
 
     if (addResult is Success) {
+      final ac = AppColors.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('${_type.label} uploaded successfully!'),
-          backgroundColor: C.grn,
+          backgroundColor: ac.grn,
         ),
       );
       Navigator.pop(context);
@@ -169,8 +170,9 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
         title: Text('Upload Content',
             style: GoogleFonts.sora(fontWeight: FontWeight.w700)),
@@ -213,14 +215,14 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
                     label: Text(s),
                     selected: selected,
                     onSelected: (_) => setState(() => _subject = s),
-                    selectedColor: C.primary,
+                    selectedColor: ac.primary,
                     labelStyle: TextStyle(
-                        color: selected ? Colors.white : C.txt,
+                        color: selected ? Colors.white : ac.txt,
                         fontWeight: selected ? FontWeight.w600 : FontWeight.w400),
-                    backgroundColor: C.surf2,
+                    backgroundColor: ac.surf2,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
-                        side: BorderSide(color: selected ? C.primary : C.bdr)),
+                        side: BorderSide(color: selected ? ac.primary : ac.bdr)),
                   );
                 }).toList(),
               ),
@@ -237,14 +239,14 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
                     label: Text(l),
                     selected: selected,
                     onSelected: (_) => setState(() => _level = l),
-                    selectedColor: C.primary,
+                    selectedColor: ac.primary,
                     labelStyle: TextStyle(
-                        color: selected ? Colors.white : C.txt,
+                        color: selected ? Colors.white : ac.txt,
                         fontWeight: selected ? FontWeight.w600 : FontWeight.w400),
-                    backgroundColor: C.surf2,
+                    backgroundColor: ac.surf2,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
-                        side: BorderSide(color: selected ? C.primary : C.bdr)),
+                        side: BorderSide(color: selected ? ac.primary : ac.bdr)),
                   );
                 }).toList(),
               ),
@@ -261,14 +263,14 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
                     label: Text(e),
                     selected: selected,
                     onSelected: (_) => setState(() => _examBoard = e),
-                    selectedColor: C.primary,
+                    selectedColor: ac.primary,
                     labelStyle: TextStyle(
-                        color: selected ? Colors.white : C.txt,
+                        color: selected ? Colors.white : ac.txt,
                         fontWeight: selected ? FontWeight.w600 : FontWeight.w400),
-                    backgroundColor: C.surf2,
+                    backgroundColor: ac.surf2,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
-                        side: BorderSide(color: selected ? C.primary : C.bdr)),
+                        side: BorderSide(color: selected ? ac.primary : ac.bdr)),
                   );
                 }).toList(),
               ),
@@ -335,14 +337,14 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
               if (_uploading) ...[
                 LinearProgressIndicator(
                   value: _uploadProgress,
-                  backgroundColor: C.bdr,
-                  color: C.primary,
+                  backgroundColor: ac.bdr,
+                  color: ac.primary,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Uploading… ${(_uploadProgress * 100).toInt()}%',
-                  style: GoogleFonts.inter(fontSize: 12, color: C.txt2),
+                  style: GoogleFonts.inter(fontSize: 12, color: ac.txt2),
                 ),
                 const SizedBox(height: 16),
               ],
@@ -352,12 +354,12 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: C.redb,
+                    color: ac.redBg,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(_error!,
                       style:
-                          GoogleFonts.inter(color: C.red, fontSize: 13)),
+                          GoogleFonts.inter(color: ac.red, fontSize: 13)),
                 ),
                 const SizedBox(height: 16),
               ],
@@ -369,7 +371,7 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
                 child: ElevatedButton(
                   onPressed: _uploading ? null : _submit,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: C.primary,
+                    backgroundColor: ac.primary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14)),
@@ -399,7 +401,7 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(text,
         style: GoogleFonts.inter(
-            fontSize: 13, fontWeight: FontWeight.w600, color: C.txt2));
+            fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.of(context).txt2));
   }
 }
 
@@ -420,6 +422,7 @@ class _Field extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
@@ -427,20 +430,20 @@ class _Field extends StatelessWidget {
       keyboardType: keyboardType,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.inter(color: C.muted, fontSize: 14),
+        hintStyle: GoogleFonts.inter(color: ac.muted, fontSize: 14),
         filled: true,
-        fillColor: C.surf,
+        fillColor: ac.surf,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: C.bdr),
+          borderSide: BorderSide(color: ac.bdr),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: C.bdr),
+          borderSide: BorderSide(color: ac.bdr),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: C.primary, width: 1.5),
+          borderSide: BorderSide(color: ac.primary, width: 1.5),
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -458,6 +461,7 @@ class _ContentTypeGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -483,10 +487,10 @@ class _ContentTypeGrid extends StatelessWidget {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 150),
               decoration: BoxDecoration(
-                color: active ? C.primaryBg : C.surf,
+                color: active ? ac.primaryBg : ac.surf,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                    color: active ? C.primary : C.bdr,
+                    color: active ? ac.primary : ac.bdr,
                     width: active ? 1.5 : 1),
               ),
               child: Column(
@@ -500,7 +504,7 @@ class _ContentTypeGrid extends StatelessWidget {
                       style: GoogleFonts.inter(
                           fontSize: 9,
                           fontWeight: FontWeight.w600,
-                          color: active ? C.primary : C.txt2)),
+                          color: active ? ac.primary : ac.txt2)),
                 ],
               ),
             ),
@@ -526,6 +530,7 @@ class _FilePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(12),
@@ -539,23 +544,23 @@ class _FilePicker extends StatelessWidget {
           padding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
           decoration: BoxDecoration(
-            color: selected ? C.primaryBg : C.surf,
+            color: selected ? ac.primaryBg : ac.surf,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-                color: selected ? C.primary : C.bdr,
+                color: selected ? ac.primary : ac.bdr,
                 style: BorderStyle.solid),
           ),
           child: Row(children: [
-            Icon(icon, size: 20, color: selected ? C.primary : C.muted),
+            Icon(icon, size: 20, color: selected ? ac.primary : ac.muted),
             const SizedBox(width: 12),
             Expanded(
               child: Text(label,
                   style: GoogleFonts.inter(
                       fontSize: 13,
-                      color: selected ? C.txt : C.muted)),
+                      color: selected ? ac.txt : ac.muted)),
             ),
             if (selected)
-              const Icon(Icons.check_circle, size: 18, color: C.grn),
+              Icon(Icons.check_circle, size: 18, color: ac.grn),
           ]),
         ),
       ),
@@ -570,6 +575,7 @@ class _ThumbnailPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(12),
@@ -583,9 +589,9 @@ class _ThumbnailPicker extends StatelessWidget {
           height: 120,
           width: double.infinity,
           decoration: BoxDecoration(
-            color: C.surf,
+            color: ac.surf,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: C.bdr),
+            border: Border.all(color: ac.bdr),
           ),
           child: file != null
               ? ClipRRect(
@@ -593,12 +599,12 @@ class _ThumbnailPicker extends StatelessWidget {
                   child: Image.file(file!, fit: BoxFit.cover),
                 )
               : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  const Icon(Icons.add_photo_alternate_outlined,
-                      size: 32, color: C.muted),
+                  Icon(Icons.add_photo_alternate_outlined,
+                      size: 32, color: ac.muted),
                   const SizedBox(height: 6),
                   Text('Add thumbnail image',
                       style: GoogleFonts.inter(
-                          fontSize: 13, color: C.muted)),
+                          fontSize: 13, color: ac.muted)),
                 ]),
         ),
       ),

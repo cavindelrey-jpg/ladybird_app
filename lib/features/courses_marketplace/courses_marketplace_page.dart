@@ -15,6 +15,7 @@ import '../../models/app_user.dart';
 import '../../models/public_course.dart';
 import '../../repositories/public_course_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../theme/category_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
@@ -86,23 +87,24 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: AppBackground(child: SafeArea(
         child: Column(children: [
-          _header(context),
+          _header(context, ac),
           if (_searchOpen)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: TextField(
                 autofocus: true,
                 onChanged: (v) => setState(() => _searchQuery = v),
-                style: AppText.bodySm.copyWith(color: C.txt),
+                style: AppText.bodySm.copyWith(color: ac.txt),
                 decoration: InputDecoration(
                   hintText: 'Search courses…',
-                  hintStyle: AppText.bodySm.copyWith(color: C.muted),
-                  prefixIcon: const Icon(Icons.search_rounded, size: 18, color: C.muted),
-                  filled: true, fillColor: C.surf2,
+                  hintStyle: AppText.bodySm.copyWith(color: ac.muted),
+                  prefixIcon: Icon(Icons.search_rounded, size: 18, color: ac.muted),
+                  filled: true, fillColor: ac.surf2,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                 ),
               ),
@@ -111,34 +113,34 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
             child: ListView(
               padding: const EdgeInsets.only(bottom: 24),
               children: [
-                _heroBanner(context),
+                _heroBanner(context, ac),
                 const SizedBox(height: 18),
-                _categoryChips(),
+                _categoryChips(ac),
                 const SizedBox(height: 14),
-                _browseByCurriculumCta(context),
+                _browseByCurriculumCta(context, ac),
                 const SizedBox(height: 20),
                 if (_category == null) ...[
-                  _sectionHeader('Featured Courses',
+                  _sectionHeader('Featured Courses', ac,
                       onSeeAll: () => showToast(context, 'A dedicated Featured page is coming soon.')),
                   const SizedBox(height: 12),
-                  _featuredRow(context),
+                  _featuredRow(context, ac),
                   const SizedBox(height: 24),
-                  _sectionHeader('Popular Topics',
+                  _sectionHeader('Popular Topics', ac,
                       onSeeAll: () => showToast(context, 'Tap any topic above to browse it.')),
                   const SizedBox(height: 12),
-                  _popularTopics(),
+                  _popularTopics(ac),
                   const SizedBox(height: 24),
-                  _sectionHeader('Latest from Contributors',
+                  _sectionHeader('Latest from Contributors', ac,
                       onSeeAll: () => showToast(context, 'Scroll down for more — a dedicated feed is coming soon.')),
                   const SizedBox(height: 12),
-                  _contributorFeed(context, stream: _feedStream, searchQuery: _searchQuery),
+                  _contributorFeed(context, ac, stream: _feedStream, searchQuery: _searchQuery),
                 ] else ...[
-                  _sectionHeader(_category!,
+                  _sectionHeader(_category!, ac,
                       onSeeAll: () => showToast(context, 'Scroll down for more — a dedicated feed is coming soon.')),
                   const SizedBox(height: 12),
-                  _contributorFeed(context, stream: _feedStream, searchQuery: _searchQuery),
+                  _contributorFeed(context, ac, stream: _feedStream, searchQuery: _searchQuery),
                 ],
-                if (_canCreate) _createCourseCta(context),
+                if (_canCreate) _createCourseCta(context, ac),
               ],
             ),
           ),
@@ -148,7 +150,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
     );
   }
 
-  Widget _header(BuildContext context) {
+  Widget _header(BuildContext context, AppColors ac) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
       child: Row(children: [
@@ -158,11 +160,11 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
             Text('Learn. Share. Grow.', style: AppText.caption.copyWith(fontSize: 12)),
           ]),
         ),
-        IconButton(icon: const Icon(Icons.search_rounded, color: C.txt2),
+        IconButton(icon: Icon(Icons.search_rounded, color: ac.txt2),
             onPressed: () => setState(() => _searchOpen = !_searchOpen)),
         if (widget.user != null)
           IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: C.txt2),
+            icon: Icon(Icons.notifications_outlined, color: ac.txt2),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => NotificationsPage(userId: widget.user!.id))),
           ),
@@ -180,7 +182,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
   /// (course_browse_page.dart) — deliberately big and colorful, not a
   /// slim row, since it's an equally valid front door into the
   /// marketplace as search or the category chips above it.
-  Widget _browseByCurriculumCta(BuildContext context) {
+  Widget _browseByCurriculumCta(BuildContext context, AppColors ac) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Material(
@@ -198,7 +200,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
-                colors: [C.gold, C.gold.withOpacity(0.75)],
+                colors: [ac.gold, ac.gold.withOpacity(0.75)],
               ),
               borderRadius: BorderRadius.circular(Rad.lg),
             ),
@@ -226,14 +228,14 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
     );
   }
 
-  Widget _heroBanner(BuildContext context) {
+  Widget _heroBanner(BuildContext context, AppColors ac) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-              colors: [C.navy, C.navy2], begin: Alignment.topLeft, end: Alignment.bottomRight),
+          gradient: LinearGradient(
+              colors: [ac.navy, ac.navy2], begin: Alignment.topLeft, end: Alignment.bottomRight),
           borderRadius: BorderRadius.circular(Rad.lg),
           boxShadow: Shad.md,
         ),
@@ -252,12 +254,12 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
                     builder: (_) => CourseComposerPage(user: widget.user!)));
               } : () => showToast(context, 'Sign in to create a course'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white, foregroundColor: C.navy,
+                backgroundColor: Colors.white, foregroundColor: ac.navy,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               icon: const Icon(Icons.add_rounded, size: 18),
               label: Text('Create Course', style: AppText.caption.copyWith(
-                  fontSize: 12.5, fontWeight: FontWeight.w700, color: C.navy)),
+                  fontSize: 12.5, fontWeight: FontWeight.w700, color: ac.navy)),
             ),
             const SizedBox(width: 10),
             OutlinedButton.icon(
@@ -277,7 +279,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
     );
   }
 
-  Widget _categoryChips() {
+  Widget _categoryChips(AppColors ac) {
     final cats = ['All', ...kCourseCategories];
     return SizedBox(
       height: 40,
@@ -301,18 +303,18 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
                 duration: const Duration(milliseconds: 150),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: active ? C.navy : C.surf2,
+                  color: active ? ac.navy : ac.surf2,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: active ? C.navy : C.bdr),
+                  border: Border.all(color: active ? ac.navy : ac.bdr),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   if (cat != 'All')
                     Icon(_kCategoryIcons[cat] ?? Icons.circle, size: 14,
-                        color: active ? C.gold : C.txt2),
+                        color: active ? ac.gold : ac.txt2),
                   if (cat != 'All') const SizedBox(width: 6),
                   Text(cat, style: AppText.caption.copyWith(
                       fontSize: 12, fontWeight: FontWeight.w700,
-                      color: active ? C.gold : C.txt2)),
+                      color: active ? ac.gold : ac.txt2)),
                 ]),
               ),
             ),
@@ -322,7 +324,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
     );
   }
 
-  Widget _sectionHeader(String title, {required VoidCallback onSeeAll}) {
+  Widget _sectionHeader(String title, AppColors ac, {required VoidCallback onSeeAll}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(children: [
@@ -332,14 +334,14 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
           child: InkWell(
             onTap: onSeeAll,
             child: Text('See all', style: AppText.subtitle.copyWith(
-                color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
           ),
         ),
       ]),
     );
   }
 
-  Widget _featuredRow(BuildContext context) {
+  Widget _featuredRow(BuildContext context, AppColors ac) {
     return FutureBuilder<List<PublicCourse>>(
       future: _featuredFuture,
       builder: (context, snap) {
@@ -359,7 +361,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text('Failed to load: ${snap.error}',
-                style: AppText.caption.copyWith(color: C.red, fontSize: 11)),
+                style: AppText.caption.copyWith(color: ac.red, fontSize: 11)),
           );
         }
         final courses = snap.data ?? const <PublicCourse>[];
@@ -390,7 +392,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
     );
   }
 
-  Widget _popularTopics() {
+  Widget _popularTopics(AppColors ac) {
     return FutureBuilder<Map<String, int>>(
       future: _categoryCountsFuture,
       builder: (context, snap) {
@@ -410,7 +412,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
             itemBuilder: (context, i) {
               final cat = kCourseCategories[i];
               final count = counts[cat] ?? 0;
-              final color = _categoryColor(cat);
+              final color = _categoryColor(cat, ac);
               return Material(
                 color: Colors.transparent,
                 borderRadius: BorderRadius.circular(Rad.md),
@@ -423,7 +425,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                        color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+                        color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
                     child: Row(children: [
                       Container(
                         width: 34, height: 34,
@@ -433,7 +435,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(cat, style: AppText.subtitle.copyWith(color: C.txt, fontSize: 12.5),
+                          Text(cat, style: AppText.subtitle.copyWith(color: ac.txt, fontSize: 12.5),
                               maxLines: 1, overflow: TextOverflow.ellipsis),
                           Text('$count course${count == 1 ? '' : 's'}', style: AppText.caption.copyWith(fontSize: 10.5)),
                         ]),
@@ -449,7 +451,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
     );
   }
 
-  Widget _contributorFeed(BuildContext context, {required Stream<List<PublicCourse>> stream, String searchQuery = ''}) {
+  Widget _contributorFeed(BuildContext context, AppColors ac, {required Stream<List<PublicCourse>> stream, String searchQuery = ''}) {
     return StreamBuilder<List<PublicCourse>>(
       stream: stream,
       builder: (context, snap) {
@@ -469,7 +471,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text('Failed to load: ${snap.error}',
-                style: AppText.caption.copyWith(color: C.red, fontSize: 11)),
+                style: AppText.caption.copyWith(color: ac.red, fontSize: 11)),
           );
         }
         var courses = snap.data ?? const <PublicCourse>[];
@@ -500,7 +502,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
     );
   }
 
-  Widget _createCourseCta(BuildContext context) {
+  Widget _createCourseCta(BuildContext context, AppColors ac) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: SizedBox(
@@ -512,12 +514,12 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
                 builder: (_) => CourseComposerPage(user: widget.user!)));
           },
           style: ElevatedButton.styleFrom(
-            backgroundColor: C.navy, foregroundColor: C.gold,
+            backgroundColor: ac.navy, foregroundColor: ac.gold,
             padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           icon: const Icon(Icons.edit_rounded, size: 18),
-          label: Text('Create Course', style: AppText.button.copyWith(fontSize: 14, color: C.gold)),
+          label: Text('Create Course', style: AppText.button.copyWith(fontSize: 14, color: ac.gold)),
         ),
       ),
     );
@@ -536,6 +538,7 @@ class _FeaturedCourseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(Rad.md),
@@ -545,7 +548,7 @@ class _FeaturedCourseCard extends StatelessWidget {
         child: Container(
           width: 210,
           decoration: BoxDecoration(
-              color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+              color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
           clipBehavior: Clip.antiAlias,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Stack(children: [
@@ -553,11 +556,11 @@ class _FeaturedCourseCard extends StatelessWidget {
                 height: 100, width: double.infinity,
                 child: (course.coverImageUrl ?? '').isNotEmpty
                     ? Image.network(course.coverImageUrl!, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(color: C.navy))
+                        errorBuilder: (_, __, ___) => Container(color: ac.navy))
                     : Container(
-                        color: C.navy,
+                        color: ac.navy,
                         child: Icon(_kCategoryIcons[course.category] ?? Icons.school_rounded,
-                            color: C.gold, size: 32)),
+                            color: ac.gold, size: 32)),
               ),
               Positioned(
                 top: 8, right: 8,
@@ -567,7 +570,7 @@ class _FeaturedCourseCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(12),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                StatusBadge(label: course.category, color: _categoryColor(course.category)),
+                StatusBadge(label: course.category, color: _categoryColor(course.category, ac)),
                 const SizedBox(height: 6),
                 Text(course.title, style: AppText.title.copyWith(fontSize: 13.5),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -591,12 +594,12 @@ class _FeaturedCourseCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Row(children: [
-                  const Icon(Icons.star_rounded, size: 13, color: C.gold),
+                  Icon(Icons.star_rounded, size: 13, color: ac.gold),
                   const SizedBox(width: 2),
                   Text(course.avgRating > 0 ? course.avgRating.toStringAsFixed(1) : '—',
                       style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w700)),
                   const SizedBox(width: 8),
-                  const Icon(Icons.people_alt_outlined, size: 12, color: C.muted),
+                  Icon(Icons.people_alt_outlined, size: 12, color: ac.muted),
                   const SizedBox(width: 2),
                   Text(_formatCount(course.enrolledCount), style: AppText.caption.copyWith(fontSize: 10.5)),
                 ]),
@@ -627,6 +630,7 @@ class _ContributorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return ACard(
       onTap: onOpen,
       padding: const EdgeInsets.all(12),
@@ -637,19 +641,19 @@ class _ContributorCard extends StatelessWidget {
             width: 84, height: 84,
             child: (course.coverImageUrl ?? '').isNotEmpty
                 ? Image.network(course.coverImageUrl!, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(color: C.surf3))
-                : Container(color: _categoryColor(course.category).withValues(alpha: .12),
+                    errorBuilder: (_, __, ___) => Container(color: ac.surf3))
+                : Container(color: _categoryColor(course.category, ac).withValues(alpha: .12),
                     child: Icon(_kCategoryIcons[course.category] ?? Icons.school_rounded,
-                        color: _categoryColor(course.category), size: 26)),
+                        color: _categoryColor(course.category, ac), size: 26)),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Expanded(child: StatusBadge(label: course.category, color: _categoryColor(course.category))),
+              Expanded(child: StatusBadge(label: course.category, color: _categoryColor(course.category, ac))),
               if (_isOwn)
-                const Icon(Icons.more_horiz_rounded, size: 18, color: C.muted)
+                Icon(Icons.more_horiz_rounded, size: 18, color: ac.muted)
               else
                 _BookmarkButton(course: course, currentUser: currentUser, dark: false),
             ]),
@@ -669,18 +673,18 @@ class _ContributorCard extends StatelessWidget {
                     UserAvatar(initials: course.creatorName.isEmpty ? '?' : course.creatorName[0].toUpperCase(),
                         radius: 9, photoUrl: course.creatorPhotoUrl),
                     const SizedBox(width: 5),
-                    Text('By ${course.creatorName}', style: AppText.caption.copyWith(fontSize: 10.5, color: C.txt)),
+                    Text('By ${course.creatorName}', style: AppText.caption.copyWith(fontSize: 10.5, color: ac.txt)),
                   ]),
                 ),
               ),
               const SizedBox(width: 6),
               Text('· ${_readTime()}', style: AppText.caption.copyWith(fontSize: 10)),
               const Spacer(),
-              const Icon(Icons.favorite_border_rounded, size: 13, color: C.muted),
+              Icon(Icons.favorite_border_rounded, size: 13, color: ac.muted),
               const SizedBox(width: 3),
               Text('${course.likeCount}', style: AppText.caption.copyWith(fontSize: 10.5)),
               const SizedBox(width: 8),
-              const Icon(Icons.mode_comment_outlined, size: 13, color: C.muted),
+              Icon(Icons.mode_comment_outlined, size: 13, color: ac.muted),
               const SizedBox(width: 3),
               Text('${course.commentCount}', style: AppText.caption.copyWith(fontSize: 10.5)),
             ]),
@@ -699,8 +703,9 @@ class _BookmarkButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     if (currentUser == null) {
-      return Icon(Icons.bookmark_border_rounded, size: 18, color: dark ? Colors.white : C.muted);
+      return Icon(Icons.bookmark_border_rounded, size: 18, color: dark ? Colors.white : ac.muted);
     }
     return StreamBuilder<bool>(
       stream: PublicCourseRepository.instance.watchIsBookmarked(course.id, currentUser!.id),
@@ -718,7 +723,7 @@ class _BookmarkButton extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.all(6),
               child: Icon(saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-                  size: 18, color: saved ? C.gold : (dark ? Colors.white : C.muted)),
+                  size: 18, color: saved ? ac.gold : (dark ? Colors.white : ac.muted)),
             ),
           ),
         );
@@ -727,18 +732,18 @@ class _BookmarkButton extends StatelessWidget {
   }
 }
 
-const _kCategoryColorMap = CategoryColorMap({
-  'Mathematics':      C.pur,
-  'Science':          C.grn,
-  'Languages':        C.blu,
-  'Computer Science': C.navy,
-  'Arts':             C.red,
-  'Business':         C.org,
-  'Social Studies':   C.primary,
-  'Other':            C.muted,
-});
+CategoryColorMap _kCategoryColorMap(AppColors ac) => CategoryColorMap({
+  'Mathematics':      ac.pur,
+  'Science':          ac.grn,
+  'Languages':        ac.blu,
+  'Computer Science': ac.navy,
+  'Arts':             ac.red,
+  'Business':         ac.org,
+  'Social Studies':   ac.primary,
+  'Other':            ac.muted,
+}, fallback: ac.primary);
 
-Color _categoryColor(String cat) => _kCategoryColorMap.of(cat);
+Color _categoryColor(String cat, AppColors ac) => _kCategoryColorMap(ac).of(cat);
 
 String _formatCount(int n) {
   if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';

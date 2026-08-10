@@ -19,6 +19,7 @@ import '../../repositories/public_course_repository.dart';
 import '../../core/docx_parser.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 
 import '../../widgets/app_background.dart';
@@ -415,6 +416,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
 
   Future<void> _delete() async {
     if (widget.existing == null) return;
+    final ac = AppColors.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -423,7 +425,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           TextButton(onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete', style: TextStyle(color: C.red))),
+              child: Text('Delete', style: TextStyle(color: ac.red))),
         ],
       ),
     );
@@ -444,11 +446,12 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text(_isNew ? 'Create Course' : 'Edit Course', style: AppText.title),
         actions: [
           if (_canImportDocx)
@@ -456,12 +459,12 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
               icon: _importing
                   ? const SizedBox(width: 20, height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.upload_file_rounded, color: C.txt),
+                  : Icon(Icons.upload_file_rounded, color: ac.txt),
               tooltip: 'Import Word document (Super Admin)',
               onPressed: _importing ? null : _importDocx,
             ),
           if (!_isNew)
-            IconButton(icon: const Icon(Icons.delete_outline_rounded, color: C.red), onPressed: _delete),
+            IconButton(icon: Icon(Icons.delete_outline_rounded, color: ac.red), onPressed: _delete),
         ],
       ),
       body: AppBackground(child: Column(children: [
@@ -478,7 +481,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                   child: Container(
                     height: 140, width: double.infinity,
                     decoration: BoxDecoration(
-                      color: C.navy, borderRadius: BorderRadius.circular(Rad.md),
+                      color: ac.navy, borderRadius: BorderRadius.circular(Rad.md),
                       image: _pickedCover != null
                           ? DecorationImage(image: FileImage(_pickedCover!), fit: BoxFit.cover)
                           : (widget.existing?.coverImageUrl != null
@@ -495,14 +498,14 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
+                  decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
                   child: Row(children: [
-                    const Icon(Icons.info_outline_rounded, size: 15, color: C.primary),
+                    Icon(Icons.info_outline_rounded, size: 15, color: ac.primary),
                     const SizedBox(width: 8),
                     Expanded(child: Text(
                         'As Super Admin, you can import a .docx to fill the editor below — '
                             'review and add any diagrams before publishing.',
-                        style: AppText.caption.copyWith(fontSize: 11, color: C.primary))),
+                        style: AppText.caption.copyWith(fontSize: 11, color: ac.primary))),
                   ]),
                 ),
               ],
@@ -524,13 +527,13 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                         duration: const Duration(milliseconds: 150),
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                         decoration: BoxDecoration(
-                          color: active ? C.primary : C.surf2,
+                          color: active ? ac.primary : ac.surf2,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: active ? C.primary : C.bdr),
+                          border: Border.all(color: active ? ac.primary : ac.bdr),
                         ),
                         child: Text(cat, style: AppText.caption.copyWith(
                             fontSize: 12, fontWeight: FontWeight.w700,
-                            color: active ? Colors.white : C.txt2)),
+                            color: active ? Colors.white : ac.txt2)),
                       ),
                     ),
                   );
@@ -546,13 +549,13 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                    color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr2)),
+                    color: ac.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: ac.bdr2)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Where does this lesson live?', style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
                   Text('Optional — place it in the curriculum tree so students can browse to it '
                       'even if they never search for it.',
-                      style: AppText.caption.copyWith(fontSize: 11, color: C.txt2)),
+                      style: AppText.caption.copyWith(fontSize: 11, color: ac.txt2)),
                   const SizedBox(height: 12),
                   HierarchyPicker(
                     label: 'Subject',
@@ -584,7 +587,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                     onChanged: _onTopicChanged,
                   ),
                   const SizedBox(height: 12),
-                  Text('Difficulty', style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: C.txt2)),
+                  Text('Difficulty', style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: ac.txt2)),
                   const SizedBox(height: 6),
                   Wrap(spacing: 8, children: kDifficultyLevels.map((d) {
                     final active = d == _difficulty;
@@ -600,13 +603,13 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                           duration: const Duration(milliseconds: 150),
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
-                            color: active ? C.primary : C.surf2,
+                            color: active ? ac.primary : ac.surf2,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: active ? C.primary : C.bdr),
+                            border: Border.all(color: active ? ac.primary : ac.bdr),
                           ),
                           child: Text(d, style: AppText.caption.copyWith(
                               fontSize: 11.5, fontWeight: FontWeight.w700,
-                              color: active ? Colors.white : C.txt2)),
+                              color: active ? Colors.white : ac.txt2)),
                         ),
                       ),
                     );
@@ -618,21 +621,21 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                 controller: _titleCtrl, style: AppText.h1,
                 decoration: const InputDecoration(hintText: 'Course title', border: InputBorder.none),
               ),
-              const Divider(color: C.bdr2),
+              Divider(color: ac.bdr2),
               const SizedBox(height: 12),
               TextField(
-                controller: _descCtrl, style: AppText.bodySm.copyWith(color: C.txt),
+                controller: _descCtrl, style: AppText.bodySm.copyWith(color: ac.txt),
                 maxLines: 2,
                 decoration: const InputDecoration(
                     hintText: 'Short description (shown on cards)…', border: InputBorder.none),
               ),
               const SizedBox(height: 12),
-              const Divider(color: C.bdr2),
+              Divider(color: ac.bdr2),
               const SizedBox(height: 12),
               Container(
                 constraints: const BoxConstraints(minHeight: 320),
                 decoration: BoxDecoration(
-                    color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr)),
+                    color: ac.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: ac.bdr)),
                 padding: const EdgeInsets.all(8),
                 child: quill.QuillEditor.basic(
                   controller: _quillCtrl,
@@ -666,8 +669,8 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(Rad.sm)),
-                  child: Text(_error!, style: AppText.bodySm.copyWith(color: C.red)),
+                  decoration: BoxDecoration(color: ac.redBg, borderRadius: BorderRadius.circular(Rad.sm)),
+                  child: Text(_error!, style: AppText.bodySm.copyWith(color: ac.red)),
                 ),
               ],
               const SizedBox(height: 100),
@@ -675,7 +678,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
           ),
         ),
         Container(
-          decoration: const BoxDecoration(color: C.surf, border: Border(top: BorderSide(color: C.bdr))),
+          decoration: BoxDecoration(color: ac.surf, border: Border(top: BorderSide(color: ac.bdr))),
           child: quill.QuillSimpleToolbar(
             controller: _quillCtrl,
             config: quill.QuillSimpleToolbarConfig(
@@ -708,7 +711,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
               if (_lastAutoSavedAt != null) ...[
                 Text('Autosaved ${_lastAutoSavedAt!.hour.toString().padLeft(2, '0')}:'
                     '${_lastAutoSavedAt!.minute.toString().padLeft(2, '0')}',
-                    style: AppText.caption.copyWith(fontSize: 10.5, color: C.muted)),
+                    style: AppText.caption.copyWith(fontSize: 10.5, color: ac.muted)),
                 const SizedBox(height: 6),
               ],
               Row(children: [
@@ -744,20 +747,21 @@ class _PlacementPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     if (loading) {
       return const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: ShimmerLine(width: 220, height: 14));
     }
     if (sequence.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: C.surf2, borderRadius: BorderRadius.circular(Rad.sm)),
-        child: Text('This is the first lesson in this topic.', style: AppText.caption.copyWith(color: C.txt2)),
+        decoration: BoxDecoration(color: ac.surf2, borderRadius: BorderRadius.circular(Rad.sm)),
+        child: Text('This is the first lesson in this topic.', style: AppText.caption.copyWith(color: ac.txt2)),
       );
     }
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-          color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr2)),
+          color: ac.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: ac.bdr2)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Where does this lesson belong?', style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700)),
         const SizedBox(height: 10),
@@ -776,7 +780,7 @@ class _PlacementPicker extends StatelessWidget {
             onChanged: (v) { if (v != null) onChanged(v); },
             dense: true,
             contentPadding: EdgeInsets.zero,
-            activeColor: C.primary,
+            activeColor: ac.primary,
             title: Text(label, style: AppText.bodySm),
           );
         }),
@@ -795,10 +799,11 @@ class _PrerequisitesPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Prerequisites (optional)', style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: C.txt2)),
+        Text('Prerequisites (optional)', style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: ac.txt2)),
         const SizedBox(height: 6),
         Wrap(
           spacing: 8, runSpacing: 8,
@@ -818,13 +823,13 @@ class _PrerequisitesPicker extends StatelessWidget {
                   duration: const Duration(milliseconds: 150),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: active ? C.goldp : C.surf2,
+                    color: active ? ac.goldBg : ac.surf2,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: active ? C.gold : C.bdr),
+                    border: Border.all(color: active ? ac.gold : ac.bdr),
                   ),
                   child: Text(c.title, style: AppText.caption.copyWith(
                       fontSize: 11.5, fontWeight: FontWeight.w700,
-                      color: active ? C.gold : C.txt2)),
+                      color: active ? ac.gold : ac.txt2)),
                 ),
               ),
             );

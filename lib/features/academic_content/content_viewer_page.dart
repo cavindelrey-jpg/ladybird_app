@@ -18,6 +18,7 @@ import 'package:video_player/video_player.dart';
 import '../../core/docx_parser.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 
 enum ViewableFileKind { image, pdf, video, docx }
 
@@ -68,15 +69,16 @@ class ContentViewerPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: kind == ViewableFileKind.video ? Colors.black : C.bg,
+      backgroundColor: kind == ViewableFileKind.video ? Colors.black : ac.bg,
       appBar: AppBar(
         title: Text(title, style: AppText.title.copyWith(
-            color: kind == ViewableFileKind.video ? Colors.white : C.txt),
+            color: kind == ViewableFileKind.video ? Colors.white : ac.txt),
             maxLines: 1, overflow: TextOverflow.ellipsis),
-        backgroundColor: kind == ViewableFileKind.video ? Colors.black : C.bg,
+        backgroundColor: kind == ViewableFileKind.video ? Colors.black : ac.bg,
         iconTheme: IconThemeData(
-            color: kind == ViewableFileKind.video ? Colors.white : C.txt),
+            color: kind == ViewableFileKind.video ? Colors.white : ac.txt),
       ),
       body: switch (kind) {
         ViewableFileKind.image => _ImageViewer(url: fileUrl),
@@ -330,13 +332,14 @@ class _DocxViewerState extends State<_DocxViewer> {
     if (controller == null) {
       return const Center(child: CircularProgressIndicator());
     }
+    final ac = AppColors.of(context);
     return Column(children: [
       if (_warnings.isNotEmpty)
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(12),
-          color: C.goldp,
-          child: Text(_warnings.join(' '), style: AppText.caption.copyWith(color: C.gold)),
+          color: ac.goldBg,
+          child: Text(_warnings.join(' '), style: AppText.caption.copyWith(color: ac.gold)),
         ),
       Expanded(
         child: ListView(

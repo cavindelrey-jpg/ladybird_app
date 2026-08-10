@@ -1,7 +1,7 @@
 // lib/screens/first_login_screen.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../models/models.dart';
 import '../services/auth_service.dart';
 import '../widgets/widgets.dart';
@@ -24,8 +24,9 @@ class _FirstLoginScreenState extends State<FirstLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.welcomeBg,
+      backgroundColor: ac.navy,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(28),
@@ -35,11 +36,11 @@ class _FirstLoginScreenState extends State<FirstLoginScreen> {
               const AcademiaLogo(size: 72),
               const SizedBox(height: 24),
               Text('Welcome, ${widget.user.name.split(' ').first}!',
-                style: GoogleFonts.sora(fontSize: 26, fontWeight: FontWeight.w800, color: C.txt),
+                style: GoogleFonts.sora(fontSize: 26, fontWeight: FontWeight.w800, color: ac.txt),
                 textAlign: TextAlign.center),
               const SizedBox(height: 12),
               Text('Your school account is ready.\nLet\'s get you started.',
-                style: GoogleFonts.inter(fontSize: 15, color: C.txt2, height: 1.5),
+                style: GoogleFonts.inter(fontSize: 15, color: ac.txt2, height: 1.5),
                 textAlign: TextAlign.center),
               const SizedBox(height: 48),
               PrimaryBtn(label: 'Enter Academia', loading: _done, onTap: _complete),

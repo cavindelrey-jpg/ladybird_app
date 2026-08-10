@@ -12,6 +12,7 @@ import '../../models/app_user.dart';
 import '../../models/public_course.dart';
 import '../../repositories/public_course_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'course_creator_profile_page.dart';
@@ -63,9 +64,10 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final c = widget.course;
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: AppBackground(child: StreamBuilder<PublicCourse?>(
         stream: PublicCourseRepository.instance.watchOne(c.id),
         initialData: c,
@@ -73,12 +75,12 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
           final course = snap.data ?? c;
           return CustomScrollView(slivers: [
             SliverAppBar(
-              backgroundColor: C.bg, elevation: 0, pinned: true,
-              iconTheme: const IconThemeData(color: C.txt),
+              backgroundColor: ac.bg, elevation: 0, pinned: true,
+              iconTheme: IconThemeData(color: ac.txt),
               actions: [
                 if (_isOwn)
                   IconButton(
-                    icon: const Icon(Icons.edit_outlined, color: C.txt),
+                    icon: Icon(Icons.edit_outlined, color: ac.txt),
                     onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => CourseComposerPage(user: widget.currentUser!, existing: course))),
                   ),
@@ -99,15 +101,15 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                     const SizedBox(height: 10),
                   ],
                   Wrap(spacing: 6, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                    StatusBadge(label: course.category, color: C.primary),
+                    StatusBadge(label: course.category, color: ac.primary),
                     if (course.difficulty.isNotEmpty)
-                      StatusBadge(label: course.difficulty, color: C.txt2, bg: C.surf2),
-                    StatusBadge(label: _readingTimeLabel(course), color: C.txt2, bg: C.surf2),
+                      StatusBadge(label: course.difficulty, color: ac.txt2, bg: ac.surf2),
+                    StatusBadge(label: _readingTimeLabel(course), color: ac.txt2, bg: ac.surf2),
                   ]),
                   if (course.tags.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Wrap(spacing: 6, runSpacing: 6, children: course.tags
-                        .map((t) => StatusBadge(label: t, color: C.gold, bg: C.goldp))
+                        .map((t) => StatusBadge(label: t, color: ac.gold, bg: ac.goldBg))
                         .toList()),
                   ],
                   const SizedBox(height: 12),
@@ -133,9 +135,9 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                         UserAvatar(initials: course.creatorName.isEmpty ? '?' : course.creatorName[0].toUpperCase(),
                             radius: 16, photoUrl: course.creatorPhotoUrl),
                         const SizedBox(width: 10),
-                        Text(course.creatorName, style: AppText.subtitle.copyWith(color: C.txt, fontSize: 13)),
+                        Text(course.creatorName, style: AppText.subtitle.copyWith(color: ac.txt, fontSize: 13)),
                         const Spacer(),
-                        const Icon(Icons.people_alt_outlined, size: 14, color: C.muted),
+                        Icon(Icons.people_alt_outlined, size: 14, color: ac.muted),
                         const SizedBox(width: 4),
                         Text('${course.enrolledCount} learners', style: AppText.caption),
                       ]),
@@ -144,7 +146,7 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                   const SizedBox(height: 16),
                   _RatingRow(course: course, currentUser: widget.currentUser),
                   const SizedBox(height: 20),
-                  const Divider(color: C.bdr2),
+                  Divider(color: ac.bdr2),
                   const SizedBox(height: 20),
                   _CourseBody(course: course),
                   const SizedBox(height: 24),
@@ -154,7 +156,7 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                     _ContinueReadingSection(course: course, currentUser: widget.currentUser),
                   ],
                   const SizedBox(height: 24),
-                  const Divider(color: C.bdr2),
+                  Divider(color: ac.bdr2),
                   const SizedBox(height: 16),
                   Text('Comments (${course.commentCount})', style: AppText.h2.copyWith(fontSize: 15)),
                   const SizedBox(height: 14),
@@ -163,10 +165,10 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                       Expanded(
                         child: TextField(
                           controller: _commentCtrl,
-                          style: AppText.bodySm.copyWith(color: C.txt),
+                          style: AppText.bodySm.copyWith(color: ac.txt),
                           decoration: InputDecoration(
                             hintText: 'Add a comment…',
-                            filled: true, fillColor: C.surf3,
+                            filled: true, fillColor: ac.surf3,
                             contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                             border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
@@ -178,7 +180,7 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                           ? const SizedBox(width: 40, height: 40,
                           child: Center(child: SizedBox(width: 18, height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2))))
-                          : IconButton(icon: const Icon(Icons.send_rounded, color: C.primary), onPressed: _postComment),
+                          : IconButton(icon: Icon(Icons.send_rounded, color: ac.primary), onPressed: _postComment),
                     ])
                   else
                     Text('Sign in to join the discussion.', style: AppText.bodySm),
@@ -203,7 +205,7 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(cm.authorName, style: AppText.subtitle.copyWith(color: C.txt)),
+                              Text(cm.authorName, style: AppText.subtitle.copyWith(color: ac.txt)),
                               const SizedBox(height: 3),
                               Text(cm.body, style: AppText.bodySm.copyWith(height: 1.4)),
                             ]),
@@ -230,14 +232,15 @@ class _RatingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Row(children: [
       Row(children: List.generate(5, (i) => Icon(
         i < course.avgRating.round() ? Icons.star_rounded : Icons.star_outline_rounded,
-        size: 20, color: C.gold,
+        size: 20, color: ac.gold,
       ))),
       const SizedBox(width: 8),
       Text(course.avgRating > 0 ? course.avgRating.toStringAsFixed(1) : 'No ratings yet',
-          style: AppText.subtitle.copyWith(color: C.txt, fontSize: 13)),
+          style: AppText.subtitle.copyWith(color: ac.txt, fontSize: 13)),
       if (course.ratingCount > 0)
         Text(' (${course.ratingCount})', style: AppText.caption),
       const Spacer(),
@@ -245,12 +248,13 @@ class _RatingRow extends StatelessWidget {
         TextButton(
           onPressed: () => _showRateSheet(context),
           child: Text('Rate this', style: AppText.caption.copyWith(
-              fontSize: 12, fontWeight: FontWeight.w700, color: C.primary)),
+              fontSize: 12, fontWeight: FontWeight.w700, color: ac.primary)),
         ),
     ]);
   }
 
   void _showRateSheet(BuildContext context) {
+    final ac = AppColors.of(context);
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -264,7 +268,7 @@ class _RatingRow extends StatelessWidget {
             Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(5, (i) =>
                 IconButton(
                   icon: Icon(i < selected ? Icons.star_rounded : Icons.star_outline_rounded,
-                      size: 32, color: C.gold),
+                      size: 32, color: ac.gold),
                   onPressed: () => setM(() => selected = i + 1),
                 ),
             )),
@@ -324,6 +328,7 @@ class _CourseActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final u = currentUser;
     final repo = PublicCourseRepository.instance;
     return Row(children: [
@@ -336,7 +341,7 @@ class _CourseActionRow extends StatelessWidget {
             final liked = snap.data ?? false;
             return _CourseActionChip(
               icon: liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              color: liked ? C.red : C.txt2,
+              color: liked ? ac.red : ac.txt2,
               label: '${course.likeCount}',
               onTap: () {
                 HapticFeedback.selectionClick();
@@ -352,7 +357,7 @@ class _CourseActionRow extends StatelessWidget {
             final saved = snap.data ?? false;
             return _CourseActionChip(
               icon: saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-              color: saved ? C.gold : C.txt2,
+              color: saved ? ac.gold : ac.txt2,
               label: saved ? 'Saved' : 'Save',
               onTap: () {
                 HapticFeedback.selectionClick();
@@ -364,7 +369,7 @@ class _CourseActionRow extends StatelessWidget {
       ],
       const Spacer(),
       _CourseActionChip(
-        icon: Icons.share_outlined, color: C.txt2, label: 'Share',
+        icon: Icons.share_outlined, color: ac.txt2, label: 'Share',
         onTap: () {
           HapticFeedback.selectionClick();
           Share.share('${course.title}\n\nRead it on Academia.');
@@ -418,6 +423,7 @@ class _Breadcrumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final segments = [course.category, course.subject, course.level, course.topic];
     return Material(
       color: Colors.transparent,
@@ -436,11 +442,11 @@ class _Breadcrumb extends StatelessWidget {
             for (var i = 0; i < segments.length; i++) ...[
               if (i > 0) Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Icon(Icons.chevron_right_rounded, size: 14, color: C.muted),
+                child: Icon(Icons.chevron_right_rounded, size: 14, color: ac.muted),
               ),
               Text(segments[i], style: AppText.caption.copyWith(
                   fontSize: 11.5, fontWeight: FontWeight.w600,
-                  color: i == segments.length - 1 ? C.primary : C.txt2)),
+                  color: i == segments.length - 1 ? ac.primary : ac.txt2)),
             ],
           ],
         ),
@@ -457,6 +463,7 @@ class _PrerequisitesLinks extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return FutureBuilder<List<PublicCourse>>(
       future: Future.wait(course.prerequisiteIds.map(
           (id) => PublicCourseRepository.instance.watchOne(id).first)).then(
@@ -466,9 +473,9 @@ class _PrerequisitesLinks extends StatelessWidget {
         if (prereqs.isEmpty) return const SizedBox.shrink();
         return Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
+          decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Read first', style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w700, color: C.primary)),
+            Text('Read first', style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w700, color: ac.primary)),
             const SizedBox(height: 4),
             ...prereqs.map((p) => Material(
               color: Colors.transparent,
@@ -477,7 +484,7 @@ class _PrerequisitesLinks extends StatelessWidget {
                     builder: (_) => CourseReaderPage(course: p, currentUser: currentUser))),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text('• ${p.title}', style: AppText.caption.copyWith(fontSize: 12, color: C.primary)),
+                  child: Text('• ${p.title}', style: AppText.caption.copyWith(fontSize: 12, color: ac.primary)),
                 ),
               ),
             )),
@@ -497,6 +504,7 @@ class _ContinueReadingSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return FutureBuilder<CourseSequenceContext>(
       future: PublicCourseRepository.instance.continueReadingFor(course),
       builder: (context, snap) {
@@ -535,8 +543,8 @@ class _ContinueReadingSection extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
-                            color: C.surf2, borderRadius: BorderRadius.circular(20), border: Border.all(color: C.bdr)),
-                        child: Text(o.title, style: AppText.caption.copyWith(fontSize: 12, color: C.txt2)),
+                            color: ac.surf2, borderRadius: BorderRadius.circular(20), border: Border.all(color: ac.bdr)),
+                        child: Text(o.title, style: AppText.caption.copyWith(fontSize: 12, color: ac.txt2)),
                       ),
                     ),
                   );
@@ -559,6 +567,7 @@ class _SequenceNavCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -568,14 +577,14 @@ class _SequenceNavCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-              color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr2)),
+              color: ac.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: ac.bdr2)),
           child: Column(
             crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
               Row(mainAxisSize: MainAxisSize.min, children: [
-                if (!alignEnd) const Icon(Icons.chevron_left_rounded, size: 14, color: C.muted),
-                Text(label, style: AppText.caption.copyWith(fontSize: 10.5, color: C.muted)),
-                if (alignEnd) const Icon(Icons.chevron_right_rounded, size: 14, color: C.muted),
+                if (!alignEnd) Icon(Icons.chevron_left_rounded, size: 14, color: ac.muted),
+                Text(label, style: AppText.caption.copyWith(fontSize: 10.5, color: ac.muted)),
+                if (alignEnd) Icon(Icons.chevron_right_rounded, size: 14, color: ac.muted),
               ]),
               const SizedBox(height: 2),
               Text(course.title, maxLines: 1, overflow: TextOverflow.ellipsis,

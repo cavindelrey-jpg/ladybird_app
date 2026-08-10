@@ -12,6 +12,7 @@ import '../../models/public_course.dart';
 import '../../repositories/public_course_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'course_reader_page.dart';
@@ -108,11 +109,12 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         leading: (_category != null)
             ? IconButton(icon: const Icon(Icons.arrow_back_rounded), onPressed: _goBack)
             : null,
@@ -121,12 +123,12 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
       body: AppBackground(
         child: _loading
             ? const Center(child: CircularProgressIndicator())
-            : _buildBody(),
+            : _buildBody(ac),
       ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(AppColors ac) {
     if (_tree.isEmpty) {
       return Center(
         child: Padding(
@@ -135,28 +137,28 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
             'No courses have been placed in the curriculum tree yet. '
             'Give a course a Subject, Level and Topic when creating it to see it here.',
             textAlign: TextAlign.center,
-            style: AppText.bodySm.copyWith(color: C.txt2),
+            style: AppText.bodySm.copyWith(color: ac.txt2),
           ),
         ),
       );
     }
 
     if (_breadcrumbTopic != null) {
-      return _buildLessonList(_breadcrumbTopic!);
+      return _buildLessonList(_breadcrumbTopic!, ac);
     }
 
     switch (_currentLevel) {
       case _BrowseLevel.category:
-        return _buildList(_tree.keys.toList()..sort(), (v) => setState(() => _category = v));
+        return _buildList(_tree.keys.toList()..sort(), (v) => setState(() => _category = v), ac);
       case _BrowseLevel.subject:
         final subjects = (_tree[_category!] ?? {}).keys.toList()..sort();
-        return _buildList(subjects, (v) => setState(() => _subject = v));
+        return _buildList(subjects, (v) => setState(() => _subject = v), ac);
       case _BrowseLevel.level:
         final levels = (_tree[_category!]?[_subject!] ?? {}).keys.toList()..sort();
-        return _buildList(levels, (v) => setState(() => _level = v));
+        return _buildList(levels, (v) => setState(() => _level = v), ac);
       case _BrowseLevel.topic:
         final topics = (_tree[_category!]?[_subject!]?[_level!] ?? {}).keys.toList()..sort();
-        return _buildList(topics, (v) => setState(() => _topic = v), isTopic: true);
+        return _buildList(topics, (v) => setState(() => _topic = v), ac, isTopic: true);
     }
   }
 
@@ -181,9 +183,9 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
     }
   }
 
-  Widget _buildList(List<String> items, ValueChanged<String> onTap, {bool isTopic = false}) {
+  Widget _buildList(List<String> items, ValueChanged<String> onTap, AppColors ac, {bool isTopic = false}) {
     if (items.isEmpty) {
-      return Center(child: Text('Nothing here yet.', style: AppText.bodySm.copyWith(color: C.txt2)));
+      return Center(child: Text('Nothing here yet.', style: AppText.bodySm.copyWith(color: ac.txt2)));
     }
     // Icon tiles rather than plain text rows — a picture (or at least a
     // colored letter) is easier to scan and recognize on a second visit
@@ -198,7 +200,7 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
         final label = items[i];
         final count = isTopic ? (_tree[_category!]?[_subject!]?[_level!]?[label]?.length ?? 0) : null;
         return Material(
-          color: C.surf,
+          color: ac.surf,
           borderRadius: BorderRadius.circular(Rad.md),
           child: InkWell(
             borderRadius: BorderRadius.circular(Rad.md),
@@ -208,7 +210,7 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
             },
             child: Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr2)),
+              decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 HierarchyAvatar(label: label, icon: _iconFor(label).emoji, imageUrl: _iconFor(label).imageUrl, size: 48),
                 const Spacer(),
@@ -216,7 +218,7 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
                     maxLines: 2, overflow: TextOverflow.ellipsis),
                 if (count != null) ...[
                   const SizedBox(height: 2),
-                  Text('$count lesson${count == 1 ? '' : 's'}', style: AppText.caption.copyWith(color: C.txt2)),
+                  Text('$count lesson${count == 1 ? '' : 's'}', style: AppText.caption.copyWith(color: ac.txt2)),
                 ],
               ]),
             ),
@@ -226,10 +228,10 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
     );
   }
 
-  Widget _buildLessonList(String topic) {
+  Widget _buildLessonList(String topic, AppColors ac) {
     final lessons = _tree[_category!]?[_subject!]?[_level!]?[topic] ?? [];
     if (lessons.isEmpty) {
-      return Center(child: Text('No lessons in this topic yet.', style: AppText.bodySm.copyWith(color: C.txt2)));
+      return Center(child: Text('No lessons in this topic yet.', style: AppText.bodySm.copyWith(color: ac.txt2)));
     }
     return Column(children: [
       Padding(
@@ -247,7 +249,7 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
           itemBuilder: (context, i) {
             final lesson = lessons[i];
             return Material(
-              color: C.surf,
+              color: ac.surf,
               borderRadius: BorderRadius.circular(Rad.md),
               child: InkWell(
                 borderRadius: BorderRadius.circular(Rad.md),
@@ -258,23 +260,23 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr2)),
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
                   child: Row(children: [
                     Container(
                       width: 26, height: 26,
                       alignment: Alignment.center,
-                      decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(8)),
-                      child: Text('${i + 1}', style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: C.primary)),
+                      decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(8)),
+                      child: Text('${i + 1}', style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: ac.primary)),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(lesson.title, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700)),
                         if (lesson.difficulty.isNotEmpty)
-                          Text(lesson.difficulty, style: AppText.caption.copyWith(color: C.txt2)),
+                          Text(lesson.difficulty, style: AppText.caption.copyWith(color: ac.txt2)),
                       ]),
                     ),
-                    const Icon(Icons.chevron_right_rounded, size: 18, color: C.muted),
+                    Icon(Icons.chevron_right_rounded, size: 18, color: ac.muted),
                   ]),
                 ),
               ),

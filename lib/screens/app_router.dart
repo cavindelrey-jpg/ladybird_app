@@ -10,6 +10,7 @@ import '../providers/institution_provider.dart';
 import '../models/models.dart';
 import '../theme/institution_theme_engine.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../features/institution/institution_splash_screen.dart';
 import '../services/auth_service.dart';
 import '../repositories/magazine_repository.dart';
@@ -108,6 +109,7 @@ class _GuestShellState extends State<_GuestShell> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final pages = [
       const UniversalHomePage(),
       _GuestGateTab(onTap: () => _guestGate(context), label: 'Clubs'),
@@ -119,36 +121,36 @@ class _GuestShellState extends State<_GuestShell> {
       drawer: const AppDrawer(user: null),
       body: IndexedStack(index: _tab, children: pages),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: C.gold,
+        backgroundColor: ac.gold,
         onPressed: () => _guestGate(context),
-        child: const Icon(Icons.add_rounded, color: C.navy),
+        child: Icon(Icons.add_rounded, color: ac.navy),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
         shape: const CircularNotchedRectangle(),
-        color: C.surf,
+        color: ac.surf,
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-          _navIcon(Icons.home_rounded, 'Home', 0),
-          _navIcon(Icons.groups_rounded, 'Clubs', 1),
+          _navIcon(ac, Icons.home_rounded, 'Home', 0),
+          _navIcon(ac, Icons.groups_rounded, 'Clubs', 1),
           const SizedBox(width: 40),
-          _navIcon(Icons.chat_bubble_outline_rounded, 'Messages', 3),
-          _navIcon(Icons.person_outline_rounded, 'Profile', 4),
+          _navIcon(ac, Icons.chat_bubble_outline_rounded, 'Messages', 3),
+          _navIcon(ac, Icons.person_outline_rounded, 'Profile', 4),
         ]),
       ),
     );
   }
 
-  Widget _navIcon(IconData icon, String label, int index) {
+  Widget _navIcon(AppColors ac, IconData icon, String label, int index) {
     final selected = _tab == index;
     return InkWell(
       onTap: () => setState(() => _tab = index),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 22, color: selected ? C.primary : C.muted),
+          Icon(icon, size: 22, color: selected ? ac.primary : ac.muted),
           const SizedBox(height: 2),
           Text(label, style: GoogleFonts.inter(
-              fontSize: 9.5, color: selected ? C.primary : C.muted,
+              fontSize: 9.5, color: selected ? ac.primary : ac.muted,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
         ]),
       ),
@@ -163,25 +165,26 @@ class _GuestGateTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.lock_outline_rounded, size: 48, color: C.muted),
+            Icon(Icons.lock_outline_rounded, size: 48, color: ac.muted),
             const SizedBox(height: 16),
             Text('Sign in to access $label',
-                style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
+                style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
             const SizedBox(height: 8),
             Text('Create a free account to join clubs, message, and post.',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 13, color: C.txt2)),
+                style: GoogleFonts.inter(fontSize: 13, color: ac.txt2)),
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: onTap,
               style: ElevatedButton.styleFrom(
-                backgroundColor: C.navy, foregroundColor: Colors.white,
+                backgroundColor: ac.navy, foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.md)),
               ),
               child: const Padding(
@@ -298,18 +301,19 @@ class _SuspendedScreen extends StatelessWidget {
   const _SuspendedScreen({required this.user});
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: Center(child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.block_outlined, size: 64, color: C.red),
+          Icon(Icons.block_outlined, size: 64, color: ac.red),
           const SizedBox(height: 16),
           Text('Account Suspended',
-              style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.w700, color: C.txt)),
+              style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.w700, color: ac.txt)),
           const SizedBox(height: 8),
           Text('Please contact your school administration.',
-              style: GoogleFonts.inter(color: C.txt2), textAlign: TextAlign.center),
+              style: GoogleFonts.inter(color: ac.txt2), textAlign: TextAlign.center),
           const SizedBox(height: 24),
           OutlinedButton(
               onPressed: () => AuthService.instance.signOut(),
@@ -370,13 +374,13 @@ class _HomeShellState extends State<HomeShell> {
     return nav.where((n) => u.hasMinRole(n.minRole)).toList();
   }
 
-  Widget _buildPage(_NavDef def) {
+  Widget _buildPage(AppColors ac, _NavDef def) {
     final u = widget.user;
     // Guard check
     if (!u.hasMinRole(def.minRole)) {
       return Scaffold(body: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.lock_outline_rounded, size: 48, color: C.muted),
+            Icon(Icons.lock_outline_rounded, size: 48, color: ac.muted),
             const SizedBox(height: 12),
             Text('Access Restricted',
                 style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700)),
@@ -403,6 +407,7 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final nav     = _buildNav();
     final safeTab = _tab.clamp(0, nav.length - 1);
     _visitedTabs.add(safeTab);
@@ -413,7 +418,7 @@ class _HomeShellState extends State<HomeShell> {
         child: IndexedStack(
           index: safeTab,
           children: List.generate(nav.length,
-              (i) => _visitedTabs.contains(i) ? _buildPage(nav[i]) : const SizedBox.shrink()),
+              (i) => _visitedTabs.contains(i) ? _buildPage(ac, nav[i]) : const SizedBox.shrink()),
         ),
       ),
       bottomNavigationBar: DecoratedBox(
@@ -423,7 +428,7 @@ class _HomeShellState extends State<HomeShell> {
         // as a distinct capsule bar rather than a flat strip. Tabs and
         // destinations below are untouched.
         decoration: BoxDecoration(
-          color: C.surf,
+          color: ac.surf,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(Rad.lg)),
           boxShadow: Shad.lg,
         ),

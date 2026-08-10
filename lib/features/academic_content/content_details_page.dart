@@ -13,6 +13,7 @@ import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../repositories/xp_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/paper_unlock_sheet.dart';
 import 'content_edit_page.dart';
 import 'content_delete_dialog.dart';
@@ -64,8 +65,9 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
         final canEdit = widget.user.canUploadContent ||
             item.uploadedBy == widget.user.id;
 
+        final ac = AppColors.of(context);
         return Scaffold(
-          backgroundColor: C.bg,
+          backgroundColor: ac.bg,
           appBar: AppBar(
             title: Text(item.contentType.label, style: AppText.title),
             actions: [
@@ -75,7 +77,7 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
                   final saved = savedSnap.data ?? false;
                   return IconButton(
                     icon: Icon(saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-                        color: saved ? C.grn : C.txt2),
+                        color: saved ? ac.grn : ac.txt2),
                     tooltip: saved ? 'Saved' : 'Save for offline',
                     onPressed: () async {
                       HapticFeedback.lightImpact();
@@ -110,7 +112,7 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, color: C.red),
+                  icon: Icon(Icons.delete_outline, color: ac.red),
                   onPressed: () => showDialog(
                     context: context,
                     builder: (_) => ContentDeleteDialog(
@@ -150,23 +152,23 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
                   _TypeBadge(type: item.contentType),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: C.blub, borderRadius: BorderRadius.circular(20)),
+                    decoration: BoxDecoration(color: ac.bluBg, borderRadius: BorderRadius.circular(20)),
                     child: Text(item.subject,
-                        style: AppText.subtitle.copyWith(fontSize: 11, color: C.blu)),
+                        style: AppText.subtitle.copyWith(fontSize: 11, color: ac.blu)),
                   ),
                   if (item.level.isNotEmpty && item.level != 'All Levels')
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(color: C.grnb, borderRadius: BorderRadius.circular(20)),
+                      decoration: BoxDecoration(color: ac.grnBg, borderRadius: BorderRadius.circular(20)),
                       child: Text(item.level,
-                          style: AppText.subtitle.copyWith(fontSize: 11, color: C.grn)),
+                          style: AppText.subtitle.copyWith(fontSize: 11, color: ac.grn)),
                     ),
                   if (item.examBoard.isNotEmpty && item.examBoard != 'N/A')
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(color: C.goldp, borderRadius: BorderRadius.circular(20)),
+                      decoration: BoxDecoration(color: ac.goldBg, borderRadius: BorderRadius.circular(20)),
                       child: Text(item.year != null ? '${item.examBoard} ${item.year}' : item.examBoard,
-                          style: AppText.subtitle.copyWith(fontSize: 11, color: C.gold)),
+                          style: AppText.subtitle.copyWith(fontSize: 11, color: ac.gold)),
                     ),
                 ]),
                 const SizedBox(height: 14),
@@ -225,13 +227,14 @@ class _PlaceholderThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
       height: 200,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: C.surf2,
+        color: ac.surf2,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: C.bdr),
+        border: Border.all(color: ac.bdr),
       ),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
         Text(type.emoji, style: const TextStyle(fontSize: 48)),
@@ -248,11 +251,12 @@ class _TypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: C.purb, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: ac.purBg, borderRadius: BorderRadius.circular(20)),
       child: Text('${type.emoji} ${type.label}',
-          style: AppText.subtitle.copyWith(fontSize: 11, color: C.pur)),
+          style: AppText.subtitle.copyWith(fontSize: 11, color: ac.pur)),
     );
   }
 }
@@ -264,8 +268,9 @@ class _Stat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 13, color: C.muted),
+      Icon(icon, size: 13, color: ac.muted),
       const SizedBox(width: 4),
       Text(value, style: AppText.caption.copyWith(fontSize: 12)),
     ]);
@@ -278,14 +283,15 @@ class _Tag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: C.surf2,
+        color: ac.surf2,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: C.bdr),
+        border: Border.all(color: ac.bdr),
       ),
-      child: Text('#$label', style: AppText.caption.copyWith(fontSize: 11, color: C.txt2)),
+      child: Text('#$label', style: AppText.caption.copyWith(fontSize: 11, color: ac.txt2)),
     );
   }
 }
@@ -363,13 +369,14 @@ class _DownloadButtonState extends State<_DownloadButton> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return SizedBox(
       width: double.infinity,
       height: 52,
       child: ElevatedButton.icon(
         onPressed: _loading ? null : _download,
         style: ElevatedButton.styleFrom(
-          backgroundColor: C.primary,
+          backgroundColor: ac.primary,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),

@@ -20,6 +20,7 @@ import '../../core/debouncer.dart';
 import '../../core/result.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'chat_conversation_page.dart';
@@ -73,12 +74,13 @@ class _FindPeoplePageState extends State<FindPeoplePage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final filter = _query.trim().toLowerCase();
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text('Friends', style: AppText.title),
       ),
       body: AppBackground(child: Column(children: [
@@ -87,12 +89,12 @@ class _FindPeoplePageState extends State<FindPeoplePage> {
           child: TextField(
             controller: _searchCtrl,
             onChanged: _onChanged,
-            style: AppText.bodySm.copyWith(color: C.txt),
+            style: AppText.bodySm.copyWith(color: ac.txt),
             decoration: InputDecoration(
               hintText: 'Search by name…',
-              hintStyle: AppText.bodySm.copyWith(color: C.muted),
-              prefixIcon: const Icon(Icons.search_rounded, color: C.muted, size: 20),
-              filled: true, fillColor: C.surf2,
+              hintStyle: AppText.bodySm.copyWith(color: ac.muted),
+              prefixIcon: Icon(Icons.search_rounded, color: ac.muted, size: 20),
+              filled: true, fillColor: ac.surf2,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
             ),
           ),
@@ -141,6 +143,7 @@ class _FriendsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('My Friends', style: AppText.h2.copyWith(fontSize: 16)),
       const SizedBox(height: 12),
@@ -198,7 +201,7 @@ class _FriendsSection extends StatelessWidget {
                       Text(f.roleLabel, style: AppText.bodySm.copyWith(fontSize: 11.5)),
                   ]),
                 ),
-                const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: C.muted),
+                Icon(Icons.chat_bubble_outline_rounded, size: 18, color: ac.muted),
               ]),
             ),
           )).toList());
@@ -312,6 +315,7 @@ class _SuggestedFriendsSectionState extends State<_SuggestedFriendsSection> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     // No schoolId means no school-based suggestions to make — an
     // independent-layer user, not an error. Show nothing rather than an
     // empty-state that implies something's broken.
@@ -327,7 +331,7 @@ class _SuggestedFriendsSectionState extends State<_SuggestedFriendsSection> {
       Row(children: [
         Expanded(child: Text('Suggested Friends', style: AppText.h2.copyWith(fontSize: 16))),
         IconButton(
-          icon: const Icon(Icons.refresh_rounded, size: 18, color: C.muted),
+          icon: Icon(Icons.refresh_rounded, size: 18, color: ac.muted),
           tooltip: 'Refresh suggestions',
           onPressed: () {
             setState(() { _suggestions = null; _error = null; });
@@ -378,6 +382,7 @@ class _PersonRowState extends State<_PersonRow> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final name = widget.person['name'] ?? 'Unknown';
     final photoUrl = widget.person['photoUrl'];
     final roleLabel = widget.person['roleName'] ?? '';
@@ -412,7 +417,7 @@ class _PersonRowState extends State<_PersonRow> {
           ]),
         ),
         _requestSent
-            ? Text('Requested', style: AppText.caption.copyWith(fontSize: 11.5, color: C.muted))
+            ? Text('Requested', style: AppText.caption.copyWith(fontSize: 11.5, color: ac.muted))
             : OutlinedButton(
                 onPressed: _sending ? null : () async {
                   HapticFeedback.mediumImpact();

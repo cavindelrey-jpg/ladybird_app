@@ -15,6 +15,7 @@ import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'content_details_page.dart';
@@ -131,8 +132,9 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: AppBackground(child: SafeArea(
         child: Column(children: [
         Padding(
@@ -147,7 +149,7 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
             XpBalanceBadge(userId: widget.user.id),
             const SizedBox(width: 8),
             IconButton(
-              icon: const Icon(Icons.notifications_outlined, color: C.txt2),
+              icon: Icon(Icons.notifications_outlined, color: ac.txt2),
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => NotificationsPage(userId: widget.user.id))),
             ),
@@ -215,7 +217,7 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
                     MaterialPageRoute(builder: (_) => ContentUploadPage(user: widget.user)))
                     .then((_) => _loadSubjects());
               },
-              backgroundColor: C.primary,
+              backgroundColor: ac.primary,
               foregroundColor: Colors.white,
               icon: const Icon(Icons.upload_file_rounded),
               label: Text('Upload', style: AppText.button.copyWith(fontSize: 15)),
@@ -232,19 +234,20 @@ class _SearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      color: C.surf,
+      color: ac.surf,
       child: TextField(
         controller: controller,
         onChanged: onChanged,
-        style: AppText.bodySm.copyWith(color: C.txt),
+        style: AppText.bodySm.copyWith(color: ac.txt),
         decoration: InputDecoration(
           hintText: 'Search content, subjects, tags…',
-          hintStyle: AppText.bodySm.copyWith(color: C.muted),
-          prefixIcon: const Icon(Icons.search_rounded, color: C.muted, size: 20),
+          hintStyle: AppText.bodySm.copyWith(color: ac.muted),
+          prefixIcon: Icon(Icons.search_rounded, color: ac.muted, size: 20),
           filled: true,
-          fillColor: C.surf2,
+          fillColor: ac.surf2,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         ),
@@ -264,8 +267,9 @@ class _FilterRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
-      decoration: const BoxDecoration(color: C.surf, border: Border(bottom: BorderSide(color: C.bdr))),
+      decoration: BoxDecoration(color: ac.surf, border: Border(bottom: BorderSide(color: ac.bdr))),
       child: Column(children: [
         SizedBox(
           height: 44,
@@ -300,12 +304,12 @@ class _FilterRow extends StatelessWidget {
                       margin: const EdgeInsets.only(right: 6),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                       decoration: BoxDecoration(
-                        color: active ? C.blub : C.surf2,
+                        color: active ? ac.bluBg : ac.surf2,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: active ? C.blu : C.bdr, width: active ? 1.5 : 1),
+                        border: Border.all(color: active ? ac.blu : ac.bdr, width: active ? 1.5 : 1),
                       ),
                       child: Text(s, style: AppText.caption.copyWith(
-                          fontSize: 10, fontWeight: FontWeight.w600, color: active ? C.blu : C.txt2)),
+                          fontSize: 10, fontWeight: FontWeight.w600, color: active ? ac.blu : ac.txt2)),
                     ),
                   ),
                 );
@@ -326,6 +330,7 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final active = value == selected;
     return Material(
       color: Colors.transparent,
@@ -340,12 +345,12 @@ class _Chip extends StatelessWidget {
           margin: const EdgeInsets.only(right: 8),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: active ? C.primary : C.surf2,
+            color: active ? ac.primary : ac.surf2,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: active ? C.primary : C.bdr, width: active ? 1.5 : 1),
+            border: Border.all(color: active ? ac.primary : ac.bdr, width: active ? 1.5 : 1),
           ),
           child: Text(label, style: AppText.caption.copyWith(
-              fontSize: 11, fontWeight: FontWeight.w600, color: active ? Colors.white : C.txt2)),
+              fontSize: 11, fontWeight: FontWeight.w600, color: active ? Colors.white : ac.txt2)),
         ),
       ),
     );
@@ -410,6 +415,7 @@ class _FilterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(12),
@@ -419,18 +425,18 @@ class _FilterButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
-            color: activeCount > 0 ? C.primaryBg : C.surf2,
+            color: activeCount > 0 ? ac.primaryBg : ac.surf2,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: activeCount > 0 ? C.primary : C.bdr),
+            border: Border.all(color: activeCount > 0 ? ac.primary : ac.bdr),
           ),
           child: Stack(clipBehavior: Clip.none, children: [
-            Icon(Icons.tune_rounded, size: 18, color: activeCount > 0 ? C.primary : C.txt2),
+            Icon(Icons.tune_rounded, size: 18, color: activeCount > 0 ? ac.primary : ac.txt2),
             if (activeCount > 0)
               Positioned(
                 right: -6, top: -6,
                 child: Container(
                   padding: const EdgeInsets.all(3),
-                  decoration: const BoxDecoration(color: C.primary, shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: ac.primary, shape: BoxShape.circle),
                   child: Text('$activeCount',
                       style: AppText.caption.copyWith(fontSize: 8, color: Colors.white, fontWeight: FontWeight.w700)),
                 ),
@@ -456,19 +462,20 @@ class _ActiveExtraFiltersBar extends StatelessWidget {
       if (examBoard != null) examBoard!,
       if (year != null) '$year',
     ];
+    final ac = AppColors.of(context);
     return Container(
-      color: C.surf,
+      color: ac.surf,
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: Row(children: [
-        Icon(Icons.filter_alt_rounded, size: 14, color: C.primary),
+        Icon(Icons.filter_alt_rounded, size: 14, color: ac.primary),
         const SizedBox(width: 6),
         Expanded(
           child: Text(parts.join(' · '),
-              style: AppText.caption.copyWith(fontSize: 11, color: C.primary, fontWeight: FontWeight.w600)),
+              style: AppText.caption.copyWith(fontSize: 11, color: ac.primary, fontWeight: FontWeight.w600)),
         ),
         InkWell(
           onTap: onClear,
-          child: Text('Clear', style: AppText.caption.copyWith(fontSize: 11, color: C.muted)),
+          child: Text('Clear', style: AppText.caption.copyWith(fontSize: 11, color: ac.muted)),
         ),
       ]),
     );
@@ -499,18 +506,19 @@ class _FilterSheetState extends State<_FilterSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return SafeArea(
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-        decoration: const BoxDecoration(
-          color: C.bg,
+        decoration: BoxDecoration(
+          color: ac.bg,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Center(
             child: Container(
               width: 40, height: 4,
-              decoration: BoxDecoration(color: C.bdr, borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(color: ac.bdr, borderRadius: BorderRadius.circular(2)),
             ),
           ),
           const SizedBox(height: 16),
@@ -518,16 +526,16 @@ class _FilterSheetState extends State<_FilterSheet> {
           const SizedBox(height: 20),
           Text('Level / Class', style: AppText.subtitle.copyWith(fontSize: 13)),
           const SizedBox(height: 10),
-          _sheetChips(kAcademicLevels, _level, (v) => setState(() => _level = _level == v ? null : v)),
+          _sheetChips(ac, kAcademicLevels, _level, (v) => setState(() => _level = _level == v ? null : v)),
           const SizedBox(height: 20),
           Text('Examination', style: AppText.subtitle.copyWith(fontSize: 13)),
           const SizedBox(height: 10),
-          _sheetChips(kExamBoards, _examBoard, (v) => setState(() => _examBoard = _examBoard == v ? null : v)),
+          _sheetChips(ac, kExamBoards, _examBoard, (v) => setState(() => _examBoard = _examBoard == v ? null : v)),
           if (widget.years.isNotEmpty) ...[
             const SizedBox(height: 20),
             Text('Year', style: AppText.subtitle.copyWith(fontSize: 13)),
             const SizedBox(height: 10),
-            _sheetChips(widget.years.map((y) => '$y').toList(), _year?.toString(),
+            _sheetChips(ac, widget.years.map((y) => '$y').toList(), _year?.toString(),
                 (v) => setState(() => _year = _year == int.tryParse(v) ? null : int.tryParse(v))),
           ],
           const SizedBox(height: 24),
@@ -541,7 +549,7 @@ class _FilterSheetState extends State<_FilterSheet> {
             const SizedBox(width: 12),
             Expanded(
               child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: C.primary, foregroundColor: Colors.white),
+                style: ElevatedButton.styleFrom(backgroundColor: ac.primary, foregroundColor: Colors.white),
                 onPressed: () => Navigator.pop(context,
                     _FilterSheetResult(level: _level, examBoard: _examBoard, year: _year)),
                 child: const Text('Apply'),
@@ -553,7 +561,7 @@ class _FilterSheetState extends State<_FilterSheet> {
     );
   }
 
-  Widget _sheetChips(List<String> options, String? selected, ValueChanged<String> onTap) {
+  Widget _sheetChips(AppColors ac, List<String> options, String? selected, ValueChanged<String> onTap) {
     return Wrap(
       spacing: 8, runSpacing: 8,
       children: options.map((o) {
@@ -565,14 +573,14 @@ class _FilterSheetState extends State<_FilterSheet> {
             HapticFeedback.selectionClick();
             onTap(o);
           },
-          selectedColor: C.primary,
+          selectedColor: ac.primary,
           labelStyle: TextStyle(
-              color: active ? Colors.white : C.txt,
+              color: active ? Colors.white : ac.txt,
               fontWeight: active ? FontWeight.w600 : FontWeight.w400),
-          backgroundColor: C.surf2,
+          backgroundColor: ac.surf2,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
-              side: BorderSide(color: active ? C.primary : C.bdr)),
+              side: BorderSide(color: active ? ac.primary : ac.bdr)),
         );
       }).toList(),
     );
@@ -589,10 +597,11 @@ class _SearchResults extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) return const _ContentGridSkeleton();
     if (results.isEmpty) {
+      final ac = AppColors.of(context);
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.search_off, size: 48, color: C.muted),
+        Icon(Icons.search_off, size: 48, color: ac.muted),
         const SizedBox(height: 12),
-        Text('No results found', style: AppText.body.copyWith(color: C.muted, fontSize: 15)),
+        Text('No results found', style: AppText.body.copyWith(color: ac.muted, fontSize: 15)),
       ]));
     }
     return _ContentGrid(items: results, user: user);
@@ -606,6 +615,7 @@ class _ContentGridSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -613,7 +623,7 @@ class _ContentGridSkeleton extends StatelessWidget {
       itemCount: 6,
       itemBuilder: (_, __) => Container(
         decoration: BoxDecoration(
-            color: C.surf, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.bdr)),
+            color: ac.surf, borderRadius: BorderRadius.circular(16), border: Border.all(color: ac.bdr)),
         child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           ClipRRect(
             borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -663,6 +673,7 @@ class _ContentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(16),
@@ -674,7 +685,7 @@ class _ContentCard extends StatelessWidget {
         },
         child: Container(
           decoration: BoxDecoration(
-              color: C.surf, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.bdr)),
+              color: ac.surf, borderRadius: BorderRadius.circular(16), border: Border.all(color: ac.bdr)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
@@ -692,9 +703,9 @@ class _ContentCard extends StatelessWidget {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(color: C.purb, borderRadius: BorderRadius.circular(20)),
+                    decoration: BoxDecoration(color: ac.purBg, borderRadius: BorderRadius.circular(20)),
                     child: Text('${item.contentType.emoji} ${item.contentType.label}',
-                        style: AppText.label.copyWith(fontSize: 8, color: C.pur, letterSpacing: 0)),
+                        style: AppText.label.copyWith(fontSize: 8, color: ac.pur, letterSpacing: 0)),
                   ),
                   const SizedBox(height: 5),
                   Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
@@ -703,11 +714,11 @@ class _ContentCard extends StatelessWidget {
                   Text(item.subject, style: AppText.caption.copyWith(fontSize: 10)),
                   const Spacer(),
                   Row(children: [
-                    const Icon(Icons.visibility_outlined, size: 10, color: C.muted),
+                    Icon(Icons.visibility_outlined, size: 10, color: ac.muted),
                     const SizedBox(width: 2),
                     Text('${item.views}', style: AppText.caption.copyWith(fontSize: 9)),
                     const SizedBox(width: 8),
-                    const Icon(Icons.download_outlined, size: 10, color: C.muted),
+                    Icon(Icons.download_outlined, size: 10, color: ac.muted),
                     const SizedBox(width: 2),
                     Text('${item.downloads}', style: AppText.caption.copyWith(fontSize: 9)),
                   ]),
@@ -726,7 +737,7 @@ class _Placeholder extends StatelessWidget {
   const _Placeholder({required this.type});
   @override
   Widget build(BuildContext context) => Container(
-    color: C.surf2,
+    color: AppColors.of(context).surf2,
     child: Center(child: Text(type.emoji, style: const TextStyle(fontSize: 28))),
   );
 }
@@ -747,7 +758,7 @@ class _EmptyState extends StatelessWidget {
           style: AppText.h2.copyWith(fontSize: 16)),
       const SizedBox(height: 6),
       Text('Upload the first resource for your school.',
-          style: AppText.bodySm.copyWith(color: C.muted)),
+          style: AppText.bodySm.copyWith(color: AppColors.of(context).muted)),
     ]),
   );
 }
@@ -780,45 +791,47 @@ class _LibraryDiscovery extends StatelessWidget {
       children: [
         _heroBanner(context),
         const SizedBox(height: 20),
-        _sectionHeader('Continue Learning', onSeeAll: () {}),
+        _sectionHeader(context, 'Continue Learning', onSeeAll: () {}),
         const SizedBox(height: 12),
         _continueLearning(context),
         const SizedBox(height: 24),
-        _sectionHeader('Saved for Offline', onSeeAll: () {}),
+        _sectionHeader(context, 'Saved for Offline', onSeeAll: () {}),
         const SizedBox(height: 12),
         _savedForOffline(context),
         const SizedBox(height: 24),
-        _sectionHeader('Categories', onSeeAll: null),
+        _sectionHeader(context, 'Categories', onSeeAll: null),
         const SizedBox(height: 12),
         _categories(context),
       ],
     );
   }
 
-  Widget _sectionHeader(String title, {required VoidCallback? onSeeAll}) {
+  Widget _sectionHeader(BuildContext context, String title, {required VoidCallback? onSeeAll}) {
+    final ac = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(children: [
         Expanded(child: Text(title, style: AppText.h2.copyWith(fontSize: 16))),
         if (onSeeAll != null)
-          Text('See all', style: AppText.subtitle.copyWith(color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+          Text('See all', style: AppText.subtitle.copyWith(color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
       ]),
     );
   }
 
   Widget _heroBanner(BuildContext context) {
+    final ac = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topLeft, end: Alignment.bottomRight,
-            colors: [C.navy, C.navy2],
+            colors: [ac.navy, ac.navy2],
           ),
           borderRadius: BorderRadius.circular(Rad.lg),
           boxShadow: [
-            BoxShadow(color: C.navy.withValues(alpha: .28),
+            BoxShadow(color: ac.navy.withValues(alpha: .28),
                 blurRadius: 24, offset: const Offset(0, 12)),
           ],
         ),
@@ -826,7 +839,7 @@ class _LibraryDiscovery extends StatelessWidget {
         child: Stack(children: [
           Positioned(right: -18, top: -18,
             child: Opacity(opacity: .10,
-              child: Icon(Icons.auto_stories_rounded, size: 130, color: C.gold))),
+              child: Icon(Icons.auto_stories_rounded, size: 130, color: ac.gold))),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Your learning\nresources in one place',
                 style: AppText.display.copyWith(fontSize: 21, height: 1.2, color: Colors.white)),
@@ -848,14 +861,14 @@ class _LibraryDiscovery extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: C.gold,
+                    color: ac.gold,
                     borderRadius: BorderRadius.circular(11),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.download_rounded, size: 16, color: C.navy),
+                    Icon(Icons.download_rounded, size: 16, color: ac.navy),
                     const SizedBox(width: 8),
                     Text('How offline works', style: AppText.caption.copyWith(
-                        fontSize: 12.5, fontWeight: FontWeight.w800, color: C.navy)),
+                        fontSize: 12.5, fontWeight: FontWeight.w800, color: ac.navy)),
                   ]),
                 ),
               ),
@@ -886,7 +899,7 @@ class _LibraryDiscovery extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text('Failed to load: ${snap.error}',
-                style: AppText.caption.copyWith(color: C.red, fontSize: 11)),
+                style: AppText.caption.copyWith(color: AppColors.of(context).red, fontSize: 11)),
           );
         }
         final items = snap.data ?? const <AcademicContent>[];
@@ -928,7 +941,7 @@ class _LibraryDiscovery extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text('Failed to load: ${snap.error}',
-                style: AppText.caption.copyWith(color: C.red, fontSize: 11)),
+                style: AppText.caption.copyWith(color: AppColors.of(context).red, fontSize: 11)),
           );
         }
         final items = snap.data ?? const <AcademicContent>[];
@@ -958,7 +971,7 @@ class _LibraryDiscovery extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text('Failed to load: ${snap.error}',
-                style: AppText.caption.copyWith(color: C.red, fontSize: 11)),
+                style: AppText.caption.copyWith(color: AppColors.of(context).red, fontSize: 11)),
           );
         }
         final counts = snap.data ?? const <String, int>{};
@@ -968,6 +981,7 @@ class _LibraryDiscovery extends StatelessWidget {
             child: Text('No subjects yet.', style: AppText.bodySm),
           );
         }
+        final ac = AppColors.of(context);
         final sorted = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -983,17 +997,17 @@ class _LibraryDiscovery extends StatelessWidget {
                   child: Container(
                     width: 155,
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+                    decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
                     child: Row(children: [
                       IconBadge(
                         icon: _kSubjectIcons[entry.key] ?? Icons.book_outlined,
-                        color: C.primary, size: 38, iconSize: 18,
+                        color: ac.primary, size: 38, iconSize: 18,
                         radius: BorderRadius.circular(11),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(entry.key, style: AppText.subtitle.copyWith(color: C.txt, fontSize: 12.5),
+                          Text(entry.key, style: AppText.subtitle.copyWith(color: ac.txt, fontSize: 12.5),
                               maxLines: 1, overflow: TextOverflow.ellipsis),
                           Text('${entry.value} item${entry.value == 1 ? '' : 's'}', style: AppText.caption.copyWith(fontSize: 10.5)),
                         ]),
@@ -1017,6 +1031,7 @@ class _ContinueLearningCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(Rad.md),
@@ -1029,7 +1044,7 @@ class _ContinueLearningCard extends StatelessWidget {
         },
         child: Container(
           width: 150,
-          decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+          decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
           clipBehavior: Clip.antiAlias,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Stack(children: [
@@ -1037,12 +1052,12 @@ class _ContinueLearningCard extends StatelessWidget {
                 height: 90, width: double.infinity,
                 child: (item.thumbnailUrl ?? '').isNotEmpty
                     ? Image.network(item.thumbnailUrl!, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(color: C.surf3))
-                    : Container(color: C.surf3, child: Center(child: Text(item.contentType.emoji, style: const TextStyle(fontSize: 24)))),
+                        errorBuilder: (_, __, ___) => Container(color: ac.surf3))
+                    : Container(color: ac.surf3, child: Center(child: Text(item.contentType.emoji, style: const TextStyle(fontSize: 24)))),
               ),
               Positioned(
                 top: 6, left: 6,
-                child: StatusBadge(label: item.contentType.label.toUpperCase(), color: C.primary),
+                child: StatusBadge(label: item.contentType.label.toUpperCase(), color: ac.primary),
               ),
             ]),
             Padding(
@@ -1074,6 +1089,7 @@ class _SavedRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1084,7 +1100,7 @@ class _SavedRow extends StatelessWidget {
           child: Row(children: [
             Container(
               width: 40, height: 40,
-              decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(8)),
               child: Center(child: Text(item.contentType.emoji, style: const TextStyle(fontSize: 18))),
             ),
             const SizedBox(width: 12),
@@ -1104,9 +1120,9 @@ class _SavedRow extends StatelessWidget {
                   HapticFeedback.lightImpact();
                   AcademicContentRepository.instance.toggleSave(item.id, user.id);
                 },
-                child: const Padding(
-                  padding: EdgeInsets.all(6),
-                  child: Icon(Icons.bookmark_rounded, color: C.grn, size: 20),
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Icon(Icons.bookmark_rounded, color: ac.grn, size: 20),
                 ),
               ),
             ),

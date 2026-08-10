@@ -12,6 +12,7 @@ import '../../repositories/institution_repository.dart';
 import '../../repositories/public_course_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'course_reader_page.dart';
@@ -35,11 +36,12 @@ class CourseCreatorProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text(_isOwnProfile ? 'Your Courses' : 'Creator Profile', style: AppText.title),
       ),
       body: AppBackground(child: StreamBuilder<List<PublicCourse>>(
@@ -113,7 +115,7 @@ class CourseCreatorProfilePage extends StatelessWidget {
                               final name = inst.data?.schoolName;
                               if (name == null || name.isEmpty) return const SizedBox.shrink();
                               return Row(children: [
-                                const Icon(Icons.school_outlined, size: 14, color: C.muted),
+                                Icon(Icons.school_outlined, size: 14, color: ac.muted),
                                 const SizedBox(width: 4),
                                 Text(name, style: AppText.caption.copyWith(fontSize: 12)),
                               ]);
@@ -141,16 +143,16 @@ class CourseCreatorProfilePage extends StatelessWidget {
                           Expanded(child: Text(c.title, style: AppText.title.copyWith(fontSize: 14),
                               maxLines: 1, overflow: TextOverflow.ellipsis)),
                           if (!c.published)
-                            const Padding(padding: EdgeInsets.only(left: 8),
-                                child: StatusBadge(label: 'DRAFT', color: C.org, bg: C.orgb)),
+                            Padding(padding: const EdgeInsets.only(left: 8),
+                                child: StatusBadge(label: 'DRAFT', color: ac.org, bg: ac.orgBg)),
                         ]),
                         const SizedBox(height: 6),
                         Row(children: [
-                          const Icon(Icons.star_rounded, size: 13, color: C.gold),
+                          Icon(Icons.star_rounded, size: 13, color: ac.gold),
                           const SizedBox(width: 2),
                           Text(c.avgRating > 0 ? c.avgRating.toStringAsFixed(1) : '—', style: AppText.caption),
                           const SizedBox(width: 10),
-                          const Icon(Icons.people_alt_outlined, size: 13, color: C.muted),
+                          Icon(Icons.people_alt_outlined, size: 13, color: ac.muted),
                           const SizedBox(width: 3),
                           Text('${c.enrolledCount}', style: AppText.caption),
                         ]),
@@ -158,7 +160,7 @@ class CourseCreatorProfilePage extends StatelessWidget {
                     ),
                     if (_isOwnProfile)
                       IconButton(
-                        icon: const Icon(Icons.edit_outlined, size: 18, color: C.txt2),
+                        icon: Icon(Icons.edit_outlined, size: 18, color: ac.txt2),
                         onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                             builder: (_) => CourseComposerPage(user: currentUser!, existing: c))),
                       ),

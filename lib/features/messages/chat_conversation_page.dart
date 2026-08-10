@@ -22,6 +22,7 @@ import '../../repositories/messaging_repository.dart';
 import '../../services/link_preview_service.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 
@@ -162,20 +163,22 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   /// retry and the picked file shouldn't have to be reselected from
   /// scratch every time.
   void _showUploadFailedSnackBar(VoidCallback retry) {
+    final ac = AppColors.of(context);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: const Text('Upload failed — check your connection.'),
-      backgroundColor: C.red,
+      backgroundColor: ac.red,
       action: SnackBarAction(label: 'Retry', textColor: Colors.white, onPressed: retry),
     ));
   }
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         titleSpacing: 0,
         title: Row(children: [
           UserAvatar(initials: widget.otherUserName.isEmpty ? '?' : widget.otherUserName[0].toUpperCase(),
@@ -186,14 +189,14 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
               Text(widget.otherUserName, style: AppText.title.copyWith(fontSize: 15),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
               if (_otherTyping)
-                Text('typing…', style: AppText.caption.copyWith(fontSize: 11, color: C.primary)),
+                Text('typing…', style: AppText.caption.copyWith(fontSize: 11, color: ac.primary)),
             ]),
           ),
         ]),
         actions: [
-          IconButton(icon: const Icon(Icons.call_outlined, color: C.txt2),
+          IconButton(icon: Icon(Icons.call_outlined, color: ac.txt2),
               onPressed: () => showToast(context, 'Voice calling isn\'t built yet.')),
-          IconButton(icon: const Icon(Icons.videocam_outlined, color: C.txt2),
+          IconButton(icon: Icon(Icons.videocam_outlined, color: ac.txt2),
               onPressed: () => showToast(context, 'Video calling isn\'t built yet.')),
         ],
       ),
@@ -256,6 +259,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   }
 
   Widget _inputBar() {
+    final ac = AppColors.of(context);
     return SafeArea(
       top: false,
       child: Padding(
@@ -270,13 +274,13 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
                       value: _uploadProgress! > 0 ? _uploadProgress : null,
-                      minHeight: 4, backgroundColor: C.bdr, color: C.primary,
+                      minHeight: 4, backgroundColor: ac.bdr, color: ac.primary,
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Text('${(_uploadProgress! * 100).toInt()}%',
-                    style: AppText.caption.copyWith(fontSize: 10.5, color: C.txt2)),
+                    style: AppText.caption.copyWith(fontSize: 10.5, color: ac.txt2)),
               ]),
             ),
             const SizedBox(height: 4),
@@ -285,28 +289,28 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
           IconButton(
             icon: _sending
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.add_circle_outline_rounded, color: C.primary),
+                : Icon(Icons.add_circle_outline_rounded, color: ac.primary),
             onPressed: _sending ? null : () => _showAttachSheet(),
           ),
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               decoration: BoxDecoration(
-                  color: C.surf, borderRadius: BorderRadius.circular(24), border: Border.all(color: C.bdr)),
+                  color: ac.surf, borderRadius: BorderRadius.circular(24), border: Border.all(color: ac.bdr)),
               child: TextField(
                 controller: _textCtrl,
                 onChanged: _onTextChanged,
-                style: AppText.bodySm.copyWith(color: C.txt),
+                style: AppText.bodySm.copyWith(color: ac.txt),
                 minLines: 1, maxLines: 4,
                 decoration: InputDecoration(
-                  hintText: 'Type a message…', hintStyle: AppText.bodySm.copyWith(color: C.muted),
+                  hintText: 'Type a message…', hintStyle: AppText.bodySm.copyWith(color: ac.muted),
                   border: InputBorder.none, isDense: true,
                 ),
               ),
             ),
           ),
           const SizedBox(width: 6),
-          IconButton(icon: const Icon(Icons.send_rounded, color: C.primary), onPressed: _sendText),
+          IconButton(icon: Icon(Icons.send_rounded, color: ac.primary), onPressed: _sendText),
           ]),
         ]),
       ),
@@ -314,23 +318,24 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   }
 
   void _showAttachSheet() {
+    final ac = AppColors.of(context);
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
-            leading: const Icon(Icons.image_outlined, color: C.primary),
+            leading: Icon(Icons.image_outlined, color: ac.primary),
             title: const Text('Photo'),
             onTap: () { Navigator.pop(context); _pickAndSendMedia(isVideo: false); },
           ),
           ListTile(
-            leading: const Icon(Icons.videocam_outlined, color: C.primary),
+            leading: Icon(Icons.videocam_outlined, color: ac.primary),
             title: const Text('Video'),
             onTap: () { Navigator.pop(context); _pickAndSendMedia(isVideo: true); },
           ),
           ListTile(
-            leading: const Icon(Icons.attach_file_rounded, color: C.primary),
+            leading: Icon(Icons.attach_file_rounded, color: ac.primary),
             title: const Text('File'),
             onTap: () { Navigator.pop(context); _pickAndSendFile(); },
           ),
@@ -356,12 +361,13 @@ class _DateSeparator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Center(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(color: C.surf2, borderRadius: BorderRadius.circular(20)),
+          decoration: BoxDecoration(color: ac.surf2, borderRadius: BorderRadius.circular(20)),
           child: Text(_label(), style: AppText.caption.copyWith(fontSize: 10.5, fontWeight: FontWeight.w700)),
         ),
       ),
@@ -385,6 +391,7 @@ class _MessageBubble extends StatelessWidget {
   String? get _linkUrl => LinkPreviewService.instance.firstUrl(message.text);
 
   Future<void> _confirmDelete(BuildContext context) async {
+    final ac = AppColors.of(context);
     HapticFeedback.mediumImpact();
     final confirmed = await showDialog<bool>(
       context: context,
@@ -395,7 +402,7 @@ class _MessageBubble extends StatelessWidget {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete', style: TextStyle(color: C.red)),
+            child: Text('Delete', style: TextStyle(color: ac.red)),
           ),
         ],
       ),
@@ -409,6 +416,7 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     if (message.deleted) {
       return Align(
         alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -416,10 +424,10 @@ class _MessageBubble extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: C.surf3, borderRadius: BorderRadius.circular(16), border: Border.all(color: C.bdr),
+            color: ac.surf3, borderRadius: BorderRadius.circular(16), border: Border.all(color: ac.bdr),
           ),
           child: Text('This message was deleted',
-              style: AppText.bodySm.copyWith(fontSize: 13, fontStyle: FontStyle.italic, color: C.muted)),
+              style: AppText.bodySm.copyWith(fontSize: 13, fontStyle: FontStyle.italic, color: ac.muted)),
         ),
       );
     }
@@ -434,9 +442,9 @@ class _MessageBubble extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isMe ? C.primaryBg : C.surf,
+          color: isMe ? ac.primaryBg : ac.surf,
           borderRadius: BorderRadius.circular(16),
-          border: isMe ? null : Border.all(color: C.bdr),
+          border: isMe ? null : Border.all(color: ac.bdr),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if ((message.imageUrl ?? '').isNotEmpty)
@@ -447,7 +455,7 @@ class _MessageBubble extends StatelessWidget {
           if ((message.videoUrl ?? '').isNotEmpty)
             Container(
               height: 160, width: 220,
-              decoration: BoxDecoration(color: C.navy, borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(color: ac.navy, borderRadius: BorderRadius.circular(10)),
               child: const Center(child: Icon(Icons.play_circle_fill_rounded, color: Colors.white70, size: 40)),
             ),
           if ((message.fileUrl ?? '').isNotEmpty)
@@ -458,23 +466,23 @@ class _MessageBubble extends StatelessWidget {
                 onTap: () => launchUrl(Uri.parse(message.fileUrl!), mode: LaunchMode.externalApplication),
                 child: Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: C.surf3, borderRadius: BorderRadius.circular(10)),
+                  decoration: BoxDecoration(color: ac.surf3, borderRadius: BorderRadius.circular(10)),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.insert_drive_file_rounded, color: C.primary, size: 22),
+                    Icon(Icons.insert_drive_file_rounded, color: ac.primary, size: 22),
                     const SizedBox(width: 8),
                     Flexible(
-                      child: Text(message.fileName ?? 'File', style: AppText.bodySm.copyWith(fontSize: 12.5, color: C.txt),
+                      child: Text(message.fileName ?? 'File', style: AppText.bodySm.copyWith(fontSize: 12.5, color: ac.txt),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                     ),
                     const SizedBox(width: 6),
-                    const Icon(Icons.download_rounded, size: 16, color: C.muted),
+                    Icon(Icons.download_rounded, size: 16, color: ac.muted),
                   ]),
                 ),
               ),
             ),
           if (message.text.isNotEmpty) ...[
             if ((message.imageUrl ?? message.videoUrl ?? message.fileUrl ?? '').isNotEmpty) const SizedBox(height: 8),
-            Text(message.text, style: AppText.bodySm.copyWith(color: C.txt, fontSize: 14)),
+            Text(message.text, style: AppText.bodySm.copyWith(color: ac.txt, fontSize: 14)),
           ],
           if (linkUrl != null) _LinkPreviewCard(url: linkUrl),
           const SizedBox(height: 4),
@@ -482,7 +490,7 @@ class _MessageBubble extends StatelessWidget {
             Text(_formatTime(message.sentAt), style: AppText.caption.copyWith(fontSize: 10)),
             if (isMe) ...[
               const SizedBox(width: 4),
-              Icon(Icons.done_all_rounded, size: 13, color: read ? C.primary : C.muted),
+              Icon(Icons.done_all_rounded, size: 13, color: read ? ac.primary : ac.muted),
             ],
           ]),
         ]),
@@ -520,14 +528,15 @@ class _LinkPreviewCardState extends State<_LinkPreviewCard> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     if (!_loaded) {
       return Container(
         margin: const EdgeInsets.only(top: 8),
         height: 40,
-        decoration: BoxDecoration(color: C.surf3, borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: ac.surf3, borderRadius: BorderRadius.circular(10)),
         alignment: Alignment.center,
-        child: const SizedBox(width: 16, height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2, color: C.muted)),
+        child: SizedBox(width: 16, height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2, color: ac.muted)),
       );
     }
     final data = _data;
@@ -542,7 +551,7 @@ class _LinkPreviewCardState extends State<_LinkPreviewCard> {
           margin: const EdgeInsets.only(top: 8),
           clipBehavior: Clip.hardEdge,
           decoration: BoxDecoration(
-              color: C.surf3, borderRadius: BorderRadius.circular(10), border: Border.all(color: C.bdr)),
+              color: ac.surf3, borderRadius: BorderRadius.circular(10), border: Border.all(color: ac.bdr)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if ((data.imageUrl ?? '').isNotEmpty)
               Image.network(data.imageUrl!, height: 110, width: double.infinity, fit: BoxFit.cover,
@@ -552,7 +561,7 @@ class _LinkPreviewCardState extends State<_LinkPreviewCard> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 if ((data.title ?? '').isNotEmpty)
                   Text(data.title!, maxLines: 2, overflow: TextOverflow.ellipsis,
-                      style: AppText.bodySm.copyWith(fontSize: 12.5, fontWeight: FontWeight.w700, color: C.txt)),
+                      style: AppText.bodySm.copyWith(fontSize: 12.5, fontWeight: FontWeight.w700, color: ac.txt)),
                 if ((data.description ?? '').isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(data.description!, maxLines: 2, overflow: TextOverflow.ellipsis,
@@ -560,7 +569,7 @@ class _LinkPreviewCardState extends State<_LinkPreviewCard> {
                 ],
                 const SizedBox(height: 3),
                 Text(Uri.tryParse(widget.url)?.host ?? widget.url,
-                    style: AppText.caption.copyWith(fontSize: 10, color: C.muted)),
+                    style: AppText.caption.copyWith(fontSize: 10, color: ac.muted)),
               ]),
             ),
           ]),

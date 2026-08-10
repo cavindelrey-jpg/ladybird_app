@@ -11,7 +11,7 @@ import '../../core/result.dart';
 import '../../models/app_user.dart';
 import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 
 import '../../widgets/app_background.dart';
 class ContentEditPage extends StatefulWidget {
@@ -167,10 +167,11 @@ class _ContentEditPageState extends State<ContentEditPage> {
     if (!mounted) return;
 
     if (result is Success) {
+      final ac = AppColors.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Content updated.'),
-          backgroundColor: C.grn,
+        SnackBar(
+          content: const Text('Content updated.'),
+          backgroundColor: ac.grn,
         ),
       );
       Navigator.pop(context);
@@ -184,8 +185,9 @@ class _ContentEditPageState extends State<ContentEditPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
         title: Text('Edit Content',
             style: GoogleFonts.sora(fontWeight: FontWeight.w700)),
@@ -194,7 +196,7 @@ class _ContentEditPageState extends State<ContentEditPage> {
             onPressed: _saving ? null : _save,
             child: Text('Save',
                 style: GoogleFonts.sora(
-                    fontWeight: FontWeight.w700, color: C.primary)),
+                    fontWeight: FontWeight.w700, color: ac.primary)),
           ),
         ],
       ),
@@ -299,8 +301,8 @@ class _ContentEditPageState extends State<ContentEditPage> {
               if (_saving) ...[
                 LinearProgressIndicator(
                   value: _uploadProgress > 0 ? _uploadProgress : null,
-                  backgroundColor: C.bdr,
-                  color: C.primary,
+                  backgroundColor: ac.bdr,
+                  color: ac.primary,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 const SizedBox(height: 16),
@@ -310,11 +312,11 @@ class _ContentEditPageState extends State<ContentEditPage> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                      color: C.redb,
+                      color: ac.redBg,
                       borderRadius: BorderRadius.circular(10)),
                   child: Text(_error!,
                       style: GoogleFonts.inter(
-                          color: C.red, fontSize: 13)),
+                          color: ac.red, fontSize: 13)),
                 ),
                 const SizedBox(height: 16),
               ],
@@ -325,7 +327,7 @@ class _ContentEditPageState extends State<ContentEditPage> {
                 child: ElevatedButton(
                   onPressed: _saving ? null : _save,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: C.primary,
+                    backgroundColor: ac.primary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14)),
@@ -350,7 +352,7 @@ class _Label extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(text,
       style: GoogleFonts.inter(
-          fontSize: 13, fontWeight: FontWeight.w600, color: C.txt2));
+          fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.of(context).txt2));
 }
 
 class _TextField extends StatelessWidget {
@@ -368,25 +370,26 @@ class _TextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
       validator: validator,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.inter(color: C.muted, fontSize: 14),
+        hintStyle: GoogleFonts.inter(color: ac.muted, fontSize: 14),
         filled: true,
-        fillColor: C.surf,
+        fillColor: ac.surf,
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: C.bdr)),
+            borderSide: BorderSide(color: ac.bdr)),
         enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: C.bdr)),
+            borderSide: BorderSide(color: ac.bdr)),
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide:
-                const BorderSide(color: C.primary, width: 1.5)),
+                BorderSide(color: ac.primary, width: 1.5)),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),
@@ -402,6 +405,7 @@ class _ChoicePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Wrap(
       spacing: 8, runSpacing: 8,
       children: options.map((o) {
@@ -413,14 +417,14 @@ class _ChoicePicker extends StatelessWidget {
             HapticFeedback.selectionClick();
             onSelected(o);
           },
-          selectedColor: C.primary,
+          selectedColor: ac.primary,
           labelStyle: TextStyle(
-              color: active ? Colors.white : C.txt,
+              color: active ? Colors.white : ac.txt,
               fontWeight: active ? FontWeight.w600 : FontWeight.w400),
-          backgroundColor: C.surf,
+          backgroundColor: ac.surf,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
-              side: BorderSide(color: active ? C.primary : C.bdr)),
+              side: BorderSide(color: active ? ac.primary : ac.bdr)),
         );
       }).toList(),
     );
@@ -434,6 +438,7 @@ class _TypeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return SizedBox(
       height: 36,
       child: ListView(
@@ -455,17 +460,17 @@ class _TypeRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: active ? C.primaryBg : C.surf,
+                  color: active ? ac.primaryBg : ac.surf,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                      color: active ? C.primary : C.bdr,
+                      color: active ? ac.primary : ac.bdr,
                       width: active ? 1.5 : 1),
                 ),
                 child: Text('${t.emoji} ${t.label}',
                     style: GoogleFonts.inter(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: active ? C.primary : C.txt2)),
+                        color: active ? ac.primary : ac.txt2)),
               ),
             ),
           );
@@ -484,6 +489,7 @@ class _FileRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(12),
@@ -497,22 +503,22 @@ class _FileRow extends StatelessWidget {
           padding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
-            color: selected ? C.primaryBg : C.surf,
+            color: selected ? ac.primaryBg : ac.surf,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-                color: selected ? C.primary : C.bdr),
+                color: selected ? ac.primary : ac.bdr),
           ),
           child: Row(children: [
             Icon(Icons.attach_file_rounded,
                 size: 18,
-                color: selected ? C.primary : C.muted),
+                color: selected ? ac.primary : ac.muted),
             const SizedBox(width: 10),
             Expanded(
                 child: Text(label,
                     style: GoogleFonts.inter(
                         fontSize: 13,
-                        color: selected ? C.txt : C.muted))),
-            const Icon(Icons.edit_outlined, size: 16, color: C.muted),
+                        color: selected ? ac.txt : ac.muted))),
+            Icon(Icons.edit_outlined, size: 16, color: ac.muted),
           ]),
         ),
       ),
@@ -529,6 +535,7 @@ class _ThumbnailRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(12),
@@ -541,9 +548,9 @@ class _ThumbnailRow extends StatelessWidget {
         child: Container(
           height: 90,
           decoration: BoxDecoration(
-            color: C.surf,
+            color: ac.surf,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: C.bdr),
+            border: Border.all(color: ac.bdr),
           ),
           child: newFile != null
               ? ClipRRect(
@@ -567,12 +574,12 @@ class _ThumbnailRow extends StatelessWidget {
                   : Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.add_photo_alternate_outlined,
-                            size: 28, color: C.muted),
+                        Icon(Icons.add_photo_alternate_outlined,
+                            size: 28, color: ac.muted),
                         const SizedBox(height: 4),
                         Text('Add thumbnail',
                             style: GoogleFonts.inter(
-                                fontSize: 12, color: C.muted)),
+                                fontSize: 12, color: ac.muted)),
                       ],
                     ),
         ),

@@ -239,10 +239,18 @@ class MessagingRepository {
     }
   }
 
-  Stream<List<ChatMessage>> watchMessages(String conversationId) => _conversations
+  /// Live message stream, most-recent [limit] messages. Previously had no
+  /// limit at all — every conversation open re-fetched and re-listened to
+  /// the ENTIRE message history, the one thing that visibly diverged from
+  /// WhatsApp/Telegram-tier smoothness as a thread grew (slow first load,
+  /// unbounded Firestore read cost). `limitToLast` + ascending order keeps
+  /// the query index-free (same single-field orderBy as before) while
+  /// bounding what's fetched to a recent window.
+  Stream<List<ChatMessage>> watchMessages(String conversationId, {int limit = 60}) => _conversations
       .doc(conversationId)
       .collection(AppConstants.colMessages)
       .orderBy('sentAt')
+      .limitToLast(limit)
       .snapshots()
       .map((s) => s.docs.map((d) => ChatMessage.fromFirestore(d, conversationId)).toList());
 

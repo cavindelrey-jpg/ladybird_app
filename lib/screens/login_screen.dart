@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../models/models.dart';
 import '../services/auth_service.dart';
 import '../widgets/widgets.dart';
@@ -75,6 +76,7 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _showForgotPasswordSheet(BuildContext context) async {
+    final ac = AppColors.of(context);
     final emailCtrl = TextEditingController(text: _emailCtrl.text.trim());
     bool sending = false;
     String? localError;
@@ -82,7 +84,7 @@ class _LoginScreenState extends State<LoginScreen>
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (sheetCtx) => StatefulBuilder(builder: (dCtx, setM) => Padding(
@@ -106,19 +108,19 @@ class _LoginScreenState extends State<LoginScreen>
               decoration: InputDecoration(
                 hintText: 'Email address',
                 filled: true,
-                fillColor: C.surf,
+                fillColor: ac.surf,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md),
-                    borderSide: const BorderSide(color: C.bdr)),
+                    borderSide: BorderSide(color: ac.bdr)),
                 enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md),
-                    borderSide: const BorderSide(color: C.bdr)),
+                    borderSide: BorderSide(color: ac.bdr)),
                 focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md),
-                    borderSide: const BorderSide(color: C.primary)),
+                    borderSide: BorderSide(color: ac.primary)),
               ),
             ),
             if (localError != null) ...[
               const SizedBox(height: 10),
-              Text(localError!, style: AppText.bodySm.copyWith(fontSize: 12, color: C.red)),
+              Text(localError!, style: AppText.bodySm.copyWith(fontSize: 12, color: ac.red)),
             ],
             const SizedBox(height: 18),
             SizedBox(
@@ -144,16 +146,16 @@ class _LoginScreenState extends State<LoginScreen>
                         }
                       },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: C.gold, foregroundColor: C.navy,
+                  backgroundColor: ac.gold, foregroundColor: ac.navy,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.md)),
                   elevation: 0,
                   overlayColor: Colors.black.withValues(alpha: .08),
                 ),
                 child: sending
-                    ? const SizedBox(width: 18, height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: C.navy))
+                    ? SizedBox(width: 18, height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: ac.navy))
                     : Text('Send reset link', style: AppText.button.copyWith(
-                        fontSize: 14, color: C.navy)),
+                        fontSize: 14, color: ac.navy)),
               ),
             ),
           ] else
@@ -162,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen>
               child: OutlinedButton(
                 onPressed: () => Navigator.of(dCtx).pop(),
                 child: Text('Done', style: AppText.subtitle.copyWith(
-                    fontSize: 14, fontWeight: FontWeight.w700, color: C.primary)),
+                    fontSize: 14, fontWeight: FontWeight.w700, color: ac.primary)),
               ),
             ),
         ]),
@@ -172,12 +174,13 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [C.navy, C.navy2, Color(0xFF1A3A70)],
+            colors: [ac.navy, ac.navy2, const Color(0xFF1A3A70)],
           ),
         ),
         child: SafeArea(
@@ -206,7 +209,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                     // Section label
                     Text('SIGN IN', style: AppText.label.copyWith(
-                        fontSize: 10.5, letterSpacing: 1.5, color: C.gold)),
+                        fontSize: 10.5, letterSpacing: 1.5, color: ac.gold)),
                     const SizedBox(height: 16),
 
                     // Error banner
@@ -249,14 +252,14 @@ class _LoginScreenState extends State<LoginScreen>
                         style: TextButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 4)),
                         child: Text('Forgot password?',
-                            style: AppText.subtitle.copyWith(fontSize: 12.5, color: C.gold)),
+                            style: AppText.subtitle.copyWith(fontSize: 12.5, color: ac.gold)),
                       ),
                     ),
                     const SizedBox(height: 12),
 
                     // Sign in button
                     _loading
-                        ? const Center(child: CircularProgressIndicator(color: C.gold))
+                        ? Center(child: CircularProgressIndicator(color: ac.gold))
                         : _SignInButton(onTap: _login),
 
                     const SizedBox(height: 40),
@@ -293,6 +296,7 @@ class _GlassField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return TextFormField(
       controller: controller,
       obscureText: obscureText,
@@ -308,15 +312,15 @@ class _GlassField extends StatelessWidget {
         filled: true,
         fillColor: Colors.white.withValues(alpha: .08),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: C.gold.withValues(alpha: .2))),
+            borderSide: BorderSide(color: ac.gold.withValues(alpha: .2))),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14),
             borderSide: BorderSide(color: Colors.white.withValues(alpha: .12))),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: C.gold, width: 1.5)),
+            borderSide: BorderSide(color: ac.gold, width: 1.5)),
         errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: C.red, width: 1.5)),
+            borderSide: BorderSide(color: ac.red, width: 1.5)),
         focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: C.red, width: 1.5)),
+            borderSide: BorderSide(color: ac.red, width: 1.5)),
         errorStyle: const TextStyle(color: Color(0xFFFC8181)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
@@ -330,15 +334,16 @@ class _ErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: C.red.withValues(alpha: .15),
+        color: ac.red.withValues(alpha: .15),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: C.red.withValues(alpha: .3)),
+        border: Border.all(color: ac.red.withValues(alpha: .3)),
       ),
       child: Row(children: [
-        const Icon(Icons.error_outline_rounded, color: C.red, size: 18),
+        Icon(Icons.error_outline_rounded, color: ac.red, size: 18),
         const SizedBox(width: 10),
         Expanded(child: Text(message,
             style: AppText.bodySm.copyWith(color: Colors.white.withValues(alpha: .9)))),
@@ -353,16 +358,17 @@ class _SignInButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final radius = BorderRadius.circular(14);
     return Container(
       width: double.infinity, height: 54,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [C.gold, Color(0xFFEBB83A)]),
+        gradient: LinearGradient(colors: [ac.gold, const Color(0xFFEBB83A)]),
         borderRadius: radius,
         boxShadow: [
-          BoxShadow(color: C.gold.withValues(alpha: .15),
+          BoxShadow(color: ac.gold.withValues(alpha: .15),
               blurRadius: 4, offset: const Offset(0, 1)),
-          BoxShadow(color: C.gold.withValues(alpha: .32),
+          BoxShadow(color: ac.gold.withValues(alpha: .32),
               blurRadius: 20, offset: const Offset(0, 8)),
         ],
       ),
@@ -375,14 +381,14 @@ class _SignInButton extends StatelessWidget {
         borderRadius: radius,
         child: InkWell(
           borderRadius: radius,
-          splashColor: C.navy.withValues(alpha: .08),
-          highlightColor: C.navy.withValues(alpha: .05),
+          splashColor: ac.navy.withValues(alpha: .08),
+          highlightColor: ac.navy.withValues(alpha: .05),
           onTap: () {
             HapticFeedback.lightImpact();
             onTap();
           },
           child: Center(child: Text('Sign In →', style: AppText.button.copyWith(
-              fontSize: 16, fontWeight: FontWeight.w800, color: C.navy))),
+              fontSize: 16, fontWeight: FontWeight.w800, color: ac.navy))),
         ),
       ),
     );

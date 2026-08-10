@@ -9,6 +9,7 @@
 
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../models/app_user.dart';
 import '../models/institution.dart';
 import '../services/auth_service.dart';
@@ -38,22 +39,23 @@ class AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Drawer(
-      backgroundColor: C.surf,
+      backgroundColor: ac.surf,
       child: SafeArea(
         child: Column(children: [
-          _header(context),
-          const Divider(height: 1, color: C.bdr2),
+          _header(context, ac),
+          Divider(height: 1, color: ac.bdr2),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
               children: [
-                _item(context, Icons.home_rounded, 'Home', () {}),
-                _item(context, Icons.school_rounded, 'Courses', () {
+                _item(context, ac, Icons.home_rounded, 'Home', () {}),
+                _item(context, ac, Icons.school_rounded, 'Courses', () {
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => CoursesMarketplacePage(user: user)));
                 }),
-                _item(context, Icons.folder_copy_rounded, 'Content Library', () {
+                _item(context, ac, Icons.folder_copy_rounded, 'Content Library', () {
                   if (_isGuest) {
                     _goSignIn(context);
                   } else {
@@ -61,7 +63,7 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => AcademicContentPage(user: user!)));
                   }
                 }),
-                _item(context, Icons.description_rounded, 'Past Questions', () {
+                _item(context, ac, Icons.description_rounded, 'Past Questions', () {
                   if (_isGuest) {
                     _goSignIn(context);
                   } else {
@@ -70,7 +72,7 @@ class AppDrawer extends StatelessWidget {
                             user: user!, initialTypeFilter: ContentType.pastPaper)));
                   }
                 }),
-                _item(context, Icons.groups_rounded, 'Clubs', () {
+                _item(context, ac, Icons.groups_rounded, 'Clubs', () {
                   if (_isGuest) {
                     _goSignIn(context);
                   } else {
@@ -78,15 +80,15 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => ClubsPage(user: user!)));
                   }
                 }),
-                _item(context, Icons.menu_book_rounded, 'Magazine', () {
+                _item(context, ac, Icons.menu_book_rounded, 'Magazine', () {
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => MagazineFeedPage(user: user)));
                 }),
-                _item(context, Icons.quiz_rounded, 'Tests & Quizzes', () {
+                _item(context, ac, Icons.quiz_rounded, 'Tests & Quizzes', () {
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => TestsSubjectPickerPage(user: user ?? AppUser.guest())));
                 }),
-                _item(context, Icons.chat_bubble_outline_rounded, 'Messages', () {
+                _item(context, ac, Icons.chat_bubble_outline_rounded, 'Messages', () {
                   if (_isGuest) {
                     _goSignIn(context);
                   } else {
@@ -94,8 +96,8 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => MessagesHomePage(user: user!)));
                   }
                 }),
-                const Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: C.bdr2),
-                _item(context, Icons.person_outline_rounded, 'Profile', () {
+                Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: ac.bdr2),
+                _item(context, ac, Icons.person_outline_rounded, 'Profile', () {
                   if (_isGuest) {
                     _goSignIn(context);
                   } else {
@@ -103,7 +105,7 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => ProfilePage(user: user!, institution: institution)));
                   }
                 }),
-                _item(context, Icons.settings_outlined, 'Settings', () {
+                _item(context, ac, Icons.settings_outlined, 'Settings', () {
                   if (_isGuest) {
                     _goSignIn(context);
                   } else {
@@ -111,7 +113,7 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => SettingsPage(user: user!)));
                   }
                 }),
-                _item(context, Icons.notifications_outlined, 'Notifications', () {
+                _item(context, ac, Icons.notifications_outlined, 'Notifications', () {
                   if (_isGuest) {
                     _goSignIn(context);
                   } else {
@@ -119,44 +121,44 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => NotificationsPage(userId: user!.id)));
                   }
                 }),
-                _item(context, Icons.help_outline_rounded, 'Help & Support',
+                _item(context, ac, Icons.help_outline_rounded, 'Help & Support',
                     () => Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => const HelpSupportPage()))),
                 if (!_isGuest && user!.hasMinRole(UserRole.lecturer)) ...[
-                  const Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: C.bdr2),
-                  _item(context, Icons.rate_review_rounded, 'Grading Queue', () {
+                  Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: ac.bdr2),
+                  _item(context, ac, Icons.rate_review_rounded, 'Grading Queue', () {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => GradingPage(grader: user!)));
                   }),
                 ],
                 if (!_isGuest && user!.canManagePlatform) ...[
-                  const Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: C.bdr2),
-                  _item(context, Icons.admin_panel_settings_rounded, 'Admin Panel', () {
+                  Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: ac.bdr2),
+                  _item(context, ac, Icons.admin_panel_settings_rounded, 'Admin Panel', () {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => AdminPanelPage(user: user!)));
-                  }, color: C.gold),
+                  }, color: ac.gold),
                 ],
               ],
             ),
           ),
-          const Divider(height: 1, color: C.bdr2),
-          _footer(context),
+          Divider(height: 1, color: ac.bdr2),
+          _footer(context, ac),
         ]),
       ),
     );
   }
 
-  Widget _header(BuildContext context) {
+  Widget _header(BuildContext context, AppColors ac) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [C.navy, C.navy2],
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [ac.navy, ac.navy2],
             begin: Alignment.topLeft, end: Alignment.bottomRight),
       ),
       child: Row(children: [
         _isGuest
-            ? _avatar()
+            ? _avatar(ac)
             : InkWell(
                 borderRadius: BorderRadius.circular(24),
                 onTap: () {
@@ -164,7 +166,7 @@ class AppDrawer extends StatelessWidget {
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => ProfilePage(user: user!, institution: institution)));
                 },
-                child: _avatar(),
+                child: _avatar(ac),
               ),
         const SizedBox(width: 12),
         Expanded(
@@ -182,7 +184,7 @@ class AppDrawer extends StatelessWidget {
     );
   }
 
-  Widget _avatar() {
+  Widget _avatar(AppColors ac) {
     if (!_isGuest && (user!.photoUrl ?? '').isNotEmpty) {
       return CircleAvatar(radius: 24, backgroundImage: NetworkImage(user!.photoUrl!));
     }
@@ -191,20 +193,20 @@ class AppDrawer extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: .12),
         shape: BoxShape.circle,
-        border: Border.all(color: C.gold.withValues(alpha: .5)),
+        border: Border.all(color: ac.gold.withValues(alpha: .5)),
       ),
       child: const Icon(Icons.person_rounded, color: Colors.white, size: 26),
     );
   }
 
-  Widget _item(BuildContext context, IconData icon, String label, VoidCallback onTap,
+  Widget _item(BuildContext context, AppColors ac, IconData icon, String label, VoidCallback onTap,
       {Color? color}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
       child: ListTile(
-        leading: Icon(icon, color: color ?? C.txt2, size: 22),
+        leading: Icon(icon, color: color ?? ac.txt2, size: 22),
         title: Text(label, style: AppText.subtitle.copyWith(
-            fontSize: 14, color: color ?? C.txt)),
+            fontSize: 14, color: color ?? ac.txt)),
         onTap: () { Navigator.of(context).pop(); onTap(); },
         dense: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.xs)),
@@ -214,7 +216,7 @@ class AppDrawer extends StatelessWidget {
     );
   }
 
-  Widget _footer(BuildContext context) {
+  Widget _footer(BuildContext context, AppColors ac) {
     if (_isGuest) {
       return Padding(
         padding: const EdgeInsets.all(16),
@@ -227,13 +229,13 @@ class AppDrawer extends StatelessWidget {
                   builder: (_) => const AccountChoiceScreen()));
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: C.gold, foregroundColor: C.navy,
+              backgroundColor: ac.gold, foregroundColor: ac.navy,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.md)),
               elevation: 0,
               overlayColor: Colors.black.withValues(alpha: .08),
             ),
             child: Text('Create Free Account',
-                style: AppText.button.copyWith(fontSize: 13, color: C.navy)),
+                style: AppText.button.copyWith(fontSize: 13, color: ac.navy)),
           ),
         ),
       );
@@ -241,8 +243,8 @@ class AppDrawer extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(8),
       child: ListTile(
-        leading: const Icon(Icons.logout_rounded, color: C.red, size: 20),
-        title: Text('Sign Out', style: AppText.subtitle.copyWith(fontSize: 13, color: C.red)),
+        leading: Icon(Icons.logout_rounded, color: ac.red, size: 20),
+        title: Text('Sign Out', style: AppText.subtitle.copyWith(fontSize: 13, color: ac.red)),
         onTap: () {
           Navigator.of(context).pop();
           AuthService.instance.signOut();

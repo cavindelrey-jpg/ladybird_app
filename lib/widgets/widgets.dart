@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/public_course.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../config/branding.dart';
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -49,13 +50,14 @@ class SecondaryBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return SizedBox(
       width: double.infinity, height: 48,
       child: OutlinedButton(
         onPressed: onTap,
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
-          Text(label, style: AppText.subtitle.copyWith(fontSize: 14, color: C.primary)),
+          Text(label, style: AppText.subtitle.copyWith(fontSize: 14, color: ac.primary)),
         ]),
       ),
     );
@@ -120,12 +122,13 @@ class ACard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final radius = BorderRadius.circular(borderRadius);
     final decoratedChild = Container(
       decoration: BoxDecoration(
-        color: color ?? C.surf,
+        color: color ?? ac.surf,
         borderRadius: radius,
-        border: Border.all(color: C.bdr),
+        border: Border.all(color: ac.bdr),
         boxShadow: Shad.sm,
       ),
       padding: padding,
@@ -164,6 +167,7 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
@@ -172,11 +176,11 @@ class EmptyState extends StatelessWidget {
             width: 76, height: 76,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: C.surf3,
+              color: ac.surf3,
               shape: BoxShape.circle,
-              border: Border.all(color: C.bdr2, width: 1),
+              border: Border.all(color: ac.bdr2, width: 1),
             ),
-            child: Icon(icon, size: 32, color: C.muted),
+            child: Icon(icon, size: 32, color: ac.muted),
           ),
           const SizedBox(height: 20),
           Text(title, style: AppText.title.copyWith(fontSize: 16),
@@ -231,6 +235,7 @@ class _ShimmerCardState extends State<ShimmerCard>
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return AnimatedBuilder(
       animation: _anim,
       builder: (_, __) => Container(
@@ -238,8 +243,8 @@ class _ShimmerCardState extends State<ShimmerCard>
         margin: const EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
           gradient: LinearGradient(colors: [
-            Color.lerp(C.bdr2, C.bdr, _anim.value)!,
-            Color.lerp(C.bdr, C.bdr2, _anim.value)!,
+            Color.lerp(ac.bdr2, ac.bdr, _anim.value)!,
+            Color.lerp(ac.bdr, ac.bdr2, _anim.value)!,
           ]),
           borderRadius: BorderRadius.circular(Rad.md),
         ),
@@ -267,12 +272,13 @@ class _ShimmerLineState extends State<ShimmerLine> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return AnimatedBuilder(
       animation: _anim,
       builder: (_, __) => Container(
         width: widget.width, height: widget.height,
         decoration: BoxDecoration(
-          color: Color.lerp(C.bdr2, C.bdr, _anim.value),
+          color: Color.lerp(ac.bdr2, ac.bdr, _anim.value),
           borderRadius: BorderRadius.circular(Rad.xs / 2),
         ),
       ),
@@ -297,12 +303,13 @@ class _ShimmerCircleState extends State<ShimmerCircle> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return AnimatedBuilder(
       animation: _anim,
       builder: (_, __) => Container(
         width: widget.size, height: widget.size,
         decoration: BoxDecoration(
-          color: Color.lerp(C.bdr2, C.bdr, _anim.value),
+          color: Color.lerp(ac.bdr2, ac.bdr, _anim.value),
           shape: BoxShape.circle,
         ),
       ),
@@ -331,12 +338,13 @@ class _ShimmerBlockState extends State<ShimmerBlock> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return AnimatedBuilder(
       animation: _anim,
       builder: (_, __) => Container(
         width: widget.width, height: widget.height,
         decoration: BoxDecoration(
-          color: Color.lerp(C.bdr2, C.bdr, _anim.value),
+          color: Color.lerp(ac.bdr2, ac.bdr, _anim.value),
           borderRadius: BorderRadius.circular(widget.borderRadius),
         ),
       ),
@@ -351,11 +359,12 @@ class LoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Center(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const SizedBox(
+        SizedBox(
           width: 28, height: 28,
-          child: CircularProgressIndicator(strokeWidth: 2.5, color: C.primary),
+          child: CircularProgressIndicator(strokeWidth: 2.5, color: ac.primary),
         ),
         if (message != null) ...[
           const SizedBox(height: 16),
@@ -377,6 +386,7 @@ class ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -385,11 +395,11 @@ class ErrorView extends StatelessWidget {
             width: 68, height: 68,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: C.redb,
+              color: ac.redBg,
               shape: BoxShape.circle,
-              border: Border.all(color: C.red.withValues(alpha: .12), width: 1),
+              border: Border.all(color: ac.red.withValues(alpha: .12), width: 1),
             ),
-            child: const Icon(Icons.wifi_off_rounded, size: 28, color: C.red),
+            child: Icon(Icons.wifi_off_rounded, size: 28, color: ac.red),
           ),
           const SizedBox(height: 20),
           Text('Something went wrong', style: AppText.title.copyWith(fontSize: 16)),
@@ -441,19 +451,20 @@ class GradeBadge extends StatelessWidget {
   final String grade;
   const GradeBadge({super.key, required this.grade});
 
-  static Color _color(String g) {
+  static Color _color(String g, AppColors ac) {
     switch (g) {
-      case 'A': return C.grn;
-      case 'B': return C.blu;
-      case 'C': return C.gold;
-      case 'D': return C.org;
-      default:  return C.red;
+      case 'A': return ac.grn;
+      case 'B': return ac.blu;
+      case 'C': return ac.gold;
+      case 'D': return ac.org;
+      default:  return ac.red;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final col = _color(grade);
+    final ac = AppColors.of(context);
+    final col = _color(grade, ac);
     return Container(
       width: 28, height: 28,
       decoration: BoxDecoration(
@@ -482,13 +493,14 @@ class AnnCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return ACard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           StatusBadge(label: tag, color: accent),
           if (urgent) ...[
             const SizedBox(width: 8),
-            const StatusBadge(label: 'URGENT', color: C.red, bg: C.redb),
+            StatusBadge(label: 'URGENT', color: ac.red, bg: ac.redBg),
           ],
           const Spacer(),
           Text(date, style: AppText.caption),
@@ -521,6 +533,7 @@ class UserAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final avatar = photoUrl != null
         ? CircleAvatar(
             radius: radius,
@@ -529,10 +542,10 @@ class UserAvatar extends StatelessWidget {
           )
         : CircleAvatar(
             radius: radius,
-            backgroundColor: bg ?? C.primaryBg,
+            backgroundColor: bg ?? ac.primaryBg,
             child: Text(initials, style: TextStyle(
                 fontSize: radius * 0.6, fontWeight: FontWeight.w700,
-                color: fg ?? C.primary)),
+                color: fg ?? ac.primary)),
           );
     if (onTap == null) return avatar;
     return Material(
@@ -556,6 +569,7 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Row(children: [
       Text(title, style: AppText.title.copyWith(fontSize: 14)),
       const Spacer(),
@@ -567,7 +581,7 @@ class SectionHeader extends StatelessWidget {
             onTap: onAction,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              child: Text(action!, style: AppText.subtitle.copyWith(fontSize: 12, color: C.primary)),
+              child: Text(action!, style: AppText.subtitle.copyWith(fontSize: 12, color: ac.primary)),
             ),
           ),
         ),
@@ -619,14 +633,15 @@ class AcademiaLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Image.asset(
       'assets/logos/academia_logo_square.png',
       width: size, height: size, fit: BoxFit.contain,
       errorBuilder: (_, __, ___) => Container(
         width: size, height: size,
-        decoration: BoxDecoration(color: C.navy, borderRadius: BorderRadius.circular(size * 0.22)),
+        decoration: BoxDecoration(color: ac.navy, borderRadius: BorderRadius.circular(size * 0.22)),
         child: Center(child: Text('A', style: AppText.display.copyWith(
-            fontSize: size * 0.5, color: C.gold))),
+            fontSize: size * 0.5, color: ac.gold))),
       ),
     );
   }
@@ -663,11 +678,12 @@ class BrandLogo extends StatelessWidget {
 // ════════════════════════════════════════════════════════════════════════════
 
 void showToast(BuildContext context, String msg, {bool isError = false}) {
+  final ac = AppColors.of(context);
   ScaffoldMessenger.of(context).clearSnackBars();
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
     content: Text(msg, style: AppText.subtitle.copyWith(color: Colors.white, fontSize: 13)),
     behavior: SnackBarBehavior.floating,
-    backgroundColor: isError ? C.red : C.navy,
+    backgroundColor: isError ? ac.red : ac.navy,
     elevation: 6,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.sm)),
     margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -752,6 +768,7 @@ class TagMultiSelect extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     // Suggested tags first, then any already-selected custom tags not in
     // the suggested list, so a previously typed custom tag still shows up
     // (and can be un-toggled) after the composer reopens.
@@ -773,18 +790,18 @@ class TagMultiSelect extends StatelessWidget {
                 duration: const Duration(milliseconds: 150),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: active ? C.goldp : C.surf2,
+                  color: active ? ac.goldBg : ac.surf2,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: active ? C.gold : C.bdr),
+                  border: Border.all(color: active ? ac.gold : ac.bdr),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   if (active) ...[
-                    const Icon(Icons.check_rounded, size: 13, color: C.gold),
+                    Icon(Icons.check_rounded, size: 13, color: ac.gold),
                     const SizedBox(width: 3),
                   ],
                   Text(tag, style: AppText.caption.copyWith(
                       fontSize: 11.5, fontWeight: FontWeight.w700,
-                      color: active ? C.gold : C.txt2)),
+                      color: active ? ac.gold : ac.txt2)),
                 ]),
               ),
             ),
@@ -798,13 +815,13 @@ class TagMultiSelect extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: C.surf2, borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: C.bdr, style: BorderStyle.solid),
+                color: ac.surf2, borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: ac.bdr, style: BorderStyle.solid),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.add_rounded, size: 14, color: C.txt2),
+                Icon(Icons.add_rounded, size: 14, color: ac.txt2),
                 const SizedBox(width: 2),
-                Text('Add tag', style: AppText.caption.copyWith(fontSize: 11.5, color: C.txt2)),
+                Text('Add tag', style: AppText.caption.copyWith(fontSize: 11.5, color: ac.txt2)),
               ]),
             ),
           ),
@@ -909,20 +926,21 @@ class _HierarchyPickerState extends State<HierarchyPicker> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(widget.label, style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: C.txt2)),
+        Text(widget.label, style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: ac.txt2)),
         const SizedBox(height: 6),
         Wrap(spacing: 8, runSpacing: 8, children: [
           ...widget.options.map((o) {
             final active = !_creatingNew && o == widget.value;
-            return _chip(o, active, () {
+            return _chip(ac, o, active, () {
               setState(() => _creatingNew = false);
               widget.onChanged(o);
             }, icon: widget.icons[o]?.emoji, thumbUrl: widget.icons[o]?.imageUrl);
           }),
-          _chip('+ Create new', _creatingNew, () => setState(() => _creatingNew = true), outline: true),
+          _chip(ac, '+ Create new', _creatingNew, () => setState(() => _creatingNew = true), outline: true),
         ]),
         if (_creatingNew) ...[
           const SizedBox(height: 8),
@@ -934,18 +952,18 @@ class _HierarchyPickerState extends State<HierarchyPicker> {
             style: AppText.body,
             decoration: InputDecoration(
               hintText: 'New ${widget.label.toLowerCase()}',
-              hintStyle: AppText.body.copyWith(color: C.muted),
+              hintStyle: AppText.body.copyWith(color: ac.muted),
               filled: true,
-              fillColor: C.surf2,
+              fillColor: ac.surf2,
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: C.bdr)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: C.bdr)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: ac.bdr)),
+              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: ac.bdr)),
             ),
           ),
           if (widget.onIconPicked != null) ...[
             const SizedBox(height: 8),
             Text('Give it a look (optional) — an emoji, or your own photo',
-                style: AppText.caption.copyWith(fontSize: 11, color: C.txt2)),
+                style: AppText.caption.copyWith(fontSize: 11, color: ac.txt2)),
             const SizedBox(height: 6),
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(
@@ -962,9 +980,9 @@ class _HierarchyPickerState extends State<HierarchyPicker> {
                       duration: const Duration(milliseconds: 150),
                       width: 36, height: 36, alignment: Alignment.center,
                       decoration: BoxDecoration(
-                        color: active ? C.primaryBg : C.surf2,
+                        color: active ? ac.primaryBg : ac.surf2,
                         shape: BoxShape.circle,
-                        border: Border.all(color: active ? C.primary : C.bdr),
+                        border: Border.all(color: active ? ac.primary : ac.bdr),
                       ),
                       child: Text(e, style: const TextStyle(fontSize: 17)),
                     ),
@@ -984,7 +1002,7 @@ class _HierarchyPickerState extends State<HierarchyPicker> {
                       onTap: () => widget.onImagePicked?.call(null),
                       child: Container(
                         width: 20, height: 20, alignment: Alignment.center,
-                        decoration: const BoxDecoration(color: C.red, shape: BoxShape.circle),
+                        decoration: BoxDecoration(color: ac.red, shape: BoxShape.circle),
                         child: const Icon(Icons.close_rounded, size: 13, color: Colors.white),
                       ),
                     ),
@@ -997,8 +1015,8 @@ class _HierarchyPickerState extends State<HierarchyPicker> {
                   child: Container(
                     width: 44, height: 44, alignment: Alignment.center,
                     decoration: BoxDecoration(
-                        color: C.surf2, borderRadius: BorderRadius.circular(10), border: Border.all(color: C.bdr)),
-                    child: const Icon(Icons.add_photo_alternate_outlined, size: 20, color: C.txt2),
+                        color: ac.surf2, borderRadius: BorderRadius.circular(10), border: Border.all(color: ac.bdr)),
+                    child: Icon(Icons.add_photo_alternate_outlined, size: 20, color: ac.txt2),
                   ),
                 ),
             ]),
@@ -1008,7 +1026,8 @@ class _HierarchyPickerState extends State<HierarchyPicker> {
     );
   }
 
-  Widget _chip(String label, bool active, VoidCallback onTap, {bool outline = false, String? icon, String? thumbUrl}) {
+  Widget _chip(AppColors ac, String label, bool active, VoidCallback onTap,
+      {bool outline = false, String? icon, String? thumbUrl}) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1018,9 +1037,9 @@ class _HierarchyPickerState extends State<HierarchyPicker> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           decoration: BoxDecoration(
-            color: active ? C.primary : (outline ? Colors.transparent : C.surf2),
+            color: active ? ac.primary : (outline ? Colors.transparent : ac.surf2),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: active ? C.primary : C.bdr),
+            border: Border.all(color: active ? ac.primary : ac.bdr),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             if (thumbUrl != null && thumbUrl.isNotEmpty) ...[
@@ -1036,7 +1055,7 @@ class _HierarchyPickerState extends State<HierarchyPicker> {
             ],
             Text(label, style: AppText.caption.copyWith(
                 fontSize: 12, fontWeight: FontWeight.w700,
-                color: active ? Colors.white : (outline ? C.primary : C.txt2))),
+                color: active ? Colors.white : (outline ? ac.primary : ac.txt2))),
           ]),
         ),
       ),

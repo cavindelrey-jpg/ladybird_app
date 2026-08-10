@@ -11,6 +11,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
 import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
+import 'theme/app_colors.dart';
 import 'providers/institution_provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/app_router.dart';
@@ -147,13 +148,14 @@ class _MaintenanceScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.navy,
+      backgroundColor: ac.navy,
       body: SafeArea(child: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.construction_rounded, size: 64, color: C.gold),
+            Icon(Icons.construction_rounded, size: 64, color: ac.gold),
             const SizedBox(height: 20),
             const Text('Under Maintenance',
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
@@ -207,21 +209,22 @@ class _ErrorFallback extends StatelessWidget {
   Widget build(BuildContext context) {
     AnalyticsService.instance.track(AcademiaEvent.pageViewed,
         params: {'error': details.exception.toString()});
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: Center(child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Container(width: 72, height: 72,
-            decoration: BoxDecoration(color: C.redb,
+            decoration: BoxDecoration(color: ac.redBg,
                 borderRadius: BorderRadius.circular(Rad.xl)),
-            child: const Icon(Icons.error_outline_rounded, size: 36, color: C.red)),
+            child: Icon(Icons.error_outline_rounded, size: 36, color: ac.red)),
           const SizedBox(height: 16),
-          const Text('An unexpected error occurred',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          Text('An unexpected error occurred',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
           const SizedBox(height: 8),
           Text(details.exception.toString(),
-              style: const TextStyle(fontSize: 12, color: C.txt2),
+              style: TextStyle(fontSize: 12, color: ac.txt2),
               textAlign: TextAlign.center, maxLines: 3,
               overflow: TextOverflow.ellipsis),
         ]),

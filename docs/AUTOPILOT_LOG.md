@@ -616,3 +616,71 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
     validation/API fixes above are **not in any git history** — they
     exist only on this machine's disk. Flagging so a future session
     doesn't assume `git log` there will show anything.
+
+## Session continuation (2026-08-10) — compiler follow-ups from user feedback
+
+- **creatorName**: user objected to published courses showing "Claude"
+  as the creator (that's literally what the source `.md` front-matter
+  said — `creatorName: Claude` — carried straight through). Batch-fixed
+  all 6 already-published `public_courses` docs to `creatorName:
+  "Academia"` / `creatorId: "academia-compiler"` directly in Firestore.
+  Also changed `compile-course.js`'s own *default* (previously
+  `'AI Import'`/`'ai-import'`) to `'Academia'`/`'academia-compiler'` so
+  a future compile without explicit front-matter doesn't reintroduce
+  this, AND updated the front-matter in both source `.md` files
+  (`course-mathematics.md`, `course-computer-science.md` — both still at
+  the `academia_app` root) from `Claude` to `Academia`, since
+  front-matter/CLI flags win over the script default and would have
+  silently overridden the new default otherwise (confirmed this the
+  hard way: republishing Mathematics before fixing the `.md` file put
+  "Claude" right back).
+- **Images — user assumed the compiler auto-generated them; it never
+  did.** Rather than just explaining that, wired up real automatic
+  image resolution against **Openverse** (api.openverse.org — free,
+  no API key, searches only openly-licensed/Creative-Commons images) —
+  explicitly NOT a paid image-generation API, which the user was
+  offered as an alternative and declined ("can't we get free Google
+  images that are in creative commons" was their own framing).
+  - `[IMAGE: description]` markers now get two pending placeholders (an
+    image op + a caption text op, each carrying a base64 token) built
+    synchronously during the markdown pass, then resolved in a new
+    async `resolveCcImages()` step that runs after validation and
+    before preview-JSON is written (so dry runs see the same result a
+    publish would) — same `__PENDING_X__` string-replace pattern
+    `writeToFirestore()` already used for local-file uploads.
+  - **Query tuning was the real work**: description text is written
+    like an AI-image-generation prompt ("a graph showing a smooth
+    continuous curve next to a curve with a visible jump discontinuity,
+    for comparison") — sent verbatim, Openverse returns 0 hits (its
+    ranking rewards a few common terms, not one long specific phrase;
+    confirmed individual terms like "continuous curve" alone return
+    240). Built a stopword-stripped keyword extractor plus a
+    shrinking-attempt cascade (try top-4 keywords, then top-2, then
+    just the first) — this is what actually got a real hit on the
+    Calculus sample's discontinuity-graph placeholder.
+  - **Two real bugs caught by actually testing end-to-end** (not just
+    trusting the code): (1) the plain-text `body`/`description` fields
+    weren't patched, only `bodyDelta` — a raw
+    `__CC_IMAGE_CAPTION__:<base64>` marker was leaking into the stored
+    plain text. Fixed by also patching `doc.body` per-lesson (matched by
+    `item.lesson === doc.title`). (2) `bodyDelta` is *already-serialized*
+    JSON by the time resolution runs — splicing a raw image title
+    containing a literal `"` (a real Openverse result, "TOWERMAKER:
+    stepbystep") directly into that string corrupted the JSON. Fixed by
+    JSON-escaping (`JSON.stringify(s).slice(1,-1)`) both the URL and
+    caption before splicing. Confirmed the fix by round-tripping the
+    actual output file through `JSON.parse` rather than eyeballing it.
+  - No-match placeholders fall back to a small inline SVG data-URI
+    ("Image not found") instead of a broken/empty image URL, plus the
+    same human-readable "add manually" callout text as before — the
+    honest-fallback behavior from before this change is preserved, this
+    only replaces the *always-fallback* case with a *real-image-when-
+    findable* case.
+  - Deleted and republished the 3 Calculus docs (the only ones with an
+    `[IMAGE:]` placeholder) through the fixed compiler so the already-
+    live demo content actually shows the real image, not just future
+    compiles. Computer Science course wasn't affected (no image
+    placeholder in that source file) and wasn't touched.
+  - Every CC image carries an attribution caption underneath it
+    (creator + license, e.g. "BY-NC-SA 2.0") since most CC licenses
+    legally require attribution — not just a bare embedded image.

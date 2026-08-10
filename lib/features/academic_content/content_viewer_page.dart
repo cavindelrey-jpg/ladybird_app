@@ -8,6 +8,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:chewie/chewie.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -51,10 +52,9 @@ class ContentViewerPage extends StatelessWidget {
   final String? userId;
 
   /// Path to a device-local copy from AcademicContentRepository's offline
-  /// download (see content_details_page's "Save for offline"). When set
-  /// and the kind is PDF, reads from disk instead of the network — the
-  /// one format actually wired up to read offline so far (see
-  /// docs/AUTOPILOT_LOG.md for the scope note on image/video/docx).
+  /// download (see content_details_page's "Save for offline"). When set,
+  /// every viewer kind (image/pdf/video/docx) reads from disk instead of
+  /// the network — no loading spinner, no re-download on repeat opens.
   final String? localFilePath;
 
   const ContentViewerPage({
@@ -81,11 +81,11 @@ class ContentViewerPage extends StatelessWidget {
             color: kind == ViewableFileKind.video ? Colors.white : ac.txt),
       ),
       body: switch (kind) {
-        ViewableFileKind.image => _ImageViewer(url: fileUrl),
+        ViewableFileKind.image => _ImageViewer(url: fileUrl, localFilePath: localFilePath),
         ViewableFileKind.pdf => _PdfViewer(
             url: fileUrl, localFilePath: localFilePath, contentId: contentId, userId: userId),
-        ViewableFileKind.video => _VideoViewer(url: fileUrl),
-        ViewableFileKind.docx => _DocxViewer(url: fileUrl),
+        ViewableFileKind.video => _VideoViewer(url: fileUrl, localFilePath: localFilePath),
+        ViewableFileKind.docx => _DocxViewer(url: fileUrl, localFilePath: localFilePath),
       },
     );
   }
@@ -93,25 +93,30 @@ class ContentViewerPage extends StatelessWidget {
 
 class _ImageViewer extends StatelessWidget {
   final String url;
-  const _ImageViewer({required this.url});
+  final String? localFilePath;
+  const _ImageViewer({required this.url, this.localFilePath});
 
   @override
   Widget build(BuildContext context) {
-    return InteractiveViewer(
-      minScale: 0.5,
-      maxScale: 4,
-      child: Center(
-        child: Image.network(
-          url,
-          fit: BoxFit.contain,
-          loadingBuilder: (_, child, progress) =>
-              progress == null ? child : const Center(child: CircularProgressIndicator()),
-          errorBuilder: (_, __, ___) => const Center(
-            child: Text('Could not load this image.'),
-          ),
-        ),
-      ),
-    );
+    final path = localFilePath;
+    final image = (path != null)
+        // Offline copy first — no network round trip, and no loading
+        // spinner needed since the file is already on disk.
+        ? Image.file(
+            File(path),
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const Center(child: Text('Could not load this image.')),
+          )
+        : Image.network(
+            url,
+            fit: BoxFit.contain,
+            loadingBuilder: (_, child, progress) =>
+                progress == null ? child : const Center(child: CircularProgressIndicator()),
+            errorBuilder: (_, __, ___) => const Center(
+              child: Text('Could not load this image.'),
+            ),
+          );
+    return InteractiveViewer(minScale: 0.5, maxScale: 4, child: Center(child: image));
   }
 }
 
@@ -231,7 +236,8 @@ class _PdfViewerBodyState extends State<_PdfViewerBody> {
 
 class _VideoViewer extends StatefulWidget {
   final String url;
-  const _VideoViewer({required this.url});
+  final String? localFilePath;
+  const _VideoViewer({required this.url, this.localFilePath});
 
   @override
   State<_VideoViewer> createState() => _VideoViewerState();
@@ -245,7 +251,12 @@ class _VideoViewerState extends State<_VideoViewer> {
   @override
   void initState() {
     super.initState();
-    _videoCtrl = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    // Offline copy first (no network round trip, no buffering) — network
+    // streaming fallback otherwise, same pattern as the PDF viewer.
+    final path = widget.localFilePath;
+    _videoCtrl = path != null
+        ? VideoPlayerController.file(File(path))
+        : VideoPlayerController.networkUrl(Uri.parse(widget.url));
     _videoCtrl.initialize().then((_) {
       if (!mounted) return;
       setState(() {
@@ -281,7 +292,8 @@ class _VideoViewerState extends State<_VideoViewer> {
 
 class _DocxViewer extends StatefulWidget {
   final String url;
-  const _DocxViewer({required this.url});
+  final String? localFilePath;
+  const _DocxViewer({required this.url, this.localFilePath});
 
   @override
   State<_DocxViewer> createState() => _DocxViewerState();
@@ -300,12 +312,21 @@ class _DocxViewerState extends State<_DocxViewer> {
 
   Future<void> _load() async {
     try {
-      final resp = await http.get(Uri.parse(widget.url)).timeout(const Duration(seconds: 30));
-      if (resp.statusCode >= 400) throw Exception('Server returned ${resp.statusCode}');
+      // Offline copy first — skips the network fetch entirely, same
+      // pattern as the PDF/image/video viewers.
+      final path = widget.localFilePath;
+      Uint8List bytes;
+      if (path != null) {
+        bytes = await File(path).readAsBytes();
+      } else {
+        final resp = await http.get(Uri.parse(widget.url)).timeout(const Duration(seconds: 30));
+        if (resp.statusCode >= 400) throw Exception('Server returned ${resp.statusCode}');
+        bytes = resp.bodyBytes;
+      }
       // Zip-decode + XML-parse is CPU-bound — same reason the Course
       // composer's .docx importer runs this via compute() rather than
       // blocking the UI isolate.
-      final parsed = await compute(DocxParser.parse, resp.bodyBytes);
+      final parsed = await compute(DocxParser.parse, bytes);
       final doc = quill.Document.fromJson(jsonDecode(parsed.deltaJson));
       if (!mounted) return;
       setState(() {

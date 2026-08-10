@@ -21,9 +21,11 @@ import '../features/academic_content/academic_content_page.dart';
 import '../features/courses_marketplace/courses_marketplace_page.dart';
 import '../pages/profile_page.dart';
 import '../features/dashboard/universal_home_page.dart';
+import '../features/dashboard/school_home_page.dart';
 import '../features/magazine/magazine_feed_page.dart';
 import '../widgets/app_drawer.dart';
 import '../features/onboarding/account_choice_screen.dart';
+import '../config/app_config.dart';
 
 // ────────────────────────────────────────────────────────────────────────────
 // AppRouter — watches InstitutionProvider + Firebase auth
@@ -387,7 +389,7 @@ class _HomeShellState extends State<HomeShell> {
           ])));
     }
     switch (def.label) {
-      case 'Home':     return UniversalHomePage(user: u);
+      case 'Home':     return AppConfig.isSchoolMode ? SchoolHomePage(user: u) : UniversalHomePage(user: u);
       case 'Library':  return AcademicContentPage(user: u);
       case 'Magazine': return MagazineFeedPage(user: u);
       case 'Courses':  return CoursesMarketplacePage(user: u);

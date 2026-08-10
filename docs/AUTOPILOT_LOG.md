@@ -534,3 +534,85 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
   in-scope for autopilot given the demo depends on Library actually
   working. Flagging prominently here and to the user regardless, since
   it's a real live-backend change.
+
+## Session continuation (2026-08-10) — dark mode sweep, content-opening,
+## compiler publish
+
+- **Dark mode (directive Priority 2)**: dispatched 4 parallel conversion
+  passes over the highest-demo-visibility remaining files (16 of the 59
+  flagged in the 2026-08-08 audit): `features/academic_content/` (5),
+  `features/messages/` (3), `features/courses_marketplace/` (5),
+  `screens/` (login/router/first-login, 3). Same proven pattern as
+  before (`AppColors.of(context)`, static palettes restructured to take
+  `ac` as a parameter). Zero `C.xxx` left in any of the 16. `flutter
+  analyze`: 0 errors before and after. ~43 files across
+  pages/theme-core/widgets/clubs/magazine/admin/onboarding/announcements/
+  institution/singles still remain on the old palette — same honest
+  gap as before, re-run `grep -rl 'C\.bg\b\|C\.txt\b\|C\.surf\b' lib/`
+  for the current list.
+- **Messaging bug found in the same pass**:
+  `messaging_repository.watchMessages()` had no `.limit()` at all —
+  every conversation open streamed the entire message history forever.
+  Added `.limitToLast(60)`.
+- **Content opening (Priority 3)**: `content_viewer_page.dart`'s offline
+  path was PDF-only despite `downloadForOffline()` already downloading
+  any file type. Wired `localFilePath` through to the image/video/docx
+  viewers too (`Image.file`/`VideoPlayerController.file`/
+  `File.readAsBytes()` in place of the network path when present) — this
+  is the actual mechanism behind "opens instantly like Google Drive" for
+  anything already viewed once.
+- **Logo (user's explicit ask, not in the formal directive but
+  demo-visible)**: root-caused via a dispatched audit — the source art
+  `assets/icon/academia_logo.png` is 689x765 (portrait, not square), fed
+  directly into `flutter_launcher_icons`/`flutter_native_splash`'s
+  square-icon generation, which is what actually cropped the "A" — the
+  in-app `AcademiaLogo` widget itself uses `BoxFit.contain` and was
+  never cropping anything. Used Python/Pillow (installed this session,
+  nothing else available — no ImageMagick, no `sharp`/`jimp`) to build a
+  centered, transparent-padded 918x918 square version with a 20% safe
+  margin for adaptive-icon masking, pointed pubspec.yaml's icon/splash
+  config at it, regenerated every Android/iOS/web icon+splash asset, and
+  pointed the in-app logo widget + Branding default at the same square
+  file for visual consistency.
+- **Compiler → Course Creation (Priority 5)**: audited first (per the
+  directive's own instruction). Two things were already true and needed
+  no rebuilding: (1) Course Creation is a genuinely complete, working
+  feature today — `CourseComposerPage` (marketplace, `public_courses`)
+  and the school-catalog `+`-button form (`courses_page.dart`) both
+  write real Firestore docs, not stubs; (2) the compiler
+  (`academia_compiler/compile-course.js`/`compile-quiz.js`) is a
+  deterministic Markdown/JSON → Quill-Delta transform with **no AI API
+  calls** (only `gray-matter`/`markdown-it` deps) — safe to run without
+  touching the "spending real money" stop condition.
+  - Added the validation gate directive §6 point 7 explicitly asks for
+    (previously none existed): `compile-course.js` now refuses to
+    compile — before writing any preview JSON or touching Firestore — if
+    `subject`/`level`/`category` are empty or any lesson body is
+    under 20 chars, with per-error messages.
+  - **Real blocker found and fixed**: `npm install firebase-admin`
+    pulled v14, which restructured the top-level package export
+    (`admin.credential`/`admin.firestore()`/`admin.storage()` no longer
+    exist on `require('firebase-admin')` — moved to modular subpath
+    imports `firebase-admin/app`, `firebase-admin/firestore`,
+    `firebase-admin/storage`, same shift the client SDK made in v9).
+    `writeToFirestore()` was written against the old namespaced API and
+    would have failed on first real use regardless of the
+    service-account-key blocker prior sessions hit. Rewrote to the
+    modular API.
+  - **Published for real**: with the user's explicit go-ahead (asked
+    directly — this bypasses all Firestore security rules via an admin
+    key, judged worth a real confirmation rather than an autopilot
+    default even though it's additive/reversible, not a delete), ran
+    `--write` for both validated sample courses
+    (`course-mathematics.md` → Calculus, `course-computer-science.md` →
+    Intro to Programming), 3 lessons each. **6 new `public_courses`
+    documents are now live** in `academia-b1705`. `compile-quiz.js` was
+    not similarly exercised this session (no urgent demo need flagged
+    for it) — same shape of fix would likely be needed there too if it's
+    ever run with `--write`.
+  - `academia_compiler/` has no git repo of its own (confirmed earlier —
+    outside `academia_app`'s toplevel, and the `academia_cameroon`
+    parent directory isn't a git repo either), so the `compile-course.js`
+    validation/API fixes above are **not in any git history** — they
+    exist only on this machine's disk. Flagging so a future session
+    doesn't assume `git log` there will show anything.

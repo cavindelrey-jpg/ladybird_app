@@ -271,18 +271,37 @@ service cloud.firestore {
 
       // Saved-for-offline marker and per-user recent-view tracking —
       // both are self-only, never touched by anyone but the owner.
+      //
+      // `read` is split into two checks on purpose: `request.auth.uid ==
+      // userId` (the path segment) covers a direct .doc(userId).get(), but
+      // AcademicContentRepository.watchSavedContent()/watchRecentlyViewed()
+      // read these via a collectionGroup(...).where('userId', isEqualTo:
+      // uid) query — Firestore can only allow a collection-group LIST
+      // query if the rule is provably true from the query's own filters,
+      // and a rule keyed on the *path segment* can't be statically matched
+      // against a query filtered on a *data field*, even though in this
+      // app's data the two are always kept equal. Firestore denied the
+      // whole query outright (`permission-denied`) rather than partially
+      // allow it. Adding the `resource.data.userId == request.auth.uid`
+      // check (matching what the query actually filters on) is what makes
+      // Firestore able to verify the query is safe. Writes keep the
+      // stricter path-segment check (a spoofed `userId` field can't fake
+      // which document it lands on).
       match /saves/{userId} {
-        allow read, create, delete: if isSignedIn() && request.auth.uid == userId;
+        allow read: if isSignedIn() && (request.auth.uid == userId || resource.data.userId == request.auth.uid);
+        allow create, delete: if isSignedIn() && request.auth.uid == userId;
       }
       match /recent_views/{userId} {
-        allow read, create, update: if isSignedIn() && request.auth.uid == userId;
+        allow read: if isSignedIn() && (request.auth.uid == userId || resource.data.userId == request.auth.uid);
+        allow create, update: if isSignedIn() && request.auth.uid == userId;
         allow delete: if false;
       }
 
       // Real last-read page position — powers Home "Continue Reading".
-      // Self-only, same shape as recent_views above.
+      // Self-only, same collection-group-query shape as recent_views above.
       match /readPositions/{userId} {
-        allow read, create, update: if isSignedIn() && request.auth.uid == userId;
+        allow read: if isSignedIn() && (request.auth.uid == userId || resource.data.userId == request.auth.uid);
+        allow create, update: if isSignedIn() && request.auth.uid == userId;
         allow delete: if false;
       }
     }
@@ -580,8 +599,15 @@ service cloud.firestore {
         allow read: if true;
         allow create, delete: if isSignedIn() && request.auth.uid == userId;
       }
+      // read is split the same way as academic_content's saves/recent_views/
+      // readPositions above: PublicCourseRepository.watchBookmarkedCourses()
+      // reads this via a collectionGroup(...).where('userId', isEqualTo: uid)
+      // query, which needs a resource.data.userId check (matching what the
+      // query actually filters on) to pass Firestore's list-query rule
+      // validation — a path-segment-only check denies the whole query.
       match /bookmarks/{userId} {
-        allow read, create, delete: if isSignedIn() && request.auth.uid == userId;
+        allow read: if isSignedIn() && (request.auth.uid == userId || resource.data.userId == request.auth.uid);
+        allow create, delete: if isSignedIn() && request.auth.uid == userId;
       }
       match /learners/{userId} {
         allow read: if true;

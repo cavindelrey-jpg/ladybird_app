@@ -7,7 +7,13 @@ plugins {
 
 android {
     namespace = "com.example.academia_app"
-    compileSdk = flutter.compileSdkVersion
+    // Pinned explicitly rather than left on flutter.compileSdkVersion --
+    // that tracks whatever this Flutter version's bundled template
+    // defaults to, which lags behind Play Store's actual requirement.
+    // Google Play requires API 35+ for new apps/updates as of 2025, and
+    // is expected to raise that to API 36 around 2026-08-31 -- targeting
+    // 36 now means this doesn't need revisiting again this year.
+    compileSdk = 36
 
     // Change this line from: ndkVersion = flutter.ndkVersion
     ndkVersion = "27.0.12077973"
@@ -20,6 +26,7 @@ android {
     defaultConfig {
         applicationId = "com.example.academia_app"
         minSdk = flutter.minSdkVersion
+        targetSdk = 36
         // No manual ndk.abiFilters here -- Flutter's own --split-per-abi
         // flag injects its own `splits { abi { ... } }` block, and Gradle
         // refuses to have both set at once ("Conflicting configuration").

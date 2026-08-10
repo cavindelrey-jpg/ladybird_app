@@ -1,0 +1,133 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════════════
+// Academia — Firebase Storage Security Rules
+// ═══════════════════════════════════════════════════════════════════════
+// This file did not exist before — Storage had NO rules deployed via this
+// repo at all (confirmed: no "storage" key in firebase.json, no
+// storage.rules file anywhere). Whatever the bucket was actually running
+// on was whatever got set outside of source control (console default —
+// often locked-down/deny-all on newer Blaze projects, which matches
+// reports of images failing to load with a permission error).
+//
+// Mirrors the same role model as firestore.rules (6-tier role system in
+// lib/models/app_user.dart), scoped to the actual upload paths found in
+// the app (grepped every FirebaseStorage.instance.ref(...) call site).
+//
+// Deploy: firebase deploy --only storage
+// (requires firebase.json's "storage" key pointing at this file — see
+// that file, updated alongside this one.)
+// ═══════════════════════════════════════════════════════════════════════
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myRole() {
+      return isSignedIn() && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        ? firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role
+        : 'guest';
+    }
+
+    function roleLevel(role) {
+      return role == 'superAdmin'      ? 5 :
+             role == 'schoolAdmin'     ? 4 :
+             role == 'departmentAdmin' ? 3 :
+             role == 'lecturer'        ? 2 :
+             role == 'student'         ? 1 : 0;
+    }
+
+    function hasMinRole(role) {
+      return isSignedIn() && roleLevel(myRole()) >= roleLevel(role);
+    }
+
+    function canUploadContent()  { return hasMinRole('lecturer'); }
+    function canManageSchool()   { return hasMinRole('schoolAdmin'); }
+
+    function isConversationParticipant(conversationId) {
+      return isSignedIn() &&
+        request.auth.uid in firestore.get(
+          /databases/(default)/documents/conversations/$(conversationId)
+        ).data.participantIds;
+    }
+
+    // ── avatars/{uid}.jpg ────────────────────────────────────────────
+    // Public read (profile photos shown everywhere — avatars, chat,
+    // clubs); only the owning account can (over)write their own.
+    match /avatars/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && fileName.matches(request.auth.uid + '\\..*');
+    }
+
+    // ── article_thumbnails/{articleId}.jpg ──────────────────────────
+    match /article_thumbnails/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // ── club_banners/{clubId}.jpg ────────────────────────────────────
+    match /club_banners/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // ── hero_slides/{slideId}.jpg ─────────────────────────────────────
+    // Matches heroSlides/{id} Firestore rule: superAdmin/schoolAdmin only.
+    match /hero_slides/{fileName} {
+      allow read: if true;
+      allow write: if canManageSchool();
+    }
+
+    // ── curriculum_icons/{docId}.jpg ──────────────────────────────────
+    match /curriculum_icons/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // ── course_covers/{courseId}.jpg ──────────────────────────────────
+    match /course_covers/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // ── public_courses/inline/... ─────────────────────────────────────
+    // Inline lesson images uploaded by the compiler pipeline (see
+    // academia_compiler/compile-course.js) — writes there go through the
+    // Admin SDK (bypasses these rules entirely), this just covers reads.
+    match /public_courses/inline/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // ── content_files/{institutionId}/{fileName} ──────────────────────
+    // ── thumbnails/{institutionId}/{fileName} ─────────────────────────
+    // Matches academic_content/{id} Firestore rule: lecturer+ uploads,
+    // anyone (including guests) reads.
+    match /content_files/{institutionId}/{fileName} {
+      allow read: if true;
+      allow write: if canUploadContent();
+    }
+    match /thumbnails/{institutionId}/{fileName} {
+      allow read: if true;
+      allow write: if canUploadContent();
+    }
+
+    // ── chat_media/{conversationId}/{fileName} ────────────────────────
+    // ── chat_files/{conversationId}/{fileName} ────────────────────────
+    // Only the two (or more) participants in a conversation can read or
+    // send its attachments — mirrors conversations/{id}/messages'
+    // Firestore rule exactly (request.auth.uid in participantIds).
+    match /chat_media/{conversationId}/{fileName} {
+      allow read, write: if isConversationParticipant(conversationId);
+    }
+    match /chat_files/{conversationId}/{fileName} {
+      allow read, write: if isConversationParticipant(conversationId);
+    }
+
+    // ── Default deny ───────────────────────────────────────────────────
+    // Anything not explicitly matched above is denied by default.
+  }
+}

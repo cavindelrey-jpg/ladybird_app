@@ -35,10 +35,14 @@ class AcademicContentPage extends StatefulWidget {
 class _AcademicContentPageState extends State<AcademicContentPage> {
   late ContentType? _typeFilter = widget.initialTypeFilter;
   String? _subjectFilter;
+  String? _levelFilter;
+  String? _examBoardFilter;
+  int? _yearFilter;
   bool _isSearching = false;
   List<AcademicContent>? _searchResults;
   bool _searchLoading = false;
   List<String> _subjects = [];
+  List<int> _years = [];
 
   final _searchCtrl = TextEditingController();
   late final Debouncer _searchDebounce;
@@ -48,6 +52,7 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
     super.initState();
     _searchDebounce = Debouncer(milliseconds: 400);
     _loadSubjects();
+    _loadYears();
   }
 
   @override
@@ -62,6 +67,12 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
     if (mounted) setState(() => _subjects = list);
   }
 
+  Future<void> _loadYears() async {
+    final list = await AcademicContentRepository.instance
+        .yearsInUseOnce(institutionId: widget.user.schoolId);
+    if (mounted) setState(() => _years = list);
+  }
+
   void _onSearchChanged(String q) {
     if (q.trim().isEmpty) {
       setState(() { _isSearching = false; _searchResults = null; });
@@ -73,12 +84,19 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
         q,
         institutionId: widget.user.schoolId,
         contentType: _typeFilter,
+        subject: _subjectFilter,
+        level: _levelFilter,
+        examBoard: _examBoardFilter,
+        year: _yearFilter,
       );
       if (mounted) setState(() { _searchResults = results; _searchLoading = false; });
     });
   }
 
   bool get _canUpload => widget.user.canUploadContent;
+
+  int get _activeExtraFilterCount =>
+      (_levelFilter != null ? 1 : 0) + (_examBoardFilter != null ? 1 : 0) + (_yearFilter != null ? 1 : 0);
 
   void _selectSubject(String subject) {
     HapticFeedback.selectionClick();
@@ -87,6 +105,28 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
       _isSearching = false;
       _searchCtrl.clear();
     });
+  }
+
+  Future<void> _openFilterSheet() async {
+    HapticFeedback.selectionClick();
+    final result = await showModalBottomSheet<_FilterSheetResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _FilterSheet(
+        years: _years,
+        level: _levelFilter,
+        examBoard: _examBoardFilter,
+        year: _yearFilter,
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _levelFilter = result.level;
+      _examBoardFilter = result.examBoard;
+      _yearFilter = result.year;
+    });
+    if (_isSearching) _onSearchChanged(_searchCtrl.text);
   }
 
   @override
@@ -119,7 +159,13 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
             ),
           ]),
         ),
-        _SearchBar(controller: _searchCtrl, onChanged: _onSearchChanged),
+        Row(children: [
+          Expanded(child: _SearchBar(controller: _searchCtrl, onChanged: _onSearchChanged)),
+          Padding(
+            padding: const EdgeInsets.only(right: 12, top: 4),
+            child: _FilterButton(activeCount: _activeExtraFilterCount, onTap: _openFilterSheet),
+          ),
+        ]),
         _FilterRow(
           selectedType: _typeFilter,
           selectedSubject: _subjectFilter,
@@ -133,12 +179,30 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
           onSubjectChanged: (s) =>
               setState(() => _subjectFilter = s == _subjectFilter ? null : s),
         ),
+        if (_activeExtraFilterCount > 0)
+          _ActiveExtraFiltersBar(
+            level: _levelFilter,
+            examBoard: _examBoardFilter,
+            year: _yearFilter,
+            onClear: () => setState(() {
+              _levelFilter = null;
+              _examBoardFilter = null;
+              _yearFilter = null;
+            }),
+          ),
         Expanded(
           child: _isSearching
               ? _SearchResults(loading: _searchLoading, results: _searchResults ?? [], user: widget.user)
-              : ((_typeFilter == null && _subjectFilter == null)
+              : ((_typeFilter == null && _subjectFilter == null && _activeExtraFilterCount == 0)
                   ? _LibraryDiscovery(user: widget.user, onSubjectTap: _selectSubject)
-                  : _LiveFeed(user: widget.user, typeFilter: _typeFilter, subjectFilter: _subjectFilter)),
+                  : _LiveFeed(
+                      user: widget.user,
+                      typeFilter: _typeFilter,
+                      subjectFilter: _subjectFilter,
+                      levelFilter: _levelFilter,
+                      examBoardFilter: _examBoardFilter,
+                      yearFilter: _yearFilter,
+                    )),
         ),
       ]),
       ),
@@ -292,13 +356,29 @@ class _LiveFeed extends StatelessWidget {
   final AppUser user;
   final ContentType? typeFilter;
   final String? subjectFilter;
-  const _LiveFeed({required this.user, required this.typeFilter, required this.subjectFilter});
+  final String? levelFilter;
+  final String? examBoardFilter;
+  final int? yearFilter;
+  const _LiveFeed({
+    required this.user,
+    required this.typeFilter,
+    required this.subjectFilter,
+    this.levelFilter,
+    this.examBoardFilter,
+    this.yearFilter,
+  });
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<AcademicContent>>(
       stream: AcademicContentRepository.instance.watch(
-          institutionId: user.schoolId, contentType: typeFilter, subject: subjectFilter),
+        institutionId: user.schoolId,
+        contentType: typeFilter,
+        subject: subjectFilter,
+        level: levelFilter,
+        examBoard: examBoardFilter,
+        year: yearFilter,
+      ),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const _ContentGridSkeleton();
@@ -312,6 +392,189 @@ class _LiveFeed extends StatelessWidget {
         if (items.isEmpty) return _EmptyState(typeFilter: typeFilter, subjectFilter: subjectFilter);
         return _ContentGrid(items: items, user: user);
       },
+    );
+  }
+}
+
+class _FilterSheetResult {
+  final String? level;
+  final String? examBoard;
+  final int? year;
+  const _FilterSheetResult({this.level, this.examBoard, this.year});
+}
+
+class _FilterButton extends StatelessWidget {
+  final int activeCount;
+  final VoidCallback onTap;
+  const _FilterButton({required this.activeCount, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: activeCount > 0 ? C.primaryBg : C.surf2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: activeCount > 0 ? C.primary : C.bdr),
+          ),
+          child: Stack(clipBehavior: Clip.none, children: [
+            Icon(Icons.tune_rounded, size: 18, color: activeCount > 0 ? C.primary : C.txt2),
+            if (activeCount > 0)
+              Positioned(
+                right: -6, top: -6,
+                child: Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: const BoxDecoration(color: C.primary, shape: BoxShape.circle),
+                  child: Text('$activeCount',
+                      style: AppText.caption.copyWith(fontSize: 8, color: Colors.white, fontWeight: FontWeight.w700)),
+                ),
+              ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _ActiveExtraFiltersBar extends StatelessWidget {
+  final String? level;
+  final String? examBoard;
+  final int? year;
+  final VoidCallback onClear;
+  const _ActiveExtraFiltersBar({this.level, this.examBoard, this.year, required this.onClear});
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = [
+      if (level != null) level!,
+      if (examBoard != null) examBoard!,
+      if (year != null) '$year',
+    ];
+    return Container(
+      color: C.surf,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(children: [
+        Icon(Icons.filter_alt_rounded, size: 14, color: C.primary),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(parts.join(' · '),
+              style: AppText.caption.copyWith(fontSize: 11, color: C.primary, fontWeight: FontWeight.w600)),
+        ),
+        InkWell(
+          onTap: onClear,
+          child: Text('Clear', style: AppText.caption.copyWith(fontSize: 11, color: C.muted)),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Scalable filter surface (directive: "Search / Filter: Subject, Level,
+/// Type, Examination, Year, Category — then show content", never a wall of
+/// per-upload tags). Subject/Type stay as quick inline chips on the main
+/// page since kAcademicSubjects/ContentType are both small fixed sets;
+/// Level/Examination/Year live here since surfacing all of them inline
+/// would be exactly the clutter the directive warns against.
+class _FilterSheet extends StatefulWidget {
+  final List<int> years;
+  final String? level;
+  final String? examBoard;
+  final int? year;
+  const _FilterSheet({required this.years, this.level, this.examBoard, this.year});
+
+  @override
+  State<_FilterSheet> createState() => _FilterSheetState();
+}
+
+class _FilterSheetState extends State<_FilterSheet> {
+  late String? _level = widget.level;
+  late String? _examBoard = widget.examBoard;
+  late int? _year = widget.year;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        decoration: const BoxDecoration(
+          color: C.bg,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(color: C.bdr, borderRadius: BorderRadius.circular(2)),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text('Filters', style: AppText.h2.copyWith(fontSize: 18)),
+          const SizedBox(height: 20),
+          Text('Level / Class', style: AppText.subtitle.copyWith(fontSize: 13)),
+          const SizedBox(height: 10),
+          _sheetChips(kAcademicLevels, _level, (v) => setState(() => _level = _level == v ? null : v)),
+          const SizedBox(height: 20),
+          Text('Examination', style: AppText.subtitle.copyWith(fontSize: 13)),
+          const SizedBox(height: 10),
+          _sheetChips(kExamBoards, _examBoard, (v) => setState(() => _examBoard = _examBoard == v ? null : v)),
+          if (widget.years.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Text('Year', style: AppText.subtitle.copyWith(fontSize: 13)),
+            const SizedBox(height: 10),
+            _sheetChips(widget.years.map((y) => '$y').toList(), _year?.toString(),
+                (v) => setState(() => _year = _year == int.tryParse(v) ? null : int.tryParse(v))),
+          ],
+          const SizedBox(height: 24),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => setState(() { _level = null; _examBoard = null; _year = null; }),
+                child: const Text('Reset'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: C.primary, foregroundColor: Colors.white),
+                onPressed: () => Navigator.pop(context,
+                    _FilterSheetResult(level: _level, examBoard: _examBoard, year: _year)),
+                child: const Text('Apply'),
+              ),
+            ),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  Widget _sheetChips(List<String> options, String? selected, ValueChanged<String> onTap) {
+    return Wrap(
+      spacing: 8, runSpacing: 8,
+      children: options.map((o) {
+        final active = o == selected;
+        return ChoiceChip(
+          label: Text(o),
+          selected: active,
+          onSelected: (_) {
+            HapticFeedback.selectionClick();
+            onTap(o);
+          },
+          selectedColor: C.primary,
+          labelStyle: TextStyle(
+              color: active ? Colors.white : C.txt,
+              fontWeight: active ? FontWeight.w600 : FontWeight.w400),
+          backgroundColor: C.surf2,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(color: active ? C.primary : C.bdr)),
+        );
+      }).toList(),
     );
   }
 }

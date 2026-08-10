@@ -32,10 +32,13 @@ class _ContentEditPageState extends State<ContentEditPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleCtrl;
   late final TextEditingController _descCtrl;
-  late final TextEditingController _subjectCtrl;
   late final TextEditingController _tagsCtrl;
+  late final TextEditingController _yearCtrl;
 
   late ContentType _type;
+  late String _subject;   // locked to kAcademicSubjects — never free text
+  late String _level;     // locked to kAcademicLevels
+  late String _examBoard; // locked to kExamBoards
   File? _newContentFile;
   String? _newContentFileName;
   File? _newThumbnailFile;
@@ -49,17 +52,24 @@ class _ContentEditPageState extends State<ContentEditPage> {
     final c = widget.content;
     _titleCtrl = TextEditingController(text: c.title);
     _descCtrl = TextEditingController(text: c.description);
-    _subjectCtrl = TextEditingController(text: c.subject);
     _tagsCtrl = TextEditingController(text: c.tags.join(', '));
+    _yearCtrl = TextEditingController(text: c.year?.toString() ?? '');
     _type = c.contentType;
+    // Older docs may carry a subject/level/examBoard value from before
+    // these were locked lists (or before level/examBoard existed at all)
+    // — fall back to the first/last valid option rather than crashing on
+    // a value not in the controlled list.
+    _subject = kAcademicSubjects.contains(c.subject) ? c.subject : kAcademicSubjects.first;
+    _level = kAcademicLevels.contains(c.level) ? c.level : kAcademicLevels.last;
+    _examBoard = kExamBoards.contains(c.examBoard) ? c.examBoard : kExamBoards.last;
   }
 
   @override
   void dispose() {
     _titleCtrl.dispose();
     _descCtrl.dispose();
-    _subjectCtrl.dispose();
     _tagsCtrl.dispose();
+    _yearCtrl.dispose();
     super.dispose();
   }
 
@@ -142,7 +152,11 @@ class _ContentEditPageState extends State<ContentEditPage> {
     final updated = widget.content.copyWith(
       title: _titleCtrl.text.trim(),
       description: _descCtrl.text.trim(),
-      subject: _subjectCtrl.text.trim(),
+      subject: _subject,
+      level: _level,
+      examBoard: _examBoard,
+      year: int.tryParse(_yearCtrl.text.trim()),
+      clearYear: _yearCtrl.text.trim().isEmpty,
       contentType: _type,
       tags: tags,
       fileUrl: fileUrl.isEmpty ? null : fileUrl,
@@ -212,11 +226,36 @@ class _ContentEditPageState extends State<ContentEditPage> {
 
               const _Label('Subject *'),
               const SizedBox(height: 8),
+              _ChoicePicker(
+                options: kAcademicSubjects,
+                selected: _subject,
+                onSelected: (v) => setState(() => _subject = v),
+              ),
+              const SizedBox(height: 16),
+
+              const _Label('Level / Class *'),
+              const SizedBox(height: 8),
+              _ChoicePicker(
+                options: kAcademicLevels,
+                selected: _level,
+                onSelected: (v) => setState(() => _level = v),
+              ),
+              const SizedBox(height: 16),
+
+              const _Label('Examination *'),
+              const SizedBox(height: 8),
+              _ChoicePicker(
+                options: kExamBoards,
+                selected: _examBoard,
+                onSelected: (v) => setState(() => _examBoard = v),
+              ),
+              const SizedBox(height: 16),
+
+              const _Label('Year (optional)'),
+              const SizedBox(height: 8),
               _TextField(
-                controller: _subjectCtrl,
-                hint: 'Subject',
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Required' : null,
+                controller: _yearCtrl,
+                hint: 'e.g. 2024',
               ),
               const SizedBox(height: 16),
 
@@ -351,6 +390,39 @@ class _TextField extends StatelessWidget {
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),
+    );
+  }
+}
+
+class _ChoicePicker extends StatelessWidget {
+  final List<String> options;
+  final String selected;
+  final ValueChanged<String> onSelected;
+  const _ChoicePicker({required this.options, required this.selected, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8, runSpacing: 8,
+      children: options.map((o) {
+        final active = o == selected;
+        return ChoiceChip(
+          label: Text(o),
+          selected: active,
+          onSelected: (_) {
+            HapticFeedback.selectionClick();
+            onSelected(o);
+          },
+          selectedColor: C.primary,
+          labelStyle: TextStyle(
+              color: active ? Colors.white : C.txt,
+              fontWeight: active ? FontWeight.w600 : FontWeight.w400),
+          backgroundColor: C.surf,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+              side: BorderSide(color: active ? C.primary : C.bdr)),
+        );
+      }).toList(),
     );
   }
 }

@@ -446,3 +446,67 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
   available in this session, so `--write` hasn't been exercised end to
   end against real Firestore, only validated through the dry-run
   compile + schema checks.
+
+## Session resume (2026-08-10) — new master directive, Library-first
+
+- User provided `academia-master-development-directive.md` (committed
+  `144213e`) reordering priorities: Library (non-negotiable) > Dark Mode >
+  Content Opening > Messaging > Compiler > Website. Working through it in
+  that order; this log continues terse-per-decision style.
+- **Security finding, fixed immediately (commit `48510aa`)**: a live
+  Firebase Admin SDK service-account key
+  (`academia-b1705-firebase-adminsdk-fbsvc-98865a42cf.json`) was tracked
+  in git, committed in `de096c8`, already pushed to `origin/main` and
+  `origin/demo-prep`. Checked exposure: repo is **private**, single
+  collaborator (the repo owner) — not publicly exposed, but a live
+  admin-bypasses-all-rules credential has no business in git regardless.
+  Untracked it (`git rm --cached`, kept the local file) and added
+  `*firebase-adminsdk*.json` / `serviceAccountKey.json` / `*.pem` / `*.key`
+  to `.gitignore`. **Did NOT rewrite history or force-push** — the key
+  still exists in past commits on origin; that cleanup
+  (`git filter-repo` + force-push) is explicitly outside autopilot's
+  authority per standing instructions (force-push requires the user's
+  go-ahead). Recommend the user rotate this service-account key in the
+  Firebase/GCP console when convenient. Separately noted: a *second*,
+  different-suffix copy of this same key
+  (`academia-b1705-firebase-adminsdk-fbsvc-c48249758a.json`) sits in
+  `academia_compiler/`, which is **outside** the `academia_app` git repo
+  entirely (confirmed via `git rev-parse --show-toplevel`) — not tracked,
+  not pushed, no action needed there beyond awareness.
+- **Library classification rebuild (directive §7-12, the non-negotiable
+  part)**: audited first rather than rebuilding blind, per the directive's
+  own instruction. Found the "1000 tags at top" failure mode described in
+  the directive does NOT literally exist in the current code — `subject`
+  is already a fixed 8-value controlled list (`kAcademicSubjects`,
+  ChoiceChips, "never free text" per an existing code comment) driving the
+  Library's subject filter chips, matching the 2026-08-08 session's same
+  finding. The real, non-stale gap: the directive's "Level/Class" and
+  "Examination/Type" classification dimensions (its examples: "GCE
+  Physics 2022", "Form 4") don't exist on `AcademicContent` at all — only
+  `subject` + free-text `tags` + the document-kind `ContentType` enum
+  existed. Added `level` (`kAcademicLevels`: Form 1-5/Lower Sixth/Upper
+  Sixth/Undergraduate/All Levels) and `examBoard` (`kExamBoards`: GCE/
+  Probatoire/BEPC/BAC/Mock Exam/School Exam/N-A) as new controlled-list
+  fields on the model, same "predefined, ChoiceChip, never free text"
+  pattern as `subject` — plus a plain optional `year` int. Both new lists
+  are Cameroon-exam-system-specific (Probatoire/BEPC/BAC alongside GCE)
+  since that's this app's actual context.
+  - **Index-explosion avoidance (documented in code, repeating here for
+    visibility)**: did NOT add a Firestore composite index for every
+    filter-dimension combination — that multiplies combinatorially as
+    dimensions grow (institutionId × contentType × subject × level ×
+    examBoard × year). Kept the existing indexed dims
+    (institutionId+contentType+subject+uploadDate) server-side, and added
+    level/examBoard/year as **client-side refinement** over a wider page
+    (300 vs 80 docs) when any are active. This is the same class of
+    scoped, documented tradeoff as the prior session's dark-mode/
+    architecture-split calls — correct up to the low-thousands-per-
+    institution range the directive's own volume-testing section (10/100/
+    1000 files) targets; would need revisiting (real composite indexes
+    picked by actual usage patterns) well beyond that.
+  - Found `content_edit_page.dart` used a **free-text** `TextEditingController`
+    for subject (`_subjectCtrl`), inconsistent with upload's locked
+    ChoiceChip picker — a real instance of the uncontrolled-tag problem,
+    just in the edit flow, not upload. Fixing as part of this pass by
+    converting edit's subject field to the same ChoiceChip pattern and
+    adding level/examBoard/year pickers there too.

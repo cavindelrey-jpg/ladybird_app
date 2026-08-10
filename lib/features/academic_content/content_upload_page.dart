@@ -27,9 +27,12 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _tagsCtrl = TextEditingController();
+  final _yearCtrl = TextEditingController();
 
   ContentType _type = ContentType.note;
   String _subject = kAcademicSubjects.first; // locked to predefined list — never free text
+  String _level = kAcademicLevels.last;      // 'All Levels' default
+  String _examBoard = kExamBoards.last;      // 'N/A' default
   File? _contentFile;
   String? _contentFileName;
   File? _thumbnailFile;
@@ -42,6 +45,7 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
     _titleCtrl.dispose();
     _descCtrl.dispose();
     _tagsCtrl.dispose();
+    _yearCtrl.dispose();
     super.dispose();
   }
 
@@ -133,6 +137,9 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
       fileUrl: fileUrl,
       contentType: _type,
       subject: _subject,
+      level: _level,
+      examBoard: _examBoard,
+      year: int.tryParse(_yearCtrl.text.trim()),
       institutionId: institutionId,
       uploadedBy: widget.user.id,
       uploaderName: widget.user.name,
@@ -216,6 +223,72 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
                         side: BorderSide(color: selected ? C.primary : C.bdr)),
                   );
                 }).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // Level — locked to predefined categories, never free text
+              const _SectionLabel('Level / Class *'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8, runSpacing: 8,
+                children: kAcademicLevels.map((l) {
+                  final selected = l == _level;
+                  return ChoiceChip(
+                    label: Text(l),
+                    selected: selected,
+                    onSelected: (_) => setState(() => _level = l),
+                    selectedColor: C.primary,
+                    labelStyle: TextStyle(
+                        color: selected ? Colors.white : C.txt,
+                        fontWeight: selected ? FontWeight.w600 : FontWeight.w400),
+                    backgroundColor: C.surf2,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(color: selected ? C.primary : C.bdr)),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // Exam board / series — locked to predefined categories
+              const _SectionLabel('Examination *'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8, runSpacing: 8,
+                children: kExamBoards.map((e) {
+                  final selected = e == _examBoard;
+                  return ChoiceChip(
+                    label: Text(e),
+                    selected: selected,
+                    onSelected: (_) => setState(() => _examBoard = e),
+                    selectedColor: C.primary,
+                    labelStyle: TextStyle(
+                        color: selected ? Colors.white : C.txt,
+                        fontWeight: selected ? FontWeight.w600 : FontWeight.w400),
+                    backgroundColor: C.surf2,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(color: selected ? C.primary : C.bdr)),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+
+              // Year — optional, mainly relevant to Past Papers/Mock exams
+              const _SectionLabel('Year (optional)'),
+              const SizedBox(height: 8),
+              _Field(
+                controller: _yearCtrl,
+                hint: 'e.g. 2024',
+                keyboardType: TextInputType.number,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) return null;
+                  final n = int.tryParse(v.trim());
+                  if (n == null || n < 1990 || n > DateTime.now().year + 1) {
+                    return 'Enter a valid year';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 16),
 
@@ -335,12 +408,14 @@ class _Field extends StatelessWidget {
   final String hint;
   final int maxLines;
   final String? Function(String?)? validator;
+  final TextInputType? keyboardType;
 
   const _Field({
     required this.controller,
     required this.hint,
     this.maxLines = 1,
     this.validator,
+    this.keyboardType,
   });
 
   @override
@@ -349,6 +424,7 @@ class _Field extends StatelessWidget {
       controller: controller,
       maxLines: maxLines,
       validator: validator,
+      keyboardType: keyboardType,
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: GoogleFonts.inter(color: C.muted, fontSize: 14),

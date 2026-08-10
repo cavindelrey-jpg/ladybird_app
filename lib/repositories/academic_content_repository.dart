@@ -22,11 +22,27 @@ class AcademicContentRepository {
 
   // ─── Streams ──────────────────────────────────────────────────────────────
 
-  /// Live stream of content. Filters by institution and optional type/subject.
+  /// Live stream of content. Filters by institution and optional
+  /// type/subject/level/examBoard/year.
+  ///
+  /// Firestore composite indexes only cover institutionId +
+  /// (contentType and/or subject) + uploadDate (see firestore.indexes.json)
+  /// — adding a dedicated composite index for every additional
+  /// filter-dimension combination (level, examBoard, year, and every
+  /// combination of them) would multiply combinatorially as the
+  /// classification model grows. Instead: apply the indexed dimensions
+  /// (institutionId, contentType, subject) server-side as before, and
+  /// refine by level/examBoard/year client-side over a wider page when any
+  /// of those are active. This keeps the index count bounded while still
+  /// supporting combined filtering, and stays correct as the library grows
+  /// into the thousands (widen the page limit, not the index count).
   Stream<List<AcademicContent>> watch({
     String? institutionId,
     ContentType? contentType,
     String? subject,
+    String? level,
+    String? examBoard,
+    int? year,
   }) {
     Query<Map<String, dynamic>> q = _db.collection(_col);
     if (institutionId != null) {
@@ -38,11 +54,25 @@ class AcademicContentRepository {
     if (subject != null && subject.isNotEmpty) {
       q = q.where('subject', isEqualTo: subject);
     }
+    final hasClientFilter =
+        (level != null && level.isNotEmpty) || (examBoard != null && examBoard.isNotEmpty) || year != null;
     return q
         .orderBy('uploadDate', descending: true)
-        .limit(80)
+        .limit(hasClientFilter ? 300 : 80)
         .snapshots()
-        .map((s) => s.docs.map(AcademicContent.fromFirestore).toList());
+        .map((s) {
+      var items = s.docs.map(AcademicContent.fromFirestore).toList();
+      if (level != null && level.isNotEmpty) {
+        items = items.where((i) => i.level == level).toList();
+      }
+      if (examBoard != null && examBoard.isNotEmpty) {
+        items = items.where((i) => i.examBoard == examBoard).toList();
+      }
+      if (year != null) {
+        items = items.where((i) => i.year == year).toList();
+      }
+      return items;
+    });
   }
 
   /// One-shot real count of library resources in scope — powers the Home
@@ -72,6 +102,10 @@ class AcademicContentRepository {
     String query, {
     String? institutionId,
     ContentType? contentType,
+    String? subject,
+    String? level,
+    String? examBoard,
+    int? year,
   }) async {
     final lower = query.toLowerCase();
     Query<Map<String, dynamic>> q = _db.collection(_col);
@@ -85,10 +119,16 @@ class AcademicContentRepository {
     return snap.docs
         .map(AcademicContent.fromFirestore)
         .where((item) =>
-            item.title.toLowerCase().contains(lower) ||
-            item.description.toLowerCase().contains(lower) ||
-            item.subject.toLowerCase().contains(lower) ||
-            item.tags.any((t) => t.toLowerCase().contains(lower)))
+            (item.title.toLowerCase().contains(lower) ||
+                item.description.toLowerCase().contains(lower) ||
+                item.subject.toLowerCase().contains(lower) ||
+                item.level.toLowerCase().contains(lower) ||
+                item.examBoard.toLowerCase().contains(lower) ||
+                item.tags.any((t) => t.toLowerCase().contains(lower))) &&
+            (subject == null || subject.isEmpty || item.subject == subject) &&
+            (level == null || level.isEmpty || item.level == level) &&
+            (examBoard == null || examBoard.isEmpty || item.examBoard == examBoard) &&
+            (year == null || item.year == year))
         .toList();
   }
 
@@ -446,6 +486,24 @@ class AcademicContentRepository {
         .toList()
       ..sort();
     return subjects;
+  }
+
+  /// Distinct exam/publication years actually present in the library
+  /// (bounded sample, same pattern as subjectCountsOnce below) — powers a
+  /// Year filter chip row built from real data instead of a guessed range.
+  Future<List<int>> yearsInUseOnce({String? institutionId}) async {
+    Query<Map<String, dynamic>> q = _db.collection(_col);
+    if (institutionId != null) {
+      q = q.where('institutionId', isEqualTo: institutionId);
+    }
+    final snap = await q.limit(500).get();
+    final years = snap.docs
+        .map((d) => (d.data()['year'] as num?)?.toInt())
+        .whereType<int>()
+        .toSet()
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
+    return years;
   }
 
   /// Real per-subject item counts — powers the Categories grid. Computed

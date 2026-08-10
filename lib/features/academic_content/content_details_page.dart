@@ -145,16 +145,29 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
                   _PlaceholderThumbnail(type: item.contentType),
                 const SizedBox(height: 20),
 
-                // Type badge + subject
-                Row(children: [
+                // Type badge + classification (subject/level/exam/year)
+                Wrap(spacing: 8, runSpacing: 8, children: [
                   _TypeBadge(type: item.contentType),
-                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(color: C.blub, borderRadius: BorderRadius.circular(20)),
                     child: Text(item.subject,
                         style: AppText.subtitle.copyWith(fontSize: 11, color: C.blu)),
                   ),
+                  if (item.level.isNotEmpty && item.level != 'All Levels')
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: C.grnb, borderRadius: BorderRadius.circular(20)),
+                      child: Text(item.level,
+                          style: AppText.subtitle.copyWith(fontSize: 11, color: C.grn)),
+                    ),
+                  if (item.examBoard.isNotEmpty && item.examBoard != 'N/A')
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: C.goldp, borderRadius: BorderRadius.circular(20)),
+                      child: Text(item.year != null ? '${item.examBoard} ${item.year}' : item.examBoard,
+                          style: AppText.subtitle.copyWith(fontSize: 11, color: C.gold)),
+                    ),
                 ]),
                 const SizedBox(height: 14),
 

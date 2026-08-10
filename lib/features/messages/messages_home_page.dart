@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/app_user.dart';
+import '../../models/hero_slide.dart';
 import '../../models/messaging.dart';
 import '../../repositories/messaging_repository.dart';
 import '../../repositories/follow_repository.dart';
@@ -15,6 +16,7 @@ import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/hero_banner_carousel.dart';
 import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
 import '../../pages/profile_page.dart';
@@ -35,6 +37,8 @@ class MessagesHomePage extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 24),
           children: [
             _header(context),
+            const SizedBox(height: 10),
+            HeroBannerCarousel(placement: HeroPlacement.messages, user: user),
             const SizedBox(height: 10),
             _searchBar(context),
             const SizedBox(height: 16),

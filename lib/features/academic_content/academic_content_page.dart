@@ -12,11 +12,13 @@ import 'package:flutter/services.dart';
 import '../../core/debouncer.dart';
 import '../../models/app_user.dart';
 import '../../models/academic_content.dart';
+import '../../models/hero_slide.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/hero_banner_carousel.dart';
 import '../../widgets/app_background.dart';
 import 'content_details_page.dart';
 import 'content_upload_page.dart';
@@ -161,6 +163,8 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
             ),
           ]),
         ),
+        HeroBannerCarousel(placement: HeroPlacement.library, user: widget.user),
+        const SizedBox(height: 4),
         Row(children: [
           Expanded(child: _SearchBar(controller: _searchCtrl, onChanged: _onSearchChanged)),
           Padding(
@@ -787,10 +791,8 @@ class _LibraryDiscovery extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.only(bottom: 100),
+      padding: const EdgeInsets.only(top: 12, bottom: 100),
       children: [
-        _heroBanner(context),
-        const SizedBox(height: 20),
         _sectionHeader(context, 'Continue Learning', onSeeAll: () {}),
         const SizedBox(height: 12),
         _continueLearning(context),
@@ -815,67 +817,6 @@ class _LibraryDiscovery extends StatelessWidget {
         if (onSeeAll != null)
           Text('See all', style: AppText.subtitle.copyWith(color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
       ]),
-    );
-  }
-
-  Widget _heroBanner(BuildContext context) {
-    final ac = AppColors.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft, end: Alignment.bottomRight,
-            colors: [ac.navy, ac.navy2],
-          ),
-          borderRadius: BorderRadius.circular(Rad.lg),
-          boxShadow: [
-            BoxShadow(color: ac.navy.withValues(alpha: .28),
-                blurRadius: 24, offset: const Offset(0, 12)),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(children: [
-          Positioned(right: -18, top: -18,
-            child: Opacity(opacity: .10,
-              child: Icon(Icons.auto_stories_rounded, size: 130, color: ac.gold))),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Your learning\nresources in one place',
-                style: AppText.display.copyWith(fontSize: 21, height: 1.2, color: Colors.white)),
-            const SizedBox(height: 8),
-            Text('Save content for offline use and access it anytime, anywhere.',
-                style: AppText.bodySm.copyWith(fontSize: 12.5, color: Colors.white.withValues(alpha: .68))),
-            const SizedBox(height: 18),
-            Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(11),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(11),
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  showToast(context,
-                      'Saved items are bookmarked in your account — full on-device '
-                      'offline caching is a planned upgrade, not built yet.');
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: ac.gold,
-                    borderRadius: BorderRadius.circular(11),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.download_rounded, size: 16, color: ac.navy),
-                    const SizedBox(width: 8),
-                    Text('How offline works', style: AppText.caption.copyWith(
-                        fontSize: 12.5, fontWeight: FontWeight.w800, color: ac.navy)),
-                  ]),
-                ),
-              ),
-            ),
-          ]),
-        ]),
-      ),
     );
   }
 

@@ -12,12 +12,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/app_user.dart';
+import '../../models/hero_slide.dart';
 import '../../models/public_course.dart';
 import '../../repositories/public_course_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/category_colors.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/hero_banner_carousel.dart';
 import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
 import '../../pages/profile_page.dart';
@@ -113,7 +115,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
             child: ListView(
               padding: const EdgeInsets.only(bottom: 24),
               children: [
-                _heroBanner(context, ac),
+                HeroBannerCarousel(placement: HeroPlacement.courses, user: widget.user),
                 const SizedBox(height: 18),
                 _categoryChips(ac),
                 const SizedBox(height: 14),
@@ -224,57 +226,6 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
             ]),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _heroBanner(BuildContext context, AppColors ac) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-              colors: [ac.navy, ac.navy2], begin: Alignment.topLeft, end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(Rad.lg),
-          boxShadow: Shad.md,
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Share knowledge.\nTeach the world.',
-              style: AppText.h1.copyWith(color: Colors.white, fontSize: 20, height: 1.25)),
-          const SizedBox(height: 8),
-          Text('Create and publish courses in your area of expertise.',
-              style: AppText.bodySm.copyWith(color: Colors.white.withValues(alpha: .8))),
-          const SizedBox(height: 16),
-          Row(children: [
-            ElevatedButton.icon(
-              onPressed: _canCreate ? () {
-                HapticFeedback.mediumImpact();
-                Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => CourseComposerPage(user: widget.user!)));
-              } : () => showToast(context, 'Sign in to create a course'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white, foregroundColor: ac.navy,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: Text('Create Course', style: AppText.caption.copyWith(
-                  fontSize: 12.5, fontWeight: FontWeight.w700, color: ac.navy)),
-            ),
-            const SizedBox(width: 10),
-            OutlinedButton.icon(
-              onPressed: () => showToast(context, 'A walkthrough is coming soon.'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: const BorderSide(color: Colors.white54),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              icon: const Icon(Icons.play_arrow_rounded, size: 18),
-              label: Text('How it works', style: AppText.caption.copyWith(
-                  fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.white)),
-            ),
-          ]),
-        ]),
       ),
     );
   }

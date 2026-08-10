@@ -17,14 +17,19 @@ import '../../widgets/app_background.dart';
 
 class HeroSlideManagerPage extends StatefulWidget {
   final String createdByUid;
-  const HeroSlideManagerPage({super.key, required this.createdByUid});
+  final HeroPlacement initialPlacement;
+  const HeroSlideManagerPage({
+    super.key,
+    required this.createdByUid,
+    this.initialPlacement = HeroPlacement.home,
+  });
 
   @override
   State<HeroSlideManagerPage> createState() => _HeroSlideManagerPageState();
 }
 
 class _HeroSlideManagerPageState extends State<HeroSlideManagerPage> {
-  HeroPlacement _placement = HeroPlacement.home;
+  late HeroPlacement _placement = widget.initialPlacement;
 
   @override
   Widget build(BuildContext context) {

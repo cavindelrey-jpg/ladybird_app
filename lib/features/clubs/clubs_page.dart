@@ -16,6 +16,7 @@ import '../../core/result.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/hero_banner_carousel.dart';
 import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
 import '../messages/messages_home_page.dart';
@@ -70,6 +71,8 @@ class _ClubsPageState extends State<ClubsPage> {
               padding: const EdgeInsets.only(bottom: 100),
               children: [
                 _header(context),
+                const SizedBox(height: 10),
+                HeroBannerCarousel(placement: HeroPlacement.clubs, user: widget.user),
                 const SizedBox(height: 10),
                 _searchAndFilter(),
                 const SizedBox(height: 20),

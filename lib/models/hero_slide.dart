@@ -13,6 +13,7 @@ enum HeroDestination {
   pastQuestions('Past Questions'),
   magazine('Magazine'),
   courses('Courses'),
+  messages('Messages'),
   custom('Custom Link');
 
   final String label;
@@ -21,15 +22,18 @@ enum HeroDestination {
 
 /// Which surface a slide belongs to -- lets one admin-managed system
 /// (Part 14) back the banner on every page that asked for one (Home,
-/// Courses, Library, Past Questions, Clubs) instead of a separate
-/// one-off mechanism per page. Defaults to [home] so every slide that
-/// existed before this field was added keeps behaving exactly as before.
+/// Courses, Library, Past Questions, Clubs, Magazine, Messages) instead
+/// of a separate one-off mechanism per page. Defaults to [home] so every
+/// slide that existed before this field was added keeps behaving exactly
+/// as before.
 enum HeroPlacement {
   home('Home'),
   courses('Courses'),
   library('Library'),
   pastQuestions('Past Questions'),
-  clubs('Clubs');
+  clubs('Clubs'),
+  magazine('Magazine'),
+  messages('Messages');
 
   final String label;
   const HeroPlacement(this.label);

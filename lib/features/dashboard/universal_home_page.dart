@@ -33,7 +33,6 @@ import '../../models/daily_challenge.dart';
 import '../../models/library_item.dart';
 import '../../models/academic_content.dart';
 import '../../models/course.dart';
-import '../../repositories/hero_slide_repository.dart';
 import '../../repositories/announcement_repository.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../repositories/daily_challenge_repository.dart';
@@ -42,6 +41,7 @@ import '../../repositories/course_repository.dart';
 import '../../services/auth_service.dart';
 import '../../repositories/xp_repository.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/hero_banner_carousel.dart';
 import '../../pages/daily_challenge_page.dart';
 import '../../pages/search_page.dart';
 import '../../pages/notifications_page.dart';
@@ -54,9 +54,7 @@ import '../clubs/clubs_page.dart';
 import '../magazine/magazine_feed_page.dart';
 import '../magazine/top_writers_page.dart';
 import '../announcements/announcements_page.dart';
-import '../courses_marketplace/courses_marketplace_page.dart';
 import '../courses/course_detail_page.dart';
-import '../admin/hero_slide_manager_page.dart';
 
 /// Local, slightly stronger "glow" shadow for this page's cards -- Gamma's
 /// own render used a near-invisible shadow (alpha .02-.03); the mockup
@@ -105,7 +103,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             const SizedBox(height: 16),
             _greetingAndStats(),
             const SizedBox(height: 20),
-            _HomeBannerCarousel(user: widget.user),
+            HeroBannerCarousel(placement: HeroPlacement.home, user: widget.user),
             const SizedBox(height: 24),
             _sectionHeader('Quick Access'),
             const SizedBox(height: 12),
@@ -954,194 +952,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         ),
       ),
     );
-  }
-}
-
-/// Home's Library banner -- real, swipeable, admin-editable, auto-advancing.
-/// Deliberately its own StatefulWidget with its own PageController/index/
-/// stream/timer: this used to live directly on _UniversalHomePageState, so
-/// every swipe (manual or auto) called setState on the WHOLE homepage --
-/// rebuilding greeting, stats, quick access, progress, writers, and
-/// recommended sections along with it, and re-subscribing to
-/// HeroSlideRepository.watchActive() fresh each time (a new .snapshots()
-/// stream every rebuild is the same class of bug fixed in ClubsPage's
-/// search bar). Isolating it here means a swipe only ever rebuilds the
-/// banner itself.
-class _HomeBannerCarousel extends StatefulWidget {
-  final AppUser? user;
-  const _HomeBannerCarousel({required this.user});
-
-  @override
-  State<_HomeBannerCarousel> createState() => _HomeBannerCarouselState();
-}
-
-class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
-  final _pageCtrl = PageController();
-  late final Stream<List<HeroSlide>> _slidesStream = HeroSlideRepository.instance.watchActive();
-  Timer? _autoTimer;
-  int _index = 0;
-  int _slideCount = 0;
-
-  bool get _isGuest => widget.user == null;
-  AppUser? get _u => widget.user;
-
-  AppColors get ac => AppColors.of(context);
-
-  @override
-  void dispose() {
-    _autoTimer?.cancel();
-    _pageCtrl.dispose();
-    super.dispose();
-  }
-
-  void _ensureAutoAdvance(int slideCount) {
-    _slideCount = slideCount;
-    if (_autoTimer != null || slideCount <= 1) return;
-    _autoTimer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (!_pageCtrl.hasClients || _slideCount <= 1) return;
-      final next = (_index + 1) % _slideCount;
-      _pageCtrl.animateToPage(next,
-          duration: const Duration(milliseconds: 450), curve: Curves.easeOutCubic);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<HeroSlide>>(
-      stream: _slidesStream,
-      builder: (context, snap) {
-        final slides = snap.data ?? const <HeroSlide>[];
-        if (slides.isEmpty) {
-          if (!_isGuest && _u!.isSuperAdmin) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => HeroSlideManagerPage(createdByUid: _u!.id))),
-                icon: const Icon(Icons.add_photo_alternate_outlined),
-                label: const Text('Add your first Home banner'),
-              ),
-            );
-          }
-          return const SizedBox.shrink();
-        }
-        _ensureAutoAdvance(slides.length);
-        return SizedBox(
-          height: 176,
-          child: PageView.builder(
-            controller: _pageCtrl,
-            onPageChanged: (i) => setState(() => _index = i),
-            itemCount: slides.length,
-            itemBuilder: (_, i) => _bannerCard(context, slides[i], slides.length),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _bannerCard(BuildContext context, HeroSlide slide, int totalSlides) {
-    final radius = BorderRadius.circular(Rad.xl);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Material(
-        color: ac.navy,
-        borderRadius: radius,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            _openHeroSlide(context, slide);
-          },
-          child: Ink(
-            height: 160,
-            decoration: BoxDecoration(
-              image: (slide.imageUrl != null && slide.imageUrl!.isNotEmpty)
-                  // Flutter's ImageCache keys NetworkImage by URL, so this is
-                  // already in-memory cached across rebuilds -- the fix that
-                  // actually matters is this widget no longer rebuilding
-                  // (and re-decoding) on every unrelated homepage change.
-                  ? DecorationImage(image: NetworkImage(slide.imageUrl!), fit: BoxFit.cover)
-                  : null,
-            ),
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xD1000000), Colors.transparent],
-                  begin: Alignment.centerLeft, end: Alignment.centerRight,
-                ),
-              ),
-              padding: const EdgeInsets.all(20),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(slide.headline, style: GoogleFonts.sora(
-                    fontSize: 21, fontWeight: FontWeight.w800, color: Colors.white)),
-                const SizedBox(height: 6),
-                Text(slide.subtext, style: GoogleFonts.inter(
-                    fontSize: 12.5, color: Colors.white70, height: 1.3)),
-                if (slide.statLine.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    const Icon(Icons.workspace_premium_outlined, color: Colors.white60, size: 15),
-                    const SizedBox(width: 6),
-                    Text(slide.statLine,
-                        style: GoogleFonts.inter(fontSize: 11.5, color: Colors.white)),
-                  ]),
-                ],
-                const Spacer(),
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(color: ac.gold, borderRadius: BorderRadius.circular(10)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Text(slide.ctaLabel, style: GoogleFonts.sora(
-                          fontSize: 12, fontWeight: FontWeight.w700, color: ac.navy)),
-                      const SizedBox(width: 4),
-                      Icon(Icons.arrow_forward_rounded, size: 14, color: ac.navy),
-                    ]),
-                  ),
-                  if (totalSlides > 1)
-                    Row(children: List.generate(totalSlides, (i) => Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      width: 6, height: 6,
-                      decoration: BoxDecoration(
-                        color: i == _index ? ac.gold : Colors.white54,
-                        shape: BoxShape.circle,
-                      ),
-                    ))),
-                ]),
-              ]),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _open(BuildContext context, Widget page) {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
-  }
-
-  void _openHeroSlide(BuildContext context, HeroSlide slide) {
-    final user = _u ?? AppUser.guest();
-    switch (slide.destination) {
-      case HeroDestination.library:
-        _open(context, AcademicContentPage(user: user));
-        break;
-      case HeroDestination.clubs:
-        _open(context, ClubsPage(user: user));
-        break;
-      case HeroDestination.pastQuestions:
-        _open(context, AcademicContentPage(
-            user: user, initialTypeFilter: ContentType.pastPaper));
-        break;
-      case HeroDestination.magazine:
-        _open(context, MagazineFeedPage(user: user));
-        break;
-      case HeroDestination.courses:
-        _open(context, CoursesMarketplacePage(user: user));
-        break;
-      case HeroDestination.custom:
-        break;
-    }
   }
 }
 

@@ -1,9 +1,9 @@
 {
-  "appName": "Green Hill Academy",
-  "tagline": "Green Hill Academy Complex — Excellence in Every Step",
-  "primaryColor": "#1B5E3A",
-  "secondaryColor": "#0D2818",
-  "accentColor": "#D4A72C",
+  "appName": "Green Hills Academic Complex",
+  "tagline": "Solid Foundation. Discipline. Success.",
+  "primaryColor": "#0A7A3B",
+  "secondaryColor": "#16A34A",
+  "accentColor": "#86EFAC",
   "logoAssetPath": "assets/branding/green_hill_logo.png",
   "splashAssetPath": "assets/branding/green_hill_logo.png"
 }

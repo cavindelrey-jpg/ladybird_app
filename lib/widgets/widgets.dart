@@ -620,7 +620,7 @@ class AcademiaLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Image.asset(
-      'assets/logos/academia_logo.png',
+      'assets/logos/academia_logo_square.png',
       width: size, height: size, fit: BoxFit.contain,
       errorBuilder: (_, __, ___) => Container(
         width: size, height: size,

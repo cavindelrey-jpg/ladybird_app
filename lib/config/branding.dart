@@ -44,8 +44,8 @@ class Branding {
     primaryColor: const Color(0xFF1A56DB),
     secondaryColor: const Color(0xFF0A1F44),
     accentColor: const Color(0xFFC9A227),
-    logoAssetPath: 'assets/icon/academia_logo.png',
-    splashAssetPath: 'assets/icon/academia_logo.png',
+    logoAssetPath: 'assets/icon/academia_logo_square.png',
+    splashAssetPath: 'assets/icon/academia_logo_square.png',
   );
 
   static Branding get current => _current;

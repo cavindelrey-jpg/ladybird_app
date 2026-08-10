@@ -75,17 +75,17 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icon/academia_logo.png"
+  image_path: "assets/icon/academia_logo_square.png"
   remove_alpha_ios: true
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/icon/academia_logo.png"
+  adaptive_icon_foreground: "assets/icon/academia_logo_square.png"
 
 flutter_native_splash:
   color: "#FFFFFF"
-  image: "assets/icon/academia_logo.png"
+  image: "assets/icon/academia_logo_square.png"
   android_12:
     color: "#FFFFFF"
-    image: "assets/icon/academia_logo.png"
+    image: "assets/icon/academia_logo_square.png"
   android: true
   ios: true
 

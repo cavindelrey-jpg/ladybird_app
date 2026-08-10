@@ -684,3 +684,116 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
   - Every CC image carries an attribution caption underneath it
     (creator + license, e.g. "BY-NC-SA 2.0") since most CC licenses
     legally require attribution — not just a bare embedded image.
+
+## Session continuation (2026-08-10) — Green Hills redesign, website, gRPC fix
+
+- **Environment**: this session hit a specific, reproducible blocker —
+  `firebase-admin`'s default gRPC transport hung indefinitely on every
+  Firestore call, while plain HTTPS/REST worked the entire time (git
+  push, npm install, Openverse fetch all fine). Root-caused by forcing
+  `db.settings({ preferRest: true })`, which fixed it instantly. Added
+  this to `compile-course.js`'s `writeToFirestore()` permanently and
+  used it for the one-off Firestore fixes below. Worth knowing for any
+  future session on this machine: if a `firebase-admin` call hangs
+  where everything else works, this is why.
+- **creatorName follow-through**: the 3 republished Calculus docs
+  (from the CC-image fix, published *before* the source `.md`
+  front-matter got corrected) still said "Claude" — confirmed via the
+  REST-mode query above and fixed directly in Firestore. All 6
+  `public_courses` docs now correctly say "Academia". This was flagged
+  as unconfirmed earlier in this same log entry; now actually verified,
+  not just attempted.
+- **Website — chose `academia_website` over `academia_web`** per the
+  user's explicit request to finish one of the two competing site
+  folders flagged earlier this session. `academia_website` was already
+  the more complete one (11 real components: Hero/PlatformOverview/
+  Features/Audiences/Pricing/Contact/Navbar/Footer, genuinely good
+  copy, navy/gold theme matching the app) — confirmed by actually
+  reading the components, not assuming. Work done:
+  - Swapped `Logo.tsx`'s hand-drawn SVG mark for the real Academia
+    logo asset (`academia_logo_square.png`, copied into `public/`).
+  - Added `components/CaseStudy.tsx` — a Green Hills Academic Complex
+    showcase section (real logo, real colors #0A7A3B/#16A34A/#86EFAC,
+    matches the existing design system's spacing/type/card patterns
+    exactly) making the "Academia is a portal, Green Hills is a real
+    school running on it" story concrete for the demo, tied back to
+    the existing "For Schools" white-label claim in `Audiences.tsx`.
+  - **Found and fixed a real, pre-existing bug nobody had caught**:
+    `npm run build` had never actually been run on this site before —
+    it fails outright on 3 unescaped-apostrophe ESLint errors in
+    `Audiences.tsx`/`Contact.tsx`/`PlatformOverview.tsx`, none of which
+    this session touched. (The earlier `VERIFICATION.md` "Website ...
+    5/5 static pages PASS" claim was about `academia_web`, the OTHER,
+    thinner folder — never applied to this one.) Fixed all three;
+    `npm run build` now passes clean with 0 errors, confirmed directly.
+  - `academia_website/` has no git repo of its own (checked — same as
+    `academia_compiler`), so none of this is in any git history either.
+    Flagging the same way as the compiler note above.
+- **Green Hills redesign — the actual product ask**: user wants
+  switching from Academia to Green Hills mid-demo to "immediately feel
+  like a different product," with school-operational features
+  (Attendance/Marks/Timetable/Announcements/Clubs/Messaging) front and
+  center rather than buried in Profile's "School" section (which is
+  literally where `HomeShell._buildNav()`'s own comment says they were
+  deliberately moved to, to keep the bottom nav uncluttered — a
+  reasonable call for Academia, wrong call for a school-specific
+  product). Investigated existing school features first per the
+  standing "audit before rebuilding" pattern: `AttendancePage`,
+  `TimetablePage`, `MarksPage`, `AnnouncementsPage`, `ClubsPage`,
+  `MessagesHomePage` all already exist and are fully functional — none
+  needed rebuilding, only surfacing prominently. Also found
+  `DashboardPage` (`lib/features/dashboard/dashboard_page.dart`) — a
+  real, working school dashboard with hero/events/announcements — sitting
+  completely unreferenced anywhere in the router; never wired in by any
+  prior session. Didn't reuse it directly (its layout doesn't match the
+  user's mockup direction), but its existence confirms this kind of
+  screen was already planned for, just never finished.
+  - Built `lib/features/dashboard/school_home_page.dart`
+    (`SchoolHomePage`) — new Home screen for school-mode builds only.
+    Greeting header, brand-gradient hero banner (reads
+    `Branding.current` directly, not the app's fixed navy/gold tokens —
+    this is what makes it genuinely green for Green Hill), real
+    Today's Schedule (`TimetableRepository`, filtered to today's
+    weekday), an 8-tile Quick Access grid ordered
+    Attendance/Timetable/Marks/Announcements/Clubs/Messages/Library/
+    Courses (school-operational first, general-Academia after — the
+    literal front-and-center ask), and Recent Announcements
+    (`AnnouncementRepository`, reusing the existing `AnnCard` widget).
+    Every navigation target is an existing, already-working page —
+    zero new plumbing invented.
+  - Wired into `app_router.dart`: `HomeShell._buildPage()`'s `'Home'`
+    case now branches on `AppConfig.isSchoolMode` (compile-time
+    `APP_MODE` dart-define, orthogonal to `BRAND_ID` — see
+    `app_config.dart`'s own header comment). Academia platform builds
+    are completely unaffected; only `--dart-define=APP_MODE=school`
+    builds see `SchoolHomePage` instead of `UniversalHomePage`.
+  - Did NOT do a full app-wide reskin — confirmed
+    `ColorScheme.fromSeed(seedColor: Branding.current.primaryColor, ...)`
+    is already wired in `app_theme.dart` (Part 17, prior session), so
+    default Material components (buttons, FABs, the bottom
+    `NavigationBar`'s selected-tab indicator) already pick up green
+    automatically via the seeded color scheme — did not need to
+    hand-patch those. Scope was deliberately: the Home screen (the
+    literal first-impression moment when a presenter switches apps)
+    gets full brand treatment; the rest of the app relies on the
+    existing seed-color propagation, same honest partial-coverage
+    tradeoff as the original dark-mode/branding work.
+  - Did NOT change the bottom-nav tab structure (still Home/Library/
+    Magazine/Courses/Profile, same shape as Academia) — the user's own
+    mockup reference shows the identical 5-tab bar on every screen
+    (Home/Library/Courses/Notifications/Profile), so front-loading via
+    Quick Access tiles on Home matches the mockup's own approach rather
+    than adding new bottom tabs.
+  - Did NOT attempt a second, separate "Dashboard" screen (the mockup
+    shows two distinct phone mockups, Home and Dashboard, with
+    different content) — folded the School Snapshot concept
+    (Today's Schedule, Recent Announcements) into the one Home screen
+    instead, to keep this achievable in the time available. A true
+    ring-stat "School Snapshot" panel (the mockup's 96% Attendance /
+    24 Assignments / 2 Announcements circles) was deliberately NOT
+    built — this app has a consistent no-fabricated-stats principle
+    (see the "Continue Reading"/"Continue Learning" honesty notes
+    earlier in this log), and there's no existing repository method
+    that cheaply computes a school-wide attendance percentage (only
+    per-course, per-student via `AttendanceRepository.getSummary()`) —
+    building one properly is real work, not a demo-night add-on.

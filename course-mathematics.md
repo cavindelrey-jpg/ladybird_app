@@ -5,8 +5,8 @@ subject: Mathematics
 level: GCE Advanced Level
 topic: Calculus
 difficulty: Advanced
-creatorId: ai-import
-creatorName: Claude
+creatorId: academia-compiler
+creatorName: Academia
 tags: [GCE A-Level, Mathematics, Calculus]
 ---
 

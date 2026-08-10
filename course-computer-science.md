@@ -5,8 +5,8 @@ subject: Computer Science
 level: GCE Advanced Level
 topic: Foundations of Programming
 difficulty: Beginner
-creatorId: ai-import
-creatorName: Claude
+creatorId: academia-compiler
+creatorName: Academia
 tags: [GCE A-Level, Programming, Computer Science]
 ---
 

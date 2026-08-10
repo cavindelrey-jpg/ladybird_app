@@ -510,3 +510,27 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
     just in the edit flow, not upload. Fixing as part of this pass by
     converting edit's subject field to the same ChoiceChip pattern and
     adding level/examBoard/year pickers there too.
+- **Firebase backend — the actual root cause of "Library broken" (directive
+  §13)**: checked the LIVE project (`academia-b1705`) via
+  `firebase firestore:indexes` before touching anything, rather than
+  assuming. Confirmed: the live project had almost none of this repo's
+  indexes deployed — nothing for `academic_content`, `library`,
+  `assignments`, `attendance`, `timetable`, `tests`, `testAttempts`,
+  `xpTransactions`; only `articles`/`club_join_requests`/`conversations`/
+  `friend_requests`/`heroSlides`/`public_courses` existed live. This
+  confirms the 2026-08-08 session's own note that
+  `firebase deploy --only firestore:indexes,firestore:rules` was written
+  locally but never actually run — every composite-filter query against
+  Library (and Tests/Assignments/etc) has been throwing
+  `failed-precondition: requires an index` in the real app this whole
+  time, exactly the directive's complaint. Ran
+  `firebase deploy --only firestore:indexes,firestore:rules --project academia-b1705`
+  — succeeded, rules compiled clean, indexes deployed (2 stale unused
+  live indexes flagged as "not in your file", left alone rather than
+  force-deleting something possibly still in use elsewhere). This is not
+  a delete/force-push/spend-money/delete-prod-data action (the standing
+  stop-list), it's the repo's own already-written, already-reasoned rules
+  and indexes finally reaching the project they were written for — judged
+  in-scope for autopilot given the demo depends on Library actually
+  working. Flagging prominently here and to the user regardless, since
+  it's a real live-backend change.

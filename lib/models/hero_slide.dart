@@ -14,6 +14,12 @@ enum HeroDestination {
   magazine('Magazine'),
   courses('Courses'),
   messages('Messages'),
+  /// Doesn't leave the page the banner lives on -- jumps to a sub-section
+  /// of it instead (a content-type filter, a subject, a course category,
+  /// a scroll target). The section key lives in [HeroSlide.customRoute];
+  /// each placement's host page decides what keys it understands via
+  /// HeroBannerCarousel.onSectionSelect.
+  section('Jump to Section'),
   custom('Custom Link');
 
   final String label;
@@ -22,17 +28,21 @@ enum HeroDestination {
 
 /// Which surface a slide belongs to -- lets one admin-managed system
 /// (Part 14) back the banner on every page that asked for one (Home,
-/// Courses, Library, Past Questions, Clubs, Magazine, Messages) instead
-/// of a separate one-off mechanism per page. Defaults to [home] so every
-/// slide that existed before this field was added keeps behaving exactly
-/// as before.
+/// Courses, Library, Past Questions, Clubs, Messages) instead of a
+/// separate one-off mechanism per page. Defaults to [home] so every slide
+/// that existed before this field was added keeps behaving exactly as
+/// before.
+///
+/// Magazine has no entry here on purpose: its banner is the computed
+/// "Featured" carousel (most-read articles, see _FeaturedCarousel in
+/// magazine_feed_page.dart), not an admin-curated one -- a social feed's
+/// top slot should reflect what's actually popular right now.
 enum HeroPlacement {
   home('Home'),
   courses('Courses'),
   library('Library'),
   pastQuestions('Past Questions'),
   clubs('Clubs'),
-  magazine('Magazine'),
   messages('Messages');
 
   final String label;

@@ -797,3 +797,58 @@ One line (or short paragraph) per non-obvious default chosen without stopping to
     that cheaply computes a school-wide attendance percentage (only
     per-course, per-student via `AttendanceRepository.getSummary()`) —
     building one properly is real work, not a demo-night add-on.
+
+## Session (2026-08-11): banners become sub-section jumps, Magazine goes Auto
+
+User asked (garbled but clear on re-read): banners on Library/Courses/Clubs/
+Messages should link to *sub-sections within the page they're already on*,
+not navigate to a whole separate page (which is what the previous session's
+implementation did) — different targets per page, e.g. Library banner ->
+a content type or subject, Courses banner -> a course category. Also asked
+for Magazine's banner specifically to be "Auto" since it's social-media-like.
+
+- **New `HeroDestination.section`**: added instead of repurposing `custom`,
+  so admins see a clearly-labeled "Jump to Section" option distinct from an
+  external "Custom Link". Reuses the existing `customRoute` string field to
+  carry the section key rather than adding a new Firestore field — no schema
+  migration needed, and the field already existed for exactly this kind of
+  free-text purpose.
+- **Per-page section keys are informal string contracts, not a shared enum**:
+  Library reads `customRoute` as either a `ContentType.name` (note, video,
+  pastPaper, etc.) or a subject string; Courses reads it as a category name
+  (or "All"); Clubs reads it as a search/category term; Messages reads it as
+  one of `requests` / `conversations` / `newMessage` to scroll to. Chose this
+  over a shared cross-page enum because the five pages' sub-sections have
+  nothing in common structurally (filters vs. tabs vs. scroll targets) — a
+  shared enum would either be meaningless for most placements or become a
+  56-value enum. The admin editor now shows a placement-specific hint string
+  (`_sectionKeyHint` in hero_slide_manager_page.dart) so an admin doesn't
+  have to read source to know what key to type.
+- **Magazine: removed manual banner entirely, does not get a `HeroPlacement`
+  entry.** Discovered mid-task that `_FeaturedCarousel` in
+  magazine_feed_page.dart already exists and does precisely what "Auto"
+  asked for — a computed "most-read in 14 days" carousel, not manually
+  curated, already wired into the For You/Global tabs. Rather than run two
+  banners (an admin one plus the computed one) or duplicate the computed
+  one behind a new abstraction, deleted the `HeroBannerCarousel` call from
+  Magazine and dropped `HeroPlacement.magazine` from the enum so the admin
+  manager's placement picker no longer offers a dead option. `HeroDestination
+  .magazine` (a Home/other-page banner linking *to* the Magazine page) is
+  unaffected — only the placement (banner living *on* the Magazine page)
+  was removed.
+- **Clubs sub-section wiring reuses the existing search field** rather than
+  adding a new category-filter mechanism: Clubs had no dedicated category
+  filter UI yet, only a search box whose `onChanged` already matches against
+  `club.category` substrings. `onSectionSelect` sets `_searchQuery` (and now
+  also a newly-added `_searchCtrl` so the box visibly shows the applied
+  term — it was previously an uncontrolled `TextField`, which would have let
+  the filter apply invisibly). Did not build a proper category-chip filter
+  for Clubs since none was requested and the search-based approach already
+  satisfies "banner leads to a different section" for this page.
+- **Messages converted from StatelessWidget to StatefulWidget** to hold a
+  `ScrollController` + three `GlobalKey`s (requests/conversations/new
+  message) so its banner can scroll to a section — Messages has no filters
+  to switch, only fixed vertical sections, so "jump to section" means
+  scroll-to, not state change. This was the only page requiring a
+  StatelessWidget -> StatefulWidget conversion; the other four pages already
+  had mutable state to repurpose.

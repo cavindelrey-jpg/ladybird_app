@@ -227,6 +227,31 @@ class _SlideEditorPageState extends State<_SlideEditorPage> {
 
   bool get _isNew => widget.existing == null;
 
+  /// What key the host page actually reads for HeroDestination.section --
+  /// each placement's page owns its own set, so this is the one spot an
+  /// admin needs to consult instead of reading source.
+  String get _sectionKeyHint {
+    switch (_placement) {
+      case HeroPlacement.library:
+        return 'Type filter: note, pastPaper, book, video, assignment, '
+            'presentation, researchPaper. Or type any subject name exactly '
+            'as it appears in the Library to jump to that subject.';
+      case HeroPlacement.courses:
+        return 'A course category name exactly as shown in the Courses '
+            'category chips (or "All").';
+      case HeroPlacement.clubs:
+        return 'A club category or search term -- jumps to Clubs pre-filtered '
+            'to it.';
+      case HeroPlacement.messages:
+        return 'One of: requests, conversations, newMessage -- scrolls '
+            'Messages to that section.';
+      case HeroPlacement.home:
+      case HeroPlacement.pastQuestions:
+        return 'This placement has no section targets defined yet -- use '
+            'Custom Link or another destination instead.';
+    }
+  }
+
   @override
   void dispose() {
     _headlineCtrl.dispose();
@@ -253,7 +278,9 @@ class _SlideEditorPageState extends State<_SlideEditorPage> {
     slide.subtext = _subtextCtrl.text.trim();
     slide.ctaLabel = _ctaCtrl.text.trim().isEmpty ? 'Explore Now' : _ctaCtrl.text.trim();
     slide.destination = _destination;
-    slide.customRoute = _destination == HeroDestination.custom ? _customRouteCtrl.text.trim() : null;
+    slide.customRoute = (_destination == HeroDestination.custom || _destination == HeroDestination.section)
+        ? _customRouteCtrl.text.trim()
+        : null;
     slide.placement = _placement;
 
     Result<String>? createResult;
@@ -362,6 +389,12 @@ class _SlideEditorPageState extends State<_SlideEditorPage> {
             if (_destination == HeroDestination.custom) ...[
               const SizedBox(height: 14),
               _text(_customRouteCtrl, 'Custom Route'),
+            ],
+            if (_destination == HeroDestination.section) ...[
+              const SizedBox(height: 14),
+              _text(_customRouteCtrl, 'Section Key'),
+              const SizedBox(height: 6),
+              Text(_sectionKeyHint, style: GoogleFonts.inter(fontSize: 11.5, color: C.muted, height: 1.4)),
             ],
             if (_error != null) ...[
               const SizedBox(height: 16),

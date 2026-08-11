@@ -115,7 +115,12 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
             child: ListView(
               padding: const EdgeInsets.only(bottom: 24),
               children: [
-                HeroBannerCarousel(placement: HeroPlacement.courses, user: widget.user),
+                HeroBannerCarousel(
+                  placement: HeroPlacement.courses,
+                  user: widget.user,
+                  onSectionSelect: (key) =>
+                      setState(() => _category = key == 'All' ? null : key),
+                ),
                 const SizedBox(height: 18),
                 _categoryChips(ac),
                 const SizedBox(height: 14),

@@ -4,6 +4,9 @@
 // and a New Message entry point. Following (one-way) and Friends
 // (mutual, unlocks messaging) are deliberately shown as two separate
 // systems here, not merged.
+//
+// Stateful (not Stateless) specifically so the banner can scroll to a
+// section via onSectionSelect -- see _scrollToSection.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -23,9 +26,44 @@ import '../../pages/profile_page.dart';
 import 'chat_conversation_page.dart';
 import 'find_people_page.dart';
 
-class MessagesHomePage extends StatelessWidget {
+class MessagesHomePage extends StatefulWidget {
   final AppUser user;
   const MessagesHomePage({super.key, required this.user});
+
+  @override
+  State<MessagesHomePage> createState() => _MessagesHomePageState();
+}
+
+class _MessagesHomePageState extends State<MessagesHomePage> {
+  final _scrollCtrl = ScrollController();
+  final _requestsKey = GlobalKey();
+  final _conversationsKey = GlobalKey();
+  final _newMessageKey = GlobalKey();
+
+  AppUser get user => widget.user;
+
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  /// Handles HeroDestination.section taps from the Messages banner.
+  void _scrollToSection(String key) {
+    final target = switch (key) {
+      'requests' => _requestsKey,
+      'conversations' => _conversationsKey,
+      'newMessage' => _newMessageKey,
+      _ => null,
+    };
+    final ctx = target?.currentContext;
+    if (ctx == null) {
+      showToast(context, 'Nothing to jump to there yet.');
+      return;
+    }
+    Scrollable.ensureVisible(ctx,
+        duration: const Duration(milliseconds: 400), curve: Curves.easeOutCubic, alignment: 0.05);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,23 +72,28 @@ class MessagesHomePage extends StatelessWidget {
       backgroundColor: ac.bg,
       body: AppBackground(child: SafeArea(
         child: ListView(
+          controller: _scrollCtrl,
           padding: const EdgeInsets.only(bottom: 24),
           children: [
             _header(context),
             const SizedBox(height: 10),
-            HeroBannerCarousel(placement: HeroPlacement.messages, user: user),
+            HeroBannerCarousel(
+              placement: HeroPlacement.messages,
+              user: user,
+              onSectionSelect: _scrollToSection,
+            ),
             const SizedBox(height: 10),
             _searchBar(context),
             const SizedBox(height: 16),
             _followFriendCards(context),
             const SizedBox(height: 20),
-            _friendRequestsSection(context),
+            KeyedSubtree(key: _requestsKey, child: _friendRequestsSection(context)),
             const SizedBox(height: 20),
-            _recentConversationsSection(context),
+            KeyedSubtree(key: _conversationsKey, child: _recentConversationsSection(context)),
             const SizedBox(height: 24),
             _howItWorksSection(ac),
             const SizedBox(height: 20),
-            _newMessageButton(context),
+            KeyedSubtree(key: _newMessageKey, child: _newMessageButton(context)),
           ],
         ),
       )),

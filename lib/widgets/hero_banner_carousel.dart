@@ -19,6 +19,7 @@ import '../models/hero_slide.dart';
 import '../repositories/hero_slide_repository.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
+import 'widgets.dart';
 import '../features/admin/hero_slide_manager_page.dart';
 import '../features/academic_content/academic_content_page.dart';
 import '../features/clubs/clubs_page.dart';
@@ -29,7 +30,18 @@ import '../features/messages/messages_home_page.dart';
 class HeroBannerCarousel extends StatefulWidget {
   final HeroPlacement placement;
   final AppUser? user;
-  const HeroBannerCarousel({super.key, required this.placement, required this.user});
+  /// Called when a tapped slide's destination is [HeroDestination.section]
+  /// with the slide's `customRoute` as the section key. The host page
+  /// decides what keys mean (a filter, a category, a scroll target) --
+  /// this widget only knows how to hand the key off, not what it does.
+  /// If null, section-destination slides fall back to a toast.
+  final ValueChanged<String>? onSectionSelect;
+  const HeroBannerCarousel({
+    super.key,
+    required this.placement,
+    required this.user,
+    this.onSectionSelect,
+  });
 
   @override
   State<HeroBannerCarousel> createState() => _HeroBannerCarouselState();
@@ -199,6 +211,14 @@ class _HeroBannerCarouselState extends State<HeroBannerCarousel> {
         break;
       case HeroDestination.messages:
         _open(context, MessagesHomePage(user: user));
+        break;
+      case HeroDestination.section:
+        final key = slide.customRoute ?? '';
+        if (widget.onSectionSelect != null && key.isNotEmpty) {
+          widget.onSectionSelect!(key);
+        } else {
+          showToast(context, "This banner isn't linked to a section yet.");
+        }
         break;
       case HeroDestination.custom:
         break;

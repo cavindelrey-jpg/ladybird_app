@@ -21,14 +21,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/app_user.dart';
-import '../../models/hero_slide.dart';
 import '../../models/magazine_article.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../repositories/follow_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/category_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/hero_banner_carousel.dart';
 import '../../widgets/app_background.dart';
 import 'article_reader_page.dart';
 import 'article_composer_page.dart';
@@ -139,8 +137,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
       body: AppBackground(child: SafeArea(
         child: Column(children: [
           _header(context),
-          HeroBannerCarousel(placement: HeroPlacement.magazine, user: widget.user),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           _tabRow(),
           const SizedBox(height: 16),
           Expanded(

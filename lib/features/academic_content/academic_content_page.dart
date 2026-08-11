@@ -101,6 +101,25 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
   int get _activeExtraFilterCount =>
       (_levelFilter != null ? 1 : 0) + (_examBoardFilter != null ? 1 : 0) + (_yearFilter != null ? 1 : 0);
 
+  /// Handles HeroDestination.section taps from the Library banner: a key
+  /// matching a ContentType name switches the type filter, anything else
+  /// is treated as a subject name (same as tapping a subject tile).
+  void _selectLibrarySection(String key) {
+    for (final t in ContentType.values) {
+      if (t.name == key) {
+        HapticFeedback.selectionClick();
+        setState(() {
+          _typeFilter = t;
+          _searchResults = null;
+          _isSearching = false;
+          _searchCtrl.clear();
+        });
+        return;
+      }
+    }
+    _selectSubject(key);
+  }
+
   void _selectSubject(String subject) {
     HapticFeedback.selectionClick();
     setState(() {
@@ -163,7 +182,11 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
             ),
           ]),
         ),
-        HeroBannerCarousel(placement: HeroPlacement.library, user: widget.user),
+        HeroBannerCarousel(
+          placement: HeroPlacement.library,
+          user: widget.user,
+          onSectionSelect: _selectLibrarySection,
+        ),
         const SizedBox(height: 4),
         Row(children: [
           Expanded(child: _SearchBar(controller: _searchCtrl, onChanged: _onSearchChanged)),

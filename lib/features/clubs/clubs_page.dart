@@ -34,6 +34,7 @@ class ClubsPage extends StatefulWidget {
 
 class _ClubsPageState extends State<ClubsPage> {
   String _searchQuery = '';
+  final _searchCtrl = TextEditingController();
 
   // Created once and reused across rebuilds -- StreamBuilder resets to its
   // "waiting" state (dropping the whole ListView, including the search bar
@@ -45,6 +46,12 @@ class _ClubsPageState extends State<ClubsPage> {
       ClubRepository.instance.watchClubs(schoolId: widget.user.schoolId);
 
   bool get _canCreate => !widget.user.isGuest;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +79,14 @@ class _ClubsPageState extends State<ClubsPage> {
               children: [
                 _header(context),
                 const SizedBox(height: 10),
-                HeroBannerCarousel(placement: HeroPlacement.clubs, user: widget.user),
+                HeroBannerCarousel(
+                  placement: HeroPlacement.clubs,
+                  user: widget.user,
+                  onSectionSelect: (key) => setState(() {
+                    _searchQuery = key;
+                    _searchCtrl.text = key;
+                  }),
+                ),
                 const SizedBox(height: 10),
                 _searchAndFilter(),
                 const SizedBox(height: 20),
@@ -130,6 +144,7 @@ class _ClubsPageState extends State<ClubsPage> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
             decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(14), border: Border.all(color: C.bdr)),
             child: TextField(
+              controller: _searchCtrl,
               onChanged: (v) => setState(() => _searchQuery = v),
               style: AppText.bodySm.copyWith(color: C.txt),
               decoration: InputDecoration(

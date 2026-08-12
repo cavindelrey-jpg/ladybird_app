@@ -156,6 +156,10 @@
       { "fieldPath": "published", "order": "ASCENDING" },
       { "fieldPath": "createdAt", "order": "DESCENDING" }
     ]},
+    { "collectionGroup": "tests", "queryScope": "COLLECTION", "fields": [
+      { "fieldPath": "published", "order": "ASCENDING" },
+      { "fieldPath": "createdAt", "order": "DESCENDING" }
+    ]},
 
     { "collectionGroup": "testAttempts", "queryScope": "COLLECTION", "fields": [
       { "fieldPath": "userId", "order": "ASCENDING" },

@@ -1,60 +1,67 @@
-# Academia Website — Deferred Work
+# Academia Website — Status
 
-Not urgent for the demo. Notes for whoever picks this up next, so the
-gap between "what exists" and "what the master directive actually asks
-for" isn't lost.
+Updated 2026-08-12. Most of what this file used to list as deferred is
+now built — see below for what's real vs. still missing.
 
-## Current state (as of 2026-08-10)
+## Current state
 
-`academia_website/` (chosen over the thinner, competing `academia_web/`
-folder — see `docs/AUTOPILOT_LOG.md` for why) is a **marketing/
-informational site only**:
+`academia_website/` now has its own git repo (initialized 2026-08-12,
+local only — no GitHub remote set up yet, that's a deliberate call left
+to the user rather than guessing a repo name/visibility). Live at
+https://academia-b1705.web.app (Firebase Hosting, same project as the
+app).
 
-- Hero, PlatformOverview, Features, Audiences, Pricing, Contact sections
-- A Green Hills Academic Complex case-study section (real logo/colors)
-  making the white-label story concrete
-- Builds clean (`npm run build` — 0 errors, fixed 3 pre-existing
-  ESLint errors nobody had caught before this)
-- **Not deployed anywhere** — exists only on disk, no hosting configured
-- **No git repo of its own** — same for `academia_compiler/` — neither
-  is under version control right now
+**Marketing pages** (logged-out): Hero, Subjects, HowItWorks, Features,
+Testimonials, Audiences, About (compact Green Hills partnership mention),
+Pricing, Contact. Student-first framing — school-independent, per the
+user's explicit direction (not a school-sales pitch).
 
-## What the master directive actually asks for
+**Real product surface** (logged-in), wired to the exact same Firebase
+project/collections/security rules as the Flutter app:
 
-> Academia Website ↔ Academia Backend ↔ Academia Mobile App
->
-> The website and app are two interfaces into the same product.
+- **Auth** — `/login`, `/signup`. Sign-up writes a `users/{uid}` doc that
+  mirrors `AuthService.signUpIndependent()` field-for-field (same
+  `accountType: independent`, `role: student`, etc.) — an account created
+  on the website is indistinguishable from one created in the app.
+- **Dashboard** (`/dashboard`) — post-login hub linking to the sections
+  below.
+- **Magazine** (`/magazine`, `/magazine?id=`) — live `articles` collection,
+  renders `bodyDelta` (Quill Delta) via a custom `DeltaRenderer` matching
+  the exact op shapes this codebase's own writers produce.
+- **Courses** (`/courses`, `/courses?id=`) — live `public_courses`.
+- **Library / GCE Past Papers** (`/library`, `/library?id=`) — live
+  `academic_content`. Past papers gate behind the same unlock concept the
+  app uses: `schoolAdmin`/`superAdmin`/`isPremium` accounts open directly,
+  everyone else sees an honest "unlock in the app" message rather than a
+  fake unlock button — full XP-purchase-flow parity wasn't built (see
+  below).
+- **Quizzes** (`/tests`, `/tests?id=`) — live `tests`, MCQ auto-grading,
+  writes a real `testAttempts` doc matching `TestAttempt.toFirestore()`'s
+  shape. Structured/long-form questions are collected but correctly left
+  ungraded (`graded: false`), matching the app's real manual-grading
+  model — not silently auto-scored.
 
-This site does not do that yet. It has no login, no connection to the
-Firebase backend, no live Library/Courses/Magazine data, no student
-dashboard. It's the "front door" (explain the platform, showcase Green
-Hills, capture leads), not a second functional interface — closer to
-youtube.com's marketing page than youtube.com's actual video experience.
+Dynamic detail pages use a `?id=` query param, not a Next.js dynamic
+route segment — required by static export (`output: "export"`), which
+can't pre-render unknown Firestore IDs at build time.
 
-## What real portal parity would need
+**Firestore index added**: `tests` had no `published+createdAt` composite
+index (only a `subject+published+createdAt` one, from the app's
+subject-scoped picker) — the website's subject-agnostic "all quizzes"
+list needed one. Added and deployed
+(`academia_app/firestore.indexes.json`).
 
-1. **Auth** — Firebase Auth on the web (same project, same users) so a
-   student/school account works identically on web and mobile.
-2. **Live data** — Firestore/Storage reads for Library, Courses,
-   Magazine, wired the same way the Flutter app's repositories already
-   do it (same collections, same security rules — those are already
-   correct and deployed, this is just a second client reading them).
-3. **A real student/school dashboard** on the web — at minimum: browse
-   Library, browse/read Courses, read Magazine, view a school's
-   Announcements/Timetable if linked to one (mirrors `SchoolHomePage`'s
-   Quick Access set on mobile).
-4. **Deployment** — Firebase Hosting is the natural choice (same
-   project, free tier comfortably covers this size of site — confirmed
-   with the user 2026-08-10). `firebase deploy --only hosting` once a
-   `firebase.json` hosting target is configured.
-5. **Git** — put `academia_website/` under version control (currently
-   has none) before doing more work on it, for the same reason
-   `academia_app` already is.
+## Still missing / honestly out of scope for tonight
 
-## Not started
-
-None of the above is built. This file exists so "the website is done"
-isn't assumed later — it's done at the marketing-page level the user
-explicitly asked for on 2026-08-10 ("website itself to be presentable
-enough for the demo"), not at the full-portal level the original master
-directive describes.
+- **XP purchase/unlock flow for Past Papers** — admin/premium bypass
+  works, but a non-premium student can't spend XP to unlock a paper from
+  the website the way they can in the app (`XpRepository.isPaperUnlocked`
+  / the unlock-sheet flow was not ported).
+- **Clubs, Messaging, school-admin features (Attendance/Timetable/Marks)**
+  — not built on the web at all. The user's explicit ask was Magazine +
+  Courses + Quiz + Library/GCE Papers + sign-up; that's what's covered.
+- **No GitHub remote** for `academia_website`'s new repo — exists only
+  as a local git history right now.
+- **Structured/long-form quiz grading queue** — the app has a real
+  lecturer-facing grading queue for these; the website only collects the
+  answer, there's no way to grade it from the web.

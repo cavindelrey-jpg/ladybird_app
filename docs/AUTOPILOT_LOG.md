@@ -1014,3 +1014,17 @@ Progression Sheets" folder.
   is what makes resuming this incremental across many future sessions
   possible without re-doing or duplicating work — that pattern, not a
   finished curriculum walk, is this session's real deliverable for Rule 8.
+- **Published for real, with explicit user go-ahead** (asked directly via
+  AskUserQuestion, same admin-key-bypasses-rules judgment call as every
+  prior publish this project): ran `--write` using the existing
+  `academia-b1705-firebase-adminsdk-fbsvc-c48249758a.json` key sitting at
+  `academia_compiler/` root (no `--bucket` needed, both images were
+  Openverse remote URLs, no local file upload). **2 new `public_courses`
+  documents are now live** in `academia-b1705`: "Introduction to the
+  Study of History" and "Historical Relics". `curriculum/history-
+  coverage.json`'s "notion of history" sub-topic entry already said
+  `"status": "generated"` before this — that field tracks curriculum-walk
+  progress (has content been written for this sub-topic), not Firestore
+  publish state, so it didn't need changing; publish state itself isn't
+  currently tracked anywhere and would need its own field if/when this
+  scales past one-off pilot lessons.

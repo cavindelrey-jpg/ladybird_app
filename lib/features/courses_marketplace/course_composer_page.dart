@@ -21,6 +21,7 @@ import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/formula_embed_builder.dart';
 
 import '../../widgets/app_background.dart';
 class CourseComposerPage extends StatefulWidget {
@@ -643,7 +644,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                   scrollController: _editorScrollCtrl,
                   config: quill.QuillEditorConfig(
                     placeholder: 'Course content…',
-                    embedBuilders: FlutterQuillEmbeds.editorBuilders(),
+                    embedBuilders: [...FlutterQuillEmbeds.editorBuilders(), const FormulaEmbedBuilder()],
                   ),
                 ),
               ),

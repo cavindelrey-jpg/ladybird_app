@@ -15,6 +15,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
+import '../../widgets/formula_embed_builder.dart';
 import 'course_creator_profile_page.dart';
 import 'course_composer_page.dart';
 import 'course_browse_page.dart';
@@ -313,7 +314,10 @@ class _CourseBody extends StatelessWidget {
         showCursor: false,
         autoFocus: false,
         placeholder: 'Course content…',
-        embedBuilders: FlutterQuillEmbeds.editorBuilders(),
+        // Formula builder added on top of the stock image/video embeds so
+        // course LaTeX (Academia_Course_Generation_Rules.md Rule 1) renders
+        // as real math instead of the Quill default "unknown embed" box.
+        embedBuilders: [...FlutterQuillEmbeds.editorBuilders(), const FormulaEmbedBuilder()],
       ),
     );
   }

@@ -852,3 +852,102 @@ for Magazine's banner specifically to be "Auto" since it's social-media-like.
   scroll-to, not state change. This was the only page requiring a
   StatelessWidget -> StatefulWidget conversion; the other four pages already
   had mutable state to repurpose.
+
+## Session (2026-08-13): enforcing Academia_Course_Generation_Rules.md
+
+User pointed at `Academia_Course_Generation_Rules.md` (a rules doc already
+sitting at the app root, written just before this session) with no further
+instruction — per this file's own "never idle" rule, audited the compiler
+(`academia_compiler/compile-course.js`, outside this git repo) and the
+Flutter reader against all 8 rules rather than waiting to be told which
+one. Found concrete, currently-live violations: Rule 7's excluded-subject
+list wasn't enforced anywhere (a Computer Science course had already been
+published through this same pipeline in an earlier session, in direct
+violation), `coverImageUrl` was hardcoded `null` for every compiled course
+(Rule 6), no code anywhere detected `$...$`/`$$...$$` LaTeX and it would
+have rendered as literal dollar-sign text (Rule 1 — flutter_quill ships no
+formula EmbedBuilder by default, only image/video via
+flutter_quill_extensions), and a lesson with no `![]()`/`[IMAGE:]` marker
+got zero images regardless of Rule 3.
+
+- **compile-course.js changes** (no git repo of its own, per the
+  2026-08-10 entry — not in any git history, disk-only):
+  - Rule 7 gate: `isExcludedSubject()` checked in the existing validation
+    block, rejects Mathematics/Further Mathematics/Additional
+    Mathematics/Physics/Computer Science/Coding with exit code 1 and a
+    clear message; `--allowExcludedSubject` added as an explicit escape
+    hatch rather than a silent bypass, for the rule's own "explanatory,
+    non-problem-solving corner of the subject" carve-out.
+  - Rule 1: `splitMathSegments()` splits paragraph/heading/list-item text
+    on `$$...$$` (block, forced onto its own line) then `$...$` (inline),
+    emitting Quill's own built-in `{"insert":{"formula": "<tex>"}}` embed
+    op (`BlockEmbed.formulaType`) instead of literal text — chose Quill's
+    native embed type over inventing a new one so any future flutter_quill
+    tooling that already knows about `formula` embeds keeps working.
+  - Rule 6: extracted the existing Openverse search/keyword-shrinking
+    logic (previously private to `resolveCcImages`) into standalone
+    `findCcImage()`/`searchOpenverseRaw()`, added `resolveThumbnails()`
+    which fetches one `coverImageUrl` per lesson (query = lesson title +
+    topic + subject). Deliberately did NOT add a `coverImageCaption`
+    field to the Firestore doc even though CC images legally require
+    attribution — `PublicCourse.toFirestore()`/`fromFirestore()` has no
+    such field and nothing in `course_reader_page.dart` renders a
+    cover-image caption, so writing one would be a dead field on the live
+    schema. Recorded the caption in `manifest.json` instead so a human
+    publisher still sees the required attribution; wiring a real
+    cover-caption UI is left as explicit future work, not silently
+    dropped.
+  - Rule 3: `ensureSectionImage()` checks each lesson's compiled ops for
+    any image embed; if none exists (no markdown `![]()`, no `[IMAGE:]`
+    marker), synthesizes the same pending-placeholder pair the explicit
+    marker path already produces, keyed off the lesson title, so the
+    existing `resolveCcImages` pass fetches it same as before — no new
+    fetch/fallback code path, reused the one that already existed and was
+    already tested.
+  - **Verified end-to-end with a throwaway sample** (Chemistry, not an
+    excluded subject; inline + block LaTeX; one lesson with zero images,
+    one with an explicit `![]()`): compiled JSON confirmed correct
+    `{"formula": ...}` ops for both inline and block math, the
+    zero-image lesson got an auto-injected placeholder while the
+    already-illustrated lesson did not (no duplicate/spurious image), and
+    the Rule 7 gate correctly rejected a `subject: Physics` sample with
+    exit code 1. **Openverse itself is currently returning HTTP 403 (a
+    Cloudflare "Just a moment…" JS challenge page, confirmed via a direct
+    `Invoke-WebRequest`) from this sandbox's network** — every CC-image
+    and thumbnail fetch attempt failed for that reason during testing,
+    not a bug in this session's code; the pipeline's existing
+    honest-fallback behavior (blank/SVG placeholder + "add manually"
+    caption, `coverImageUrl` left `null`) degraded gracefully exactly as
+    designed. This is a live-environment blocker a future session
+    (possibly just a different network/IP, or Openverse now requiring
+    something this pipeline doesn't send) should re-check before trusting
+    that auto-images work end-to-end again.
+- **Flutter app changes**: added `flutter_math_fork: ^0.7.3` (resolved
+  0.7.4) — the actual LaTeX renderer, since flutter_quill_extensions ships
+  no formula support at all. New `lib/widgets/formula_embed_builder.dart`
+  (`FormulaEmbedBuilder`, key `'formula'`, wraps `Math.tex(...)` with an
+  `onErrorFallback` that shows the raw TeX in italics rather than crashing
+  the whole reader page if flutter_math_fork can't parse a given string).
+  Wired into `course_reader_page.dart` (the actual student-facing reader —
+  this is the one that must render real math per Rule 1's own wording)
+  and `course_composer_page.dart` (so an admin editing AI-generated
+  content sees rendered math too, not a broken embed placeholder). Did
+  NOT wire it into Magazine's `article_reader_page.dart`/
+  `article_composer_page.dart` or `content_viewer_page.dart` — out of
+  scope of a *Course*-generation rules doc; flagging since the same
+  broken-math-text problem would apply there too if Magazine content ever
+  uses `$...$`, if that becomes a real ask later.
+  `flutter analyze` after: 0 errors, only the same 36 pre-existing
+  info/warning-level lints the whole project already had (none in the
+  touched files beyond 2 pre-existing RadioGroup-deprecation infos in
+  `course_composer_page.dart`, unrelated to this change).
+- **Rule 8 (curriculum-driven bulk generation from a GCE folder) — not
+  built.** The rule's own text says the folder "will be provided"; no
+  such folder exists anywhere on disk yet (checked). Building an
+  ingestion/completion-tracking system against a folder structure I'd
+  have to invent from nothing would be exactly the kind of speculative,
+  hypothetical-future-requirement work the standing engineering
+  guidelines say not to do. Leaving this rule unimplemented until the
+  actual curriculum folder shows up is the correct call, not a gap in
+  this session's effort — flagging clearly rather than silently skipping
+  it.

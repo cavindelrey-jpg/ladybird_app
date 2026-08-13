@@ -73,6 +73,8 @@ Section headers are bold, ALL CAPS, no numbering prefix (e.g. `INTRODUCTION`, no
 - Prose paragraphs: 3–5 sentences, plain declarative language appropriate for GCE/BAC-level students — no unexplained jargon.
 - "Key Facts" sections use `**Bold label**: value` pairs, not full sentences.
 - Keep each section self-contained enough to be read out of order — students will jump around, not read linearly.
+- **No em dashes.** Never use `—` anywhere in generated content. Use a period, comma, colon, or parentheses instead.
+- **Definitions stay tight.** When a term is introduced and defined, the core definition itself (not the surrounding sentence) must land in 5-7 words. Extra context, examples, or nuance belong in a following sentence, not folded into the definition itself.
 
 ---
 
@@ -110,6 +112,7 @@ A separate methodology and separate route will be built specifically for these s
 3. Skip any subject currently excluded under Rule 7, but still record it in the coverage list as "pending — heavy-math route" rather than silently omitting it.
 4. Track completion state (generated / pending / needs-review) per subtopic so re-runs don't duplicate work already done, and gaps in coverage are visible at a glance.
 5. Apply every rule above (1–6) to each generated subtopic — no exceptions for length or subject just because generation is automated/bulk rather than one-off.
+6. **The syllabus is a scaffold, not a script.** It decides which topics exist, how they're grouped, and what order they're taught in — nothing more. Generated notes must read as if no exam syllabus exists at all: never name "GCE" (or any exam board) in body prose, never write "this is examinable under...", "as required by the syllabus...", "per the curriculum...", or similar framing. A student reading a lesson should experience it as a topic worth understanding on its own terms, not as syllabus content being delivered at them. The app's own structured taxonomy fields (`level`, `examBoard`, per Rule 4's breadcrumb) may still carry "GCE Advanced Level" etc., since that's navigation metadata the student browses by, not narrative text they read.
 
 ---
 
@@ -123,3 +126,5 @@ A separate methodology and separate route will be built specifically for these s
 | Lessons with no thumbnail / generic placeholder in lists | Rule 6 — mandatory auto-fetched thumbnail per lesson, separate field from body images |
 | Broken/garbled output on Maths, Further Maths, Add Maths, Physics, CS | Rule 7 — excluded from this pipeline until a dedicated worked-example route exists |
 | Ad hoc, incomplete, or duplicated topic coverage | Rule 8 — systematic walk through the GCE curriculum folder with tracked completion state |
+| Em dashes, run-on multi-clause "definitions" | Rule 5 — no em dashes; every definition's core statement stays 5-7 words |
+| Notes that read like exam-syllabus copy ("examinable under GCE...") | Rule 8.6 — syllabus is an invisible scaffold, never named in body prose |

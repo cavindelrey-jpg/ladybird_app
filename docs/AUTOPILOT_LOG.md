@@ -951,3 +951,66 @@ got zero images regardless of Rule 3.
   actual curriculum folder shows up is the correct call, not a gap in
   this session's effort — flagging clearly rather than silently skipping
   it.
+
+## Session (2026-08-13, later same day): 3 new rules + Rule 8 pilot now the syllabus exists
+
+User added three rules to `Academia_Course_Generation_Rules.md` directly
+(no em dashes anywhere in generated content; every definition's core
+statement stays 5-7 words; generated notes must never name "GCE" or read
+like syllabus copy, the syllabus is scope/sequencing scaffolding only,
+invisible to the student) and pointed out the GCE curriculum folder
+(blocking Rule 8 in the entry above) now actually exists at
+`academia_compiler/GCE SYLLABUS/2026-2027 CBA SYLLABUS for Secondary &
+High School/` — ~35 subject PDFs by form level, plus an "Updated
+Progression Sheets" folder.
+
+- Added the 3 rules to Rule 5 (em dashes, tight definitions) and a new
+  Rule 8.6 (syllabus invisibility) plus matching rows in the doc's own
+  failure-mode summary table. Committed to `academia_app` (`860f33b`).
+- **Rule 8 pilot, real curriculum data**: the syllabus PDFs turned out to
+  be scanned images with no text layer (`pdf-parse` extracted ~1KB from a
+  47-page PDF, all from the cover). No Tesseract OCR on this machine, no
+  winget/choco to install it, and a GUI installer wouldn't run in this
+  non-interactive sandbox anyway. Worked around it instead of blocking:
+  `pdf-parse` v2's `PDFParse.getScreenshot()` (backed by `@napi-rs/canvas`,
+  a self-contained native renderer, no Poppler/system deps) rasterizes
+  pages to PNG, which I then read directly as images and transcribe
+  myself (I'm multimodal) — no OCR software needed at all. New
+  `academia_compiler/render-pdf-pages.js` is the reusable tool for this.
+  Confirmed fully legible at 2x scale.
+- Transcribed History (Form 1, Module 1: "The legacies of ancient African
+  civilizations...", 27 hrs) in full: 3 sub-topics, each broken into real
+  lessons/guided-work with notions/concepts, skills, and resources —
+  genuinely rich data, not just headings. Recorded in
+  `academia_compiler/curriculum/history-coverage.json` per Rule 8 point 4
+  (generated/pending/not-yet-transcribed status per sub-topic), with the
+  remaining 2 Form-1 modules and all of Forms 2-5 explicitly marked
+  `not-yet-transcribed` rather than silently absent.
+- **Generated one real lesson end-to-end** from this data (sub-topic "The
+  notion of history" → `curriculum/content/history-form1-notion-of-
+  history.md`, 2 lessons: "Introduction to the Study of History" +
+  "Historical Relics"), written to follow every rule including the 3 new
+  ones (no em dashes, tight definitions, zero mention of "GCE"/
+  "syllabus"/"Form 1"/"module" anywhere in body prose). Dry-compiled
+  successfully: both lessons got real auto-fetched Openverse images and
+  thumbnails this run (the 2026-08-13-earlier session's 403/Cloudflare
+  block was transient, not permanent — [[openverse-sandbox-blocked]]
+  should be re-verified rather than assumed still blocked).
+  - **Caught and fixed a self-inflicted rule violation**: the compiler's
+    own auto-generated image-attribution caption
+    (`Image: "..." — creator, license (via Openverse)`) used an em dash,
+    and that caption renders as real body text under the image in the
+    app, not just a code comment. Fixed both the real-match caption and
+    the no-match fallback caption in `compile-course.js` to use a comma
+    instead. Re-compiled and grepped the output JSON for the em-dash
+    character to confirm zero remain.
+  - Not run with `--write` (no Firestore publish) — same standing pattern
+    as every other compile this session, dry-run only.
+- **Honest scope note, not a completion claim**: this is one sub-topic
+  out of one module out of one form out of one subject. The full syllabus
+  is ~35 subjects × up to 5 forms × several modules each, and every page
+  needs the same render-and-read transcription (no shortcut via OCR
+  software on this machine). The coverage-JSON pattern established here
+  is what makes resuming this incremental across many future sessions
+  possible without re-doing or duplicating work — that pattern, not a
+  finished curriculum walk, is this session's real deliverable for Rule 8.

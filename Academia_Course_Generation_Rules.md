@@ -43,6 +43,8 @@ Derived from the manually-built "Theory of Relativity" reference course. Any AI/
 - **No copyrighted or watermarked material** — only openly licensed/stock sources, consistent with existing sourcing rules.
 - **No placeholder or fabricated images** — if no suitable image is found for a section, skip the image rather than inserting a generic filler graphic. (Consistent with Academia's "no fake data" principle — this extends to "no fake/irrelevant images.")
 - Each image should sit full-width within the content column, not floated or cropped awkwardly, matching the reference course's layout.
+- **Minimum of 3 images per lesson, deliberately placed**: one shortly after the opening/introduction, at least one inside the body next to the specific concept it illustrates, and one before the closing/conclusion. Use more than 3 whenever the lesson genuinely covers that many distinct visual concepts (several objects, steps, places, or diagrams), especially in content-dense sections like key-facts lists. One image for an entire lesson is not acceptable output.
+- **Relevance over convenience**: an image must depict the actual thing its surrounding paragraph is about. The search query behind it must be specific and drawn from that paragraph's real content (e.g. "Nok terracotta figure Nigeria archaeology", not just the lesson's title reused for every image in it). A lesson-title-only query, repeated for every image slot in that lesson, is not specific enough on its own and must not be the only sourcing strategy. If the best available match is still a poor fit, skip the image rather than keep one that doesn't match — reusing the existing "no fake/irrelevant images" standard above.
 
 ---
 
@@ -66,6 +68,8 @@ Every generated course should follow this skeleton, matching the reference:
 
 Section headers are bold, ALL CAPS, no numbering prefix (e.g. `INTRODUCTION`, not `1. Introduction`).
 
+**Subheadings inside a lesson are mandatory, not optional.** A single H2 lesson must be broken into named H3 subheadings for its distinct parts (definitions, causes, examples, a named process) rather than left as one continuous run of paragraphs under just the lesson title. A lesson with no internal subheadings, regardless of length, is incomplete output.
+
 ---
 
 ## 5. Tone and density
@@ -73,6 +77,7 @@ Section headers are bold, ALL CAPS, no numbering prefix (e.g. `INTRODUCTION`, no
 - Prose paragraphs: 3–5 sentences, plain declarative language appropriate for GCE/BAC-level students — no unexplained jargon.
 - "Key Facts" sections use `**Bold label**: value` pairs, not full sentences.
 - Keep each section self-contained enough to be read out of order — students will jump around, not read linearly.
+- **Real length, not a single paragraph.** A lesson should be substantive enough to actually teach its sub-topic: several distinct paragraphs across multiple subheadings, each idea given its own paragraph rather than crammed together. Separate every paragraph with a blank line in the source so it renders as its own visually distinct block, not a wall of text.
 - **No em dashes.** Never use `—` anywhere in generated content. Use a period, comma, colon, or parentheses instead.
 - **Definitions stay tight.** When a term is introduced and defined, the core definition itself (not the surrounding sentence) must land in 5-7 words. Extra context, examples, or nuance belong in a following sentence, not folded into the definition itself.
 
@@ -128,3 +133,5 @@ A separate methodology and separate route will be built specifically for these s
 | Ad hoc, incomplete, or duplicated topic coverage | Rule 8 — systematic walk through the GCE curriculum folder with tracked completion state |
 | Em dashes, run-on multi-clause "definitions" | Rule 5 — no em dashes; every definition's core statement stays 5-7 words |
 | Notes that read like exam-syllabus copy ("examinable under GCE...") | Rule 8.6 — syllabus is an invisible scaffold, never named in body prose |
+| One lesson, one generic image, unrelated to the actual text | Rule 3 — minimum 3 images per lesson, placed deliberately, queried from the actual surrounding content |
+| A lesson with no internal structure, one flat wall of text | Rule 4 — mandatory H3 subheadings inside every lesson; Rule 5 — real multi-paragraph length |

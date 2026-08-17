@@ -1377,3 +1377,102 @@ structural/consistency items in Part 4 (mixed Result/Exception error
 handling, singleton-everywhere architecture) — these are refactors
 touching dozens of call sites each, not scoped bug fixes, and warrant
 their own planned pass rather than being folded into this one.
+
+## Session continues (2026-08-17, same day): §4.2/§4.3 XP Economy —
+Base XP, academic-level multiplier, minimum completion reward, attempt
+cooldown
+
+§1/§2 (Library, Course Creation) both turned out to already be in solid
+shape once actually inspected — verified CRUD, rules, and sequencing
+logic in `PublicCourseRepository`/`course_composer_page.dart`, found one
+real deliberate tradeoff (client-side-filtered bounded queries for the
+curriculum hierarchy — already self-documented in the code's own
+comments as an accepted scale limitation, not touched) and nothing else
+worth changing. Moved to §4 (XP Economy) next — the most concretely,
+numerically specified section of the whole plan, so the least
+judgment-call-dependent to implement faithfully.
+
+**§4.2 — Base XP + academic-level multiplier + minimum completion
+reward**:
+- `XpSource.mcq/structural/ac` baseXp changed from the prior 10/25/45 to
+  the plan's exact 15/30/55 (MCQ/Structural/Essay — "ac"/long-form is
+  this codebase's existing name for what the plan calls Essay).
+- New `core/xp_rules.dart` functions: `academicLevelMultiplier(String
+  educationLevel)` maps `AppUser.educationLevel` (a FIXED 13-value
+  dropdown list — `EducationLevels.all` in models/app_user.dart, not
+  actually free text despite that field's own doc comment) to the plan's
+  1.0/1.6/2.2 tiers. Form 1-3 → Junior Secondary, Form 4-5 → Senior
+  Secondary, Lower/Upper Sixth (Cameroon's real "Advanced Level") →
+  Advanced. University/Professional/Independent Learner/Other don't map
+  to a school form at all — bucketed into the Advanced tier on the
+  reasoning that post-secondary/self-directed learners are tackling
+  at-least-advanced material; unrecognized/empty values fall back to the
+  LOWEST tier (conservative under-reward default, not over-reward).
+- `questionXp()` now applies `Base × Correct% × LevelMultiplier` per the
+  plan's exact worked example ("Senior Secondary Structural: 30 × 80% ×
+  1.6 = 38.4 XP" — hand-verified this reproduces exactly for an
+  easy-difficulty question). **Deliberately kept the pre-existing
+  difficulty multiplier (100/115/130%) stacked on top** rather than
+  removing it — the plan's formula doesn't mention difficulty at all,
+  but it's a working feature this plan simply doesn't discuss, and
+  removing it isn't something the plan asks for. Logged clearly in the
+  code comment that this means actual awarded XP runs higher than the
+  plan's bare example for non-easy tests — a deliberate choice to
+  preserve existing behavior, not a silent deviation.
+- New `minimumCompletionFloor()`: the plan's "25% of Base XP even at a
+  very low score" applied once per fully-graded ATTEMPT (not per
+  question) — same altitude as the existing `completionBonusXp()`. A
+  per-question floor would pay out for blank/skipped answers too,
+  which reads as a farming vector the "attempt" framing avoids.
+
+**§4.3 — Attempt cooldown (the "unlimited XP farm" problem the plan
+explicitly names)**: `TestAttempt` gained `attemptMultiplier` (alongside
+`levelMultiplier`, both fixed at submit time and reused by every later
+`gradeResponse()` call on the same attempt, so neither a profile change
+nor anything else can retroactively alter an in-progress attempt's
+math). `submitAttempt()` now queries prior attempts on the exact same
+test by the exact same user within a rolling 72h window
+(`kAttemptCooldownWindow`) and applies 1.0/0.4/0.0 on the 1st/2nd/3rd+
+attempt, matching the plan's numbers exactly. No new Firestore index
+needed — the query is a plain two-field equality filter with no
+`orderBy`, filtered for the time window client-side.
+
+**A real bug caught and fixed mid-implementation, not shipped**: my
+first pass computed the §4.2 minimum-completion floor in `gradeResponse`
+against an UNDAMPED threshold while comparing it to an ALREADY-DAMPED
+total (since a dampened attempt's responses are stored post-dampening at
+submit time) — which would have silently let the floor top-up cancel out
+the §4.3 cooldown reduction on any 2nd/3rd attempt that needed manual
+grading, defeating the whole point of §4.3. Caught this by tracing the
+math by hand rather than trusting `flutter analyze` (which can't check
+economic logic, only syntax) — fixed by recovering the full-rate total
+via `dampedTotal / attemptMultiplier` before running the floor/bonus
+comparison, then damping the *result* once, matching submitAttempt's
+"full rate first, dampen once" order. Flagging this explicitly since
+it's exactly the kind of subtle, high-consequence bug that's easy to
+ship in an XP-ledger change without hand-verifying the interaction
+between two features implemented in the same pass.
+
+`flutter analyze` across the whole project after all of the above: 36
+issues, byte-for-byte the same pre-existing baseline as the start of
+this session — zero new issues from any change made today.
+
+**Not done, and why**: §4.4 (per-academic-level daily quiz XP caps —
+120/160/200 — plus an overall 280XP/day quiz ceiling) needs restructuring
+`XpRepository.awardXp()`'s cap system, which currently enforces ONE flat
+`kDailyXpCap=200` shared across every XP source (quiz + magazine +
+streak combined) — the plan's design wants per-category caps instead.
+That's a change to the core ledger transaction every single XP award in
+the app already flows through; getting it wrong risks breaking
+currently-working magazine/streak XP for an economic feature I can't
+end-to-end test in this sandboxed environment. Deliberately stopped here
+rather than rushing it in the same sitting as §4.2/§4.3 — a clean, well-
+scoped next task, not an oversight. Also not done: §4.5 (Magazine XP
+formula change: views/50 + likes×2 + comments×5 + shares×4, replacing
+the current flat 2XP-per-unique-read; needs view/like/comment/share
+tracking the Magazine feature doesn't fully have yet — Magazine only
+tracks likes/comments today, not "views" as a distinct countable metric,
+so this needs its own scoping pass) and §4.6/§4.7 (past-paper XP pricing
+— there's no separate PastPaper content model in this codebase yet,
+confirmed via grep; `ContentType.pastPaper` exists as a content-type tag
+but nothing prices/gates it the way the plan describes).

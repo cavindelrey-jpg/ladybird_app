@@ -122,6 +122,25 @@ class TestAttempt {
   final DateTime submittedAt;
   final DateTime? gradedAt;
 
+  /// The submitter's academic-level XP multiplier (see
+  /// core/xp_rules.dart's academicLevelMultiplier), captured at submit
+  /// time and reused for every later gradeResponse() call on structured/
+  /// longForm questions in this same attempt — so a profile-level change
+  /// after submitting never retroactively changes an already-in-progress
+  /// attempt's XP math. Defaults to 1.0 for attempts written before this
+  /// field existed.
+  final double levelMultiplier;
+
+  /// production_plan.md §4.3 attempt-cooldown dampening for this exact
+  /// test within a rolling 72h window: 1.0 on the first eligible attempt,
+  /// 0.4 on a second, 0.0 on a third or later. Computed once at submit
+  /// time (see TestRepository.submitAttempt) and reused by every later
+  /// gradeResponse() call on the same attempt, for the same "don't let a
+  /// profile/context change retroactively alter an in-progress attempt's
+  /// math" reason as [levelMultiplier]. Defaults to 1.0 for attempts
+  /// written before this field existed.
+  final double attemptMultiplier;
+
   const TestAttempt({
     required this.id,
     required this.testId,
@@ -136,6 +155,8 @@ class TestAttempt {
     required this.totalXpAwarded,
     required this.submittedAt,
     this.gradedAt,
+    this.levelMultiplier = 1.0,
+    this.attemptMultiplier = 1.0,
   });
 
   int get gradedPoints =>
@@ -168,6 +189,8 @@ class TestAttempt {
       totalXpAwarded: (d['totalXpAwarded'] as num?)?.toInt() ?? 0,
       submittedAt: submitted is Timestamp ? submitted.toDate() : DateTime.now(),
       gradedAt: graded is Timestamp ? graded.toDate() : null,
+      levelMultiplier: (d['levelMultiplier'] as num?)?.toDouble() ?? 1.0,
+      attemptMultiplier: (d['attemptMultiplier'] as num?)?.toDouble() ?? 1.0,
     );
   }
 
@@ -184,5 +207,7 @@ class TestAttempt {
         'totalXpAwarded': totalXpAwarded,
         'submittedAt': Timestamp.fromDate(submittedAt),
         'gradedAt': gradedAt == null ? null : Timestamp.fromDate(gradedAt!),
+        'levelMultiplier': levelMultiplier,
+        'attemptMultiplier': attemptMultiplier,
       };
 }

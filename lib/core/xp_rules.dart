@@ -35,6 +35,55 @@ int difficultyMultiplierPercent(TestDifficulty difficulty) {
   }
 }
 
+// ── Academic-level XP multiplier (production_plan.md §4.2) ───────────────
+// The plan's own worked example ("Senior Secondary Structural: 30 × 80% ×
+// 1.6 = 38.4 XP") only shows Base × Correct% × Level — it doesn't mention
+// difficulty at all. Rather than silently drop the pre-existing difficulty
+// multiplier above (a working feature this plan simply doesn't discuss),
+// questionXp() below applies both: the plan's exact level multiplier on
+// top of the existing difficulty multiplier. Actual awarded XP for a
+// non-easy test will therefore run higher than the plan's own bare
+// example — flagging that explicitly as a deliberate choice to preserve a
+// working feature rather than a deviation from the spec's core formula.
+
+const double kJuniorSecondaryMultiplier = 1.0;
+const double kSeniorSecondaryMultiplier = 1.6;
+const double kAdvancedLevelMultiplier = 2.2;
+
+/// Maps [AppUser.educationLevel] (a fixed dropdown list — see
+/// EducationLevels.all in models/app_user.dart) to the plan's three-tier
+/// multiplier. Form 1-3 → Junior Secondary; Form 4-5 → Senior Secondary;
+/// Lower/Upper Sixth (Cameroon's actual "Advanced Level") → the Advanced
+/// tier. University/Professional/Independent Learner/Other don't map to
+/// any school form at all — bucketed into the Advanced tier too, on the
+/// reasoning that a post-secondary or self-directed learner is tackling
+/// at-least-advanced-level material, not that they're literally in Sixth
+/// Form. Unrecognized/empty values fall back to the lowest tier rather
+/// than the highest — a conservative default so an unset profile field
+/// under-rewards instead of over-rewards.
+double academicLevelMultiplier(String educationLevel) {
+  switch (educationLevel) {
+    case 'Form 1':
+    case 'Form 2':
+    case 'Form 3':
+      return kJuniorSecondaryMultiplier;
+    case 'Form 4':
+    case 'Form 5':
+      return kSeniorSecondaryMultiplier;
+    case 'Lower Sixth Arts':
+    case 'Lower Sixth Science':
+    case 'Upper Sixth Arts':
+    case 'Upper Sixth Science':
+    case 'University':
+    case 'Professional / Working Adult':
+    case 'Independent Learner':
+    case 'Other':
+      return kAdvancedLevelMultiplier;
+    default:
+      return kJuniorSecondaryMultiplier;
+  }
+}
+
 /// Maps a question's format to the XP source whose flat `baseXp` rate
 /// (10 / 25 / 45 — decided rates, already live in xp_transaction.dart)
 /// anchors this question's XP.
@@ -61,12 +110,53 @@ int questionXp({
   required int pointsAwarded,
   required int maxPoints,
   required TestDifficulty difficulty,
+  required double levelMultiplier,
 }) {
   if (maxPoints <= 0) return 0;
   final ratio = pointsAwarded.clamp(0, maxPoints) / maxPoints;
   final base = xpSourceForQuestionType(type).baseXp;
   final withDifficulty = base * difficultyMultiplierPercent(difficulty) / 100;
-  return (withDifficulty * ratio).round();
+  return (withDifficulty * ratio * levelMultiplier).round();
+}
+
+/// A single question's Base XP scaled by [levelMultiplier] only (no
+/// difficulty, no correctness ratio) — the unit production_plan.md §4.2's
+/// minimum-completion-reward is 25% of. Used to compute the floor an
+/// attempt's total XP must reach; see [minimumCompletionFloor].
+int baseXpAtLevel(QuestionType type, double levelMultiplier) =>
+    (xpSourceForQuestionType(type).baseXp * levelMultiplier).round();
+
+/// production_plan.md §4.2: "A completed quiz must provide a minimum
+/// reward even when the student's score is very low — 25% of Base XP."
+/// Applied once per fully-graded ATTEMPT (not per question) — same
+/// altitude as [completionBonusXp] below, and the only reading that
+/// doesn't create a farm-by-skipping incentive (a per-question floor
+/// would pay out for blank/skipped answers too). [answeredQuestionTypes]
+/// should list every question the test actually contains (their base
+/// rate at the student's level is what the 25% floor is computed
+/// against), regardless of how they scored.
+int minimumCompletionFloor(List<QuestionType> answeredQuestionTypes, double levelMultiplier) {
+  if (answeredQuestionTypes.isEmpty) return 0;
+  final totalBaseAtLevel = answeredQuestionTypes
+      .map((t) => baseXpAtLevel(t, levelMultiplier))
+      .fold(0, (a, b) => a + b);
+  return (totalBaseAtLevel * 0.25).round();
+}
+
+// ── Attempt-cooldown dampening (production_plan.md §4.3) ─────────────────
+// "The same quiz cannot be used as an unlimited XP farm." Applies to the
+// SAME test, per user, within a rolling window — not a global per-user
+// limit, so retaking a *different* test at full rate is unaffected.
+
+const Duration kAttemptCooldownWindow = Duration(hours: 72);
+
+/// [priorAttemptsInWindow] = how many times this user already attempted
+/// THIS SAME test within the last [kAttemptCooldownWindow], not counting
+/// the attempt being scored right now.
+double attemptCooldownMultiplier(int priorAttemptsInWindow) {
+  if (priorAttemptsInWindow <= 0) return 1.0;   // first eligible attempt
+  if (priorAttemptsInWindow == 1) return 0.4;   // second attempt within window
+  return 0.0;                                   // third+ within window
 }
 
 /// Minimum score percentage for ANY completion bonus. Below this, the

@@ -109,6 +109,7 @@ class _TestTakingPageState extends State<TestTakingPage> {
       userId: widget.user.id,
       userName: widget.user.name,
       rawAnswers: rawAnswers,
+      educationLevel: widget.user.educationLevel,
     );
     if (!mounted) return;
     setState(() => _submitting = false);

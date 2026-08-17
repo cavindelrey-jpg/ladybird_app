@@ -85,9 +85,12 @@ extension XpSourceExt on XpSource {
   /// a streak-system constant rather than a per-answer rate).
   int get baseXp {
     switch (this) {
-      case XpSource.mcq:             return 10;
-      case XpSource.structural:      return 25;
-      case XpSource.ac:              return 45;
+      // Matches production_plan.md §4.2 exactly: MCQ 15 / Structural 30 /
+      // Essay 55. "ac" (long-form) is this codebase's existing name for
+      // what the plan calls "Essay".
+      case XpSource.mcq:             return 15;
+      case XpSource.structural:      return 30;
+      case XpSource.ac:              return 55;
       case XpSource.paperUnlock:     return 0;
       case XpSource.magazineRead:    return kMagazineReadXp;
       case XpSource.testCompletion:  return 0;

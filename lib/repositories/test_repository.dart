@@ -145,9 +145,11 @@ class TestRepository {
     required String userId,
     required String userName,
     required Map<String, dynamic> rawAnswers,
+    String educationLevel = '',
   }) async {
     if (userId.isEmpty) return const Failure('Sign in to submit a test.', null);
     try {
+      final levelMultiplier = academicLevelMultiplier(educationLevel);
       var totalXpFromQuestions = 0;
       final responses = <QuestionResponse>[];
 
@@ -162,6 +164,7 @@ class TestRepository {
             pointsAwarded: pointsAwarded,
             maxPoints: q.points,
             difficulty: test.difficulty,
+            levelMultiplier: levelMultiplier,
           );
           totalXpFromQuestions += xp;
           responses.add(QuestionResponse(
@@ -187,12 +190,52 @@ class TestRepository {
           : (responses.fold(0, (s, r) => s + (r.pointsAwarded ?? 0)) /
               test.totalPossiblePoints *
               100);
-      final bonus = fullyGradedNow
-          ? completionBonusXp(
-              totalQuestionXpEarned: totalXpFromQuestions,
-              scorePercent: scorePercentSoFar,
-            )
-          : 0;
+      var bonus = 0;
+      if (fullyGradedNow) {
+        bonus = completionBonusXp(
+          totalQuestionXpEarned: totalXpFromQuestions,
+          scorePercent: scorePercentSoFar,
+        );
+        // production_plan.md §4.2 minimum completion reward: the whole
+        // attempt's total (questions + bonus) must reach 25% of what
+        // every question in the test was worth at this base rate/level —
+        // top the bonus up if the tiered completionBonusXp() alone
+        // didn't get there (e.g. a very low score still completed).
+        final floor = minimumCompletionFloor(
+            test.questions.map((q) => q.type).toList(), levelMultiplier);
+        if (totalXpFromQuestions + bonus < floor) {
+          bonus = floor - totalXpFromQuestions;
+        }
+      }
+
+      // production_plan.md §4.3: the same test, by the same user, within
+      // a rolling 72h window earns full/40%/0% on the 1st/2nd/3rd+
+      // attempt. Applied AFTER the completion-bonus/floor math above (the
+      // spec's minimum-reward text explicitly says it's "subject to the
+      // applicable attempt rules"), then re-distributed across each
+      // response's own xpEarned so the model's own documented invariant
+      // (sum of response xpEarned + bonus == totalXpAwarded) still holds.
+      final cooldownStart = DateTime.now().subtract(kAttemptCooldownWindow);
+      final priorSnap = await _attempts
+          .where('userId', isEqualTo: userId)
+          .where('testId', isEqualTo: test.id)
+          .get();
+      final priorAttemptsInWindow = priorSnap.docs.where((d) {
+        final ts = d.data()['submittedAt'];
+        return ts is Timestamp && ts.toDate().isAfter(cooldownStart);
+      }).length;
+      final attemptMultiplier = attemptCooldownMultiplier(priorAttemptsInWindow);
+
+      var dampedResponses = responses;
+      var dampedTotalXpFromQuestions = totalXpFromQuestions;
+      var dampedBonus = bonus;
+      if (attemptMultiplier != 1.0) {
+        dampedResponses = responses
+            .map((r) => r.copyWith(xpEarned: (r.xpEarned * attemptMultiplier).round()))
+            .toList();
+        dampedTotalXpFromQuestions = dampedResponses.fold(0, (s, r) => s + r.xpEarned);
+        dampedBonus = (bonus * attemptMultiplier).round();
+      }
 
       final attemptRef = _attempts.doc();
       final attempt = TestAttempt(
@@ -203,14 +246,18 @@ class TestRepository {
         difficulty: test.difficulty,
         userId: userId,
         userName: userName,
-        responses: responses,
+        responses: dampedResponses,
         totalPossiblePoints: test.totalPossiblePoints,
         status: fullyGradedNow ? AttemptStatus.graded : AttemptStatus.submitted,
-        totalXpAwarded: totalXpFromQuestions + bonus,
+        totalXpAwarded: dampedTotalXpFromQuestions + dampedBonus,
         submittedAt: DateTime.now(),
         gradedAt: fullyGradedNow ? DateTime.now() : null,
+        levelMultiplier: levelMultiplier,
+        attemptMultiplier: attemptMultiplier,
       );
       await attemptRef.set(attempt.toFirestore());
+      totalXpFromQuestions = dampedTotalXpFromQuestions;
+      bonus = dampedBonus;
 
       // Award XP for the auto-graded (mcq) portion, grouped by source so
       // the ledger shows one clean "+N XP · MCQ" entry per attempt
@@ -262,12 +309,17 @@ class TestRepository {
         final target = attempt.responses[idx];
         if (target.graded) throw Exception('This answer was already graded');
 
-        final xp = questionXp(
+        // attempt.attemptMultiplier was fixed at submit time (§4.3
+        // cooldown dampening) — a manually-graded question inside a
+        // dampened attempt earns the same reduced rate as every other
+        // question in it, not full rate.
+        final xp = (questionXp(
           type: target.type,
           pointsAwarded: pointsAwarded,
           maxPoints: target.maxPoints,
           difficulty: attempt.difficulty,
-        );
+          levelMultiplier: attempt.levelMultiplier,
+        ) * attempt.attemptMultiplier).round();
         xpJustAwarded = xp;
 
         final updatedResponses = List<QuestionResponse>.from(attempt.responses);
@@ -281,17 +333,39 @@ class TestRepository {
         final nowFullyGraded = updatedResponses.every((r) => r.graded);
         var bonus = 0;
         if (nowFullyGraded) {
-          final totalQuestionXp =
-              updatedResponses.fold(0, (s, r) => s + r.xpEarned);
-          final gradedPoints =
-              updatedResponses.fold(0, (s, r) => s + (r.pointsAwarded ?? 0));
-          final scorePercent = attempt.totalPossiblePoints <= 0
-              ? 0.0
-              : (gradedPoints / attempt.totalPossiblePoints * 100);
-          bonus = completionBonusXp(
-            totalQuestionXpEarned: totalQuestionXp,
-            scorePercent: scorePercent,
-          );
+          if (attempt.attemptMultiplier <= 0) {
+            // Third+ attempt within the cooldown window earns 0 XP
+            // outright -- every stored xpEarned above is already 0, and
+            // there's no full-rate total to recover a floor/bonus from.
+            bonus = 0;
+          } else {
+            // Every response's stored xpEarned (including the one just
+            // graded above) is already damped by attemptMultiplier.
+            // Recover the full-rate (undamped) total to run the bonus/
+            // floor math against — matches submitAttempt's "compute at
+            // full rate, dampen once at the end" order, so a repeat
+            // attempt's minimum-reward floor can't silently cancel out
+            // the §4.3 cooldown reduction it's meant to respect.
+            final dampedTotalQuestionXp =
+                updatedResponses.fold(0, (s, r) => s + r.xpEarned);
+            final rawTotalQuestionXp =
+                (dampedTotalQuestionXp / attempt.attemptMultiplier).round();
+            final gradedPoints =
+                updatedResponses.fold(0, (s, r) => s + (r.pointsAwarded ?? 0));
+            final scorePercent = attempt.totalPossiblePoints <= 0
+                ? 0.0
+                : (gradedPoints / attempt.totalPossiblePoints * 100);
+            var rawBonus = completionBonusXp(
+              totalQuestionXpEarned: rawTotalQuestionXp,
+              scorePercent: scorePercent,
+            );
+            final floor = minimumCompletionFloor(
+                updatedResponses.map((r) => r.type).toList(), attempt.levelMultiplier);
+            if (rawTotalQuestionXp + rawBonus < floor) {
+              rawBonus = floor - rawTotalQuestionXp;
+            }
+            bonus = (rawBonus * attempt.attemptMultiplier).round();
+          }
           bonusJustAwarded = bonus;
         }
 

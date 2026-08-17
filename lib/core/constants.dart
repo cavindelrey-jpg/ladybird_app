@@ -57,6 +57,11 @@ class AppConstants {
   static const String colTests           = 'tests';
   static const String colTestAttempts    = 'testAttempts';
 
+  // Entitlements / physical sales (production_plan.md §9). Neither is
+  // client-readable by ordinary users — see firestore.rules.
+  static const String colPurchases       = 'purchases';
+  static const String colVouchers        = 'vouchers';
+
   // Firebase Storage
   static const String storageContentFiles = 'content_files';
   static const String storageThumbnails   = 'thumbnails';

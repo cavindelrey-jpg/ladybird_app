@@ -1,6 +1,7 @@
 // lib/models/app_user.dart
 // 6-tier role system. Fully backward-compatible with prior 4-role enum.
 
+import 'entitlement.dart';
 
 enum UserRole {
   guest,          // unauthenticated / restricted
@@ -49,7 +50,23 @@ class AppUser {
   final List<String> courseIds;   // courses enrolled / taught
   final bool isFirstLogin;
   final bool adminAccessRevoked;
-  final bool isPremium;
+
+  /// production_plan.md §8 — the account's access grant.
+  ///
+  /// This REPLACES the old flat `isPremium` bool as the source of truth.
+  /// `isPremium` still exists below as a derived getter, so every existing
+  /// caller (LibraryPage's premium-resource gate, XpRepository's
+  /// unlock checks) keeps working unchanged — the flat bool was never the
+  /// concept, just the cheapest possible encoding of it.
+  final Entitlement entitlement;
+
+  /// The raw pre-§8 `isPremium` field as stored on the document.
+  ///
+  /// Kept ONLY so accounts written before the entitlement model existed
+  /// don't lose premium access. Read [isPremium] instead — never this.
+  /// Once every user doc has been rewritten with entitlement fields (any
+  /// profile save does it), this can be dropped.
+  final bool legacyIsPremium;
 
   /// Free-text bio, ~100 words enforced at the Profile edit UI layer.
   final String bio;
@@ -110,7 +127,8 @@ class AppUser {
     this.courseIds = const [],
     this.isFirstLogin = false,
     this.adminAccessRevoked = false,
-    this.isPremium = false,
+    this.entitlement = const Entitlement.free(),
+    bool isPremium = false,
     this.bio = '',
     this.educationLevel = '',
     this.favoriteSubjects = const [],
@@ -123,7 +141,30 @@ class AppUser {
     this.continueReadingTitle,
     this.continueReadingPage = 1,
     this.continueReadingTotalPages,
-  });
+  }) : legacyIsPremium = isPremium;
+
+  // ── Entitlement (production_plan.md §8) ────────────────────────────────────
+  /// Whether this account currently has premium access, for ANY reason.
+  ///
+  /// Derived, not stored — this is the compatibility shim that let §8 land
+  /// without touching the call sites that gate premium content
+  /// (`library_page.dart`, `xp_repository.dart`). Self-purchased, gifted,
+  /// sponsored and admin-granted premium all read `true` here, which is
+  /// correct: consumers of this getter care about ACCESS, not about which
+  /// of §9's funding paths paid for it. Code that needs to distinguish
+  /// them (e.g. the Profile membership row) reads [entitlement] directly.
+  ///
+  /// The `legacyIsPremium` arm covers accounts stored before the
+  /// entitlement fields existed — see that field's doc comment.
+  bool get isPremium => entitlement.isActive || legacyIsPremium;
+
+  /// True only for §9's Gifted Premium — premium paid for by someone else.
+  bool get isGiftedPremium =>
+      entitlement.isActive && entitlement.source == EntitlementSource.gift;
+
+  /// 'Free' / 'Premium' / 'Gifted Premium' — the three states §8 names.
+  String get entitlementLabel =>
+      entitlement.isActive || !legacyIsPremium ? entitlement.label : 'Premium';
 
   // ── Identity helpers ───────────────────────────────────────────────────────
   String get uid => id;
@@ -225,6 +266,8 @@ class AppUser {
     isFirstLogin: d['isFirstLogin'] ?? false,
     adminAccessRevoked: d['adminAccessRevoked'] ?? false,
     isPremium: d['isPremium'] ?? false,
+    entitlement: Entitlement.fromUserMap(d,
+        legacyIsPremium: d['isPremium'] ?? false),
     bio: d['bio'] ?? '',
     educationLevel: d['educationLevel'] ?? '',
     favoriteSubjects: List<String>.from(d['favoriteSubjects'] ?? []),
@@ -259,7 +302,12 @@ class AppUser {
     'courseIds': courseIds,
     'isFirstLogin': isFirstLogin,
     'adminAccessRevoked': adminAccessRevoked,
+    // Written as the DERIVED value, so the legacy field stays a truthful
+    // mirror of the entitlement for anything still reading it (older app
+    // builds in the wild, the firestore.rules premium checks, exports).
+    // The entitlement fields below are the source of truth.
     'isPremium': isPremium,
+    ...entitlement.toUserMap(),
     'bio': bio,
     'educationLevel': educationLevel,
     'favoriteSubjects': favoriteSubjects,
@@ -281,6 +329,7 @@ class AppUser {
     String? schoolId, String? serialNumber, String? departmentId,
     String? classLevel, String? subject, List<String>? courseIds,
     bool? isFirstLogin, bool? adminAccessRevoked, bool? isPremium,
+    Entitlement? entitlement,
     String? bio, String? educationLevel, List<String>? favoriteSubjects,
     Map<String, int>? quickAccessUsage,
     int? xpTotal, int? streakDays, String? lastActiveDate,
@@ -301,7 +350,8 @@ class AppUser {
     courseIds: courseIds ?? this.courseIds,
     isFirstLogin: isFirstLogin ?? this.isFirstLogin,
     adminAccessRevoked: adminAccessRevoked ?? this.adminAccessRevoked,
-    isPremium: isPremium ?? this.isPremium,
+    isPremium: isPremium ?? legacyIsPremium,
+    entitlement: entitlement ?? this.entitlement,
     bio: bio ?? this.bio,
     educationLevel: educationLevel ?? this.educationLevel,
     favoriteSubjects: favoriteSubjects ?? this.favoriteSubjects,

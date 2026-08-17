@@ -470,12 +470,23 @@ service cloud.firestore {
         // Any signed-in user can bump likeCount by liking/unliking —
         // full-document edits still stay author-only.
         || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount'])
+        // Any signed-in reader can bump readCount by exactly 1 (recordRead)
+        // or shareCount by exactly 1 (recordShare) — matches the library/
+        // {id} views-increment pattern above. commentCount's increment
+        // rides the author-owned-doc branch above via postComment()'s
+        // batched write, same as before this pass.
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readCount']) &&
+            request.resource.data.readCount == resource.data.readCount + 1)
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['shareCount']) &&
+            request.resource.data.shareCount == resource.data.shareCount + 1)
+        // settleMagazineXpIfDue() flips this exactly once, false -> true,
+        // possibly on behalf of a reader who isn't the author (it runs as
+        // a side effect of ANY interaction, not just the author's own).
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['magazineXpSettled']) &&
+            resource.data.magazineXpSettled != true &&
+            request.resource.data.magazineXpSettled == true)
       );
       allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
-      // readCount/commentCount increments happen via the same update rule
-      // above (author-owned doc) — reads/comments themselves are what
-      // change those counters through the app's own repository calls,
-      // so no separate public-increment rule is granted.
 
       match /comments/{commentId} {
         allow read: if true;
@@ -483,10 +494,23 @@ service cloud.firestore {
         allow update, delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
       }
 
-      // One doc per user who's liked this article — existence == liked.
+      // One doc per user who's liked/read/shared this article — existence
+      // == liked/read/shared. reads/shares had no rule at all before this
+      // pass (default-deny) — recordRead()'s `reads/{uid}` marker write
+      // would have been silently rejected for any non-author reader.
       match /likes/{userId} {
         allow read: if true;
         allow create, delete: if isSignedIn() && request.auth.uid == userId;
+      }
+      match /reads/{userId} {
+        allow read: if true;
+        allow create: if isSignedIn() && request.auth.uid == userId;
+        allow update, delete: if false;
+      }
+      match /shares/{userId} {
+        allow read: if true;
+        allow create: if isSignedIn() && request.auth.uid == userId;
+        allow update, delete: if false;
       }
     }
 

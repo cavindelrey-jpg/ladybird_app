@@ -349,6 +349,7 @@ class _ActionRow extends StatelessWidget {
         onTap: () {
           HapticFeedback.selectionClick();
           Share.share('${article.title}\n\nRead it on Academia Magazine.');
+          if (u != null) repo.recordShare(article.id, u.id);
         },
       ),
     ]);

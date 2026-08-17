@@ -48,12 +48,22 @@ class MagazineArticle {
   int readCount;
   int commentCount;
   int likeCount;
+  int shareCount;
 
-  /// XP earned by the author from unique reads that hasn't been credited
-  /// to their AppUser.xpTotal yet — settled via
-  /// MagazineRepository.settlePendingXp(authorId), called once at app
-  /// start (see app_router.dart). 2 XP per unique new reader, per spec.
+  /// DEPRECATED — the old flat "2 XP per unique read, credited whenever
+  /// the author's session next runs settlePendingXp()" mechanism. Kept on
+  /// the model so old documents still deserialize; nothing new writes to
+  /// it. Replaced by production_plan.md §4.5's formula-based, 24h-
+  /// delayed, once-per-article settlement — see [magazineXpSettled] and
+  /// MagazineRepository.settleMagazineXpIfDue().
   int pendingAuthorXp;
+
+  /// True once this article's one-time §4.5 XP settlement has run
+  /// (views/50 + likes*2 + comments*5 + shares*4, capped at 80, computed
+  /// no earlier than 24h after [createdAt]). Never recomputed after —
+  /// late engagement past the 24h mark intentionally doesn't earn more,
+  /// matching the plan's "defined measurement window."
+  bool magazineXpSettled;
 
   bool published;
   final DateTime createdAt;
@@ -76,7 +86,9 @@ class MagazineArticle {
     this.readCount = 0,
     this.commentCount = 0,
     this.likeCount = 0,
+    this.shareCount = 0,
     this.pendingAuthorXp = 0,
+    this.magazineXpSettled = false,
     this.published = true,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -119,7 +131,9 @@ class MagazineArticle {
       readCount: (d['readCount'] as num?)?.toInt() ?? 0,
       commentCount: (d['commentCount'] as num?)?.toInt() ?? 0,
       likeCount: (d['likeCount'] as num?)?.toInt() ?? 0,
+      shareCount: (d['shareCount'] as num?)?.toInt() ?? 0,
       pendingAuthorXp: (d['pendingAuthorXp'] as num?)?.toInt() ?? 0,
+      magazineXpSettled: d['magazineXpSettled'] ?? false,
       published: d['published'] ?? true,
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -142,7 +156,9 @@ class MagazineArticle {
         'readCount': readCount,
         'commentCount': commentCount,
         'likeCount': likeCount,
+        'shareCount': shareCount,
         'pendingAuthorXp': pendingAuthorXp,
+        'magazineXpSettled': magazineXpSettled,
         'published': published,
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': FieldValue.serverTimestamp(),

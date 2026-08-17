@@ -1533,3 +1533,60 @@ users) — the plan explicitly wants this as a SEPARATE, second concept.
   reminder surface, not a notification system pretending to exist.
 - `flutter analyze` full project: 36 issues, same baseline as this
   session's start — zero new issues.
+
+## Session continues (2026-08-17, same day): user said "never stop and
+ask for permission... keep running", authorized up to 3 agents. Launched
+2 background worktree agents (§7 Trim/School-Edition, §8/§9 Entitlements
++ Vouchers) running in parallel; continued directly on §4.5 Magazine XP
+formula myself in the main thread. Both agents were interrupted mid-run
+(process restart, not a real stop) and resumed via SendMessage. Skipped
+§6 Academia AI entirely -- it needs a paid API, one of CLAUDE.md's own
+three explicit stop conditions; the user's "never stop" instruction
+authorizes not pausing for permission, not spending real money, which
+is a different and harder line.
+
+**§4.5 -- Magazine XP formula** (production_plan.md): replaced the old
+flat "2 XP per unique read, credited whenever the author's session next
+runs settlePendingXp()" mechanism with the plan's actual formula:
+(views/50) + (likes*2) + (comments*5) + (shares*4), capped at 80/post,
+computed exactly ONCE per article no earlier than 24h after publish.
+- MagazineArticle gains shareCount and magazineXpSettled; pendingAuthorXp
+  kept on the model (deprecated, nothing writes to it anymore) so old
+  documents still deserialize -- same pattern this codebase already uses
+  for AppUser.xpTotal.
+- New MagazineRepository.recordShare() (unique-per-user dedup, same
+  shape as reads/likes) and settleMagazineXpIfDue() -- the actual
+  formula+cap+one-time logic, called as a side effect of ANY reader
+  interaction (read/like/comment/share), not only the author's own
+  session. There's no Cloud Scheduler in this project to fire it
+  automatically at the exact 24h mark, so this is an
+  eventually-consistent, opportunistic-check pattern instead (safe to
+  call redundantly -- the transaction's magazineXpSettled guard makes
+  every call after the first a no-op). settlePendingXp(userId) (the
+  existing per-session call site in app_router.dart, left untouched) is
+  now re-purposed to catch the edge case where nobody else ever
+  interacts with the author's own article again after the 24h mark.
+- Wired recordShare() into the real Share button in
+  article_reader_page.dart (fires alongside the existing share_plus OS
+  share sheet -- counts on share-intent, not confirmed delivery, since
+  there's no reliable cross-platform "did they actually send it" signal).
+- **Found and fixed a real pre-existing gap while extending this code
+  path**: firestore.rules' articles/{id} update rule only allowed
+  likeCount-only diffs from non-authors -- readCount (written by every
+  reader via recordRead, not just the author) had NO matching rule
+  branch, and the reads/{uid}/shares/{uid} marker subcollections had NO
+  rule at all (default-deny). This means recordRead()'s Firestore write
+  has likely been silently failing (permission-denied, swallowed by its
+  own best-effort try/catch) for any non-author reader since before this
+  session touched the file. Fixed: added narrow exactly-+1 diff branches
+  for readCount/shareCount (mirroring the existing library/{id}
+  views-increment pattern), a one-directional false->true branch for
+  magazineXpSettled, and reads/{userId}/shares/{userId} subcollection
+  rules matching the existing likes/{userId} shape.
+- Did NOT build the plan's separate 100XP/day magazine-specific cap (vs.
+  the shared 200/day general cap every source currently draws from) --
+  same §4.4-class restructuring of XpRepository.awardXp() deliberately
+  deferred earlier this session; kMagazineDailyXpCap=100 is written down
+  in models/xp_transaction.dart for when that work happens, not silently
+  forgotten.
+- flutter analyze on all touched files: 0 issues.

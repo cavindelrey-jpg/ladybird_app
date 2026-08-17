@@ -58,6 +58,14 @@ class AppUser {
   /// Learner). Free text, not tied to classLevel (which is school-scoped).
   final String educationLevel;
 
+  /// Subjects the user has flagged as favorites in Profile settings —
+  /// production_plan.md §5's personalization signal, feeds contextual
+  /// recommendations (Library/Courses/Magazine/Quizzes surfacing
+  /// favorite-subject content first). Values are drawn from
+  /// kAcademicSubjects (see academic_content.dart) for consistency with
+  /// every other subject picker in the app.
+  final List<String> favoriteSubjects;
+
   /// Per-feature tap counts — kept for potential future usage-ranked
   /// surfaces; Quick Access itself is now a fixed set (see Home).
   final Map<String, int> quickAccessUsage;
@@ -105,6 +113,7 @@ class AppUser {
     this.isPremium = false,
     this.bio = '',
     this.educationLevel = '',
+    this.favoriteSubjects = const [],
     this.quickAccessUsage = const {},
     this.xpTotal = 0,
     this.streakDays = 0,
@@ -218,6 +227,7 @@ class AppUser {
     isPremium: d['isPremium'] ?? false,
     bio: d['bio'] ?? '',
     educationLevel: d['educationLevel'] ?? '',
+    favoriteSubjects: List<String>.from(d['favoriteSubjects'] ?? []),
     quickAccessUsage: Map<String, int>.from(d['quickAccessUsage'] ?? {}),
     xpTotal: (d['xpTotal'] as num?)?.toInt() ?? 0,
     streakDays: (d['streakDays'] as num?)?.toInt() ?? 0,
@@ -252,6 +262,7 @@ class AppUser {
     'isPremium': isPremium,
     'bio': bio,
     'educationLevel': educationLevel,
+    'favoriteSubjects': favoriteSubjects,
     'quickAccessUsage': quickAccessUsage,
     'xpTotal': xpTotal,
     'streakDays': streakDays,
@@ -270,7 +281,8 @@ class AppUser {
     String? schoolId, String? serialNumber, String? departmentId,
     String? classLevel, String? subject, List<String>? courseIds,
     bool? isFirstLogin, bool? adminAccessRevoked, bool? isPremium,
-    String? bio, String? educationLevel, Map<String, int>? quickAccessUsage,
+    String? bio, String? educationLevel, List<String>? favoriteSubjects,
+    Map<String, int>? quickAccessUsage,
     int? xpTotal, int? streakDays, String? lastActiveDate,
     List<String>? weekActivityDates,
     String? continueReadingItemId, String? continueReadingTitle,
@@ -292,6 +304,7 @@ class AppUser {
     isPremium: isPremium ?? this.isPremium,
     bio: bio ?? this.bio,
     educationLevel: educationLevel ?? this.educationLevel,
+    favoriteSubjects: favoriteSubjects ?? this.favoriteSubjects,
     quickAccessUsage: quickAccessUsage ?? this.quickAccessUsage,
     xpTotal: xpTotal ?? this.xpTotal,
     streakDays: streakDays ?? this.streakDays,

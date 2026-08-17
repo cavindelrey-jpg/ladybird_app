@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../theme/app_theme.dart';
 import '../models/app_user.dart';
+import '../models/academic_content.dart' show kAcademicSubjects;
 import '../services/auth_service.dart';
 import '../widgets/widgets.dart';
 
@@ -30,6 +31,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _bioCtrl;
   late String _educationLevel;
+  late List<String> _favoriteSubjects;
   String? _photoUrl;
   File? _localPickedFile;
   bool _saving = false;
@@ -46,6 +48,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     _bioCtrl = TextEditingController(text: widget.user.bio);
     _educationLevel =
         widget.user.educationLevel.isNotEmpty ? widget.user.educationLevel : EducationLevels.all.last;
+    _favoriteSubjects = List<String>.from(widget.user.favoriteSubjects);
     _photoUrl = widget.user.photoUrl;
     _bioCtrl.addListener(() => setState(() {}));
   }
@@ -99,6 +102,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
         'name': _nameCtrl.text.trim(),
         'bio': _bioCtrl.text.trim(),
         'educationLevel': _educationLevel,
+        'favoriteSubjects': _favoriteSubjects,
         if (_photoUrl != null) 'photoUrl': _photoUrl,
       });
       if (!mounted) return;
@@ -192,6 +196,34 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 onChanged: (v) => setState(() => _educationLevel = v ?? _educationLevel),
               ),
             ),
+          ),
+          const SizedBox(height: 20),
+
+          _label('Favorite Subjects'),
+          Text('Used to personalize what Library, Courses, Magazine, and Quizzes recommend to you.',
+              style: GoogleFonts.inter(fontSize: 11.5, color: C.txt2)),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8, runSpacing: 8,
+            children: kAcademicSubjects.map((s) {
+              final selected = _favoriteSubjects.contains(s);
+              return ChoiceChip(
+                label: Text(s),
+                selected: selected,
+                onSelected: (_) => setState(() => selected
+                    ? _favoriteSubjects.remove(s)
+                    : _favoriteSubjects.add(s)),
+                selectedColor: C.primary,
+                labelStyle: GoogleFonts.inter(
+                    fontSize: 12.5,
+                    color: selected ? Colors.white : C.txt,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400),
+                backgroundColor: C.surf,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: BorderSide(color: selected ? C.primary : C.bdr)),
+              );
+            }).toList(),
           ),
           const SizedBox(height: 20),
 

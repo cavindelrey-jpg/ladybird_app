@@ -171,6 +171,13 @@ service cloud.firestore {
       match /bookmarks/{articleId} {
         allow read, create, delete: if isOwner(uid);
       }
+
+      // Personal Study Timetable (production_plan.md §5) — self-authored,
+      // owner-only. Distinct from schools/{id}/timetable (the School
+      // Timetable, admin-authored, matched separately below).
+      match /study_timetable/{slotId} {
+        allow read, create, update, delete: if isOwner(uid);
+      }
     }
 
     // ── curriculum_icons/{id} ─────────────────────────────────────────

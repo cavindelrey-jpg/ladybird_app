@@ -10,6 +10,7 @@ import '../providers/institution_provider.dart';
 import '../features/announcements/announcements_page.dart';
 import '../features/calendar/calendar_page.dart';
 import '../features/timetable/timetable_page.dart';
+import '../features/timetable/personal_study_page.dart';
 import '../features/assignments/assignments_page.dart';
 import '../features/attendance/attendance_page.dart';
 import '../pages/marks_page.dart';
@@ -189,6 +190,14 @@ class ProfilePage extends StatelessWidget {
               _InfoRow(Icons.schedule_outlined, 'Timetable', '',
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => TimetablePage(user: user)))),
+            // Personal Study Timetable (production_plan.md §5) — unlike
+            // the school Timetable above, this is self-authored and not
+            // gated by any institution feature flag; available to every
+            // signed-in user, school-linked or independent.
+            if (!user.isGuest)
+              _InfoRow(Icons.event_note_outlined, 'My Study Timetable', '',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => PersonalStudyPage(user: user)))),
             if (inst.hasFeature(InstitutionFeature.assignments))
               _InfoRow(Icons.assignment_outlined, 'Assignments', '',
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(

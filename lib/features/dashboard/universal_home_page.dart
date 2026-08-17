@@ -33,6 +33,8 @@ import '../../models/daily_challenge.dart';
 import '../../models/library_item.dart';
 import '../../models/academic_content.dart';
 import '../../models/course.dart';
+import '../../models/personal_study_slot.dart';
+import '../../repositories/personal_study_repository.dart';
 import '../../repositories/announcement_repository.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../repositories/daily_challenge_repository.dart';
@@ -111,6 +113,10 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             const SizedBox(height: 20),
             _progressAndChallengeRow(context),
             const SizedBox(height: 20),
+            if (!_isGuest) ...[
+              _todaysStudyProgram(context),
+              const SizedBox(height: 20),
+            ],
             _writersAndAnnouncementsRow(context),
             const SizedBox(height: 24),
             _sectionHeader('Recommended for You',
@@ -808,6 +814,47 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     if (diff.inHours < 24) return '${diff.inHours} hours ago';
     if (diff.inDays < 7) return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  // -- Today's Study Program (production_plan.md §5) ----------------------
+  // Real personal-timetable entries for today only, ordered by start
+  // time. No push/local notification here (no such package is wired into
+  // this app yet) -- an honest in-app reminder, not a fake "we'll notify
+  // you" promise.
+  Widget _todaysStudyProgram(BuildContext context) {
+    return StreamBuilder<List<PersonalStudySlot>>(
+      stream: PersonalStudyRepository.instance.watchToday(_u!.id),
+      builder: (context, snap) {
+        final slots = snap.data ?? const <PersonalStudySlot>[];
+        if (snap.connectionState == ConnectionState.waiting || slots.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.lg), border: Border.all(color: ac.bdr)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.event_available_rounded, size: 18, color: ac.gold),
+                const SizedBox(width: 8),
+                Expanded(child: Text("Today's Study Program", style: AppText.h2.copyWith(fontSize: 15))),
+              ]),
+              const SizedBox(height: 12),
+              ...slots.map((s) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(children: [
+                  Container(width: 6, height: 6, decoration: BoxDecoration(color: ac.gold, shape: BoxShape.circle)),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(s.activity, style: AppText.bodySm.copyWith(fontSize: 13))),
+                  Text('${s.startTime}–${s.endTime}', style: AppText.caption.copyWith(fontSize: 11)),
+                ]),
+              )),
+            ]),
+          ),
+        );
+      },
+    );
   }
 
   // -- Recommended for You -- mix of Library + Courses --------------------

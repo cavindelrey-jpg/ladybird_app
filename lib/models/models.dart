@@ -10,6 +10,7 @@ export 'school_config.dart';
 export 'student_account.dart';
 export 'course.dart';
 export 'timetable_slot.dart';
+export 'personal_study_slot.dart';
 export 'attendance_record.dart';
 export 'assignment.dart';
 export 'calendar_event.dart';

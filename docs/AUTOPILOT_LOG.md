@@ -1476,3 +1476,60 @@ so this needs its own scoping pass) and §4.6/§4.7 (past-paper XP pricing
 — there's no separate PastPaper content model in this codebase yet,
 confirmed via grep; `ContentType.pastPaper` exists as a content-type tag
 but nothing prices/gates it the way the plan describes).
+
+## Session continues (2026-08-17, same day): urgent rules fix + §5
+Personalization (favorite subjects, Personal Study Timetable)
+
+**Urgent, fixed immediately as its own commit**: while reasoning through
+the §4.2 change's real-world numbers, realized `firestore.rules`' XP
+defense-in-depth ceiling (`users/{uid}`'s bounded earn-write check, and
+the matching `xpTransactions/{id}` create rule) was hardcoded to `<= 45`
+— the OLD flat AC/Essay rate. This session's new formula (base 55 x hard
+difficulty 130% x Advanced-level 2.2x) makes a legitimate single
+Essay-question award worth up to ~157 XP, which the old 45 ceiling would
+have silently rejected as permission-denied. Raised both to 200 (covers
+157 with headroom). Also noted honestly in the rules comment: the SAME
+45 ceiling was already too low even before today's change (45 x 1.3 hard
+= 58.5), a pre-existing latent bug this audit surfaced, not one just
+introduced. **This is a local file edit only — like every other rules
+change this session, it needs `firebase deploy --only firestore:rules`
+to take effect, which standing instructions reserve for manual
+execution. Flagging clearly since this one is unusually time-sensitive**
+if the new client XP formula ships before the rules do.
+
+**§5 Personalization** — checked what already existed before building
+anything: "Authors followed" (FollowRepository) and "Academic level"
+(`AppUser.educationLevel`) were already real; "Favorite subjects" and
+"Personal Study Timetable" were not built at all. The existing
+`TimetablePage`/`TimetableSlot` is the School Timetable only
+(institution-scoped, admin-authored, gated behind
+`InstitutionFeature.timetable` — invisible to independent/guest-adjacent
+users) — the plan explicitly wants this as a SEPARATE, second concept.
+- `AppUser.favoriteSubjects` (new field, full model/fromFirestore/
+  toFirestore/copyWith plumbing) + a multi-select chip UI in
+  `profile_edit_page.dart` using the same `kAcademicSubjects` list every
+  other subject picker in the app already uses.
+- New `PersonalStudySlot` model + `PersonalStudyRepository`
+  (`users/{uid}/study_timetable/{id}`, owner-only — new firestore.rules
+  block) + `personal_study_page.dart` (day-grouped list, add/edit/delete
+  via a bottom sheet, day/time/activity/optional-subject). Reachable from
+  Profile as "My Study Timetable", deliberately NOT gated by any
+  institution feature flag (unlike the School Timetable) since it's
+  personal and should work for every signed-in non-guest user regardless
+  of school link.
+- Home gained a real "Today's Study Program" section (`_todaysStudyProgram`
+  in `universal_home_page.dart`) — today's slots only, ordered by start
+  time, matching the plan's own worked example format ("Mathematics — 30
+  min / Physics Quiz — 15 min"). Hidden entirely when there's nothing
+  planned today rather than showing an empty card.
+- **Deliberately NOT built**: actual push/local notifications for the
+  study program. No notification-scheduling package
+  (`flutter_local_notifications` or similar) exists in `pubspec.yaml` —
+  confirmed via grep — and adding one blind in this sandboxed environment
+  (native platform config changes, permissions, and the same
+  native-toolchain build crashes `docs/VERIFICATION.md` already
+  documented for this exact sandbox) isn't something to rush without
+  being able to build/test it. The in-app Home section is an honest
+  reminder surface, not a notification system pretending to exist.
+- `flutter analyze` full project: 36 issues, same baseline as this
+  session's start — zero new issues.

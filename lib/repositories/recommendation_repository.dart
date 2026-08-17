@@ -9,13 +9,41 @@
 // standard (see MagazineRepository's computed Featured/Trending).
 
 import '../models/academic_content.dart';
+import '../models/magazine_article.dart';
 import '../models/public_course.dart';
 import '../repositories/academic_content_repository.dart';
+import '../repositories/magazine_repository.dart';
 import '../repositories/public_course_repository.dart';
 
 class RecommendationRepository {
   RecommendationRepository._();
   static final RecommendationRepository instance = RecommendationRepository._();
+
+  /// Magazine articles are tagged with an *editorial* category
+  /// (`kArticleCategories` — Academics/Sports/Arts & Culture/Science &
+  /// Tech/Opinion/Campus Life/Careers/Other), which is deliberately a
+  /// different vocabulary from the *academic* subjects the rest of the
+  /// personalization system speaks (`kAcademicSubjects` — Mathematics/
+  /// Science/Languages/...). There is no shared key between them, so
+  /// favorite-subject → article matching needs an explicit bridge; this
+  /// is it.
+  ///
+  /// Kept deliberately coarse and conservative: only mappings that are
+  /// actually defensible are listed. 'Other' is intentionally absent —
+  /// it carries no signal, and mapping it to the 'Other' article
+  /// category would surface unrelated posts under a "Recommended for
+  /// You" label, which is exactly the kind of fake-personalization this
+  /// codebase avoids elsewhere. A subject with no mapping simply
+  /// contributes nothing rather than matching everything.
+  static const Map<String, List<String>> _subjectToArticleCategories = {
+    'Mathematics':       ['Academics'],
+    'Science':           ['Science & Tech'],
+    'Languages':         ['Academics'],
+    'Social Studies':    ['Academics'],
+    'Computer Science':  ['Science & Tech'],
+    'Arts & Literature': ['Arts & Culture'],
+    'Business':          ['Careers'],
+  };
 
   /// Library recommendations: favorite-subject content first (round-robin
   /// across subjects so one subject doesn't crowd out the rest), falling
@@ -79,6 +107,40 @@ class RecommendationRepository {
     if (favoriteSubjects.isNotEmpty) {
       final favSet = favoriteSubjects.toSet();
       final matched = pool.where((c) => favSet.contains(c.subject)).take(limit).toList();
+      if (matched.isNotEmpty) return matched;
+    }
+    return pool.take(limit).toList();
+  }
+
+  /// Magazine recommendations: favorite subjects are translated to
+  /// article categories via [_subjectToArticleCategories], then matched
+  /// against the article's own `category` field, falling back to recent
+  /// published articles when the user has no favorites, none of their
+  /// favorites map to a category, or nothing in the recent pool matches.
+  ///
+  /// Filters a bounded recent pool client-side rather than adding a
+  /// `where('category', whereIn: ...)` query, for the same reason
+  /// [forCourses] does and `MagazineRepository.watchTrendingOnce()`
+  /// already does: combining a category equality/`whereIn` with the
+  /// existing `published` equality and `createdAt` ordering needs a new
+  /// composite index, and a missing index surfaces as a silent-looking
+  /// empty list (see CLAUDE.md's FAILED_PRECONDITION note). Reusing the
+  /// already-indexed `watchFeed` query keeps this deployable without a
+  /// firestore.indexes.json change.
+  Future<List<MagazineArticle>> forMagazine({
+    required List<String> favoriteSubjects,
+    int limit = 6,
+  }) async {
+    final pool = await MagazineRepository.instance
+        .watchFeed(limit: 60)
+        .first
+        .timeout(const Duration(seconds: 5), onTimeout: () => const []);
+    final wanted = <String>{
+      for (final s in favoriteSubjects) ...?_subjectToArticleCategories[s],
+    };
+    if (wanted.isNotEmpty) {
+      final matched =
+          pool.where((a) => wanted.contains(a.category)).take(limit).toList();
       if (matched.isNotEmpty) return matched;
     }
     return pool.take(limit).toList();

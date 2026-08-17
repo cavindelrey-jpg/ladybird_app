@@ -124,6 +124,54 @@ int quizDailyXpCapForLevel(String educationLevel) {
   return capForLevel < kOverallDailyQuizXpCap ? capForLevel : kOverallDailyQuizXpCap;
 }
 
+// ── Past Paper XP pricing (production_plan.md §4.6/§4.7) ─────────────────
+// "A past paper is a past paper" — one fixed price per LEARNER LEVEL,
+// regardless of question format/subject/length. Priced by the paper's
+// OWN level classification (AcademicContent.level, kAcademicLevels in
+// models/academic_content.dart — a different fixed list than
+// EducationLevels.all, so this gets its own tier mapping rather than
+// reusing academicTierFor()), not the buyer's own educationLevel.
+
+const int kJuniorSecondaryPaperPrice = 90;
+const int kSeniorSecondaryPaperPrice = 200;
+const int kAdvancedPaperPrice = 360;
+
+/// Multi-paper pack price = 1.8x the fixed single-paper price at the
+/// same level (§4.7) — not yet wired to a real "pack" purchase flow
+/// anywhere in the app (no grouping of past papers into a purchasable
+/// bundle exists in the content model yet), but the pricing rule itself
+/// is ready for when that UI is built.
+const double kPastPaperPackMultiplier = 1.8;
+
+/// Maps a past paper's own AcademicContent.level (kAcademicLevels: Form
+/// 1-5, Lower/Upper Sixth, Undergraduate, or the level-agnostic "All
+/// Levels" catch-all) to its fixed price. Unlike the XP-reward tier
+/// defaults elsewhere in this file (which fall back to the LOWEST tier
+/// to under-reward on ambiguity), an unrecognized/"All Levels" paper
+/// price also falls back to the cheapest tier — here that's the safe
+/// default in the opposite direction: under-charging a student is the
+/// harmless failure mode, over-charging isn't.
+int pastPaperPriceForContentLevel(String level) {
+  switch (level) {
+    case 'Form 1':
+    case 'Form 2':
+    case 'Form 3':
+      return kJuniorSecondaryPaperPrice;
+    case 'Form 4':
+    case 'Form 5':
+      return kSeniorSecondaryPaperPrice;
+    case 'Lower Sixth':
+    case 'Upper Sixth':
+    case 'Undergraduate':
+      return kAdvancedPaperPrice;
+    default:
+      return kJuniorSecondaryPaperPrice;
+  }
+}
+
+int pastPaperPackPriceForContentLevel(String level) =>
+    (pastPaperPriceForContentLevel(level) * kPastPaperPackMultiplier).round();
+
 /// Maps a question's format to the XP source whose flat `baseXp` rate
 /// (10 / 25 / 45 — decided rates, already live in xp_transaction.dart)
 /// anchors this question's XP.

@@ -12,6 +12,7 @@ import '../../models/app_user.dart';
 import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../repositories/xp_repository.dart';
+import '../../core/xp_rules.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/paper_unlock_sheet.dart';
@@ -364,6 +365,10 @@ class _DownloadButtonState extends State<_DownloadButton> {
         if (!mounted) return;
         final nowUnlocked = await showPaperUnlockSheet(
           context, user: widget.user, paperId: widget.item.id, paperTitle: widget.item.title,
+          // production_plan.md §4.6: fixed price by the PAPER's own
+          // level (junior/senior/advanced), not one flat rate for every
+          // past paper regardless of level.
+          cost: pastPaperPriceForContentLevel(widget.item.level),
         );
         if (!nowUnlocked) return; // user backed out — don't open the file
         if (mounted) setState(() => _loading = true);

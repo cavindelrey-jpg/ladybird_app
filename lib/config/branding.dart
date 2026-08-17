@@ -7,6 +7,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import '../services/analytics_service.dart' show CrashService;
 
 class Branding {
   final String brandId;
@@ -75,9 +76,13 @@ class Branding {
         logoAssetPath: m['logoAssetPath'] ?? _current.logoAssetPath,
         splashAssetPath: m['splashAssetPath'] ?? _current.splashAssetPath,
       );
-    } catch (_) {
+    } catch (e, st) {
       // Keep the hardcoded Academia fallback -- a missing/broken
-      // branding file shouldn't stop the app from starting.
+      // branding file shouldn't stop the app from starting. Still record
+      // it non-fatally: a white-label build silently rendering the wrong
+      // logo/colors with zero diagnostic trail is exactly the kind of
+      // bug that only surfaces from a support ticket, not a crash report.
+      CrashService.instance.recordError(e, st, context: 'Branding.load(brandId: $_envBrandId)');
     }
   }
 }

@@ -14,6 +14,7 @@ import '../../models/app_user.dart';
 import '../../models/academic_content.dart';
 import '../../models/hero_slide.dart';
 import '../../repositories/academic_content_repository.dart';
+import '../../repositories/recommendation_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
@@ -828,6 +829,12 @@ class _LibraryDiscovery extends StatelessWidget {
         const SizedBox(height: 12),
         _continueLearning(context),
         const SizedBox(height: 24),
+        if (!user.isGuest && user.favoriteSubjects.isNotEmpty) ...[
+          _sectionHeader(context, 'Recommended for You', onSeeAll: null),
+          const SizedBox(height: 12),
+          _recommended(context),
+          const SizedBox(height: 24),
+        ],
         _sectionHeader(context, 'Saved for Offline', onSeeAll: () {}),
         const SizedBox(height: 12),
         _savedForOffline(context),
@@ -881,6 +888,44 @@ class _LibraryDiscovery extends StatelessWidget {
             child: Text('Open something from the Library and it\'ll show up here.', style: AppText.bodySm),
           );
         }
+        return SizedBox(
+          height: 180,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (_, i) => _ContinueLearningCard(item: items[i], user: user),
+          ),
+        );
+      },
+    );
+  }
+
+  /// production_plan.md §7B — real favorite-subject-driven picks, not a
+  /// generic list. Hidden entirely (see the caller's `if`) rather than
+  /// shown empty for users with no favorite subjects set — an empty
+  /// "Recommended for You" rail is worse than not showing the section.
+  Widget _recommended(BuildContext context) {
+    return FutureBuilder<List<AcademicContent>>(
+      future: RecommendationRepository.instance.forLibrary(
+        favoriteSubjects: user.favoriteSubjects, institutionId: user.schoolId,
+      ),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return SizedBox(
+            height: 180,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: 3,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (_, __) => const ShimmerBlock(width: 150, height: 180),
+            ),
+          );
+        }
+        final items = snap.data ?? const <AcademicContent>[];
+        if (items.isEmpty) return const SizedBox.shrink();
         return SizedBox(
           height: 180,
           child: ListView.separated(

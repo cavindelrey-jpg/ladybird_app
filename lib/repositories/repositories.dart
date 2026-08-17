@@ -15,4 +15,5 @@ export 'hero_slide_repository.dart';
 export 'magazine_repository.dart';
 export 'daily_challenge_repository.dart';
 export 'xp_repository.dart';
+export 'entitlement_repository.dart';
 export 'test_repository.dart';

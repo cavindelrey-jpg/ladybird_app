@@ -71,6 +71,9 @@ enum XpSource {
   testCompletion,
   streakDaily,
   streakMilestone,
+  clubQuestion,
+  clubAnswer,
+  clubBestAnswer,
 }
 
 extension XpSourceExt on XpSource {
@@ -90,6 +93,11 @@ extension XpSourceExt on XpSource {
       case XpSource.testCompletion:  return 0;
       case XpSource.streakDaily:     return 0;
       case XpSource.streakMilestone: return 0;
+      // Matches the Clubs Discussions mockup exactly: +10 XP for asking,
+      // +10 XP for answering, +25 XP bonus when your answer is marked best.
+      case XpSource.clubQuestion:    return 10;
+      case XpSource.clubAnswer:      return 10;
+      case XpSource.clubBestAnswer:  return 25;
     }
   }
 
@@ -103,6 +111,9 @@ extension XpSourceExt on XpSource {
       case XpSource.testCompletion:  return 'Test Completed';
       case XpSource.streakDaily:     return 'Daily Login';
       case XpSource.streakMilestone: return 'Streak Milestone';
+      case XpSource.clubQuestion:    return 'Club Question';
+      case XpSource.clubAnswer:      return 'Club Answer';
+      case XpSource.clubBestAnswer:  return 'Best Answer';
     }
   }
 }
@@ -185,6 +196,9 @@ class XpTransaction {
       case XpSource.testCompletion:  return 'test_completion';
       case XpSource.streakDaily:     return 'streak_daily';
       case XpSource.streakMilestone: return 'streak_milestone';
+      case XpSource.clubQuestion:    return 'club_question';
+      case XpSource.clubAnswer:      return 'club_answer';
+      case XpSource.clubBestAnswer:  return 'club_best_answer';
     }
   }
 }

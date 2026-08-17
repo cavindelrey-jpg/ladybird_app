@@ -1105,3 +1105,61 @@ real content pipelines anywhere in this codebase.
   systems at once — flagged as a deliberate scope cut, not an oversight,
   given the risk of destabilizing two already-working features in one
   session.
+
+### Clubs — done this session
+- New models (`models/club.dart`): `ClubPost`/`ClubPostComment` (the
+  Feed tab) and `ClubDiscussion`/`ClubDiscussionReply` (the Discussions
+  tab, Q&A with a mark-able best answer). `firestore.rules` already had a
+  `clubs/{id}/posts/{id}` shape written but unused before this session —
+  the new `ClubRepository` methods (`watchPosts`/`createPost`/
+  `togglePostLike`/post comments, and the whole Discussions surface:
+  `watchDiscussions`/`createDiscussion`/`addReply`/`markBestAnswer`/
+  discussion+reply likes) are the first real code to write to it, plus a
+  brand-new `discussions/{id}` rules block (with its own `likes` and
+  `replies` subcollections) mirroring that same shape.
+- **XP wired to the real ledger, not a separate counter**: added
+  `XpSource.clubQuestion` (10), `clubAnswer` (10), `clubBestAnswer` (25)
+  to the existing single-entry-point `XpRepository.awardXp()` — these
+  numbers match the Physics Society mockup's +10/+10/+25 badges exactly.
+  `markBestAnswer()` un-marks any previous best answer first so exactly
+  one bonus payout exists per discussion at a time; ordinary daily-cap
+  enforcement (already in XpRepository) is the only anti-farming
+  mechanism, consistent with how every other XP source in this app is
+  gated (no bespoke per-feature cooldown invented for this).
+  `firestore.rules`' `bestAnswerReplyId`/`isBestAnswer` update rules
+  restrict the mark action to the discussion's author or that club's
+  admin/moderator, matching `ClubRepository`'s own gating.
+- `ClubDetailPage` tabs changed from `[CHAT, ANNOUNCEMENTS]` to
+  `[FEED, DISCUSSIONS, CHAT]` — **`_AnnTab` is deleted**; it was a fully
+  static "No club announcements yet" widget with zero backend, not a
+  real feature being replaced. New `club_discussion_page.dart` holds
+  `AskQuestionPage` + `ClubDiscussionDetailPage` (full thread view, reply
+  compose bar, best-answer marking with a confirmation dialog explaining
+  the XP payout).
+- `clubs_page.dart` discovery: category filter chips ("All Clubs" +
+  every real `Club.category` value currently in use — not the mockup's
+  hardcoded Academic/Culture/Sports/Tech/Arts list, since inventing chips
+  for categories no real club has would be the same dishonest-placeholder
+  pattern flagged elsewhere) replace the old dead "Filter" button that
+  did nothing. Discover cards now render `Club.bannerUrl` as a real cover
+  photo when a club has one set (field already existed, just wasn't used
+  on the discovery cards before — only the detail-page header read it),
+  falling back to the existing emoji tile when it doesn't.
+- `flutter analyze` on all touched files (`lib/features/clubs`,
+  `lib/models/club.dart`, `lib/models/xp_transaction.dart`,
+  `lib/repositories/club_repository.dart`): 0 issues after fixing 4
+  `prefer_const_constructors` infos and 1 unnecessary-import info this
+  session's new code introduced.
+- **Not done**: Resources and Events tabs from the mockup's 5-tab set.
+  `firestore.rules` already has an unused `clubs/{id}/events/{id}` rule
+  (pre-existing, not written by this session) but no model/repository/UI
+  exists for it, and there's no real "Resources" concept anywhere in this
+  codebase to adapt. Building either as an empty/static tab would be
+  exactly the placeholder pattern this project's existing code
+  deliberately avoids (see the "Online" presence and video-calling
+  omissions in Messaging) — left for a future session once there's a
+  real backend shape to build toward, not silently dropped. Also not
+  done: a Members tab (mockup shows it as a tab; this app already has a
+  working `ClubMembersPage` reachable via the app-bar icon, and
+  converting that to a 4th TabBarView entry was judged lower-value than
+  Feed/Discussions given the session's time budget).

@@ -23,6 +23,7 @@ import '../messages/messages_home_page.dart';
 import 'create_club_page.dart';
 import 'club_members_page.dart';
 import 'club_settings_page.dart';
+import 'club_discussion_page.dart';
 
 class ClubsPage extends StatefulWidget {
   final AppUser user;
@@ -34,6 +35,7 @@ class ClubsPage extends StatefulWidget {
 
 class _ClubsPageState extends State<ClubsPage> {
   String _searchQuery = '';
+  String? _selectedCategory; // null == "All Clubs"
   final _searchCtrl = TextEditingController();
 
   // Created once and reused across rebuilds -- StreamBuilder resets to its
@@ -68,11 +70,15 @@ class _ClubsPageState extends State<ClubsPage> {
               return ErrorView(message: snap.error.toString());
             }
             final allClubs = snap.data ?? const <Club>[];
-            final filtered = _searchQuery.isEmpty
+            var filtered = _searchQuery.isEmpty
                 ? allClubs
                 : allClubs.where((c) =>
                     c.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
                     c.category.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+            if (_selectedCategory != null) {
+              filtered = filtered.where((c) => c.category == _selectedCategory).toList();
+            }
+            final categories = allClubs.map((c) => c.category).toSet().toList()..sort();
 
             return ListView(
               padding: const EdgeInsets.only(bottom: 100),
@@ -89,6 +95,10 @@ class _ClubsPageState extends State<ClubsPage> {
                 ),
                 const SizedBox(height: 10),
                 _searchAndFilter(),
+                if (categories.length > 1) ...[
+                  const SizedBox(height: 12),
+                  _categoryChips(categories),
+                ],
                 const SizedBox(height: 20),
                 _myClubsSection(context, filtered),
                 const SizedBox(height: 24),
@@ -167,6 +177,49 @@ class _ClubsPageState extends State<ClubsPage> {
           ]),
         ),
       ]),
+    );
+  }
+
+  /// "All Clubs" + every real category currently in use, driven by
+  /// actual Club.category values (not a hardcoded list) — matches the
+  /// mockup's chip row without inventing categories no club actually has.
+  Widget _categoryChips(List<String> categories) {
+    final chips = ['All Clubs', ...categories];
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        scrollDirection: Axis.horizontal,
+        itemCount: chips.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final label = chips[i];
+          final isAll = label == 'All Clubs';
+          final active = isAll ? _selectedCategory == null : _selectedCategory == label;
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _selectedCategory = isAll ? null : label);
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: active ? C.navy : C.surf,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: active ? C.navy : C.bdr),
+                ),
+                child: Text(label, style: AppText.caption.copyWith(
+                    fontSize: 12.5, fontWeight: FontWeight.w700,
+                    color: active ? C.gold : C.txt2)),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -411,6 +464,12 @@ class _DiscoverClubCard extends StatelessWidget {
   static const _palette = [C.pur, C.org, C.grn, C.blu, C.gold];
   Color get _accent => _palette[club.name.hashCode.abs() % _palette.length];
 
+  Widget _emojiTile() => Container(
+        width: 40, height: 40,
+        decoration: BoxDecoration(color: _accent.withValues(alpha: .12), borderRadius: BorderRadius.circular(11)),
+        child: Center(child: Text(club.emoji, style: const TextStyle(fontSize: 18))),
+      );
+
   @override
   Widget build(BuildContext context) {
     if (user.isGuest) return _card(context, joined: false, pending: false);
@@ -441,16 +500,20 @@ class _DiscoverClubCard extends StatelessWidget {
   }
 
   Widget _card(BuildContext context, {required bool joined, required bool pending}) {
+    final hasCover = (club.bannerUrl ?? '').isNotEmpty;
     return Container(
       width: fullWidth ? double.infinity : 200,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          width: 40, height: 40,
-          decoration: BoxDecoration(color: _accent.withValues(alpha: .12), borderRadius: BorderRadius.circular(11)),
-          child: Center(child: Text(club.emoji, style: const TextStyle(fontSize: 18))),
-        ),
+        if (hasCover)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(11),
+            child: Image.network(club.bannerUrl!, height: 84, width: double.infinity, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _emojiTile()),
+          )
+        else
+          _emojiTile(),
         const SizedBox(height: 10),
         Text(club.name, style: AppText.title.copyWith(fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
         const SizedBox(height: 4),
@@ -580,7 +643,7 @@ class _ClubDetailPageState extends State<ClubDetailPage>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -644,7 +707,7 @@ class _ClubDetailPageState extends State<ClubDetailPage>
         ]),
         iconTheme: hasBanner ? const IconThemeData(color: Colors.white) : null,
         bottom: TabBar(controller: _tabs, tabs: const [
-          Tab(text: 'CHAT'), Tab(text: 'ANNOUNCEMENTS')]),
+          Tab(text: 'FEED'), Tab(text: 'DISCUSSIONS'), Tab(text: 'CHAT')]),
         actions: [
           IconButton(
             icon: const Icon(Icons.share_outlined),
@@ -678,9 +741,10 @@ class _ClubDetailPageState extends State<ClubDetailPage>
         ],
       ),
       body: TabBarView(controller: _tabs, children: [
+        _FeedTab(club: widget.club, user: widget.user),
+        _DiscussionsTab(club: widget.club, user: widget.user),
         _ChatTab(club: widget.club, user: widget.user,
             scroll: _scroll, ctrl: _ctrl, onSend: _send),
-        const _AnnTab(),
       ]),
     );
   }
@@ -829,18 +893,332 @@ class _ChatTab extends StatelessWidget {
   }
 }
 
-class _AnnTab extends StatelessWidget {
-  const _AnnTab();
+/// The club's Feed — real posts (clubs/{id}/posts), replacing the old
+/// static "no announcements yet" placeholder. Admins/moderators can flag
+/// a post as an Announcement (pinned styling, matches the mockup's
+/// "Physics Competition — Registration Open!" card); regular members can
+/// post too.
+class _FeedTab extends StatefulWidget {
+  final Club club;
+  final AppUser user;
+  const _FeedTab({required this.club, required this.user});
+
+  @override
+  State<_FeedTab> createState() => _FeedTabState();
+}
+
+class _FeedTabState extends State<_FeedTab> {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: C.bg,
+      body: StreamBuilder<List<ClubPost>>(
+        stream: ClubRepository.instance.watchPosts(widget.club.id),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Padding(padding: EdgeInsets.all(20), child: ShimmerBlock(height: 400));
+          }
+          if (snap.hasError) return ErrorView(message: snap.error.toString());
+          final posts = snap.data ?? const <ClubPost>[];
+          if (posts.isEmpty) {
+            return const EmptyState(icon: Icons.campaign_outlined, title: 'No posts yet',
+                subtitle: 'Be the first to post something for this club.');
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: posts.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (_, i) => _PostCard(club: widget.club, user: widget.user, post: posts[i]),
+          );
+        },
+      ),
+      floatingActionButton: widget.user.isGuest ? null : FloatingActionButton(
+        backgroundColor: C.navy,
+        onPressed: () => _composePost(context),
+        child: const Icon(Icons.edit_rounded, color: C.gold, size: 20),
+      ),
+    );
+  }
+
+  void _composePost(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _ComposePostSheet(club: widget.club, user: widget.user),
+    );
+  }
+}
+
+class _ComposePostSheet extends StatefulWidget {
+  final Club club;
+  final AppUser user;
+  const _ComposePostSheet({required this.club, required this.user});
+
+  @override
+  State<_ComposePostSheet> createState() => _ComposePostSheetState();
+}
+
+class _ComposePostSheetState extends State<_ComposePostSheet> {
+  final _titleCtrl = TextEditingController();
+  final _bodyCtrl = TextEditingController();
+  bool _announcement = false;
+  bool _posting = false;
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _bodyCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final title = _titleCtrl.text.trim();
+    final body = _bodyCtrl.text.trim();
+    if (title.isEmpty || body.isEmpty) {
+      showToast(context, 'Add a title and some text first.');
+      return;
+    }
+    setState(() => _posting = true);
+    final result = await ClubRepository.instance.createPost(widget.club.id, ClubPost(
+      id: '', clubId: widget.club.id, authorId: widget.user.id, authorName: widget.user.name,
+      authorPhotoUrl: widget.user.photoUrl, isAnnouncement: _announcement,
+      title: title, body: body, createdAt: DateTime.now(),
+    ));
+    if (!mounted) return;
+    setState(() => _posting = false);
+    if (result is Success) {
+      Navigator.pop(context);
+    } else {
+      showToast(context, (result as Failure).message, isError: true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.campaign_outlined, size: 48, color: C.muted),
-        const SizedBox(height: 12),
-        Text('No club announcements yet',
-            style: GoogleFonts.inter(color: C.muted)),
+    return StreamBuilder<ClubRole>(
+      stream: ClubRepository.instance.watchUserRole(widget.club.id, widget.user.id),
+      builder: (context, roleSnap) {
+        final canAnnounce = roleSnap.data == ClubRole.admin || roleSnap.data == ClubRole.moderator;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
+          child: SafeArea(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('New Post', style: AppText.title.copyWith(fontSize: 16)),
+              const SizedBox(height: 12),
+              TextField(controller: _titleCtrl,
+                  decoration: const InputDecoration(hintText: 'Title', border: OutlineInputBorder())),
+              const SizedBox(height: 10),
+              TextField(controller: _bodyCtrl, minLines: 3, maxLines: 6,
+                  decoration: const InputDecoration(hintText: "What's on your mind?", border: OutlineInputBorder())),
+              if (canAnnounce)
+                CheckboxListTile(
+                  value: _announcement, onChanged: (v) => setState(() => _announcement = v ?? false),
+                  title: const Text('Post as Announcement'), contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _posting ? null : _submit,
+                  style: ElevatedButton.styleFrom(backgroundColor: C.navy, foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12)),
+                  child: _posting
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Post'),
+                ),
+              ),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PostCard extends StatelessWidget {
+  final Club club;
+  final AppUser user;
+  final ClubPost post;
+  const _PostCard({required this.club, required this.user, required this.post});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          UserAvatar(initials: post.authorName.isEmpty ? '?' : post.authorName[0].toUpperCase(),
+              radius: 16, photoUrl: post.authorPhotoUrl),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(post.authorName, style: AppText.title.copyWith(fontSize: 13)),
+              Text(_relativeTime(post.createdAt), style: AppText.caption.copyWith(fontSize: 10.5)),
+            ]),
+          ),
+          if (post.isAnnouncement)
+            const StatusBadge(label: 'ANNOUNCEMENT', color: C.gold),
+        ]),
+        const SizedBox(height: 10),
+        Text(post.title, style: AppText.title.copyWith(fontSize: 15)),
+        const SizedBox(height: 4),
+        Text(post.body, style: AppText.bodySm.copyWith(fontSize: 13)),
+        const SizedBox(height: 10),
+        Row(children: [
+          _LikeChip(club: club, post: post, user: user),
+          const SizedBox(width: 16),
+          const Icon(Icons.mode_comment_outlined, size: 16, color: C.muted),
+          const SizedBox(width: 4),
+          Text('${post.commentCount}', style: AppText.caption.copyWith(fontSize: 11.5)),
+        ]),
       ]),
+    );
+  }
+
+  String _relativeTime(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+}
+
+class _LikeChip extends StatelessWidget {
+  final Club club;
+  final ClubPost post;
+  final AppUser user;
+  const _LikeChip({required this.club, required this.post, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    if (user.isGuest) {
+      return Row(children: [
+        const Icon(Icons.favorite_border_rounded, size: 16, color: C.muted),
+        const SizedBox(width: 4),
+        Text('${post.likeCount}', style: AppText.caption.copyWith(fontSize: 11.5)),
+      ]);
+    }
+    return StreamBuilder<bool>(
+      stream: ClubRepository.instance.watchIsPostLiked(club.id, post.id, user.id),
+      builder: (context, snap) {
+        final liked = snap.data ?? false;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(Rad.xs),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              ClubRepository.instance.togglePostLike(club.id, post.id, user.id);
+            },
+            child: Row(children: [
+              Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                  size: 16, color: liked ? C.red : C.muted),
+              const SizedBox(width: 4),
+              Text('${post.likeCount}', style: AppText.caption.copyWith(fontSize: 11.5)),
+            ]),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// The club's Discussions tab — Q&A threads with a mark-able best answer
+/// and XP rewards. Matches the Physics Society mockup's second screen.
+class _DiscussionsTab extends StatelessWidget {
+  final Club club;
+  final AppUser user;
+  const _DiscussionsTab({required this.club, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: C.bg,
+      body: StreamBuilder<List<ClubDiscussion>>(
+        stream: ClubRepository.instance.watchDiscussions(club.id),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Padding(padding: EdgeInsets.all(20), child: ShimmerBlock(height: 400));
+          }
+          if (snap.hasError) return ErrorView(message: snap.error.toString());
+          final discussions = snap.data ?? const <ClubDiscussion>[];
+          if (discussions.isEmpty) {
+            return const EmptyState(icon: Icons.forum_outlined, title: 'No discussions yet',
+                subtitle: 'Ask a question and earn XP when your answer helps someone.');
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: discussions.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (_, i) {
+              final d = discussions[i];
+              return _DiscussionCard(
+                discussion: d,
+                onOpen: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => ClubDiscussionDetailPage(club: club, user: user, discussion: d))),
+              );
+            },
+          );
+        },
+      ),
+      floatingActionButton: user.isGuest ? null : FloatingActionButton.extended(
+        backgroundColor: C.navy,
+        icon: const Icon(Icons.add_rounded, color: C.gold),
+        label: Text('Ask', style: AppText.button.copyWith(fontSize: 13)),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(
+            builder: (_) => AskQuestionPage(club: club, user: user))),
+      ),
+    );
+  }
+}
+
+class _DiscussionCard extends StatelessWidget {
+  final ClubDiscussion discussion;
+  final VoidCallback onOpen;
+  const _DiscussionCard({required this.discussion, required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: C.surf,
+      borderRadius: BorderRadius.circular(Rad.md),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Rad.md),
+        onTap: onOpen,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              UserAvatar(initials: discussion.authorName.isEmpty ? '?' : discussion.authorName[0].toUpperCase(),
+                  radius: 14, photoUrl: discussion.authorPhotoUrl),
+              const SizedBox(width: 8),
+              Expanded(child: Text(discussion.authorName, style: AppText.bodySm.copyWith(fontSize: 12))),
+              if (discussion.bestAnswerReplyId != null)
+                const Icon(Icons.check_circle_rounded, color: C.grn, size: 16),
+            ]),
+            const SizedBox(height: 8),
+            Text(discussion.title, style: AppText.title.copyWith(fontSize: 14.5)),
+            if ((discussion.tag ?? '').isNotEmpty) ...[
+              const SizedBox(height: 6),
+              StatusBadge(label: discussion.tag!, color: C.pur),
+            ],
+            const SizedBox(height: 8),
+            Row(children: [
+              const Icon(Icons.mode_comment_outlined, size: 14, color: C.muted),
+              const SizedBox(width: 4),
+              Text('${discussion.replyCount}', style: AppText.caption.copyWith(fontSize: 11)),
+              const SizedBox(width: 12),
+              const Icon(Icons.visibility_outlined, size: 14, color: C.muted),
+              const SizedBox(width: 4),
+              Text('${discussion.viewCount}', style: AppText.caption.copyWith(fontSize: 11)),
+            ]),
+          ]),
+        ),
+      ),
     );
   }
 }

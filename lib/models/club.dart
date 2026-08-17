@@ -156,6 +156,228 @@ class ClubMessage {
   };
 }
 
+/// A post in a club's Feed tab — replaces the old dead `_AnnTab`
+/// placeholder. Stored at clubs/{clubId}/posts/{postId}, matching a
+/// firestore.rules shape that already existed (authorId-owner rule) but
+/// had no real model/repository writing to it until now.
+class ClubPost {
+  final String id;
+  final String clubId;
+  final String authorId;
+  final String authorName;
+  final String? authorPhotoUrl;
+  final bool isAnnouncement;
+  final String title;
+  final String body;
+  final String? imageUrl;
+  final DateTime createdAt;
+  final int likeCount;
+  final int commentCount;
+
+  const ClubPost({
+    required this.id,
+    required this.clubId,
+    required this.authorId,
+    required this.authorName,
+    this.authorPhotoUrl,
+    this.isAnnouncement = false,
+    required this.title,
+    required this.body,
+    this.imageUrl,
+    required this.createdAt,
+    this.likeCount = 0,
+    this.commentCount = 0,
+  });
+
+  factory ClubPost.fromFirestore(DocumentSnapshot doc, String clubId) {
+    final d = doc.data() as Map<String, dynamic>? ?? {};
+    return ClubPost(
+      id: doc.id,
+      clubId: clubId,
+      authorId: d['authorId'] ?? '',
+      authorName: d['authorName'] ?? 'Member',
+      authorPhotoUrl: d['authorPhotoUrl'],
+      isAnnouncement: d['isAnnouncement'] ?? false,
+      title: d['title'] ?? '',
+      body: d['body'] ?? '',
+      imageUrl: d['imageUrl'],
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      likeCount: (d['likeCount'] as num?)?.toInt() ?? 0,
+      commentCount: (d['commentCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toFirestore() => {
+    'authorId': authorId,
+    'authorName': authorName,
+    'authorPhotoUrl': authorPhotoUrl,
+    'isAnnouncement': isAnnouncement,
+    'title': title,
+    'body': body,
+    'imageUrl': imageUrl,
+    'createdAt': FieldValue.serverTimestamp(),
+    'likeCount': 0,
+    'commentCount': 0,
+  };
+}
+
+class ClubPostComment {
+  final String id;
+  final String authorId;
+  final String authorName;
+  final String? authorPhotoUrl;
+  final String text;
+  final DateTime createdAt;
+
+  const ClubPostComment({
+    required this.id,
+    required this.authorId,
+    required this.authorName,
+    this.authorPhotoUrl,
+    required this.text,
+    required this.createdAt,
+  });
+
+  factory ClubPostComment.fromFirestore(DocumentSnapshot doc) {
+    final d = doc.data() as Map<String, dynamic>? ?? {};
+    return ClubPostComment(
+      id: doc.id,
+      authorId: d['authorId'] ?? '',
+      authorName: d['authorName'] ?? 'Member',
+      authorPhotoUrl: d['authorPhotoUrl'],
+      text: d['text'] ?? '',
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toFirestore() => {
+    'authorId': authorId,
+    'authorName': authorName,
+    'authorPhotoUrl': authorPhotoUrl,
+    'text': text,
+    'createdAt': FieldValue.serverTimestamp(),
+  };
+}
+
+/// A Q&A thread in a club's Discussions tab (see the Physics Society
+/// mockup) — a question with a "best answer" a moderator/admin or the
+/// original poster can mark, which awards the answerer bonus XP
+/// (XpSource.clubBestAnswer). Stored at clubs/{clubId}/discussions/{id}.
+class ClubDiscussion {
+  final String id;
+  final String clubId;
+  final String authorId;
+  final String authorName;
+  final String? authorPhotoUrl;
+  final String title;
+  final String body;
+  final String? tag;
+  final DateTime createdAt;
+  final int replyCount;
+  final int viewCount;
+  final int likeCount;
+  final String? bestAnswerReplyId;
+
+  const ClubDiscussion({
+    required this.id,
+    required this.clubId,
+    required this.authorId,
+    required this.authorName,
+    this.authorPhotoUrl,
+    required this.title,
+    required this.body,
+    this.tag,
+    required this.createdAt,
+    this.replyCount = 0,
+    this.viewCount = 0,
+    this.likeCount = 0,
+    this.bestAnswerReplyId,
+  });
+
+  factory ClubDiscussion.fromFirestore(DocumentSnapshot doc, String clubId) {
+    final d = doc.data() as Map<String, dynamic>? ?? {};
+    return ClubDiscussion(
+      id: doc.id,
+      clubId: clubId,
+      authorId: d['authorId'] ?? '',
+      authorName: d['authorName'] ?? 'Member',
+      authorPhotoUrl: d['authorPhotoUrl'],
+      title: d['title'] ?? '',
+      body: d['body'] ?? '',
+      tag: d['tag'],
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      replyCount: (d['replyCount'] as num?)?.toInt() ?? 0,
+      viewCount: (d['viewCount'] as num?)?.toInt() ?? 0,
+      likeCount: (d['likeCount'] as num?)?.toInt() ?? 0,
+      bestAnswerReplyId: d['bestAnswerReplyId'],
+    );
+  }
+
+  Map<String, dynamic> toFirestore() => {
+    'authorId': authorId,
+    'authorName': authorName,
+    'authorPhotoUrl': authorPhotoUrl,
+    'title': title,
+    'body': body,
+    'tag': tag,
+    'createdAt': FieldValue.serverTimestamp(),
+    'replyCount': 0,
+    'viewCount': 0,
+    'likeCount': 0,
+    'bestAnswerReplyId': null,
+  };
+}
+
+class ClubDiscussionReply {
+  final String id;
+  final String authorId;
+  final String authorName;
+  final String? authorPhotoUrl;
+  final bool authorIsStaff;
+  final String body;
+  final DateTime createdAt;
+  final int likeCount;
+  final bool isBestAnswer;
+
+  const ClubDiscussionReply({
+    required this.id,
+    required this.authorId,
+    required this.authorName,
+    this.authorPhotoUrl,
+    this.authorIsStaff = false,
+    required this.body,
+    required this.createdAt,
+    this.likeCount = 0,
+    this.isBestAnswer = false,
+  });
+
+  factory ClubDiscussionReply.fromFirestore(DocumentSnapshot doc) {
+    final d = doc.data() as Map<String, dynamic>? ?? {};
+    return ClubDiscussionReply(
+      id: doc.id,
+      authorId: d['authorId'] ?? '',
+      authorName: d['authorName'] ?? 'Member',
+      authorPhotoUrl: d['authorPhotoUrl'],
+      authorIsStaff: d['authorIsStaff'] ?? false,
+      body: d['body'] ?? '',
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      likeCount: (d['likeCount'] as num?)?.toInt() ?? 0,
+      isBestAnswer: d['isBestAnswer'] ?? false,
+    );
+  }
+
+  Map<String, dynamic> toFirestore() => {
+    'authorId': authorId,
+    'authorName': authorName,
+    'authorPhotoUrl': authorPhotoUrl,
+    'authorIsStaff': authorIsStaff,
+    'body': body,
+    'createdAt': FieldValue.serverTimestamp(),
+    'likeCount': 0,
+    'isBestAnswer': false,
+  };
+}
+
 /// One row in a club's member-management list. Stored at
 /// clubs/{clubId}/members/{userId} alongside the role.
 class ClubMember {

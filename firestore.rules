@@ -345,11 +345,63 @@ service cloud.firestore {
       match /posts/{postId} {
         allow read: if true;
         allow create: if isSignedIn();
-        allow update, delete: if isOwner(resource.data.authorId) || canManageSchool();
+        // Any signed-in user may bump likeCount/commentCount by liking or
+        // commenting (see the two subcollections below) — a full-document
+        // edit otherwise stays author/staff-only, same pattern as
+        // articles/{id} above.
+        allow update: if isOwner(resource.data.authorId) || canManageSchool() ||
+          (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount', 'commentCount']));
+        allow delete: if isOwner(resource.data.authorId) || canManageSchool();
+
+        match /likes/{userId} {
+          allow read: if true;
+          allow write: if isSignedIn() && request.auth.uid == userId;
+        }
+        match /comments/{commentId} {
+          allow read: if true;
+          allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+          allow update, delete: if isOwner(resource.data.authorId) || canManageSchool();
+        }
       }
       match /events/{eventId} {
         allow read: if true;
         allow write: if canManageSchool() || canUploadContent();
+      }
+
+      // Discussions — Q&A threads with a mark-able best answer (see
+      // ClubDiscussion/ClubDiscussionReply in models/club.dart). Anyone
+      // signed in can ask/answer/like, matching the same open-by-default
+      // posture as clubs/{id}/posts above; only the thread's own author or
+      // that club's admin/moderator can mark a best answer.
+      match /discussions/{discussionId} {
+        allow read: if true;
+        allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+        allow update: if isSignedIn() && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount', 'likeCount'])
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bestAnswerReplyId']) &&
+              (resource.data.authorId == request.auth.uid ||
+               (isClubMember(clubId) && clubMemberRole(clubId) in ['admin', 'moderator'])))
+          || isOwner(resource.data.authorId)
+          || canManageSchool()
+        );
+        allow delete: if isOwner(resource.data.authorId) || canManageSchool();
+
+        match /likes/{userId} {
+          allow read: if true;
+          allow write: if isSignedIn() && request.auth.uid == userId;
+        }
+        match /replies/{replyId} {
+          allow read: if true;
+          allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+          // isBestAnswer is flipped by markBestAnswer() on behalf of the
+          // discussion's author/staff, not by the reply's own author —
+          // everything else about a reply stays author/staff-only.
+          allow update: if isOwner(resource.data.authorId) || canManageSchool() ||
+            (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isBestAnswer']) &&
+              (get(/databases/$(database)/documents/clubs/$(clubId)/discussions/$(discussionId)).data.authorId == request.auth.uid ||
+               (isClubMember(clubId) && clubMemberRole(clubId) in ['admin', 'moderator'])));
+          allow delete: if isOwner(resource.data.authorId) || canManageSchool();
+        }
       }
 
       // Club chat — matches ClubRepository.watchMessages/sendMessage.

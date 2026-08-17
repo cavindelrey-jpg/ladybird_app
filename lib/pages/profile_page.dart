@@ -14,6 +14,7 @@ import '../features/timetable/personal_study_page.dart';
 import '../features/assignments/assignments_page.dart';
 import '../features/attendance/attendance_page.dart';
 import '../pages/marks_page.dart';
+import '../features/entitlements/entitlements.dart';
 import 'profile_edit_page.dart';
 import 'bookmarks_page.dart';
 import 'settings_page.dart';
@@ -23,6 +24,15 @@ class ProfilePage extends StatelessWidget {
   final AppUser user;
   final Institution? institution;
   const ProfilePage({super.key, required this.user, this.institution});
+
+  /// Entitlement label plus its real remaining days, e.g.
+  /// "Gifted Premium · 118 days left". Falls back to the bare label for a
+  /// free account or a perpetual grant that has no expiry to report.
+  static String _membershipValue(AppUser user) {
+    final days = user.entitlement.daysRemaining;
+    if (days == null) return user.entitlementLabel;
+    return '${user.entitlementLabel} · $days days left';
+  }
 
   static Color _roleColor(AppColors ac, UserRole r) {
     switch (r) {
@@ -157,6 +167,28 @@ class ProfilePage extends StatelessWidget {
           _InfoRow(Icons.bookmark_border_rounded, 'My Bookmarks', '',
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => BookmarksPage(user: user)))),
+
+          // ── Membership (production_plan.md §8/§9) ────────────────────
+          // Real entitlement state off the user document — 'Free',
+          // 'Premium' or 'Gifted Premium', plus the genuine expiry when
+          // there is one. Never a hardcoded tier label.
+          if (!user.isGuest) ...[
+            _InfoRow(
+              user.isPremium
+                  ? Icons.workspace_premium_rounded
+                  : Icons.workspace_premium_outlined,
+              'Membership',
+              _membershipValue(user),
+            ),
+            _InfoRow(Icons.card_giftcard_outlined, 'Redeem a Voucher', '',
+                onTap: () => openRedeemVoucher(context, user)),
+            // Sales desk — staff only. Same gate as the page itself
+            // (AppUser.canManageUsers, i.e. departmentAdmin and above).
+            if (user.canManageUsers)
+              _InfoRow(Icons.point_of_sale_outlined, 'Sales Desk', '',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => SalesDeskPage(user: user)))),
+          ],
 
           // School-administrative nav (Notices/Calendar/Timetable/
           // Assignments/Grades/Attendance) is reserved for school-branded

@@ -15,6 +15,7 @@ import '../../widgets/app_background.dart';
 import '../../core/result.dart';
 import 'hero_slide_manager_page.dart';
 import 'create_institution_page.dart';
+import '../entitlements/sales_desk_page.dart';
 
 class AdminPanelPage extends StatefulWidget {
   final AppUser user;
@@ -485,6 +486,18 @@ class _PlatformTab extends StatelessWidget {
               builder: (_) => HeroSlideManagerPage(createdByUid: user.id))),
           icon: const Icon(Icons.image_outlined),
           label: const Text('Manage Home Banners'),
+        ),
+        const SizedBox(height: 24),
+        // production_plan.md §9 — physical sales. Records an offline cash
+        // sale and issues its voucher; no in-app payment is involved.
+        Text('Sales & Entitlements',
+            style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => SalesDeskPage(user: user))),
+          icon: const Icon(Icons.point_of_sale_outlined),
+          label: const Text('Sales Desk — record a sale, issue a voucher'),
         ),
         const SizedBox(height: 24),
         Text('Schools',

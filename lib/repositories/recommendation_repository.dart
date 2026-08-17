@@ -66,10 +66,9 @@ class RecommendationRepository {
   /// aggregation — consistent with, not a departure from, that repo's
   /// existing pattern.
   ///
-  /// Not yet wired into a UI surface — courses_marketplace_page.dart has
-  /// unrelated uncommitted changes from an earlier session sitting in the
-  /// working tree; wiring this in was deferred rather than bundling it
-  /// into that file's pending diff. See docs/AUTOPILOT_LOG.md.
+  /// Wired into courses_marketplace_page.dart's "Recommended for You"
+  /// rail (shown only in the un-filtered discovery view, and only for a
+  /// signed-in user who has actually set favorite subjects).
   Future<List<PublicCourse>> forCourses({
     required List<String> favoriteSubjects,
     int limit = 8,

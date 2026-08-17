@@ -15,6 +15,7 @@ import '../../models/app_user.dart';
 import '../../models/hero_slide.dart';
 import '../../models/public_course.dart';
 import '../../repositories/public_course_repository.dart';
+import '../../repositories/recommendation_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/category_colors.dart';
@@ -85,6 +86,27 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
   Future<Map<String, int>> get _categoryCountsFuture =>
       _cachedCategoryCountsFuture ??= PublicCourseRepository.instance.categoryCountsOnce();
 
+  // production_plan.md §7B — contextual Courses recommendations ("Courses
+  // → recommends relevant Courses"). Cached for exactly the same reason
+  // as _featuredFuture/_categoryCountsFuture above: this rail renders in
+  // the _category == null view, which is precisely when search-box
+  // keystrokes rebuild the page, so an inline Future would re-query
+  // Firestore and flash the shimmer on every keypress.
+  Future<List<PublicCourse>>? _cachedRecommendedFuture;
+  Future<List<PublicCourse>> get _recommendedFuture =>
+      _cachedRecommendedFuture ??= RecommendationRepository.instance.forCourses(
+          favoriteSubjects: widget.user?.favoriteSubjects ?? const <String>[]);
+
+  /// Mirrors the Library rail's gate (academic_content_page.dart's
+  /// _LibraryDiscovery): only offer "Recommended for You" to a signed-in
+  /// user who has actually set favorite subjects, so the label is backed
+  /// by a real personalization signal rather than dressing up the generic
+  /// recent-courses fallback as a personal pick.
+  bool get _showRecommended {
+    final u = widget.user;
+    return u != null && !u.isGuest && u.favoriteSubjects.isNotEmpty;
+  }
+
   bool get _canCreate => widget.user != null;
 
   @override
@@ -127,6 +149,12 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
                 _browseByCurriculumCta(context, ac),
                 const SizedBox(height: 20),
                 if (_category == null) ...[
+                  if (_showRecommended) ...[
+                    _sectionHeader('Recommended for You', ac, onSeeAll: null),
+                    const SizedBox(height: 12),
+                    _recommendedRow(context, ac),
+                    const SizedBox(height: 24),
+                  ],
                   _sectionHeader('Featured Courses', ac,
                       onSeeAll: () => showToast(context, 'A dedicated Featured page is coming soon.')),
                   const SizedBox(height: 12),
@@ -280,20 +308,70 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
     );
   }
 
-  Widget _sectionHeader(String title, AppColors ac, {required VoidCallback onSeeAll}) {
+  /// `onSeeAll` is nullable so a section with nowhere to drill into (the
+  /// §7B "Recommended for You" rail — it IS the whole list, there's no
+  /// bigger page behind it) can omit the affordance rather than show a
+  /// "See all" that only fires a toast. Same shape as the Library's own
+  /// section header (academic_content_page.dart's _LibraryDiscovery).
+  Widget _sectionHeader(String title, AppColors ac, {required VoidCallback? onSeeAll}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(children: [
         Expanded(child: Text(title, style: AppText.h2.copyWith(fontSize: 16))),
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onSeeAll,
-            child: Text('See all', style: AppText.subtitle.copyWith(
-                color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+        if (onSeeAll != null)
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onSeeAll,
+              child: Text('See all', style: AppText.subtitle.copyWith(
+                  color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+            ),
           ),
-        ),
       ]),
+    );
+  }
+
+  /// production_plan.md §7B — real favorite-subject-driven course picks
+  /// (RecommendationRepository.forCourses), not a generic list. Hidden
+  /// entirely when it resolves empty rather than rendering an empty
+  /// "Recommended for You" rail — an empty personalized section is worse
+  /// than no section. Same treatment as the Library rail.
+  Widget _recommendedRow(BuildContext context, AppColors ac) {
+    return FutureBuilder<List<PublicCourse>>(
+      future: _recommendedFuture,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return SizedBox(
+            height: 210,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: 3,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (_, __) => const ShimmerBlock(width: 220, height: 210),
+            ),
+          );
+        }
+        final courses = snap.data ?? const <PublicCourse>[];
+        if (courses.isEmpty) return const SizedBox.shrink();
+        return SizedBox(
+          height: 210,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: courses.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (_, i) => _FeaturedCourseCard(
+              course: courses[i],
+              currentUser: widget.user,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => CourseReaderPage(course: courses[i], currentUser: widget.user))),
+              onOpenCreator: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => CourseCreatorProfilePage(creatorId: courses[i].creatorId, currentUser: widget.user))),
+            ),
+          ),
+        );
+      },
     );
   }
 

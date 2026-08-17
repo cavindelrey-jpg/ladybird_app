@@ -8,6 +8,14 @@
 // "150/200 used today" and both award their full amount, blowing past
 // the cap). Same integrity bug, same fix.
 //
+// production_plan.md §4.4/§4.5: quiz XP (per-academic-level cap, 120/160/
+// 200, itself capped at an overall 280/day) and magazine XP (100/day) are
+// each their OWN pool, tracked in separate quizXpEarnedToday/
+// magazineXpEarnedToday fields — metered ON TOP OF, not instead of, the
+// general kDailyXpCap every source still shares. A source not in either
+// category (streak, club Q&A) is metered by the general cap alone, same
+// as before this categorization existed.
+//
 // This is now the SINGLE entry point for all XP awards in the app —
 // AuthService.addXp() (magazine settlement, daily challenge) delegates
 // here too, so there is exactly one capped, logged ledger instead of the
@@ -29,6 +37,16 @@ import '../models/app_user.dart';
 import '../models/xp_transaction.dart';
 import '../core/constants.dart';
 import '../core/result.dart';
+import '../core/xp_rules.dart';
+
+/// production_plan.md §4.4/§4.5: quiz and magazine XP each have their own
+/// daily allowance, separate from each other and from every other source
+/// (streak, club Q&A) — not one shared pool. Sources not listed here fall
+/// back to being metered by the general kDailyXpCap alone, same as before
+/// this categorization existed.
+bool _isQuizXpSource(XpSource s) =>
+    s == XpSource.mcq || s == XpSource.structural || s == XpSource.ac || s == XpSource.testCompletion;
+bool _isMagazineXpSource(XpSource s) => s == XpSource.magazineRead;
 
 class XpRepository {
   XpRepository._();
@@ -68,22 +86,52 @@ class XpRepository {
         final snap = await tx.get(_userDoc(userId));
         if (!snap.exists) throw Exception('User not found');
         final data = snap.data()!;
+        final now = DateTime.now();
 
         final storedDate = (data['xpEarnedTodayDate'] as Timestamp?)?.toDate();
-        final now = DateTime.now();
         final isNewDay = storedDate == null || !_isSameDay(storedDate, now);
         final earnedToday = isNewDay ? 0 : ((data['xpEarnedToday'] as num?)?.toInt() ?? 0);
+        var room = kDailyXpCap - earnedToday;
 
-        final room = kDailyXpCap - earnedToday;
+        // §4.4/§4.5 category-specific pools, additionally metered on top
+        // of (never instead of) the general pool above.
+        final isQuiz = _isQuizXpSource(source);
+        final isMagazine = _isMagazineXpSource(source);
+        int? categoryEarnedToday;
+        String? categoryEarnedField, categoryDateField;
+        if (isQuiz) {
+          categoryEarnedField = 'quizXpEarnedToday';
+          categoryDateField = 'quizXpEarnedTodayDate';
+          final capForLevel = quizDailyXpCapForLevel(data['educationLevel'] ?? '');
+          final storedCatDate = (data[categoryDateField] as Timestamp?)?.toDate();
+          final catNewDay = storedCatDate == null || !_isSameDay(storedCatDate, now);
+          categoryEarnedToday = catNewDay ? 0 : ((data[categoryEarnedField] as num?)?.toInt() ?? 0);
+          final catRoom = capForLevel - categoryEarnedToday;
+          if (catRoom < room) room = catRoom;
+        } else if (isMagazine) {
+          categoryEarnedField = 'magazineXpEarnedToday';
+          categoryDateField = 'magazineXpEarnedTodayDate';
+          final storedCatDate = (data[categoryDateField] as Timestamp?)?.toDate();
+          final catNewDay = storedCatDate == null || !_isSameDay(storedCatDate, now);
+          categoryEarnedToday = catNewDay ? 0 : ((data[categoryEarnedField] as num?)?.toInt() ?? 0);
+          final catRoom = kMagazineDailyXpCap - categoryEarnedToday;
+          if (catRoom < room) room = catRoom;
+        }
+
         final toAward = rawAmount.clamp(0, room > 0 ? room : 0);
         if (toAward <= 0) return 0;
 
-        tx.update(_userDoc(userId), {
+        final update = <String, dynamic>{
           'xpBalance': FieldValue.increment(toAward),
           'lifetimeXP': FieldValue.increment(toAward),
           'xpEarnedToday': earnedToday + toAward,
           'xpEarnedTodayDate': Timestamp.fromDate(now),
-        });
+        };
+        if (categoryEarnedField != null) {
+          update[categoryEarnedField] = categoryEarnedToday! + toAward;
+          update[categoryDateField!] = Timestamp.fromDate(now);
+        }
+        tx.update(_userDoc(userId), update);
 
         final txnRef = _db.collection(AppConstants.colXpTransactions).doc();
         tx.set(txnRef, XpTransaction(

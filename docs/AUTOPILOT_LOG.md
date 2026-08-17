@@ -1590,3 +1590,36 @@ computed exactly ONCE per article no earlier than 24h after publish.
   in models/xp_transaction.dart for when that work happens, not silently
   forgotten.
 - flutter analyze on all touched files: 0 issues.
+
+## §4.4 -- Daily quiz XP caps (production_plan.md), same session
+
+Previously deferred twice as too risky to rush. User's explicit "never
+stop... keep running" instruction plus having just safely extended the
+same shared XpRepository.awardXp() transaction for §4.5 (magazine) gave
+enough confidence to do this properly rather than defer a third time.
+
+- Refactored the Form-1-3/Form-4-5/Sixth+ classification in
+  core/xp_rules.dart into a shared academicTierFor() (returns an
+  AcademicTier enum) so academicLevelMultiplier() (§4.2) and the new
+  quizDailyXpCapForLevel() (§4.4: 120/160/200, further capped at an
+  overall 280) can never drift out of sync with each other.
+- XpRepository.awardXp() now tracks quizXpEarnedToday/
+  magazineXpEarnedToday as SEPARATE daily pools (own field + own
+  same-day-reset date field, same pattern as the existing xpEarnedToday)
+  for quiz sources (mcq/structural/ac/testCompletion) and magazine
+  sources (magazineRead) respectively -- metered ON TOP OF, not instead
+  of, the general kDailyXpCap every source still shares. Sources outside
+  both categories (streak, club Q&A) are unaffected, same as before.
+- Verified firestore.rules did NOT need a matching update: the existing
+  users/{uid} earn-write rule constrains xpBalance/lifetimeXP's
+  relationship via value comparisons, not an affectedKeys().hasOnly()
+  allowlist of the whole document -- the new quiz/magazine tracking
+  fields riding along in the same update() call are already permitted.
+  Checked this explicitly rather than assuming, given how the last two
+  rules touches this session both turned out to need a fix.
+- flutter analyze: 36 issues, same baseline as session start -- zero new.
+
+Not done: no UI surfaces the new category-specific caps yet (e.g. "18/120
+quiz XP today" instead of the generic combined counter) -- the
+enforcement is real and server-transaction-safe regardless; the display
+nuance is a smaller follow-up, not correctness-critical.

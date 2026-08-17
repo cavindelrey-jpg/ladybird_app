@@ -294,16 +294,18 @@ class EntitlementRepository {
     }
   }
 
-  /// The vouchers this account has redeemed — lets Profile show a real
-  /// history instead of just a current-status line.
-  Stream<List<Voucher>> watchMyVouchers(String uid) => _vouchers
-      .where('recipientUserId', isEqualTo: uid)
-      .snapshots()
-      .map((s) => s.docs
-          .map((d) => Voucher.fromFirestore(d.id, d.data()))
-          .toList()
-        ..sort((a, b) =>
-            (b.redeemedAt ?? b.createdAt).compareTo(a.redeemedAt ?? a.createdAt)));
+  // NOT PROVIDED: a "my redeemed vouchers" stream for the end user.
+  //
+  // It would need a `list` query over `vouchers`, and firestore.rules
+  // deliberately restricts `list` to staff so nobody can enumerate the
+  // collection and harvest unused codes — normal users get `get` only,
+  // for a code they already hold. Shipping the method anyway would mean
+  // a Profile section that always throws permission-denied. The user's
+  // real entitlement state (tier, source, expiry) already lives on their
+  // own user document and is what Profile shows. If a full redemption
+  // history is wanted later, the clean way is a per-user mirror under
+  // users/{uid}/redemptions written by the redeem transaction — not
+  // loosening `list` on the shared collection.
 }
 
 /// Internal marker so expected redemption failures can unwind the

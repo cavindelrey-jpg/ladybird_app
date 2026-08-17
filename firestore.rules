@@ -114,12 +114,26 @@ service cloud.firestore {
             (request.resource.data.xpBalance == resource.data.xpBalance &&
              request.resource.data.lifetimeXP == resource.data.lifetimeXP)
             ||
-            // earn: balance and lifetime move up together, capped at the
-            // highest single-answer rate (AC = 45 XP)
+            // earn: balance and lifetime move up together, capped at 200.
+            // Covers the highest possible SINGLE-QUESTION award under
+            // core/xp_rules.dart's questionXp() — Essay/AC base 55 x hard
+            // difficulty (130%) x Advanced-level multiplier (2.2x) = ~157,
+            // rounded up with headroom. (Was hardcoded to 45 — the old
+            // "AC = 45 XP" flat rate with no level multiplier; already
+            // too low the moment difficultyMultiplierPercent's 130% tier
+            // existed, since 45 x 1.3 = 58.5 > 45. Not a regression this
+            // session introduced, just one this session's own baseXp/
+            // level-multiplier change made impossible to keep ignoring.)
+            // NOTE: testCompletion/streakMilestone bonuses are separate,
+            // naturally-larger values (a whole test's or a long streak's
+            // worth) that this same 200 ceiling only loosely bounds for
+            // very large tests/streaks — full server-side enforcement is
+            // production_plan.md §4.9's Cloud Function work, not solved
+            // here.
             (request.resource.data.xpBalance > resource.data.xpBalance &&
              (request.resource.data.xpBalance - resource.data.xpBalance) ==
              (request.resource.data.lifetimeXP - resource.data.lifetimeXP) &&
-             (request.resource.data.xpBalance - resource.data.xpBalance) <= 45)
+             (request.resource.data.xpBalance - resource.data.xpBalance) <= 200)
             ||
             // spend: balance moves down, lifetime untouched, capped at
             // the largest defined unlock cost (full bundle = 800 XP)
@@ -481,7 +495,9 @@ service cloud.firestore {
     match /xpTransactions/{id} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && (
-        (request.resource.data.type == 'earn' && request.resource.data.amount <= 45)
+        // See the matching users/{uid} earn-cap comment above for why 200
+        // (was 45 -- too low even before this session's XP formula change).
+        (request.resource.data.type == 'earn' && request.resource.data.amount <= 200)
         || (request.resource.data.type == 'spend' && request.resource.data.amount <= 800)
       );
       allow update, delete: if false;

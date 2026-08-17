@@ -1533,3 +1533,174 @@ users) — the plan explicitly wants this as a SEPARATE, second concept.
   reminder surface, not a notification system pretending to exist.
 - `flutter analyze` full project: 36 issues, same baseline as this
   session's start — zero new issues.
+
+## Session continues (2026-08-17, same day): sec7 Trim -> School Edition
+(7A trim, 7B contextual recommendations finished, 7C hidden school management)
+
+Worked in a git worktree branched off demo-prep. Verified current state
+before changing anything, per this session's standing rule not to trust
+the production plan's description of what exists.
+
+**7A -- what was ALREADY done and deliberately left alone.** The plan
+describes school management as "mixed into the same navigation" as the
+learner features. That was largely no longer true:
+- bottom nav is already fixed at Home/Library/Magazine/Courses/Profile for
+  every account type (app_router.dart);
+- the drawer already carried no Attendance/Marks/Timetable/Assignments;
+- Profile's School block is already gated behind AppConfig.isSchoolMode, a
+  compile-time APP_MODE boundary rather than a runtime toggle;
+- SchoolHomePage is already school-mode-only.
+Reporting this honestly rather than claiming credit for trimming things a
+previous pass had already trimmed.
+
+**7A -- what was actually still leaking, and is now fixed.**
+1. The drawer's "Admin Panel" opened AdminPanelPage (school USERS +
+   enrollment SEATS + institution admin) straight from ordinary nav. It
+   was gated on canManagePlatform, i.e. superAdmin ONLY -- which also
+   meant a real schoolAdmin, the role that is supposed to run a school,
+   had no way in at all. Replaced by a single "School Management" entry
+   gated on canManageSchool (hasMinRole(schoolAdmin)), so schoolAdmin
+   gains correct access and superAdmin keeps it.
+2. "Switch School" rendered unconditionally on Profile -- school-login
+   navigation, which 7A lists explicitly. ASSUMPTION LOGGED: an
+   `inst != null` guard would NOT have hidden it, because independent
+   accounts are handed Institution.independentDefault (never null), so it
+   is gated instead on `AppConfig.isSchoolMode || accountType == linked`
+   -- the two cases where it is genuinely actionable. A linked user keeps
+   a way to detach; an independent learner stops seeing a button that did
+   nothing meaningful for them.
+3. REGRESSION FOUND AND FIXED: "My Study Timetable" (the personal,
+   self-authored sec5 feature added earlier this same session) had been
+   nested INSIDE the isSchoolMode school block. Its own comment said it
+   was "deliberately NOT gated by any institution feature flag ...
+   available to every signed-in user", but the enclosing `if` meant the
+   platform build -- every independent learner, precisely the audience it
+   was built for -- could not reach it at all. Hoisted out to sit beside
+   Bookmarks. Worth flagging as a lesson: the earlier log entry recorded
+   the intent correctly, and the code still did the opposite; the comment
+   was believed instead of the control flow.
+
+**Left alone on purpose (evaluated, judged NOT school-management).**
+- Home's "Recent Announcements" panel. It looks school-scoped but
+  AnnouncementRepository.watchAnnouncements takes a NULLABLE schoolId and
+  the empty state reads "Magazine posts, paper uploads, and club news will
+  show up here" -- it has been repurposed as a general platform notice
+  board that works for independent users. Removing it would have broken
+  the normal app for no benefit.
+- GradingPage in the drawer (lecturer+): that is quiz essay grading
+  (sec3 Quiz Engine), not school administration.
+- The whole school-management layer -- pages, repositories, models -- is
+  untouched. 7A says explicitly not to delete it.
+
+**7C -- the protected route.** New
+features/school_management/school_management_page.dart collects
+Attendance, Marks & Results, Student Records, Timetable, Assignments,
+Academic Calendar, Notices and School Administration. Every tile opens an
+EXISTING page unchanged.
+- ASSUMPTION LOGGED on routing: this app has no named-route table at all
+  (MaterialApp uses `home:` plus direct Navigator.push everywhere), so
+  '/school-management' is a documented routeName constant plus a guarded
+  static open(), not an entry in a routes map. Building an onGenerateRoute
+  table just for this one page would have meant resolving the AppUser out
+  of an auth stream inside route generation -- more machinery, more risk,
+  no more security. The plan explicitly allows the exact route to change
+  during implementation.
+- Guarding is three layers and the middle one matters most: the drawer
+  entry only RENDERS for canManageSchool (convenience), the page itself
+  RE-CHECKS canManageSchool in build() so a direct push from anywhere
+  still lands on Access Restricted (the guard is on the page, not the
+  caller), and firestore.rules gates the data (below).
+- NOT given tiles, deliberately: 7C also lists "Student follow-up",
+  "Performance tracking" and "Reports". No page, repository or model
+  exists for any of them (verified by grep). They are absent, with a
+  visible note on the page saying so, rather than represented by a tile
+  that opens a placeholder -- same honesty standard as the removed fake
+  quiz card and hardcoded notification badge.
+
+**7C -- firestore.rules audit. LOCAL FILE EDIT ONLY, needs
+`firebase deploy --only firestore:rules` by hand.**
+The audit found something worse than under-protection. The
+school-management repositories do not use the top-level collections this
+file has rules for: TimetableRepository, AttendanceRepository,
+AssignmentRepository, CalendarRepository, CourseRepository and
+AnnouncementRepository all build paths as schools/{schoolId}/<name>
+(verified in each repository's own _col() helper). A
+`match /schools/{schoolId}` block does NOT cascade to subcollections --
+only the explicitly declared /seats was covered -- so all of those paths
+fell through to default deny, while the top-level /timetable, /attendance,
+/assignments, /academic_calendar and /courses rules govern paths no
+repository ever touches. They are dead rules. Same for marks: real data is
+at marks/{schoolId}/{studentId}/sequences/{sequenceId}/{markId}.
+- Added own-school-scoped rules for the six schools/{schoolId}
+  subcollections plus assignment submissions. Nothing existing was
+  weakened: every block is on a path that previously matched no rule, and
+  every one is isOwnSchool()-scoped, i.e. strictly tighter than the dead
+  top-level equivalents (which allow any signed-in user to read any
+  school's records). The dead rules were left in place rather than
+  deleted -- deleting rules is the one edit a failed deploy cannot undo.
+- KNOWN LIMITATION, recorded not papered over: marks is staff-only,
+  because its schema encodes studentId and sequenceId as COLLECTION
+  names and Firestore rules cannot bind a wildcard to a collection id
+  (only the recursive {name=**} form). "A student reads their own marks"
+  is inexpressible against this schema. Not a regression -- nobody could
+  read these paths before. PROPER FIX for a later pass: store studentId
+  as a FIELD on the mark doc and flatten the path, after which it becomes
+  the same resource.data.studentId check attendance already uses.
+- DECISION LOGGED: superAdmin still needs a schoolId set to administer a
+  specific school, because the new rules mirror the existing
+  `schools/{schoolId}` write rule's isOwnSchool() requirement. Matching
+  the established pattern beat silently widening superAdmin's reach
+  during a security pass. Flagged inline to revisit if platform-owner
+  cross-school access is actually wanted.
+- DEPLOY RISK: if the live project is still on permissive dev rules, this
+  file tightens them substantially -- retest the school-management
+  surface against the emulator or staging before deploying.
+
+**7B -- contextual recommendations finished.**
+- forCourses() existed but was wired into no UI at all; it now backs a
+  "Recommended for You" rail on the Courses marketplace, shown only in the
+  unfiltered discovery view.
+- New forMagazine() + a "Recommended for You" block on Magazine's For You
+  tab. That tab's own header comment used to say it was honestly just
+  Global relabelled "because there's no personalization signal yet" --
+  sec5's favoriteSubjects is that signal, so the comment is now updated
+  rather than left lying.
+- ASSUMPTION LOGGED on the subject->category bridge: Magazine articles
+  carry an EDITORIAL category (kArticleCategories: Academics/Sports/
+  Arts & Culture/Science & Tech/Opinion/Campus Life/Careers/Other) while
+  the rest of personalization speaks ACADEMIC subjects (kAcademicSubjects:
+  Mathematics/Science/Languages/...). The two share no key, so
+  forMagazine() carries an explicit map. It is deliberately coarse and
+  only lists defensible pairs; 'Other' is intentionally unmapped, because
+  mapping it would surface unrelated posts under a "Recommended for You"
+  label. An unmapped subject contributes nothing rather than matching
+  everything. Note also that magazine_feed_page's _kCategoryColors lists a
+  DIFFERENT set of names (Essay/Opinion/Story/...) -- that map is only a
+  colour lookup with a default; kArticleCategories is what the composer
+  actually writes into article.category, so the mapping targets
+  kArticleCategories and _kCategoryColors was left untouched.
+- All three rails share one shape: gated on a signed-in user who has
+  actually set favorite subjects, and hidden entirely when the query
+  resolves empty. An empty "Recommended for You" is worse than none.
+- Each caches its Future in a field. On both pages the rail renders
+  exactly where a keystroke or a sort-sheet setState rebuilds the widget,
+  so an inline Future would re-query Firestore and reset the FutureBuilder
+  to `waiting` every time -- the same bug class already fixed for the
+  Courses search box and the Clubs search bar.
+- No new composite index needed anywhere: forMagazine filters a bounded
+  recent pool client-side, matching what forCourses and
+  MagazineRepository.watchTrendingOnce already do, because a category
+  filter combined with the existing published-equality + createdAt
+  ordering would need one, and a missing index shows up as a silently
+  empty list (the FAILED_PRECONDITION gotcha in CLAUDE.md).
+
+**7B admin banner removal -- STILL DEFERRED, unchanged reasoning.**
+sec7B also asks to remove the admin-controlled banner system. An earlier
+pass this session judged ripping out the working HeroSlideRepository /
+HeroBannerCarousel too disruptive to attempt blind, and that reasoning
+still holds -- it is live on Courses, Library and Home, has an admin CMS
+page behind it, and there is no way to verify the teardown in this
+sandbox. Recommendations were added ALONGSIDE banners, not in place of
+them. Flagging explicitly rather than quietly skipping, per this log's
+existing convention.
+

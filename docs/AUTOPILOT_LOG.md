@@ -1028,3 +1028,80 @@ Progression Sheets" folder.
   publish state, so it didn't need changing; publish state itself isn't
   currently tracked anywhere and would need its own field if/when this
   scales past one-off pilot lessons.
+
+## Session (2026-08-17): "academia fix" — Clubs/Magazine/Messaging mockup
+implementation (production plan §12)
+
+User pointed at a new `academia fix/` folder containing
+`academia_production_plan.md` (the full 18-step production roadmap) plus
+three UI mockups (Clubs ×2, Messaging, Magazine) and asked to implement
+what the doc specifies. The doc's §12 is explicit: these three mockups
+are the authoritative visual reference for Clubs/Magazine/Messaging, and
+implementation must be real UI + real backend, not a static screen —
+"do not replace functional backend systems merely for the sake of
+changing the UI... where incomplete, fix or replace it."
+
+**Scope call (autopilot, not asked — logging the assumption per standing
+rules)**: the full plan spans 13 sections (Library, Course pipeline, Quiz
+Engine, XP Economy formulas, Personalization, AI, trim/School-Edition
+split, Gifted Premium/vouchers) — genuinely weeks of work, most of it
+inventing systems that don't exist yet (past-paper XP economy, quiz auto-
+grading, voucher redemption). Given §12 is the part actually anchored to
+this specific folder's deliverables (real mockups to compare against),
+this session scoped to §12 only: bring Clubs/Magazine/Messaging in line
+with their mockups, using whatever real backend already exists
+(preserved) or plugging real gaps (built). Sections 1-11/13 are the
+broader roadmap, not touched this session, and are what a future session
+should pick up next — logged here rather than silently narrowed.
+
+**Inspected existing implementation before changing anything** (per the
+plan's own "Mockup Implementation Rule," step-by-step): Messaging
+(`messages_home_page.dart`, `chat_conversation_page.dart`,
+`find_people_page.dart`) turned out to already have a fully real backend
+— friend requests, 1:1 conversations, typing indicators, read receipts,
+media/file upload with retry, link previews, soft-delete — just not the
+mockup's Pinned/Recent layout or academic-content sharing. Clubs
+(`clubs_page.dart`, 845 lines) already has real discovery + an approval-
+gated join workflow; its detail page only has CHAT (real, live) and
+ANNOUNCEMENTS (**a complete dead placeholder — `_AnnTab` was static text,
+zero Firestore wiring**, even though `firestore.rules` already had a
+`clubs/{id}/posts/{postId}` rule sitting unused, waiting for exactly this
+feature). Magazine (`magazine_feed_page.dart`, 736 lines) already has 4
+real tabs (For You/Following/Local/Global) with a computed (not
+manually-curated) Featured carousel — mockup's gap is a 5th "Trending"
+tab plus Student-Gallery/Video/Podcast content types that don't exist as
+real content pipelines anywhere in this codebase.
+
+### Messaging — done this session
+- `Conversation.pinnedBy` (per-user pin-to-top, a view preference not a
+  shared property) + `MessagingRepository.togglePinned()`. No
+  firestore.rules change needed — the existing conversation `update` rule
+  already allows any participant to write any field.
+- `ChatMessage` gained `sharedType/sharedId/sharedTitle/sharedSubtitle`
+  (`SharedContentType`: course/quiz/article). **Deliberately did NOT add
+  Note or Past Paper types** despite the mockup showing 5 attach icons —
+  neither has a real addressable content model in this codebase yet
+  (Past Papers are plan §4.6, not built; there's no separate "Note"
+  entity distinct from Library/academic_content). Faking pickers for
+  content that doesn't exist would be exactly the dishonest-placeholder
+  pattern this codebase's own comments elsewhere reject. Flagging as
+  future work once those content types are real, not silently dropped.
+- New `_ContentPickerPage<T>` (generic searchable picker) backs
+  "Share a Course" / "Share a Quiz" (subject-first, since Tests are
+  subject-scoped with no flat cross-subject query) / "Share an Article"
+  in the chat attach sheet. Shared cards in the bubble fetch the real
+  content by id on tap (`PublicCourseRepository.watchOne`,
+  `TestRepository.watchTest`, `MagazineRepository.getById`) and navigate
+  to the actual reader/test-taking page — not a static card.
+- Redesigned `messages_home_page.dart`'s conversation list into
+  Pinned/Recent sections (mockup layout); long-press a row to pin/unpin
+  (same discoverable-gesture pattern the chat bubble already uses for
+  delete). Added a relative-timestamp column per mockup.
+- `flutter analyze` on the touched files: 0 issues.
+- **Not done**: unifying Club chat threads into the Messages inbox (the
+  mockup shows "STEM Innovators Club"/"Academia Authors" alongside 1:1
+  threads in one list). That needs Conversation to support a group/club
+  participant type, which is a real architecture change touching both
+  systems at once — flagged as a deliberate scope cut, not an oversight,
+  given the risk of destabilizing two already-working features in one
+  session.

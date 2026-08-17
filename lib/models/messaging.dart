@@ -84,6 +84,11 @@ class Conversation {
   /// or a steady stream of "stopped" writes.
   final Map<String, DateTime> typingAt;
 
+  /// Per-user "pin to top" — a personal view preference (mirrors the
+  /// mockup's Pinned/Recent split), not a shared conversation property,
+  /// so it's a list of user ids rather than a single bool.
+  final List<String> pinnedBy;
+
   const Conversation({
     required this.id,
     required this.participantIds,
@@ -94,6 +99,7 @@ class Conversation {
     required this.lastMessageAt,
     this.unreadCount = const {},
     this.typingAt = const {},
+    this.pinnedBy = const [],
   });
 
   factory Conversation.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -112,6 +118,7 @@ class Conversation {
       lastMessageAt: (d['lastMessageAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       unreadCount: Map<String, int>.from(d['unreadCount'] ?? {}),
       typingAt: typing,
+      pinnedBy: List<String>.from(d['pinnedBy'] ?? []),
     );
   }
 
@@ -123,10 +130,34 @@ class Conversation {
         'lastMessageSenderId': lastMessageSenderId,
         'lastMessageAt': Timestamp.fromDate(lastMessageAt),
         'unreadCount': unreadCount,
+        'pinnedBy': pinnedBy,
       };
 
   String otherParticipantId(String myId) =>
       participantIds.firstWhere((id) => id != myId, orElse: () => '');
+}
+
+/// What kind of real Academia content a shared-content message points at.
+/// Only content types that actually exist as addressable records in this
+/// codebase are offered in the chat quick-attach row (see
+/// ChatConversationPage._showAttachSheet) — no "Note" or "Past Paper" type
+/// here yet because neither has a real model/collection to link to.
+enum SharedContentType { course, quiz, article }
+
+extension SharedContentTypeExt on SharedContentType {
+  String get label => switch (this) {
+        SharedContentType.course => 'Course',
+        SharedContentType.quiz => 'Quiz',
+        SharedContentType.article => 'Article',
+      };
+
+  static SharedContentType? fromKey(String? key) {
+    if (key == null) return null;
+    for (final t in SharedContentType.values) {
+      if (t.name == key) return t;
+    }
+    return null;
+  }
 }
 
 class ChatMessage {
@@ -143,6 +174,13 @@ class ChatMessage {
   final List<String> readBy;
   final bool deleted;
 
+  /// Shared-content attachment (Course/Quiz/Article) — see
+  /// [SharedContentType]. All four fields are set together or not at all.
+  final SharedContentType? sharedType;
+  final String? sharedId;
+  final String? sharedTitle;
+  final String? sharedSubtitle;
+
   const ChatMessage({
     required this.id,
     required this.conversationId,
@@ -156,6 +194,10 @@ class ChatMessage {
     required this.sentAt,
     this.readBy = const [],
     this.deleted = false,
+    this.sharedType,
+    this.sharedId,
+    this.sharedTitle,
+    this.sharedSubtitle,
   });
 
   factory ChatMessage.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc, String conversationId) {
@@ -173,6 +215,10 @@ class ChatMessage {
       sentAt: (d['sentAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       readBy: List<String>.from(d['readBy'] ?? []),
       deleted: d['deleted'] ?? false,
+      sharedType: SharedContentTypeExt.fromKey(d['sharedType']),
+      sharedId: d['sharedId'],
+      sharedTitle: d['sharedTitle'],
+      sharedSubtitle: d['sharedSubtitle'],
     );
   }
 
@@ -186,5 +232,9 @@ class ChatMessage {
         'fileName': fileName,
         'sentAt': Timestamp.fromDate(sentAt),
         'readBy': readBy,
+        'sharedType': sharedType?.name,
+        'sharedId': sharedId,
+        'sharedTitle': sharedTitle,
+        'sharedSubtitle': sharedSubtitle,
       };
 }

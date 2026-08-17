@@ -18,13 +18,22 @@ import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/app_user.dart';
 import '../../models/messaging.dart';
+import '../../models/public_course.dart';
+import '../../models/test.dart';
+import '../../models/magazine_article.dart';
 import '../../repositories/messaging_repository.dart';
+import '../../repositories/public_course_repository.dart';
+import '../../repositories/test_repository.dart';
+import '../../repositories/magazine_repository.dart';
 import '../../services/link_preview_service.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
+import '../courses_marketplace/course_reader_page.dart';
+import '../testing/test_taking_page.dart';
+import '../magazine/article_reader_page.dart';
 
 class ChatConversationPage extends StatefulWidget {
   final String conversationId;
@@ -246,7 +255,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
                   final m = item as ChatMessage;
                   return _MessageBubble(
                     message: m, isMe: m.senderId == widget.currentUser.id,
-                    otherUserId: widget.otherUserId,
+                    otherUserId: widget.otherUserId, currentUser: widget.currentUser,
                   );
                 },
               );
@@ -339,8 +348,192 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
             title: const Text('File'),
             onTap: () { Navigator.pop(context); _pickAndSendFile(); },
           ),
+          const Divider(height: 1),
+          ListTile(
+            leading: Icon(Icons.menu_book_rounded, color: ac.grn),
+            title: const Text('Share a Course'),
+            onTap: () { Navigator.pop(context); _pickCourse(); },
+          ),
+          ListTile(
+            leading: Icon(Icons.quiz_rounded, color: ac.pur),
+            title: const Text('Share a Quiz'),
+            onTap: () { Navigator.pop(context); _pickQuiz(); },
+          ),
+          ListTile(
+            leading: Icon(Icons.article_rounded, color: ac.org),
+            title: const Text('Share an Article'),
+            onTap: () { Navigator.pop(context); _pickArticle(); },
+          ),
         ]),
       ),
+    );
+  }
+
+  Future<void> _sendShared({
+    required SharedContentType type, required String id,
+    required String title, required String subtitle,
+  }) async {
+    await MessagingRepository.instance.sendMessage(
+      conversationId: widget.conversationId,
+      senderId: widget.currentUser.id, senderName: widget.currentUser.name,
+      sharedType: type, sharedId: id, sharedTitle: title, sharedSubtitle: subtitle,
+    );
+  }
+
+  Future<void> _pickCourse() async {
+    final course = await Navigator.of(context).push<PublicCourse>(MaterialPageRoute(
+      builder: (_) => _ContentPickerPage<PublicCourse>(
+        title: 'Share a Course',
+        stream: PublicCourseRepository.instance.watchLatest(limit: 40),
+        matches: (c, q) => c.title.toLowerCase().contains(q) || c.subject.toLowerCase().contains(q),
+        itemTitle: (c) => c.title,
+        itemSubtitle: (c) => '${c.subject} · ${c.creatorName}',
+        icon: Icons.menu_book_rounded,
+      ),
+    ));
+    if (course != null) {
+      await _sendShared(type: SharedContentType.course, id: course.id, title: course.title, subtitle: course.subject);
+    }
+  }
+
+  Future<void> _pickArticle() async {
+    final article = await Navigator.of(context).push<MagazineArticle>(MaterialPageRoute(
+      builder: (_) => _ContentPickerPage<MagazineArticle>(
+        title: 'Share an Article',
+        stream: MagazineRepository.instance.watchFeed(limit: 40),
+        matches: (a, q) => a.title.toLowerCase().contains(q) || a.category.toLowerCase().contains(q),
+        itemTitle: (a) => a.title,
+        itemSubtitle: (a) => '${a.category} · ${a.authorName}',
+        icon: Icons.article_rounded,
+      ),
+    ));
+    if (article != null) {
+      await _sendShared(type: SharedContentType.article, id: article.id, title: article.title, subtitle: article.category);
+    }
+  }
+
+  Future<void> _pickQuiz() async {
+    final subjects = await TestRepository.instance.distinctSubjectsOnce();
+    if (!mounted) return;
+    if (subjects.isEmpty) {
+      showToast(context, 'No quizzes published yet.');
+      return;
+    }
+    final subject = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Align(alignment: Alignment.centerLeft, child: Text('Pick a subject'))),
+          ...subjects.map((s) => ListTile(title: Text(s), onTap: () => Navigator.pop(context, s))),
+        ]),
+      ),
+    );
+    if (subject == null || !mounted) return;
+    final test = await Navigator.of(context).push<Test>(MaterialPageRoute(
+      builder: (_) => _ContentPickerPage<Test>(
+        title: subject,
+        stream: TestRepository.instance.watchTestsBySubject(subject),
+        matches: (t, q) => t.title.toLowerCase().contains(q),
+        itemTitle: (t) => t.title,
+        itemSubtitle: (t) => t.subject,
+        icon: Icons.quiz_rounded,
+      ),
+    ));
+    if (test != null) {
+      await _sendShared(type: SharedContentType.quiz, id: test.id, title: test.title, subtitle: test.subject);
+    }
+  }
+}
+
+/// Reusable searchable picker for the chat's "share content" flow —
+/// backs Course/Quiz/Article attachment (see ChatConversationPage above).
+class _ContentPickerPage<T> extends StatefulWidget {
+  final String title;
+  final Stream<List<T>> stream;
+  final bool Function(T, String query) matches;
+  final String Function(T) itemTitle;
+  final String Function(T) itemSubtitle;
+  final IconData icon;
+  const _ContentPickerPage({
+    required this.title, required this.stream, required this.matches,
+    required this.itemTitle, required this.itemSubtitle, required this.icon,
+  });
+
+  @override
+  State<_ContentPickerPage<T>> createState() => _ContentPickerPageState<T>();
+}
+
+class _ContentPickerPageState<T> extends State<_ContentPickerPage<T>> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
+        title: Text(widget.title, style: AppText.title),
+      ),
+      body: AppBackground(child: Column(children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: TextField(
+            onChanged: (v) => setState(() => _query = v.toLowerCase()),
+            style: AppText.bodySm.copyWith(color: ac.txt),
+            decoration: InputDecoration(
+              hintText: 'Search…', hintStyle: AppText.bodySm.copyWith(color: ac.muted),
+              prefixIcon: Icon(Icons.search_rounded, color: ac.muted, size: 20),
+              filled: true, fillColor: ac.surf2,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            ),
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<List<T>>(
+            stream: widget.stream,
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) return const LoadingView();
+              if (snap.hasError) return ErrorView(message: snap.error.toString());
+              var items = snap.data ?? const [];
+              if (_query.isNotEmpty) items = items.where((i) => widget.matches(i, _query)).toList();
+              if (items.isEmpty) {
+                return const EmptyState(icon: Icons.search_off_rounded, title: 'Nothing found', subtitle: 'Try a different search.');
+              }
+              return ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (_, i) {
+                  final item = items[i];
+                  return ACard(
+                    onTap: () => Navigator.of(context).pop(item),
+                    child: Row(children: [
+                      Container(
+                        width: 40, height: 40,
+                        decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(10)),
+                        child: Icon(widget.icon, color: ac.primary, size: 18),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(widget.itemTitle(item), style: AppText.title.copyWith(fontSize: 14),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          Text(widget.itemSubtitle(item), style: AppText.bodySm.copyWith(fontSize: 11.5),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ]),
+                      ),
+                    ]),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ])),
     );
   }
 }
@@ -379,7 +572,8 @@ class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMe;
   final String otherUserId;
-  const _MessageBubble({required this.message, required this.isMe, required this.otherUserId});
+  final AppUser currentUser;
+  const _MessageBubble({required this.message, required this.isMe, required this.otherUserId, required this.currentUser});
 
   String _formatTime(DateTime dt) {
     final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
@@ -480,6 +674,8 @@ class _MessageBubble extends StatelessWidget {
                 ),
               ),
             ),
+          if (message.sharedType != null)
+            _SharedContentCard(message: message, currentUser: currentUser),
           if (message.text.isNotEmpty) ...[
             if ((message.imageUrl ?? message.videoUrl ?? message.fileUrl ?? '').isNotEmpty) const SizedBox(height: 8),
             Text(message.text, style: AppText.bodySm.copyWith(color: ac.txt, fontSize: 14)),
@@ -494,6 +690,103 @@ class _MessageBubble extends StatelessWidget {
             ],
           ]),
         ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Renders a Course/Quiz/Article attachment as a tappable card (see the
+/// mockup's "Mechanics — Newton's Laws" card) and fetches+opens the real
+/// content on tap — never just a static-looking preview.
+class _SharedContentCard extends StatefulWidget {
+  final ChatMessage message;
+  final AppUser currentUser;
+  const _SharedContentCard({required this.message, required this.currentUser});
+
+  @override
+  State<_SharedContentCard> createState() => _SharedContentCardState();
+}
+
+class _SharedContentCardState extends State<_SharedContentCard> {
+  bool _opening = false;
+
+  Future<void> _open() async {
+    if (_opening) return;
+    setState(() => _opening = true);
+    try {
+      final id = widget.message.sharedId;
+      if (id == null) return;
+      switch (widget.message.sharedType!) {
+        case SharedContentType.course:
+          final course = await PublicCourseRepository.instance.watchOne(id).first;
+          if (course != null && mounted) {
+            Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => CourseReaderPage(course: course, currentUser: widget.currentUser)));
+          } else if (mounted) {
+            showToast(context, 'This course is no longer available.');
+          }
+          break;
+        case SharedContentType.quiz:
+          final test = await TestRepository.instance.watchTest(id).first;
+          if (test != null && mounted) {
+            Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => TestTakingPage(user: widget.currentUser, test: test)));
+          } else if (mounted) {
+            showToast(context, 'This quiz is no longer available.');
+          }
+          break;
+        case SharedContentType.article:
+          final article = await MagazineRepository.instance.getById(id);
+          if (article != null && mounted) {
+            Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => ArticleReaderPage(article: article, currentUser: widget.currentUser)));
+          } else if (mounted) {
+            showToast(context, 'This article is no longer available.');
+          }
+          break;
+      }
+    } finally {
+      if (mounted) setState(() => _opening = false);
+    }
+  }
+
+  IconData get _icon => switch (widget.message.sharedType!) {
+        SharedContentType.course => Icons.menu_book_rounded,
+        SharedContentType.quiz => Icons.quiz_rounded,
+        SharedContentType.article => Icons.article_rounded,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: _open,
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: ac.surf3, borderRadius: BorderRadius.circular(12), border: Border.all(color: ac.bdr)),
+          child: Row(children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(10)),
+              child: _opening
+                  ? Padding(padding: const EdgeInsets.all(10), child: CircularProgressIndicator(strokeWidth: 2, color: ac.primary))
+                  : Icon(_icon, color: ac.primary, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(widget.message.sharedTitle ?? widget.message.sharedType!.label,
+                    style: AppText.title.copyWith(fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
+                Text('${widget.message.sharedSubtitle ?? ''} · Academia ${widget.message.sharedType!.label}'.trim(),
+                    style: AppText.caption.copyWith(fontSize: 10.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+              ]),
+            ),
+            Icon(Icons.chevron_right_rounded, color: ac.muted, size: 18),
+          ]),
         ),
       ),
     );

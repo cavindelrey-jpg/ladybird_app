@@ -263,6 +263,10 @@ class MessagingRepository {
     String? videoUrl,
     String? fileUrl,
     String? fileName,
+    SharedContentType? sharedType,
+    String? sharedId,
+    String? sharedTitle,
+    String? sharedSubtitle,
   }) async {
     try {
       final batch = _db.batch();
@@ -271,12 +275,14 @@ class MessagingRepository {
         id: '', conversationId: conversationId, senderId: senderId, senderName: senderName,
         text: text, imageUrl: imageUrl, videoUrl: videoUrl, fileUrl: fileUrl, fileName: fileName,
         sentAt: DateTime.now(), readBy: [senderId],
+        sharedType: sharedType, sharedId: sharedId, sharedTitle: sharedTitle, sharedSubtitle: sharedSubtitle,
       ).toFirestore());
 
       final preview = text.isNotEmpty ? text
           : (imageUrl != null ? '📷 Photo'
           : (videoUrl != null ? '🎥 Video'
-          : (fileUrl != null ? '📎 ${fileName ?? "File"}' : '')));
+          : (fileUrl != null ? '📎 ${fileName ?? "File"}'
+          : (sharedType != null ? '${_sharedContentEmoji(sharedType)} ${sharedTitle ?? sharedType.label}' : ''))));
       batch.update(_conversations.doc(conversationId), {
         'lastMessageText': preview,
         'lastMessageSenderId': senderId,
@@ -286,6 +292,26 @@ class MessagingRepository {
       return const Success(null);
     } catch (e) {
       return Failure('Failed to send message', e);
+    }
+  }
+
+  String _sharedContentEmoji(SharedContentType t) => switch (t) {
+        SharedContentType.course => '🎓',
+        SharedContentType.quiz => '❓',
+        SharedContentType.article => '📰',
+      };
+
+  /// Toggles [userId]'s personal "pin to top" on a conversation — a view
+  /// preference (see Conversation.pinnedBy), not something the other
+  /// participant sees or is affected by.
+  Future<Result<void>> togglePinned(String conversationId, String userId, bool pinned) async {
+    try {
+      await _conversations.doc(conversationId).update({
+        'pinnedBy': pinned ? FieldValue.arrayUnion([userId]) : FieldValue.arrayRemove([userId]),
+      });
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to update pin', e);
     }
   }
 

@@ -74,6 +74,13 @@ class _MessagesHomePageState extends State<MessagesHomePage> {
         child: ListView(
           controller: _scrollCtrl,
           padding: const EdgeInsets.only(bottom: 24),
+          // Default cacheExtent (~250px) only realizes children near the
+          // viewport, so _requestsKey/_conversationsKey/_newMessageKey can
+          // have a null currentContext on first load and silently break
+          // HeroDestination.section scrolling (_scrollToSection). This list
+          // is short and fixed (not a builder), so building it all upfront
+          // is cheap and guarantees every section key is realized.
+          cacheExtent: 3000,
           children: [
             _header(context),
             const SizedBox(height: 10),
@@ -269,67 +276,57 @@ class _MessagesHomePageState extends State<MessagesHomePage> {
   Widget _recentConversationsSection(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Recent Conversations', style: AppText.h2.copyWith(fontSize: 16)),
-        const SizedBox(height: 12),
-        StreamBuilder<List<Conversation>>(
-          stream: MessagingRepository.instance.watchConversations(user.id),
-          builder: (context, snap) {
-            final ac = AppColors.of(context);
-            if (snap.connectionState == ConnectionState.waiting) {
-              return Column(children: List.generate(3, (_) => const Padding(
+      child: StreamBuilder<List<Conversation>>(
+        stream: MessagingRepository.instance.watchConversations(user.id),
+        builder: (context, snap) {
+          final ac = AppColors.of(context);
+          if (snap.connectionState == ConnectionState.waiting) {
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Recent Conversations', style: AppText.h2.copyWith(fontSize: 16)),
+              const SizedBox(height: 12),
+              ...List.generate(3, (_) => const Padding(
                 padding: EdgeInsets.only(bottom: 10),
                 child: Row(children: [
                   ShimmerCircle(size: 44),
                   SizedBox(width: 12),
                   Expanded(child: ShimmerLine(height: 14)),
                 ]),
-              )));
-            }
-            if (snap.hasError) {
-              return Text('Failed to load: ${snap.error}', style: AppText.caption.copyWith(color: ac.red, fontSize: 11));
-            }
-            final conversations = snap.data ?? const <Conversation>[];
-            if (conversations.isEmpty) {
-              return Text('No conversations yet — find someone and send a friend request.', style: AppText.bodySm);
-            }
-            return Column(children: conversations.map((c) {
-              final otherId = c.otherParticipantId(user.id);
-              final otherName = c.participantNames[otherId] ?? 'Unknown';
-              final otherPhoto = c.participantPhotos[otherId];
-              final unread = c.unreadCount[user.id] ?? 0;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: ACard(
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => ChatConversationPage(
-                          conversationId: c.id, currentUser: user,
-                          otherUserId: otherId, otherUserName: otherName, otherUserPhoto: otherPhoto))),
-                  child: Row(children: [
-                    UserAvatar(initials: otherName.isEmpty ? '?' : otherName[0].toUpperCase(),
-                        radius: 22, photoUrl: otherPhoto),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(otherName, style: AppText.title.copyWith(fontSize: 14)),
-                        Text(c.lastMessageSenderId == user.id ? 'You: ${c.lastMessageText}' : c.lastMessageText,
-                            style: AppText.bodySm.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                      ]),
-                    ),
-                    if (unread > 0)
-                      Container(
-                        width: 22, height: 22,
-                        decoration: BoxDecoration(color: ac.primary, shape: BoxShape.circle),
-                        alignment: Alignment.center,
-                        child: Text('$unread', style: AppText.label.copyWith(fontSize: 11, color: Colors.white, letterSpacing: 0)),
-                      ),
-                  ]),
-                ),
-              );
-            }).toList());
-          },
-        ),
-      ]),
+              )),
+            ]);
+          }
+          if (snap.hasError) {
+            return Text('Failed to load: ${snap.error}', style: AppText.caption.copyWith(color: ac.red, fontSize: 11));
+          }
+          final conversations = snap.data ?? const <Conversation>[];
+          if (conversations.isEmpty) {
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Recent Conversations', style: AppText.h2.copyWith(fontSize: 16)),
+              const SizedBox(height: 12),
+              Text('No conversations yet — find someone and send a friend request.', style: AppText.bodySm),
+            ]);
+          }
+          final pinned = conversations.where((c) => c.pinnedBy.contains(user.id)).toList();
+          final recent = conversations.where((c) => !c.pinnedBy.contains(user.id)).toList();
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (pinned.isNotEmpty) ...[
+              Row(children: [
+                Icon(Icons.push_pin_rounded, size: 14, color: ac.gold),
+                const SizedBox(width: 6),
+                Text('Pinned', style: AppText.h2.copyWith(fontSize: 16)),
+              ]),
+              const SizedBox(height: 12),
+              ...pinned.map((c) => _ConversationRow(user: user, conversation: c)),
+              const SizedBox(height: 20),
+            ],
+            Text('Recent', style: AppText.h2.copyWith(fontSize: 16)),
+            const SizedBox(height: 12),
+            if (recent.isEmpty)
+              Text('Nothing else — every conversation is pinned.', style: AppText.bodySm)
+            else
+              ...recent.map((c) => _ConversationRow(user: user, conversation: c)),
+          ]);
+        },
+      ),
     );
   }
 
@@ -374,6 +371,79 @@ class _MessagesHomePageState extends State<MessagesHomePage> {
         ),
       ),
     );
+  }
+}
+
+/// One row in Pinned/Recent — long-press to pin/unpin, matching the
+/// mockup's Pinned-section split. Swipe gestures were considered but
+/// long-press reuses the same discoverable pattern chat bubbles already
+/// use for delete (chat_conversation_page.dart's _MessageBubble).
+class _ConversationRow extends StatelessWidget {
+  final AppUser user;
+  final Conversation conversation;
+  const _ConversationRow({required this.user, required this.conversation});
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final otherId = conversation.otherParticipantId(user.id);
+    final otherName = conversation.participantNames[otherId] ?? 'Unknown';
+    final otherPhoto = conversation.participantPhotos[otherId];
+    final unread = conversation.unreadCount[user.id] ?? 0;
+    final isPinned = conversation.pinnedBy.contains(user.id);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onLongPress: () {
+          HapticFeedback.mediumImpact();
+          MessagingRepository.instance.togglePinned(conversation.id, user.id, !isPinned);
+          showToast(context, isPinned ? 'Unpinned' : 'Pinned to top');
+        },
+        child: ACard(
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ChatConversationPage(
+                  conversationId: conversation.id, currentUser: user,
+                  otherUserId: otherId, otherUserName: otherName, otherUserPhoto: otherPhoto))),
+          child: Row(children: [
+            UserAvatar(initials: otherName.isEmpty ? '?' : otherName[0].toUpperCase(),
+                radius: 22, photoUrl: otherPhoto),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(otherName, style: AppText.title.copyWith(fontSize: 14)),
+                Text(conversation.lastMessageSenderId == user.id ? 'You: ${conversation.lastMessageText}' : conversation.lastMessageText,
+                    style: AppText.bodySm.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+              ]),
+            ),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(_relativeTime(conversation.lastMessageAt), style: AppText.caption.copyWith(fontSize: 10.5)),
+              const SizedBox(height: 6),
+              if (unread > 0)
+                Container(
+                  width: 20, height: 20,
+                  decoration: BoxDecoration(color: ac.primary, shape: BoxShape.circle),
+                  alignment: Alignment.center,
+                  child: Text('$unread', style: AppText.label.copyWith(fontSize: 10.5, color: Colors.white, letterSpacing: 0)),
+                ),
+            ]),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  String _relativeTime(DateTime dt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(dt.year, dt.month, dt.day);
+    if (day == today) {
+      final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final ampm = dt.hour >= 12 ? 'PM' : 'AM';
+      return '$h:${dt.minute.toString().padLeft(2, '0')} $ampm';
+    }
+    if (day == today.subtract(const Duration(days: 1))) return 'Yesterday';
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${months[dt.month - 1]} ${dt.day}';
   }
 }
 

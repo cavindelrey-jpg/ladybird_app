@@ -50,26 +50,31 @@ const double kJuniorSecondaryMultiplier = 1.0;
 const double kSeniorSecondaryMultiplier = 1.6;
 const double kAdvancedLevelMultiplier = 2.2;
 
+enum AcademicTier { juniorSecondary, seniorSecondary, advanced }
+
 /// Maps [AppUser.educationLevel] (a fixed dropdown list — see
 /// EducationLevels.all in models/app_user.dart) to the plan's three-tier
-/// multiplier. Form 1-3 → Junior Secondary; Form 4-5 → Senior Secondary;
-/// Lower/Upper Sixth (Cameroon's actual "Advanced Level") → the Advanced
-/// tier. University/Professional/Independent Learner/Other don't map to
-/// any school form at all — bucketed into the Advanced tier too, on the
-/// reasoning that a post-secondary or self-directed learner is tackling
-/// at-least-advanced-level material, not that they're literally in Sixth
-/// Form. Unrecognized/empty values fall back to the lowest tier rather
-/// than the highest — a conservative default so an unset profile field
-/// under-rewards instead of over-rewards.
-double academicLevelMultiplier(String educationLevel) {
+/// classification. Form 1-3 → Junior Secondary; Form 4-5 → Senior
+/// Secondary; Lower/Upper Sixth (Cameroon's actual "Advanced Level") →
+/// the Advanced tier. University/Professional/Independent Learner/Other
+/// don't map to any school form at all — bucketed into the Advanced tier
+/// too, on the reasoning that a post-secondary or self-directed learner
+/// is tackling at-least-advanced-level material, not that they're
+/// literally in Sixth Form. Unrecognized/empty values fall back to the
+/// lowest tier rather than the highest — a conservative default so an
+/// unset profile field under-rewards instead of over-rewards. Shared by
+/// [academicLevelMultiplier] (§4.2's quiz XP multiplier) and
+/// [quizDailyXpCapForLevel] (§4.4's daily quiz cap) so the two never
+/// drift out of sync with each other.
+AcademicTier academicTierFor(String educationLevel) {
   switch (educationLevel) {
     case 'Form 1':
     case 'Form 2':
     case 'Form 3':
-      return kJuniorSecondaryMultiplier;
+      return AcademicTier.juniorSecondary;
     case 'Form 4':
     case 'Form 5':
-      return kSeniorSecondaryMultiplier;
+      return AcademicTier.seniorSecondary;
     case 'Lower Sixth Arts':
     case 'Lower Sixth Science':
     case 'Upper Sixth Arts':
@@ -78,10 +83,45 @@ double academicLevelMultiplier(String educationLevel) {
     case 'Professional / Working Adult':
     case 'Independent Learner':
     case 'Other':
-      return kAdvancedLevelMultiplier;
+      return AcademicTier.advanced;
     default:
-      return kJuniorSecondaryMultiplier;
+      return AcademicTier.juniorSecondary;
   }
+}
+
+double academicLevelMultiplier(String educationLevel) {
+  switch (academicTierFor(educationLevel)) {
+    case AcademicTier.juniorSecondary: return kJuniorSecondaryMultiplier;
+    case AcademicTier.seniorSecondary: return kSeniorSecondaryMultiplier;
+    case AcademicTier.advanced:        return kAdvancedLevelMultiplier;
+  }
+}
+
+// ── Daily quiz XP cap (production_plan.md §4.4) ───────────────────────────
+
+const int kJuniorSecondaryDailyQuizCap = 120;
+const int kSeniorSecondaryDailyQuizCap = 160;
+const int kAdvancedDailyQuizCap = 200;
+
+/// Overall quiz XP ceiling, authoritative even over a level's own cap
+/// (though in practice no level cap above exceeds this anyway — the
+/// highest, Advanced's 200, is already below it. Written down because
+/// the plan states it as an independent rule, not because it currently
+/// changes any actual number.)
+const int kOverallDailyQuizXpCap = 280;
+
+/// The plan's §4.4 per-level daily QUIZ XP cap — separate from
+/// XpRepository's general kDailyXpCap, which every XP source (quiz,
+/// magazine, streak, club) shares. See XpRepository.awardXp() for how
+/// quiz sources are additionally metered against this, on top of (not
+/// instead of) the general cap.
+int quizDailyXpCapForLevel(String educationLevel) {
+  final capForLevel = switch (academicTierFor(educationLevel)) {
+    AcademicTier.juniorSecondary => kJuniorSecondaryDailyQuizCap,
+    AcademicTier.seniorSecondary => kSeniorSecondaryDailyQuizCap,
+    AcademicTier.advanced => kAdvancedDailyQuizCap,
+  };
+  return capForLevel < kOverallDailyQuizXpCap ? capForLevel : kOverallDailyQuizXpCap;
 }
 
 /// Maps a question's format to the XP source whose flat `baseXp` rate

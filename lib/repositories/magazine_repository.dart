@@ -1,16 +1,18 @@
 // lib/repositories/magazine_repository.dart
 // Full Firestore backing for the Magazine module: feed variants, a single
-// article's comments/likes/bookmarks, publishing/editing, thumbnail
-// upload, and the reads -> pending-XP -> settlement pipeline (2 XP per
-// unique new reader, credited to the author's AppUser.xpTotal).
+// article's comments/likes/bookmarks/shares, publishing/editing, thumbnail
+// upload, and the engagement -> formula-based, 24h-delayed, one-time XP
+// settlement pipeline (production_plan.md §4.5) — see
+// settleMagazineXpIfDue().
 
+import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/magazine_article.dart';
 import '../models/xp_transaction.dart';
 import '../core/result.dart';
-import '../services/auth_service.dart';
+import 'xp_repository.dart';
 
 class MagazineRepository {
   MagazineRepository._();
@@ -145,15 +147,18 @@ class MagazineRepository {
       batch.set(ref, comment.toFirestore());
       batch.update(_articles.doc(comment.articleId), {'commentCount': FieldValue.increment(1)});
       await batch.commit();
+      unawaited(settleMagazineXpIfDue(comment.articleId));
       return const Success(null);
     } catch (e) {
       return Failure('Failed to post comment', e);
     }
   }
 
-  // ── Reads -> pending author XP ───────────────────────────────────────────
-  // 2 XP per UNIQUE reader, credited to the author — matches the decided
-  // XP source. Repeat reads by the same person never earn XP again.
+  // ── Reads, shares -> engagement counters ────────────────────────────────
+  // production_plan.md §4.5: author XP is NOT credited per-event anymore.
+  // recordRead/recordShare (and toggleLike/postComment below) only ever
+  // increment raw counters; the actual XP is computed ONCE, 24h after
+  // publish, from the plan's formula — see settleMagazineXpIfDue().
 
   Future<Result<void>> recordRead(String articleId, {
     required String? readerId,
@@ -168,37 +173,88 @@ class MagazineRepository {
         final readDoc = await tx.get(readRef);
         if (readDoc.exists) return; // already read by this person — no-op
         tx.set(readRef, {'readAt': FieldValue.serverTimestamp()});
-        tx.update(_articles.doc(articleId), {
-          'readCount': FieldValue.increment(1),
-          'pendingAuthorXp': FieldValue.increment(2),
-        });
+        tx.update(_articles.doc(articleId), {'readCount': FieldValue.increment(1)});
       });
+      unawaited(settleMagazineXpIfDue(articleId));
       return const Success(null);
     } catch (e) {
       return Failure('Failed to record read', e);
     }
   }
 
-  /// Called once per app session (see app_router.dart) to credit any XP
-  /// this user has earned as an AUTHOR since the last settlement.
+  /// Same unique-per-user dedup as reads/likes — sharing the same article
+  /// five times shouldn't count as five shares toward the author's XP.
+  Future<Result<void>> recordShare(String articleId, String userId) async {
+    if (userId.isEmpty) return const Success(null); // guests don't earn/track shares
+    try {
+      final shareRef = _articles.doc(articleId).collection('shares').doc(userId);
+      await _db.runTransaction((tx) async {
+        final shareDoc = await tx.get(shareRef);
+        if (shareDoc.exists) return;
+        tx.set(shareRef, {'sharedAt': FieldValue.serverTimestamp()});
+        tx.update(_articles.doc(articleId), {'shareCount': FieldValue.increment(1)});
+      });
+      unawaited(settleMagazineXpIfDue(articleId));
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to record share', e);
+    }
+  }
+
+  /// production_plan.md §4.5's formula, run exactly once per article, no
+  /// earlier than 24h after publish: XP = (views/50) + (likes*2) +
+  /// (comments*5) + (shares*4), capped at [kMagazinePerPostXpCap]. There's
+  /// no Cloud Scheduler in this project to fire this automatically at the
+  /// 24h mark, so it's checked opportunistically as a side effect of any
+  /// reader interaction with the article (read/share here, like/comment
+  /// below) — eventually-consistent (an article nobody touches again
+  /// after the 24h mark simply settles the next time anyone does), and
+  /// safe to call redundantly: the transaction's `magazineXpSettled`
+  /// check makes it a no-op after the first successful run.
+  Future<void> settleMagazineXpIfDue(String articleId) async {
+    try {
+      int? amountToAward;
+      String? authorId;
+      await _db.runTransaction((tx) async {
+        final snap = await tx.get(_articles.doc(articleId));
+        if (!snap.exists) return;
+        final article = MagazineArticle.fromFirestore(snap);
+        if (article.magazineXpSettled) return;
+        if (DateTime.now().difference(article.createdAt) < const Duration(hours: 24)) return;
+
+        final raw = (article.readCount / 50) +
+            (article.likeCount * 2) +
+            (article.commentCount * 5) +
+            (article.shareCount * 4);
+        final amount = raw.round().clamp(0, kMagazinePerPostXpCap);
+        tx.update(_articles.doc(articleId), {'magazineXpSettled': true});
+        if (amount > 0) {
+          amountToAward = amount;
+          authorId = article.authorId;
+        }
+      });
+      if (amountToAward != null && authorId != null && authorId!.isNotEmpty) {
+        await XpRepository.instance.awardXp(
+          authorId!, XpSource.magazineRead, amountToAward!, articleId: articleId,
+        );
+      }
+    } catch (_) {
+      // best-effort — the next interaction with this article will retry
+    }
+  }
+
+  /// Called once per app session (see app_router.dart) to catch any of
+  /// this user's OWN authored articles that crossed the 24h mark since
+  /// their last session, in case nobody else interacted with it meanwhile
+  /// to trigger settleMagazineXpIfDue() as a side effect.
   Future<void> settlePendingXp(String userId) async {
     if (userId.isEmpty) return;
     final snap = await _articles
         .where('authorId', isEqualTo: userId)
-        .where('pendingAuthorXp', isGreaterThan: 0)
+        .where('magazineXpSettled', isEqualTo: false)
         .get();
-    if (snap.docs.isEmpty) return;
-
-    var totalOwed = 0;
-    final batch = _db.batch();
     for (final doc in snap.docs) {
-      final owed = (doc.data()['pendingAuthorXp'] as num?)?.toInt() ?? 0;
-      totalOwed += owed;
-      batch.update(doc.reference, {'pendingAuthorXp': 0});
-    }
-    await batch.commit();
-    if (totalOwed > 0) {
-      await AuthService.instance.addXp(userId, totalOwed, XpSource.magazineRead);
+      await settleMagazineXpIfDue(doc.id);
     }
   }
 
@@ -216,6 +272,7 @@ class MagazineRepository {
         await likeRef.set({'likedAt': FieldValue.serverTimestamp()});
         await _articles.doc(articleId).update({'likeCount': FieldValue.increment(1)});
       }
+      unawaited(settleMagazineXpIfDue(articleId));
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update like', e);

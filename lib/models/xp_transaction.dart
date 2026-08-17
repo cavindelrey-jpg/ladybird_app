@@ -126,12 +126,28 @@ const int kPaperUnlockCost = 150;
 const int kMarkingSchemeAddOnCost = 75;
 const int kFullBundleCost = 800;
 
-// Small on purpose — this is metered engagement income, not a quiz
-// reward. A viral article (thousands of unique reads) still only earns
-// its author up to kDailyXpCap per day, same ceiling as everyone else;
-// the daily cap in XpRepository.awardXp() is what actually prevents a
-// viral spike from minting runaway currency, not this per-read amount.
+// DEPRECATED — the old flat "2 XP per unique read" rate. Superseded by
+// production_plan.md §4.5's formula (see kMagazinePerPostXpCap below and
+// MagazineRepository.settleMagazineXpIfDue()); XpSource.magazineRead's
+// baseXp getter still returns this only because every other XpSource
+// needs a baseXp value and nothing currently reads magazineRead.baseXp
+// for the actual award amount — the formula computes and passes its own
+// amount directly to XpRepository.awardXp() instead.
 const int kMagazineReadXp = 2;
+
+/// production_plan.md §4.5: per-post cap on the ONE-TIME, 24h-delayed
+/// formula-based settlement (views/50 + likes*2 + comments*5 + shares*4).
+const int kMagazinePerPostXpCap = 80;
+
+/// The plan's separate 100XP/day magazine allowance is NOT enforced as
+/// its own tracked pool yet — magazine settlements currently draw from
+/// the same shared kDailyXpCap every other XP source does. Building a
+/// real per-category daily-cap system (this, plus §4.4's per-level quiz
+/// caps) was deliberately deferred as one larger, riskier restructuring
+/// of XpRepository.awardXp() rather than two separate half-measures —
+/// see docs/AUTOPILOT_LOG.md. This constant exists so the intended value
+/// is at least written down and easy to find when that work happens.
+const int kMagazineDailyXpCap = 100;
 
 class XpTransaction {
   final String id;

@@ -1532,7 +1532,7 @@ users) â€” the plan explicitly wants this as a SEPARATE, second concept.
   being able to build/test it. The in-app Home section is an honest
   reminder surface, not a notification system pretending to exist.
 - `flutter analyze` full project: 36 issues, same baseline as this
-  session's start â€” zero new issues.
+  session's start — zero new issues.
 
 ## Session continues (2026-08-17, same day): user said "never stop and
 ask for permission... keep running", authorized up to 3 agents. Launched
@@ -1794,3 +1794,162 @@ sandbox. Recommendations were added ALONGSIDE banners, not in place of
 them. Flagging explicitly rather than quietly skipping, per this log's
 existing convention.
 
+## Session continues (2026-08-17, same day): §8 Entitlements + §9 Gifted Premium / vouchers
+
+Branch `worktree-agent-a7baa09f063903465`, worktree off `demo-prep`.
+Note for whoever merges: the worktree was originally cut from a much
+older commit (the `flutter_quill` version-conflict run), not from
+`demo-prep` as briefed — it had zero commits of its own and a clean tree,
+so it was fast-forwarded to `demo-prep` (d0c8212) before any work
+started. Worth checking whether other parallel worktrees were cut the
+same way.
+
+**§8 — verified before building.** `AppUser` had exactly one flat
+`isPremium` bool, and a grep for real `AppUser.isPremium` consumers found
+only THREE call sites (`library_page.dart:97` premium-resource gate,
+`xp_repository.dart:184/190` unlock checks) — everything else matching
+"isPremium" was `LibraryItem.isPremium` or `CreateAccountScreen`'s own
+constructor param, both unrelated. Three call sites made the
+derived-getter approach clearly right over a find-and-update pass:
+`isPremium` is now a getter over the new entitlement and no consumer
+changed at all.
+
+- New `models/entitlement.dart`. The key modelling decision: the plan
+  lists Free/Premium/Gifted Premium as "states", but implementing them as
+  three tiers would rebuild exactly the permanent-account-type problem §8
+  exists to remove. Split instead into `EntitlementTier` (free/premium —
+  WHAT access) and `EntitlementSource` (WHY — selfPurchase/gift/sponsor/
+  school/promotional/adminGrant). "Gifted Premium" is then derived
+  (`premium + gift`), which is literally §9's closing principle. The
+  sponsor/school/promotional values are already in the enum unused, so
+  §9's forward-looking list (parents, teachers, schools, sponsors,
+  organizations, promotions, scholarships) needs no schema change later.
+- **Assumption — legacy premium accounts.** A user doc written before
+  this change has `isPremium: true` and no entitlement fields. Read as
+  perpetual premium with source `adminGrant` rather than dropping to
+  Free. `adminGrant` is the honest label: the old schema recorded no
+  source and no expiry, so there is nothing truer to recover. Without
+  this every currently-premium user silently loses access on next open.
+- **Assumption — flat, not nested, storage.** Entitlement fields are
+  written as five top-level keys on the user doc rather than a nested
+  map, specifically so firestore.rules can guard them individually; a
+  nested map can only be compared wholesale, which makes the narrow
+  "redemption may write these and nothing else" rule inexpressible.
+- `toFirestore()` keeps writing `isPremium` as the DERIVED value, so the
+  legacy field stays a truthful mirror for older app builds still in the
+  wild and for anything else reading it.
+
+**§9 — Purchase / Voucher / redemption.**
+- **No payment code exists anywhere in this feature, by design.** §9's
+  sale is physical — cash to an agent in person — so a Purchase document
+  is a RECORD of an already-completed external transaction, entered
+  manually. Nothing charges anyone; no provider, no webhook, no SDK.
+- **Assumption — no price is hardcoded.** `EntitlementPackage` carries
+  duration (30/90/180/365 days) but deliberately no price. The agent
+  types the amount actually collected, because real physical sales
+  involve negotiated/promotional/regional pricing and a hardcoded price
+  displayed as the real one is precisely the fabricated-data pattern this
+  project bans.
+- **Design — the voucher's document id IS its normalized code.** Forced
+  by atomicity, not convenience: the Firestore client SDK cannot run a
+  query inside a transaction, so a `where('code', ...)` lookup would have
+  to happen outside it and would reopen the double-redeem race the
+  transaction exists to close. Addressing the doc directly keeps the
+  whole redeem path in one transaction, and also makes the
+  firestore.rules redemption rule expressible.
+- **Design — only 3 of the 5 voucher states are stored.** §9 lists
+  Unused -> Redeemed -> Active -> Expired/Revoked. `active` and `expired`
+  are the same redeemed voucher before/after its expiry instant, a pure
+  function of the date and the clock, so they are derived via
+  `effectiveStatus`. Storing them would require a nightly job to flip
+  them (a Cloud Function this project doesn't have) and would let the
+  stored value drift out of agreement with the dates beside it.
+- **Code format.** 12 chars in 3 groups of 4 (`A7K4-9MPX-3TQR`) from a
+  31-char alphabet with every confusable pair removed (no O/0, no I/1/L),
+  generated with `Random.secure()` — a predictable PRNG would let someone
+  who bought one voucher derive the codes issued around it. Excluded
+  characters are DROPPED on normalization rather than folded onto a
+  neighbour, since neither member of each pair is in the alphabet and
+  guessing one would silently resolve to a different voucher.
+- **Redemption atomicity** follows the pattern of `XpRepository.awardXp()`
+  and this session's `AuthService.recordDailyActivity()` fix: status
+  check + both writes inside one `runTransaction` on fresh server state.
+  The user's current entitlement is re-read INSIDE the transaction rather
+  than taken from the caller's possibly-stale `AppUser`, because stacking
+  onto a stale expiry would silently shorten access already paid for.
+- **Decision — vouchers stack, not overwrite.** Redeeming while still
+  premium adds the days to the existing expiry. Overwriting would destroy
+  time the user paid for.
+- **Decision — expiry counts from REDEMPTION, not from sale.** A voucher
+  sits in an envelope until it's gifted; counting from purchase would
+  burn the buyer's money while it waited.
+- **Decision — `revokeVoucher` does not claw back premium** from an
+  account that already redeemed. Stripping access someone is mid-term
+  using is a support decision with real user impact, not something a
+  list-row overflow menu should do silently. Revoking an unused voucher
+  (the actual refund case) still fully prevents access.
+- **Assumption — the sales-agent role.** There is no `salesAgent` role in
+  the 6-tier system, and adding one means touching the role enum, its
+  Firestore parsing and firestore.rules' `roleLevel()` ladder — far more
+  blast radius than §9 needs. Gated on the existing
+  `AppUser.canManageUsers` (departmentAdmin+), the closest existing
+  "trusted staff who may act on other people's accounts" authority, which
+  is exactly what issuing a voucher requires. Checked at both entry
+  points AND inside the page itself.
+- **Assumption — new `features/entitlements/` folder** rather than
+  putting the sales desk in `features/admin/`. §10 names Entitlements as
+  one of the three top-level architecture layers, decoupled from both
+  Academia and School Management; the sales desk merely happens to be
+  admin-gated.
+
+**firestore.rules — LOCAL EDIT ONLY, not deployed** (same standing
+constraint as every other rules change this session; needs
+`firebase deploy --only firestore:rules` run manually).
+- `purchases` is staff-only end to end — no `read if isSignedIn()`,
+  because these docs hold the amount paid, the buyer's name and the
+  agent's identity.
+- `vouchers` splits `get` from `list`: `get` is open to any signed-in
+  user (the redeemer must read the doc inside the transaction) but only
+  for an id they can already name, i.e. only if they hold the code;
+  `list` is staff-only so the collection can't be enumerated for unused
+  codes.
+- **Pre-existing hole found and closed:** the `users/{uid}` self-update
+  branch freezes role/status/schoolId/accountType and bounds XP, but
+  allowed any other field — so a user could ALWAYS have set
+  `isPremium: true` on themselves with a one-line profile write. That
+  predates §8; moving premium into entitlement fields would have
+  inherited it. Entitlement keys are now frozen on self-writes unless the
+  write is a genuine redemption naming a currently-unused voucher.
+- **Honest limitation, documented in the rules file itself:** rules
+  cannot prove the user-doc write and the voucher write belong to the
+  same transaction, so a user could in principle write only the
+  entitlement half. Doing so requires already knowing a valid unused
+  code — the same secret that legitimately entitles them — so it gains
+  nothing over redeeming normally. Fully closing it needs a Cloud
+  Function, the same server-authoritative work §4.9 already defers.
+
+**Deliberately NOT built.**
+- `EntitlementRepository.watchMyVouchers` was written and then REMOVED
+  once the rules landed: it needs a `list` query over `vouchers`, which
+  is staff-only, so it would always have failed with permission-denied
+  for the users it was meant for. A comment records the correct shape (a
+  per-user mirror under `users/{uid}/redemptions` written by the redeem
+  transaction) rather than loosening `list` on the shared collection.
+  Shipping a Profile section that always errors would have been worse
+  than not shipping one.
+- No Cloud Function for server-side expiry. `Entitlement.isActive` is
+  evaluated against the device clock, the same honest limitation already
+  documented on XpRepository's daily cap — a user rolling their clock
+  back can stretch an expired entitlement locally. Rules stop them
+  WRITING a longer one; true enforcement is §4.9's deferred work.
+- No self-purchase flow. `EntitlementSource.selfPurchase` exists in the
+  model but nothing writes it, because doing so would mean an in-app
+  payment path — an explicit stop condition. §9's physical-sales route is
+  the only funded path implemented.
+- `features/onboarding/create_account_screen.dart` still has its
+  "Continue to Payment" premium branch, untouched. It predates this work
+  and wiring it to anything real would be a payment integration; left
+  exactly as found.
+
+`flutter analyze` on the full `lib/`: 36 issues, identical to this
+session's baseline — zero new issues.

@@ -2,6 +2,9 @@
 export 'institution.dart';
 export 'academic_content.dart';
 export 'app_user.dart';
+export 'entitlement.dart';
+export 'purchase.dart';
+export 'voucher.dart';
 export 'announcement.dart';
 export 'club.dart';
 export 'library_item.dart';

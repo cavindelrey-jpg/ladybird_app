@@ -79,6 +79,52 @@ service cloud.firestore {
         || myUserDoc().status != 'suspended';
     }
 
+    // ── Entitlement helpers (production_plan.md §8/§9) ─────────────────
+    // Premium is now an entitlement on the account rather than a flat
+    // bool, so the fields that decide paid access need the same kind of
+    // guard the XP fields above already have. Without this, ANY user
+    // could grant themselves permanent Premium with a one-line profile
+    // write — the self-update branch below otherwise lets a user set any
+    // field on their own document that isn't explicitly frozen.
+    function entitlementKeys() {
+      return ['entitlementTier', 'entitlementSource', 'entitlementStartAt',
+              'entitlementExpiresAt', 'entitlementSourceRef', 'isPremium'];
+    }
+
+    function entitlementUntouched() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(entitlementKeys());
+    }
+
+    // The ONE shape a normal user may write to their own entitlement:
+    // claiming a gift voucher they hold the code for.
+    //
+    // The referenced voucher must currently be UNUSED. Inside a
+    // transaction, get() sees pre-transaction committed state, so a
+    // voucher already consumed fails here and a second redemption of the
+    // same code cannot grant a second entitlement.
+    //
+    // Honest limitation: rules cannot verify that the matching voucher
+    // write is part of the SAME transaction, so in principle a user could
+    // write only this half and grant themselves premium while leaving the
+    // voucher unused. Doing so requires already knowing a valid unused
+    // voucher code — which is exactly the secret that legitimately
+    // entitles them to redeem it — so the attack gains nothing over just
+    // redeeming normally. Closing it fully needs a Cloud Function
+    // (the same server-authoritative work production_plan.md §4.9 defers).
+    function isValidGiftRedemption() {
+      return request.resource.data.get('entitlementTier', '') == 'premium'
+        && request.resource.data.get('entitlementSource', '') == 'gift'
+        // Non-empty, not merely "is a string" — an ABSENT field also
+        // reads as a string via get()'s '' default, and the path
+        // interpolation below would then error on a missing key. && is
+        // short-circuit, so this ordering keeps the lookup safe.
+        && request.resource.data.get('entitlementSourceRef', '') != ''
+        && exists(/databases/$(database)/documents/vouchers/$(request.resource.data.entitlementSourceRef))
+        && get(/databases/$(database)/documents/vouchers/$(request.resource.data.entitlementSourceRef))
+             .data.status == 'unused';
+    }
+
     // Club-scoped role helpers (used by the clubs/{clubId} rules below).
     function clubMemberRole(clubId) {
       return get(/databases/$(database)/documents/clubs/$(clubId)/members/$(request.auth.uid)).data.role;
@@ -102,6 +148,11 @@ service cloud.firestore {
           request.resource.data.status == resource.data.status &&
           request.resource.data.schoolId == resource.data.schoolId &&
           request.resource.data.accountType == resource.data.accountType &&
+          // Paid access can't be self-granted — either the entitlement
+          // fields don't move at all, or this is a genuine §9 voucher
+          // redemption. Staff grants go through the canManageUsers()
+          // branch at the bottom of this rule instead.
+          (entitlementUntouched() || isValidGiftRedemption()) &&
           // XP fields can't be set arbitrarily by a normal profile-edit
           // write — only via the bounded earn/spend shapes below. This
           // is defense-in-depth, not a full guarantee: a client calling
@@ -894,6 +945,77 @@ service cloud.firestore {
       allow update: if isSignedIn() && canUploadContent() &&
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['responses', 'status', 'gradedAt', 'totalXpAwarded']);
+      allow delete: if false;
+    }
+
+    // ── purchases/{id} ────────────────────────────────────────────────
+    // production_plan.md §9. A record of a PHYSICAL sale (cash handed to
+    // a sales agent in person) — it contains the amount paid, the buyer's
+    // name and which agent took the money. None of that is any ordinary
+    // user's business, so unlike almost every other collection in this
+    // file there is no "allow read: if isSignedIn()" here. Staff only,
+    // end to end.
+    //
+    // Note this is commercial bookkeeping, not a payment integration:
+    // nothing in the app ever charges anyone, so there is no payment
+    // webhook or provider identity to authorize here.
+    match /purchases/{purchaseId} {
+      allow read:   if canManageUsers();
+      allow create: if canManageUsers()
+                    && request.resource.data.salesAgentId == request.auth.uid;
+      allow update: if canManageUsers();
+      // Purchase records are the audit trail behind every issued voucher.
+      // Deleting one would orphan its voucher and erase the evidence that
+      // money was taken — refunds are recorded via status, not deletion.
+      allow delete: if false;
+    }
+
+    // ── vouchers/{code} ───────────────────────────────────────────────
+    // production_plan.md §9. The document id IS the normalized voucher
+    // code (see lib/models/voucher.dart for why — atomic redemption needs
+    // a direct document read, and the client SDK can't query inside a
+    // transaction).
+    //
+    // get vs list is the important distinction here. A redeeming user
+    // must be able to READ the voucher document inside the redemption
+    // transaction, so `get` is open to any signed-in user — but only for
+    // a document whose id they can already name, i.e. only if they
+    // already hold the code. `list` stays staff-only, so nobody can
+    // enumerate the collection to harvest unused codes. Guessing one
+    // instead means searching a 31^12 (~7.9e17) space.
+    match /vouchers/{voucherId} {
+      allow get:  if isSignedIn();
+      allow list: if canManageUsers();
+
+      // Only staff issue vouchers, and only against a purchase they
+      // recorded. Users can never mint one.
+      allow create: if canManageUsers()
+                    && request.resource.data.createdByUid == request.auth.uid
+                    && request.resource.data.status == 'unused';
+
+      allow update: if
+        // (a) Staff administration — revoking a voucher after a refund.
+        canManageUsers()
+        // (b) A normal user redeeming a code they hold. Deliberately
+        // narrow: the voucher must currently be UNUSED, may only move to
+        // REDEEMED, and the redeemer may only name THEMSELVES as the
+        // recipient. hasOnly() freezes everything else on the document —
+        // a user cannot touch durationDays to buy themselves ten years,
+        // cannot rewrite purchaseId to launder the audit trail, and
+        // cannot un-revoke a cancelled voucher.
+        || (
+          isSignedIn()
+          && accountNotSuspended()
+          && resource.data.status == 'unused'
+          && request.resource.data.status == 'redeemed'
+          && request.resource.data.recipientUserId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['status', 'recipientUserId', 'recipientName',
+                         'redeemedAt', 'expiresAt'])
+        );
+
+      // Same reasoning as purchases: a redeemed voucher is the proof of
+      // why an account has premium. Revoke sets a status, never deletes.
       allow delete: if false;
     }
 

@@ -9,7 +9,9 @@
 // standard (see MagazineRepository's computed Featured/Trending).
 
 import '../models/academic_content.dart';
+import '../models/public_course.dart';
 import '../repositories/academic_content_repository.dart';
+import '../repositories/public_course_repository.dart';
 
 class RecommendationRepository {
   RecommendationRepository._();
@@ -52,5 +54,34 @@ class RecommendationRepository {
         .first
         .timeout(const Duration(seconds: 5), onTimeout: () => const []);
     return fallback.take(limit).toList();
+  }
+
+  /// Courses recommendations: same favorite-subject-first, recent-
+  /// fallback shape as [forLibrary]. `PublicCourse` has no subject-scoped
+  /// query of its own (only `watchByCategory`, a broader taxonomy level
+  /// than `subject` — see PublicCourseRepository's curriculum-hierarchy
+  /// comment), so this filters `subject` client-side over the same
+  /// bounded `watchLatest()` fetch that repository's own
+  /// `categoryCountsOnce()` already uses for a similar client-side
+  /// aggregation — consistent with, not a departure from, that repo's
+  /// existing pattern.
+  ///
+  /// Not yet wired into a UI surface — courses_marketplace_page.dart has
+  /// unrelated uncommitted changes from an earlier session sitting in the
+  /// working tree; wiring this in was deferred rather than bundling it
+  /// into that file's pending diff. See docs/AUTOPILOT_LOG.md.
+  Future<List<PublicCourse>> forCourses({
+    required List<String> favoriteSubjects,
+    int limit = 8,
+  }) async {
+    final repo = PublicCourseRepository.instance;
+    final pool = await repo.watchLatest(limit: 60).first
+        .timeout(const Duration(seconds: 5), onTimeout: () => const []);
+    if (favoriteSubjects.isNotEmpty) {
+      final favSet = favoriteSubjects.toSet();
+      final matched = pool.where((c) => favSet.contains(c.subject)).take(limit).toList();
+      if (matched.isNotEmpty) return matched;
+    }
+    return pool.take(limit).toList();
   }
 }

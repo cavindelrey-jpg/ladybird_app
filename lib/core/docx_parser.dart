@@ -36,7 +36,31 @@ class DocxParser {
     'heading 1': 1, 'heading 2': 2, 'heading 3': 3, // some docs use spaced style IDs
   };
 
+  /// Raw upload size cap — this runs entirely client-side (no server to
+  /// share the memory/CPU cost with), and a real course document is
+  /// realistically well under 1MB of formatted text even at dozens of
+  /// pages. 20MB is generous headroom, not a tight limit.
+  static const int _maxInputBytes = 20 * 1024 * 1024;
+
+  /// Decompressed XML size cap — the `archive` package's ZipDecoder has
+  /// no built-in guard against a small compressed file expanding to a
+  /// huge one (a zip-bomb-style payload), so this is checked explicitly
+  /// after decompression rather than trusted to be proportional to
+  /// [_maxInputBytes].
+  static const int _maxXmlChars = 50 * 1024 * 1024;
+
+  /// Hard ceiling on paragraphs processed — defense in depth even if a
+  /// crafted document slips under the size caps above but is built to
+  /// contain an absurd element count.
+  static const int _maxParagraphs = 50000;
+
   static DocxParseResult parse(Uint8List bytes) {
+    if (bytes.length > _maxInputBytes) {
+      throw FormatException(
+          'This file is too large to import (${(bytes.length / (1024 * 1024)).toStringAsFixed(1)} MB — '
+          'limit is ${_maxInputBytes ~/ (1024 * 1024)} MB). Try a smaller document.');
+    }
+
     final warnings = <String>[];
     final archive = ZipDecoder().decodeBytes(bytes);
 
@@ -49,6 +73,9 @@ class DocxParser {
     }
 
     final xmlString = utf8.decode(docXml.content as List<int>);
+    if (xmlString.length > _maxXmlChars) {
+      throw const FormatException('This document\'s content is too large/complex to import.');
+    }
     final doc = XmlDocument.parse(xmlString);
 
     final body = _first(doc.findAllElements('body'));
@@ -59,6 +86,7 @@ class DocxParser {
     final ops = <Map<String, dynamic>>[];
     final plainTextBuffer = StringBuffer();
     bool sawTable = false;
+    var paragraphCount = 0;
 
     for (final child in body.children.whereType<XmlElement>()) {
       final localName = child.name.local;
@@ -68,6 +96,11 @@ class DocxParser {
       }
       if (localName != 'p') continue; // skip sectPr and anything else
 
+      if (++paragraphCount > _maxParagraphs) {
+        warnings.add('This document has more than $_maxParagraphs paragraphs — '
+            'import stopped there; the rest wasn\'t converted.');
+        break;
+      }
       _appendParagraph(child, ops, plainTextBuffer);
     }
 

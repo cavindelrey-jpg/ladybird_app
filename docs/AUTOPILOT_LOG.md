@@ -1307,3 +1307,73 @@ sandboxed session — static verification only, consistent with
 docs/VERIFICATION.md's own prior finding that Android builds are
 blocked in this exact environment for native-toolchain reasons
 unrelated to app code).
+
+## Session continues (2026-08-17, same day): more Codebase_Review.md
+verification — Part 2/3, XP streak race condition fixed
+
+Kept going per "continue in auto mode for hours." Spot-checked more of
+Codebase_Review.md's Part 2 (Firestore/backend) and Part 3
+(architecture) findings against current source — same discipline as the
+Part 1 pass above (verify before touching anything).
+
+**Confirmed stale/already-fixed** (did NOT touch, would have been
+wasted/risky effort):
+- "createdAt can be lost on update" — checked both
+  `PublicCourseRepository.update()` (createdAt is `final` on the model
+  and the composer mutates the same already-fetched instance in place,
+  never reconstructs one without it) and `CourseRepository.update()`
+  (already explicitly strips `createdAt` from the payload before
+  writing, with a comment explaining why). Both already correct.
+- "Firestore rules for tests/testAttempts not yet in place" — false;
+  `firestore.rules` already has real rules for both (`tests/{id}`:
+  create/update gated to `canUploadContent()` + ownership;
+  `testAttempts/{id}`: grading update restricted to exactly the four
+  fields `TestRepository.gradeResponse()` touches).
+- "EngagementHelper.togglePresence non-transactional" / "userId
+  duplicated across doc ID and field" — `EngagementHelper` doesn't exist
+  anywhere in the current codebase; grepped for it and `togglePresence`,
+  zero matches. Whatever this referred to is gone or was never real.
+
+**Confirmed real and fixed**:
+- **`AuthService.recordDailyActivity` — streak recording wasn't atomic**
+  (Part 3.2, Critical). The guard compared the caller's in-memory
+  `AppUser.lastActiveDate` (from whenever that object was last loaded,
+  not necessarily fresh) against today, then wrote separately — two
+  near-simultaneous calls (app resume racing a background refresh, say)
+  could both pass the stale-read guard and both award a day of streak +
+  XP. Rewrote the guard-check-and-write as one Firestore transaction
+  that reads the user doc fresh and writes inside the same transaction;
+  a `shouldAward` flag out of the transaction gates the (necessarily
+  separate, since Firestore transactions don't nest) XP-award call
+  afterward, so at most one of any concurrent pair actually awards.
+  Ties directly to production-plan §4.1's "system must ensure a user
+  cannot repeatedly trigger the reward."
+- **`core/docx_parser.dart` — no size/complexity limits** (Part 2.3,
+  High/DoS). This runs entirely client-side via `compute()`, so nothing
+  bounded the work an oversized or maliciously-crafted `.docx` could
+  force onto a user's device. Added: a 20MB raw-upload cap (checked
+  before the zip decode even runs), a 50MB decompressed-XML-length cap
+  (`archive`'s `ZipDecoder` has no built-in guard against a small
+  compressed file expanding huge — a real zip-bomb-style vector, not
+  just a big-file problem), and a 50,000-paragraph hard ceiling with a
+  warning rather than a silent truncation. All three surface a real
+  `FormatException`/warning the existing `content_viewer_page.dart`
+  error UI already handles, not a new failure mode to build UI for.
+- `flutter analyze` on both touched files: 0 new issues (same 2
+  pre-existing infos `auth_service.dart` already had, untouched by
+  this edit).
+
+**Not done**: the rest of Part 2 (branding/config error-swallowing,
+`InstitutionProvider.restoreFromPrefs` null-check fragility, mixed
+server/client timestamps elsewhere) and Part 3/4 (client-clock XP day
+boundary — needs a Cloud Function to close properly; this repo's
+`functions/` only has one existing function, `ingestPastPapers`,
+unrelated to XP, and standing instructions reserve `firebase deploy` for
+manual execution, so a new server-authoritative XP function is real,
+valuable, but deliberately out of scope for an unattended pass that
+can't deploy or test it — flagging as the right next step for §4.9
+specifically, not silently skipping it). Also not done: the remaining
+structural/consistency items in Part 4 (mixed Result/Exception error
+handling, singleton-everywhere architecture) — these are refactors
+touching dozens of call sites each, not scoped bug fixes, and warrant
+their own planned pass rather than being folded into this one.

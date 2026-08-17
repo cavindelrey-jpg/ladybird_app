@@ -278,25 +278,45 @@ class AuthService {
     if (user.id.isEmpty) return; // guest — nothing to record
     final now = DateTime.now();
     final today = _dateKey(now);
-    if (user.lastActiveDate == today) return; // already recorded today — no double-award
+    final userRef = _db.collection(AppConstants.colUsers).doc(user.id);
 
-    final yesterday = _dateKey(now.subtract(const Duration(days: 1)));
-    final newStreak = (user.lastActiveDate == yesterday) ? user.streakDays + 1 : 1;
+    // The guard-then-write used to check the caller's in-memory `user`
+    // snapshot (possibly stale) and write separately — two near-
+    // simultaneous calls (e.g. app resume racing a background refresh)
+    // could both read "not recorded yet" and both write/award. Reading
+    // fresh server state and writing inside one transaction closes that:
+    // only the call that actually wins the transaction gets `shouldAward
+    // = true`, so at most one of any concurrent pair awards streak XP.
+    var newStreak = 0;
+    var shouldAward = false;
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(userRef);
+      final data = snap.data() ?? {};
+      final lastActiveDate = data['lastActiveDate'] as String?;
+      if (lastActiveDate == today) return; // another call already won today
 
-    final thisWeek = _weekKeys(now).toSet();
-    final carriedOver = user.weekActivityDates.where(thisWeek.contains);
-    final newWeekDates = {...carriedOver, today}.toList()..sort();
+      final yesterday = _dateKey(now.subtract(const Duration(days: 1)));
+      final currentStreak = (data['streakDays'] as num?)?.toInt() ?? 0;
+      newStreak = (lastActiveDate == yesterday) ? currentStreak + 1 : 1;
 
-    await _db.collection(AppConstants.colUsers).doc(user.id).set({
-      'lastActiveDate': today,
-      'streakDays': newStreak,
-      'weekActivityDates': newWeekDates,
-    }, SetOptions(merge: true));
+      final thisWeek = _weekKeys(now).toSet();
+      final existingWeekDates = List<String>.from(data['weekActivityDates'] ?? const []);
+      final carriedOver = existingWeekDates.where(thisWeek.contains);
+      final newWeekDates = {...carriedOver, today}.toList()..sort();
 
-    // Real streak XP — the `lastActiveDate == today` guard above means
-    // this whole block runs at most once per calendar day per user, so
-    // there's no separate de-dup check needed here. Best-effort: a
-    // failed XP award should never block Home from loading.
+      tx.set(userRef, {
+        'lastActiveDate': today,
+        'streakDays': newStreak,
+        'weekActivityDates': newWeekDates,
+      }, SetOptions(merge: true));
+      shouldAward = true;
+    });
+
+    if (!shouldAward) return;
+
+    // Real streak XP — the transaction above guarantees this runs at
+    // most once per calendar day per user. Best-effort: a failed XP
+    // award should never block Home from loading.
     try {
       await XpRepository.instance.awardXp(
         user.id, XpSource.streakDaily, kStreakDailyXp,

@@ -20,8 +20,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/app_user.dart';
 import '../../models/magazine_article.dart';
+import '../../core/constants.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../repositories/follow_repository.dart';
 import '../../theme/app_theme.dart';
@@ -35,7 +37,7 @@ import 'top_writers_page.dart';
 import '../../pages/notifications_page.dart';
 import '../../repositories/notification_repository.dart';
 
-enum _FeedTab { forYou, following, local, global }
+enum _FeedTab { forYou, trending, following, local, global }
 
 const _kCategoryColors = CategoryColorMap({
   'Essay':            C.pur,
@@ -63,6 +65,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
   String _sort = 'Newest';
 
   bool get _canCompose => widget.user != null && !widget.user!.isGuest;
+  bool get _isGuest => widget.user == null || widget.user!.isGuest;
   bool get _hasSchool => (widget.user?.schoolId ?? '').isNotEmpty;
 
   Stream<List<MagazineArticle>> _streamForTab() {
@@ -71,6 +74,8 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
       case _FeedTab.forYou:
       case _FeedTab.global:
         return repo.watchFeed();
+      case _FeedTab.trending:
+        return Stream.fromFuture(repo.watchTrendingOnce(limit: 15));
       case _FeedTab.following:
         if (widget.user == null || widget.user!.isGuest) return Stream.value(const []);
         return FollowRepository.instance.watchFollowingIds(widget.user!.id)
@@ -83,7 +88,8 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
   String get _sectionTitle {
     switch (_tab) {
       case _FeedTab.forYou:    return 'Latest Articles';
-      case _FeedTab.following: return 'From People You Follow';
+      case _FeedTab.trending:  return 'Trending Now';
+      case _FeedTab.following: return 'New Posts from Your Network';
       case _FeedTab.local:     return 'From Your School';
       case _FeedTab.global:    return 'Latest from Everyone';
     }
@@ -153,7 +159,9 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                 if (snap.hasError) {
                   return ErrorView(message: snap.error.toString());
                 }
-                final articles = _applySort(snap.data ?? const <MagazineArticle>[]);
+                final articles = _tab == _FeedTab.trending
+                    ? (snap.data ?? const <MagazineArticle>[]) // already engagement-sorted server-repo-side
+                    : _applySort(snap.data ?? const <MagazineArticle>[]);
                 if (articles.isEmpty) return _emptyState();
 
                 return ListView(
@@ -161,6 +169,8 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                   children: [
                     if (_tab == _FeedTab.forYou || _tab == _FeedTab.global)
                       _FeaturedCarousel(user: widget.user),
+                    if (_tab == _FeedTab.following && !_isGuest)
+                      _FollowingAuthorsSection(userId: widget.user!.id, currentUser: widget.user),
                     const SizedBox(height: 20),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -182,6 +192,8 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                             builder: (_) => AuthorProfilePage(authorId: a.authorId, currentUser: widget.user))),
                       ),
                     )),
+                    if (_tab == _FeedTab.trending && !_isGuest)
+                      _PopularInNetworkSection(userId: widget.user!.id, currentUser: widget.user),
                     if (_canCompose) _writeCta(context),
                   ],
                 );
@@ -274,6 +286,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
   Widget _tabRow() {
     final tabs = [
       (_FeedTab.forYou, 'For You'),
+      (_FeedTab.trending, 'Trending'),
       (_FeedTab.following, 'Following'),
       (_FeedTab.local, 'Local Feed'),
       (_FeedTab.global, 'Global Feed'),
@@ -405,6 +418,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
   Widget _emptyState() {
     String subtitle;
     switch (_tab) {
+      case _FeedTab.trending:  subtitle = 'Nothing trending yet — check back soon.'; break;
       case _FeedTab.following: subtitle = 'Follow a writer to see their articles here.'; break;
       case _FeedTab.local:     subtitle = 'No articles from your school yet.'; break;
       default:                 subtitle = _canCompose
@@ -696,6 +710,138 @@ class _LikeButton extends StatelessWidget {
               Text('${article.likeCount}', style: AppText.caption.copyWith(fontSize: 10.5)),
             ]),
           ),
+        );
+      },
+    );
+  }
+}
+
+/// The Following tab's author list (mockup's "Following" section) — real
+/// followed-author profiles with live follower counts, sitting above the
+/// existing article list ("New Posts from Your Network" below it is that
+/// same, already-real _streamForTab() data, just relabeled — not a
+/// second fabricated data source).
+class _FollowingAuthorsSection extends StatelessWidget {
+  final String userId;
+  final AppUser? currentUser;
+  const _FollowingAuthorsSection({required this.userId, required this.currentUser});
+
+  Future<List<AppUser>> _loadAuthors(List<String> ids) async {
+    if (ids.isEmpty) return [];
+    final chunks = <List<String>>[];
+    for (var i = 0; i < ids.length; i += 30) {
+      chunks.add(ids.sublist(i, i + 30 > ids.length ? ids.length : i + 30));
+    }
+    final users = <AppUser>[];
+    for (final chunk in chunks) {
+      final snap = await FirebaseFirestore.instance
+          .collection(AppConstants.colUsers)
+          .where(FieldPath.documentId, whereIn: chunk)
+          .get();
+      users.addAll(snap.docs.map((d) => AppUser.fromFirestore(d.id, d.data())));
+    }
+    return users;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<String>>(
+      stream: FollowRepository.instance.watchFollowingIds(userId),
+      builder: (context, idsSnap) {
+        final ids = idsSnap.data ?? const <String>[];
+        if (ids.isEmpty) return const SizedBox.shrink();
+        return FutureBuilder<List<AppUser>>(
+          future: _loadAuthors(ids),
+          builder: (context, snap) {
+            final authors = snap.data ?? const <AppUser>[];
+            if (authors.isEmpty) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Following', style: AppText.h2.copyWith(fontSize: 16)),
+                const SizedBox(height: 12),
+                ...authors.map((a) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(Rad.md),
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => AuthorProfilePage(authorId: a.id, currentUser: currentUser))),
+                      child: Row(children: [
+                        UserAvatar(initials: a.name.isEmpty ? '?' : a.name[0].toUpperCase(),
+                            radius: 18, photoUrl: a.photoUrl),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(a.name, style: AppText.title.copyWith(fontSize: 13.5)),
+                            StreamBuilder<int>(
+                              stream: FollowRepository.instance.watchFollowerCount(a.id),
+                              builder: (context, countSnap) => Text('${countSnap.data ?? 0} followers',
+                                  style: AppText.caption.copyWith(fontSize: 11)),
+                            ),
+                          ]),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(color: C.surf2, borderRadius: BorderRadius.circular(20), border: Border.all(color: C.bdr)),
+                          child: Text('Following', style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w700, color: C.txt2)),
+                        ),
+                      ]),
+                    ),
+                  ),
+                )),
+              ]),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// The Trending tab's "Popular in Your Network" section — the same
+/// engagement-computed pool as the main Trending Now list, filtered down
+/// to authors the user actually follows, not a separately invented ranking.
+class _PopularInNetworkSection extends StatelessWidget {
+  final String userId;
+  final AppUser? currentUser;
+  const _PopularInNetworkSection({required this.userId, required this.currentUser});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<String>>(
+      stream: FollowRepository.instance.watchFollowingIds(userId),
+      builder: (context, idsSnap) {
+        final ids = (idsSnap.data ?? const <String>[]).toSet();
+        if (ids.isEmpty) return const SizedBox.shrink();
+        return FutureBuilder<List<MagazineArticle>>(
+          future: MagazineRepository.instance.watchTrendingOnce(limit: 40),
+          builder: (context, snap) {
+            final items = (snap.data ?? const <MagazineArticle>[])
+                .where((a) => ids.contains(a.authorId)).take(6).toList();
+            if (items.isEmpty) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text('Popular in Your Network', style: AppText.h2.copyWith(fontSize: 16)),
+                ),
+                const SizedBox(height: 12),
+                ...items.map((a) => Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: _ArticleListCard(
+                    article: a, currentUser: currentUser,
+                    onOpen: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => ArticleReaderPage(article: a, currentUser: currentUser))),
+                    onOpenAuthor: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => AuthorProfilePage(authorId: a.authorId, currentUser: currentUser))),
+                  ),
+                )),
+              ]),
+            );
+          },
         );
       },
     );

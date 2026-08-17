@@ -1163,3 +1163,51 @@ real content pipelines anywhere in this codebase.
   working `ClubMembersPage` reachable via the app-bar icon, and
   converting that to a 4th TabBarView entry was judged lower-value than
   Feed/Discussions given the session's time budget).
+
+### Magazine — done this session
+- New `MagazineRepository.watchTrendingOnce()` — a real 5th "Trending"
+  tab (mockup shows For You/Trending/Following/Local/Global; the app
+  only had 4). Computed from actual engagement (likes + 2×comments) over
+  a real 7-day window, reusing the already-time-ordered `watchFeed()`
+  query and sorting/filtering client-side rather than adding a new
+  composite index for a query shape (createdAt range + published
+  equality + a computed sort) Firestore can't express in one query
+  anyway. Falls back to the full recent pool on a quiet week rather than
+  showing nothing.
+- Following tab now shows a real followed-authors list (name, live
+  follower count via the existing `FollowRepository.watchFollowerCount`,
+  tap-through to their profile) above the existing article list, which
+  is just relabeled "New Posts from Your Network" — **deliberately did
+  NOT build the mockup's separate "Latest from Your Followed" carousel
+  as a third section**, since that would just be the same real data
+  (articles from people you follow) re-sliced into a second display
+  without a genuinely different signal behind it; one honest list beats
+  two cosmetically-different views of identical data.
+- Trending tab gained "Popular in Your Network" — the same computed
+  trending pool filtered down to authors the user actually follows, not
+  a separately invented ranking.
+- `flutter analyze` on `lib/features/magazine` and
+  `lib/repositories/magazine_repository.dart`: 0 issues.
+- **Not done, and flagged as a real content-pipeline gap, not an
+  oversight**: the mockup's Student Gallery (photo galleries), Latest
+  Videos, and Recommended Podcasts sections. None of these have a real
+  content model, upload flow, or admin composer anywhere in this
+  codebase — Magazine today is text articles with an optional single
+  thumbnail. Building empty/static versions of these sections to visually
+  match the mockup would be exactly the dishonest-placeholder pattern
+  this project's own code deliberately avoids elsewhere. A future session
+  building real photo/video/podcast content types (upload flow, storage
+  path, moderation, XP treatment) should treat this as new work with its
+  own design pass, not a Magazine reskin.
+
+### Overall status vs. academia_production_plan.md §12
+Clubs/Magazine/Messaging are now materially closer to their mockups with
+real backends behind every new UI element (no static-screen placeholders
+added). Sections 1-11 and 13 of the full production plan (Library
+online/offline fixes, the Course Creation pipeline, the Quiz Engine,
+the full XP Economy server-enforcement, Personalization/timetables,
+Academia AI, the Trim/School-Edition split, simplified auth, Gifted
+Premium/vouchers, and final git-push workflow) remain untouched — that
+was this session's scope call (see the top of this section) and is what
+the next session should pick up, starting with whichever of those the
+user prioritizes next.

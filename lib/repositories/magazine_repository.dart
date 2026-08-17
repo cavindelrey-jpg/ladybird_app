@@ -61,6 +61,21 @@ class MagazineRepository {
     return snap.docs.map(MagazineArticle.fromFirestore).toList();
   }
 
+  /// One-time "Trending" fetch — computed from real engagement over the
+  /// last 7 days (likes + 2×comments), not manually curated. Reuses
+  /// watchFeed's already-time-ordered, index-free query and filters/sorts
+  /// client-side rather than adding a new composite index for a field
+  /// (createdAt range + published equality + a computed engagement sort)
+  /// Firestore can't express in one query anyway.
+  Future<List<MagazineArticle>> watchTrendingOnce({int limit = 10, int windowDays = 7}) async {
+    final cutoff = DateTime.now().subtract(Duration(days: windowDays));
+    final recent = await watchFeed(limit: 80).first;
+    final windowed = recent.where((a) => a.createdAt.isAfter(cutoff)).toList();
+    final pool = windowed.isNotEmpty ? windowed : recent; // quiet week fallback: still show *something* real
+    pool.sort((a, b) => (b.likeCount + b.commentCount * 2).compareTo(a.likeCount + a.commentCount * 2));
+    return pool.take(limit).toList();
+  }
+
   Stream<List<MagazineArticle>> watchByAuthor(String authorId) => _articles
       .where('authorId', isEqualTo: authorId)
       .orderBy('createdAt', descending: true)

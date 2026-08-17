@@ -158,6 +158,19 @@ class ProfilePage extends StatelessWidget {
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => BookmarksPage(user: user)))),
 
+          // Personal Study Timetable (production_plan.md §5) — self-
+          // authored, NOT the school-authored TimetablePage below, and
+          // not gated by any institution feature flag. It was previously
+          // nested inside the school block, which meant the platform
+          // build (APP_MODE=platform — i.e. every independent learner,
+          // exactly the audience it was built for) could not reach it at
+          // all. Hoisted out here so it works for every signed-in user,
+          // school-linked or not, which is what §5 specified.
+          if (!user.isGuest)
+            _InfoRow(Icons.event_note_outlined, 'My Study Timetable', '',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => PersonalStudyPage(user: user)))),
+
           // School-administrative nav (Notices/Calendar/Timetable/
           // Assignments/Grades/Attendance) is reserved for school-branded
           // builds (APP_MODE=school, i.e. Green Hill) even when the
@@ -190,14 +203,6 @@ class ProfilePage extends StatelessWidget {
               _InfoRow(Icons.schedule_outlined, 'Timetable', '',
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => TimetablePage(user: user)))),
-            // Personal Study Timetable (production_plan.md §5) — unlike
-            // the school Timetable above, this is self-authored and not
-            // gated by any institution feature flag; available to every
-            // signed-in user, school-linked or independent.
-            if (!user.isGuest)
-              _InfoRow(Icons.event_note_outlined, 'My Study Timetable', '',
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => PersonalStudyPage(user: user)))),
             if (inst.hasFeature(InstitutionFeature.assignments))
               _InfoRow(Icons.assignment_outlined, 'Assignments', '',
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -213,11 +218,22 @@ class ProfilePage extends StatelessWidget {
                       builder: (_) => AttendancePage(user: user)))),
           ],
 
-          const SizedBox(height: 24),
-          OutlinedButton.icon(
-            onPressed: () => context.read<InstitutionProvider>().clear(),
-            icon: const Icon(Icons.swap_horiz_rounded),
-            label: const Text('Switch School')),
+          // production_plan.md §7A lists "School login/interface" among the
+          // things the ordinary app should not surface. "Switch School"
+          // is school-login navigation, and for an independent learner it
+          // was doing nothing meaningful anyway — ProfilePage is handed
+          // Institution.independentDefault (never null) for independent
+          // accounts, so an `inst != null` check would not have hidden it.
+          // Gate on the two cases where it's genuinely actionable: the
+          // School Edition build, or an account actually linked to a
+          // school (who must keep a way to detach).
+          if (AppConfig.isSchoolMode || user.accountType == AccountType.linked) ...[
+            const SizedBox(height: 24),
+            OutlinedButton.icon(
+              onPressed: () => context.read<InstitutionProvider>().clear(),
+              icon: const Icon(Icons.swap_horiz_rounded),
+              label: const Text('Switch School')),
+          ],
         ]),
       )),
     );

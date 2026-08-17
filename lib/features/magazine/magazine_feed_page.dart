@@ -5,9 +5,14 @@
 // matches Academia's system rather than a one-off accent for this screen.
 //
 // Tab semantics (each backed by a real query, nothing faked):
-//   For You    — same as Global for now; there's no personalization
-//                signal yet, so this is honestly "everything," not a
-//                recommendation engine wearing that label.
+//   For You    — the same "everything, newest first" feed as Global,
+//                PLUS a "Recommended for You" block above it for users
+//                who have set favorite subjects (production_plan.md §7B,
+//                RecommendationRepository.forMagazine). The underlying
+//                list is still honestly everything — the personalized
+//                part is the clearly-labeled block, not a silent
+//                reordering of the whole feed. Users with no favorite
+//                subjects set see exactly what they saw before.
 //   Following  — articles from writers you follow (FollowRepository).
 //   Local Feed — articles from writers at your own school. Independent
 //                (no-school) users get an explanatory empty state instead
@@ -26,6 +31,7 @@ import '../../models/magazine_article.dart';
 import '../../core/constants.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../repositories/follow_repository.dart';
+import '../../repositories/recommendation_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/category_colors.dart';
 import '../../widgets/widgets.dart';
@@ -67,6 +73,13 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
   bool get _canCompose => widget.user != null && !widget.user!.isGuest;
   bool get _isGuest => widget.user == null || widget.user!.isGuest;
   bool get _hasSchool => (widget.user?.schoolId ?? '').isNotEmpty;
+
+  /// production_plan.md §7B — "Magazine → recommends relevant Articles".
+  /// Same gate as the Library and Courses rails: only offered to a
+  /// signed-in user who has actually set favorite subjects, so the
+  /// "Recommended for You" label is backed by a real signal.
+  bool get _showRecommended =>
+      !_isGuest && widget.user!.favoriteSubjects.isNotEmpty;
 
   Stream<List<MagazineArticle>> _streamForTab() {
     final repo = MagazineRepository.instance;
@@ -169,6 +182,8 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                   children: [
                     if (_tab == _FeedTab.forYou || _tab == _FeedTab.global)
                       _FeaturedCarousel(user: widget.user),
+                    if (_tab == _FeedTab.forYou && _showRecommended)
+                      _RecommendedSection(user: widget.user!),
                     if (_tab == _FeedTab.following && !_isGuest)
                       _FollowingAuthorsSection(userId: widget.user!.id, currentUser: widget.user),
                     const SizedBox(height: 20),
@@ -710,6 +725,66 @@ class _LikeButton extends StatelessWidget {
               Text('${article.likeCount}', style: AppText.caption.copyWith(fontSize: 10.5)),
             ]),
           ),
+        );
+      },
+    );
+  }
+}
+
+/// production_plan.md §7B — "Magazine → recommends relevant Articles".
+/// Favorite-subject-driven picks from RecommendationRepository.forMagazine
+/// (real query, real signal), rendered with the same _ArticleListCard the
+/// rest of the feed uses rather than a bespoke card, so a recommended
+/// article looks and behaves identically to any other article.
+///
+/// Stateful purely to hold the Future: the parent rebuilds on every feed
+/// snapshot and on every sort-sheet setState, and an inline Future would
+/// re-query Firestore and flash the skeleton each time.
+class _RecommendedSection extends StatefulWidget {
+  final AppUser user;
+  const _RecommendedSection({required this.user});
+
+  @override
+  State<_RecommendedSection> createState() => _RecommendedSectionState();
+}
+
+class _RecommendedSectionState extends State<_RecommendedSection> {
+  late final Future<List<MagazineArticle>> _future =
+      RecommendationRepository.instance
+          .forMagazine(favoriteSubjects: widget.user.favoriteSubjects);
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<MagazineArticle>>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.fromLTRB(16, 20, 16, 0),
+            child: ShimmerBlock(height: 96),
+          );
+        }
+        final items = snap.data ?? const <MagazineArticle>[];
+        // Hidden entirely when empty rather than shown as an empty state —
+        // an empty "Recommended for You" block is worse than no block.
+        if (items.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Recommended for You', style: AppText.h2.copyWith(fontSize: 16)),
+            const SizedBox(height: 12),
+            ...items.map((a) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _ArticleListCard(
+                article: a,
+                currentUser: widget.user,
+                onOpen: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ArticleReaderPage(article: a, currentUser: widget.user))),
+                onOpenAuthor: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => AuthorProfilePage(authorId: a.authorId, currentUser: widget.user))),
+              ),
+            )),
+          ]),
         );
       },
     );

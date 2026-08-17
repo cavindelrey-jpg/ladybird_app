@@ -8,3 +8,4 @@ export 'assignments/assignments_page.dart';
 export 'calendar/calendar_page.dart';
 export 'courses/courses_page.dart';
 export 'admin/admin_panel_page.dart';
+export 'school_management/school_management_page.dart';

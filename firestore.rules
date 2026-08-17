@@ -204,6 +204,139 @@ service cloud.firestore {
         allow update: if isSignedIn(); // claim flow sets claimed/claimedByUid
         allow create, delete: if canManageSchool() && isOwnSchool(schoolId);
       }
+
+      // ══════════════════════════════════════════════════════════════
+      // School-management subcollections (production_plan.md §7C)
+      // ══════════════════════════════════════════════════════════════
+      // AUDIT FINDING (2026-08-17, §7C pass): these six subcollections
+      // are where the school-management repositories ACTUALLY read and
+      // write — TimetableRepository, AttendanceRepository,
+      // AssignmentRepository, CalendarRepository, CourseRepository and
+      // AnnouncementRepository all build their paths as
+      // `schools/{schoolId}/<name>` (verified in each repository's
+      // _col() helper), NOT as top-level collections.
+      //
+      // Before this block they matched NO rule. A `match /schools/
+      // {schoolId}` block does not cascade to subcollections in
+      // Firestore rules — only the explicitly-declared /seats did — so
+      // every one of these paths fell through to the file's default
+      // deny. Meanwhile the top-level `match /timetable/{id}`,
+      // /attendance/{id}, /assignments/{id}, /academic_calendar/{id}
+      // and /courses/{id} rules further down this file govern paths no
+      // repository in lib/ ever touches. Those top-level rules are left
+      // exactly as they are (this pass weakens nothing), but they are
+      // effectively dead — see docs/AUTOPILOT_LOG.md.
+      //
+      // Every rule below is therefore ADDITIVE on a previously
+      // unmatched path, and every one is scoped with isOwnSchool() —
+      // strictly tighter than the dead top-level equivalents, which
+      // allow any signed-in user on the platform to read any school's
+      // records. This is the "appropriate backend authorization" half
+      // of §7C: hiding the route in the client is not security, this is.
+      //
+      // Consistency note on superAdmin: like the `schools/{schoolId}`
+      // write rule directly above, these require isOwnSchool(), so a
+      // superAdmin with no schoolId set cannot write another school's
+      // records. That mirrors the existing rule deliberately rather
+      // than silently widening superAdmin's reach in a security pass;
+      // flagged here as a decision to revisit if platform-owner
+      // cross-school access is actually wanted.
+
+      // Read: anyone signed in who belongs to this school (students need
+      // their own timetable/assignments/calendar). Write: staff only.
+      match /timetable/{slotId} {
+        allow read: if isSignedIn() && isOwnSchool(schoolId);
+        allow write: if canManageSchool() && isOwnSchool(schoolId);
+      }
+
+      match /academic_calendar/{eventId} {
+        allow read: if isSignedIn() && isOwnSchool(schoolId);
+        allow write: if canManageSchool() && isOwnSchool(schoolId);
+      }
+
+      // Mirrors the intent of the (dead) top-level /courses rule: school
+      // admins manage the catalog, and a lecturer may edit the course
+      // they own. create is admin-only because a lecturerId cannot be
+      // trusted from request.resource on a brand-new doc.
+      match /courses/{courseId} {
+        allow read: if isSignedIn() && isOwnSchool(schoolId);
+        allow create: if canManageSchool() && isOwnSchool(schoolId);
+        allow update, delete: if isOwnSchool(schoolId) && (
+          canManageSchool()
+          || (canUploadContent() && resource.data.lecturerId == request.auth.uid)
+        );
+      }
+
+      match /announcements/{announcementId} {
+        allow read: if isSignedIn() && isOwnSchool(schoolId);
+        allow create, update, delete:
+          if canPostAnnouncement() && isOwnSchool(schoolId);
+      }
+
+      // Attendance carries a studentId field, so a student may read
+      // their own record and nobody else's; staff read the register.
+      // Mirrors the shape of the existing top-level /attendance rule.
+      match /attendance/{recordId} {
+        allow read: if isSignedIn() && isOwnSchool(schoolId) && (
+          resource.data.studentId == request.auth.uid
+          || canUploadContent() || canManageSchool()
+        );
+        allow write: if (canUploadContent() || canManageSchool())
+          && isOwnSchool(schoolId);
+      }
+
+      match /assignments/{assignmentId} {
+        allow read: if isSignedIn() && isOwnSchool(schoolId);
+        allow create, update, delete:
+          if (canUploadContent() || canManageSchool()) && isOwnSchool(schoolId);
+
+        // A submission's doc id IS the studentId (AssignmentRepository
+        // .submit() does _subs(...).doc(sub.studentId).set(...)), so the
+        // ownership check can use the path directly and does not depend
+        // on the document already existing.
+        match /submissions/{studentId} {
+          allow read: if isSignedIn() && isOwnSchool(schoolId) && (
+            request.auth.uid == studentId
+            || canUploadContent() || canManageSchool()
+          );
+          allow create: if isSignedIn() && request.auth.uid == studentId
+            && isOwnSchool(schoolId);
+          // Students edit their own submission; lecturers grade it.
+          allow update: if isSignedIn() && isOwnSchool(schoolId) && (
+            request.auth.uid == studentId || canUploadContent()
+          );
+          allow delete: if false;
+        }
+      }
+    }
+
+    // ── marks/{schoolId}/... ──────────────────────────────────────────
+    // Same audit finding as the schools/ subcollections above: the real
+    // marks data does NOT live at top-level `marks/{id}` (the rule
+    // further down this file). MarksRepository writes
+    //   marks/{schoolId}/{studentId}/sequences/{sequenceId}/{markId}
+    // — note {studentId} and {sequenceId} are COLLECTION names, i.e. the
+    // schema encodes identifiers as collection ids. Firestore rules
+    // cannot bind a wildcard to a collection id (only the recursive
+    // {name=**} form), so "a student may read their own marks" is
+    // literally inexpressible against this schema; the studentId is not
+    // reachable as either a captured variable or a document field.
+    //
+    // This block is therefore staff-only. That is not a regression:
+    // these paths matched no rule at all before, so nobody could read
+    // them. It restores marks for the people who administer them while
+    // staying strictly school-scoped, and deliberately does not invent a
+    // looser rule to paper over the schema.
+    //
+    // TO FIX PROPERLY: store studentId as a FIELD on the mark document
+    // (and flatten the path), then this becomes the same
+    // `resource.data.studentId == request.auth.uid` check attendance
+    // already uses. Logged in docs/AUTOPILOT_LOG.md.
+    match /marks/{schoolId}/{document=**} {
+      allow read: if isSignedIn() && isOwnSchool(schoolId)
+        && (canUploadContent() || canManageSchool());
+      allow write: if (canUploadContent() || canManageSchool())
+        && isOwnSchool(schoolId);
     }
 
     // ── serials/{code} ────────────────────────────────────────────────

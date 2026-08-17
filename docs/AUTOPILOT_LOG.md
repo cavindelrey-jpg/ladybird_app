@@ -1211,3 +1211,99 @@ Premium/vouchers, and final git-push workflow) remain untouched — that
 was this session's scope call (see the top of this section) and is what
 the next session should pick up, starting with whichever of those the
 user prioritizes next.
+
+## Session continues (2026-08-17, same day): §1 Library — verified
+Codebase_Review.md findings, fixed what's still real
+
+User said to keep going in auto mode "for hours." Started §1 (Library)
+by locating the actual Library screen — **lib/features/library/
+library_page.dart + library_reader_page.dart are dead code**, not
+reachable from any route (app_router.dart's 'Library' case and every
+other nav entry point — Home, drawer, banners — all point at
+AcademicContentPage/content_* instead). LibraryRepository/LibraryItem
+are NOT dead, though — Home's Library banner, Recommended for You, and
+homepage Search still read from the legacy `library` Firestore
+collection through them. Left the repository/model alone, flagged the
+two orphaned page files as a cleanup candidate for a dedicated pass
+rather than deleting them in the same sweep as unrelated bug fixes.
+
+The real Library (AcademicContentPage -> content_details_page.dart ->
+content_viewer_page.dart) turned out to **already have a fully real
+offline download system** — AcademicContentRepository.downloadForOffline
+/removeOfflineFile/offlineFilePath, localFilePath threaded through every
+viewer kind (image/PDF/video/docx). This was not missing; my initial
+assumption before reading the code was wrong. The "online/offline
+permission problem" from the plan also already has a fix in git history
+(000034c, 2026-08-10 — permission-denied on Continue Learning/Saved/
+Bookmarks + storage.rules).
+
+Found Codebase_Review.md (untracked, root of the repo) — a prior,
+detailed code review already listing ~30 concrete defects across UI/
+backend/architecture. **Its claims are not automatically trustworthy —
+verified before touching anything**: its #1 "Critical, breaks compilation
+entirely" claim about content_upload_page.dart being truncated
+mid-statement is **false against current code** (read the file directly;
+it's complete, flutter analyze had already passed clean across the whole
+project this session). Treated the rest of the document as a lead list,
+not ground truth, and verified each item against current source before
+fixing anything.
+
+**Confirmed-real and fixed this pass** (all in lib/features/
+academic_content/ + lib/core/, all directly serving Library correctness
+/ the §11 testing-gate's "error states" and XP-integrity concerns):
+- academic_content_page.dart: `_searchDebounce` was never disposed
+  (leaked Timer, possible post-dispose setState) — now disposed.
+  `_onSearchChanged` fired a full-page setState on every keystroke ahead
+  of the debounce actually running, defeating the debounce's whole
+  purpose — now only flips `_isSearching` on the leading edge, and
+  `_searchLoading` moves inside the debounced closure so it fires once
+  per pause in typing, not once per character.
+- content_details_page.dart: the view-tracking Firestore write
+  (incrementViews/recordView) fired directly inside the widget tree
+  built by StreamBuilder.builder — a build()-path side effect the
+  framework can invoke during layout. Now deferred via
+  WidgetsBinding.instance.addPostFrameCallback. `_download()`'s
+  `await _openFile()` had no try/finally, so any thrown exception left
+  the button permanently stuck on "Opening…" — wrapped.
+- content_edit_page.dart + content_upload_page.dart: both had
+  `onProgress: (p) => setState(...)` with no `mounted` guard —
+  navigating away mid-upload crashes with setState() after dispose().
+  Both also silently swallowed a failed thumbnail upload (`if (result is
+  Success<String>) thumbnailUrl = ...` with no else), showing a false
+  unconditional "Content updated"/"uploaded successfully" message even
+  when the thumbnail didn't actually save. Fixed by guarding every
+  progress callback with `if (mounted)`, and surfacing a specific
+  gold-colored warning snackbar (not blocking the rest of the save/
+  upload, since the main file/fields are still worth keeping) when the
+  thumbnail step fails.
+- core/xp_rules.dart: `levelForXp()` used an unbounded linear while-loop
+  against a quadratic formula (xpRequiredForLevel(L) = 50(L-1)L) —
+  thousands of iterations on the UI thread for high-XP accounts.
+  Replaced with a closed-form estimate (L = (1+sqrt(1+0.08·XP))/2) plus
+  a short correction loop against the exact integer formula, since
+  floating-point sqrt can land just off an exact level-up boundary —
+  verified by hand at XP=0/99/100/299/300 before committing to it.
+  (Note: the source review's own suggested replacement formula had an
+  off-by-one — would have returned level 2 at 0 XP — not copied
+  verbatim; derived and checked independently.)
+- core/docx_parser.dart: `_appendParagraph` used `p.findElements('r')`
+  (direct children only) instead of `p.findAllElements('r')`, silently
+  dropping any text run nested inside `<w:hyperlink>` or `<w:sdt>`
+  (OpenXML content controls) — real data loss on real-world .docx
+  uploads, not a style nit. Now recursive.
+- flutter analyze on every touched file: 0 new issues (pre-existing
+  unrelated infos only, same baseline as before this session).
+
+**Not done / explicitly deferred, not silently skipped**: the rest of
+Codebase_Review.md (Part 2 Firestore/backend integrity — client-clock XP
+day boundary [already self-documented as a known gap in
+xp_repository.dart's own comments], non-transactional presence toggles,
+bounded-then-filtered 300/500-doc queries; Part 3 architecture —
+TestRepository's missing rules-level enforcement; Part 4 structural
+issues). Also not done: deleting the orphaned library_page.dart/
+library_reader_page.dart dead-code pair, or actually running the app on
+a device to visually confirm (no device/emulator available in this
+sandboxed session — static verification only, consistent with
+docs/VERIFICATION.md's own prior finding that Android builds are
+blocked in this exact environment for native-toolchain reasons
+unrelated to app code).

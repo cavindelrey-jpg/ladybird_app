@@ -60,6 +60,7 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
 
   @override
   void dispose() {
+    _searchDebounce.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -78,11 +79,18 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
 
   void _onSearchChanged(String q) {
     if (q.trim().isEmpty) {
-      setState(() { _isSearching = false; _searchResults = null; });
+      if (_isSearching) setState(() { _isSearching = false; _searchResults = null; });
       return;
     }
-    setState(() { _isSearching = true; _searchLoading = true; });
+    // Only flip _isSearching on the leading edge (empty -> non-empty) so
+    // every subsequent keystroke doesn't force a full-page rebuild ahead
+    // of the debounce actually running — that was defeating the point of
+    // debouncing in the first place. _searchLoading moves inside the
+    // debounced closure below, so it only flips once per pause in typing.
+    if (!_isSearching) setState(() => _isSearching = true);
     _searchDebounce.run(() async {
+      if (!mounted) return;
+      setState(() => _searchLoading = true);
       final results = await AcademicContentRepository.instance.search(
         q,
         institutionId: widget.user.schoolId,

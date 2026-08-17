@@ -56,3 +56,31 @@ which — combined with the rules above — is what removes essentially all
 the stopping points. Reserve `--dangerously-skip-permissions` (full
 bypass, including shell commands) only for a session you're actively
 watching, since it also skips confirmation on destructive shell commands.
+
+## Navigation — orient before searching
+
+`lib/` layout, and the CORE/SCHOOL/SHARED classification of every feature
+dir, is already written up in `docs/ARCHITECTURE_REPORT.md` — read that
+before running broad greps across `lib/` to get oriented. `docs/AUTOPILOT_LOG.md`
+tail has the current state of in-flight work.
+
+Quick map (file counts as of 2026-08-17, will drift — treat as a starting
+point, not ground truth):
+- `lib/features/` — 58 files across 17 subfolders; biggest are
+  `academic_content` (7), `testing` (6), `institution` (6)
+- `lib/models/` (27) and `lib/repositories/` (25) — data layer, each has
+  a barrel file (`models.dart`, `repositories.dart`) that re-exports the
+  whole directory
+- `lib/services/`, `lib/widgets/`, `lib/theme/`, `lib/screens/`,
+  `lib/providers/`, `lib/core/`, `lib/config/`, `lib/pages/` — smaller
+  SHARED infra; `lib/pages/` in particular is a flat grab-bag, not a
+  feature dir (see ARCHITECTURE_REPORT.md for what's actually in it)
+
+Scope `Grep`/`Glob` to the relevant subfolder instead of searching all of
+`lib/` — there's no semantic-code-search MCP wired up here. Evaluated one
+on 2026-08-17: every available semantic-code MCP server (claude-context,
+claude-context-local, semantic-code-mcp) lacks Dart support entirely, so
+one would index only the small JS/Node folders and silently miss this
+app — not worth the added infra (Docker/API keys/local models) for that
+coverage gap. Don't re-evaluate this unless one of those tools adds Dart
+support.

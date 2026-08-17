@@ -118,8 +118,9 @@ class _ContentEditPageState extends State<ContentEditPage> {
         file: _newContentFile!,
         folder: 'content_files',
         institutionId: institutionId,
-        onProgress: (p) =>
-            setState(() => _uploadProgress = p * 0.6),
+        onProgress: (p) {
+          if (mounted) setState(() => _uploadProgress = p * 0.6);
+        },
       );
       if (result is Failure) {
         setState(() {
@@ -131,16 +132,26 @@ class _ContentEditPageState extends State<ContentEditPage> {
       fileUrl = (result as Success<String>).value;
     }
 
-    // Replace thumbnail if a new one was chosen
+    // Replace thumbnail if a new one was chosen. A failed replace keeps
+    // the existing thumbnail (not a hard stop -- the rest of the edit is
+    // still worth saving) but must not be swallowed silently: the caller
+    // needs to know "Content updated" doesn't mean every field actually
+    // changed.
+    String? thumbnailWarning;
     if (_newThumbnailFile != null) {
       final result = await repo.uploadFile(
         file: _newThumbnailFile!,
         folder: 'thumbnails',
         institutionId: institutionId,
-        onProgress: (p) =>
-            setState(() => _uploadProgress = 0.6 + p * 0.4),
+        onProgress: (p) {
+          if (mounted) setState(() => _uploadProgress = 0.6 + p * 0.4);
+        },
       );
-      if (result is Success<String>) thumbnailUrl = result.value;
+      if (result is Success<String>) {
+        thumbnailUrl = result.value;
+      } else {
+        thumbnailWarning = (result as Failure).message;
+      }
     }
 
     final tags = _tagsCtrl.text
@@ -170,8 +181,10 @@ class _ContentEditPageState extends State<ContentEditPage> {
       final ac = AppColors.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Content updated.'),
-          backgroundColor: ac.grn,
+          content: Text(thumbnailWarning != null
+              ? 'Content updated — thumbnail wasn\'t: $thumbnailWarning'
+              : 'Content updated.'),
+          backgroundColor: thumbnailWarning != null ? ac.gold : ac.grn,
         ),
       );
       Navigator.pop(context);

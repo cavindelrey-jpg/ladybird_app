@@ -105,7 +105,11 @@ class DocxParser {
     final isListItem = pPr != null && _first(pPr.findElements('numPr')) != null;
 
     bool wroteAnyRun = false;
-    for (final r in p.findElements('r')) {
+    // findAllElements (recursive), not findElements (direct-children only)
+    // -- <w:r> runs are frequently nested inside <w:hyperlink> or <w:sdt>
+    // (content controls), and direct-child matching silently dropped that
+    // text entirely.
+    for (final r in p.findAllElements('r')) {
       final rPr = _first(r.findElements('rPr'));
       final bold = rPr != null && _first(rPr.findElements('b')) != null;
       final italic = rPr != null && _first(rPr.findElements('i')) != null;

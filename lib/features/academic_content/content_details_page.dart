@@ -55,11 +55,18 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
           );
         }
 
-        // Track view once per page open
+        // Track view once per page open. Deferred to a post-frame callback
+        // rather than fired directly here -- this whole block runs inside
+        // StreamBuilder's builder, which build() invokes, and the
+        // framework can call build() during layout; committing a database
+        // write as a direct side effect of that is what the guard alone
+        // doesn't prevent (only re-firing does).
         if (!_viewTracked) {
           _viewTracked = true;
-          AcademicContentRepository.instance.incrementViews(item.id);
-          AcademicContentRepository.instance.recordView(item.id, widget.user.id);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            AcademicContentRepository.instance.incrementViews(item.id);
+            AcademicContentRepository.instance.recordView(item.id, widget.user.id);
+          });
         }
 
         final canEdit = widget.user.canUploadContent ||
@@ -363,8 +370,11 @@ class _DownloadButtonState extends State<_DownloadButton> {
       }
     }
 
-    await _openFile();
-    if (mounted) setState(() => _loading = false);
+    try {
+      await _openFile();
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override

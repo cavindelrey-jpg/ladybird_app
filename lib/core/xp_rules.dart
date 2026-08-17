@@ -19,6 +19,7 @@
 //                                          is met — see comment there.
 //   C.  Daily login / streak milestones -> kStreakDailyXp / streakMilestoneBonusXp()
 
+import 'dart:math';
 import '../models/test.dart';
 import '../models/xp_transaction.dart';
 
@@ -133,9 +134,21 @@ int xpRequiredForLevel(int level) {
 /// Current level for a given lifetime XP total (never decreases, since
 /// lifetimeXP itself never decreases — see XpRepository).
 int levelForXp(int lifetimeXp) {
-  var level = 1;
+  if (lifetimeXp <= 0) return 1;
+  // xpRequiredForLevel(L) = 50*(L-1)*L, so L solves the quadratic
+  // 50L² - 50L - lifetimeXp = 0 → L = (1 + sqrt(1 + 0.08*lifetimeXp)) / 2.
+  // Used as a fast starting estimate (avoids an unbounded loop for large
+  // XP totals) then corrected with the exact integer formula below, since
+  // floating-point sqrt can land just under/over an exact level-up
+  // boundary — the correction loop runs at most once or twice in
+  // practice, not once per level.
+  var level = ((1 + sqrt(1 + 0.08 * lifetimeXp)) / 2).floor();
+  if (level < 1) level = 1;
   while (xpRequiredForLevel(level + 1) <= lifetimeXp) {
     level++;
+  }
+  while (level > 1 && xpRequiredForLevel(level) > lifetimeXp) {
+    level--;
   }
   return level;
 }

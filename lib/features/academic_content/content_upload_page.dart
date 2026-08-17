@@ -94,7 +94,9 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
       file: _contentFile!,
       folder: 'content_files',
       institutionId: institutionId,
-      onProgress: (p) => setState(() => _uploadProgress = p * 0.7),
+      onProgress: (p) {
+        if (mounted) setState(() => _uploadProgress = p * 0.7);
+      },
     );
     if (fileResult is Failure) {
       setState(() {
@@ -105,18 +107,24 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
     }
     final fileUrl = (fileResult as Success<String>).value;
 
-    // Upload thumbnail (optional)
+    // Upload thumbnail (optional). A failed thumbnail shouldn't block
+    // publishing the actual content the user already uploaded -- proceed
+    // without one, but say so rather than pretending it worked.
     String? thumbnailUrl;
+    String? thumbnailWarning;
     if (_thumbnailFile != null) {
       final thumbResult = await repo.uploadFile(
         file: _thumbnailFile!,
         folder: 'thumbnails',
         institutionId: institutionId,
-        onProgress: (p) =>
-            setState(() => _uploadProgress = 0.7 + p * 0.3),
+        onProgress: (p) {
+          if (mounted) setState(() => _uploadProgress = 0.7 + p * 0.3);
+        },
       );
       if (thumbResult is Success<String>) {
         thumbnailUrl = thumbResult.value;
+      } else {
+        thumbnailWarning = (thumbResult as Failure).message;
       }
     }
 
@@ -155,8 +163,10 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
       final ac = AppColors.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${_type.label} uploaded successfully!'),
-          backgroundColor: ac.grn,
+          content: Text(thumbnailWarning != null
+              ? '${_type.label} uploaded — thumbnail failed: $thumbnailWarning'
+              : '${_type.label} uploaded successfully!'),
+          backgroundColor: thumbnailWarning != null ? ac.gold : ac.grn,
         ),
       );
       Navigator.pop(context);

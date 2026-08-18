@@ -60,6 +60,16 @@ class _AdminAccountsPageState extends State<AdminAccountsPage>
 
   @override
   Widget build(BuildContext context) {
+    // production_plan.md §10 audit finding: same gap as AdminPanelPage —
+    // this page (role changes, suspend/reactivate, seat creation/
+    // assignment for real student accounts) had no internal authorization
+    // check, trusting whichever caller pushed it. Its only current caller
+    // (SchoolManagementPage's hub) already gates on canManageSchool, but
+    // that guard lived solely on the caller. Re-checked here too, so a
+    // future stray Navigator.push/deep link can't reach it unguarded.
+    if (!widget.user.canManageSchool) {
+      return const _AdminAccountsAccessDenied();
+    }
     if (_schoolId.isEmpty) {
       return const Center(child: Text('No school linked to this account'));
     }
@@ -266,6 +276,35 @@ class _AdminAccountsPageState extends State<AdminAccountsPage>
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Shown when this page is reached without canManageSchool — see the
+/// build()-level guard above. A real, legible screen rather than a
+/// silent pop, same reasoning as SchoolManagementPage's own
+/// _AccessDenied.
+class _AdminAccountsAccessDenied extends StatelessWidget {
+  const _AdminAccountsAccessDenied();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.lock_outline_rounded, size: 56, color: C.muted),
+          const SizedBox(height: 16),
+          Text('Access Restricted',
+              style: GoogleFonts.sora(fontSize: 18, fontWeight: FontWeight.w700, color: C.txt)),
+          const SizedBox(height: 8),
+          Text(
+            'Student Records requires a school administrator account.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(fontSize: 13, color: C.txt2, height: 1.5),
+          ),
+        ]),
       ),
     );
   }

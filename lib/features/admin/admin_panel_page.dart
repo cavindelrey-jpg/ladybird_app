@@ -38,6 +38,16 @@ class _AdminPanelPageState extends State<AdminPanelPage>
 
   @override
   Widget build(BuildContext context) {
+    // production_plan.md §10 audit finding: this page previously had no
+    // internal authorization check at all — every tab (role changes,
+    // suspend/reactivate, seat creation, institution settings) trusted
+    // whichever caller pushed the route. Its only current caller
+    // (SchoolManagementPage's hub) already gates on canManageSchool, but
+    // that gate lived solely on the caller — exactly the "secured merely
+    // by hiding its URL" failure mode §7C warns against, one page removed.
+    // Mirrors SchoolManagementPage's own layer-2 guard: re-check here too,
+    // so a future stray Navigator.push/deep link can't skip it.
+    if (!widget.user.canManageSchool) return const _AdminAccessDenied();
     return Scaffold(
       backgroundColor: C.bg,
       appBar: AppBar(
@@ -54,6 +64,39 @@ class _AdminPanelPageState extends State<AdminPanelPage>
         _SeatsTab(user: widget.user),
         if (widget.user.isSuperAdmin) _PlatformTab(user: widget.user),
       ])),
+    );
+  }
+}
+
+/// Shown when this page is reached without canManageSchool — see the
+/// build()-level guard above. Deliberately a real, legible screen (same
+/// reasoning as SchoolManagementPage's own _AccessDenied) rather than a
+/// silent pop, which would be indistinguishable from a broken button.
+class _AdminAccessDenied extends StatelessWidget {
+  const _AdminAccessDenied();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: C.bg,
+      appBar: AppBar(backgroundColor: C.bg, automaticallyImplyLeading: false),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.lock_outline_rounded, size: 56, color: C.muted),
+            const SizedBox(height: 16),
+            Text('Access Restricted',
+                style: GoogleFonts.sora(fontSize: 18, fontWeight: FontWeight.w700, color: C.txt)),
+            const SizedBox(height: 8),
+            Text(
+              'School Administration requires a school administrator account.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(fontSize: 13, color: C.txt2, height: 1.5),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 }

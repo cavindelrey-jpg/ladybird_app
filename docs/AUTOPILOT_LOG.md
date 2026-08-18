@@ -2107,3 +2107,41 @@ Also: user separately restated "don't stop until all are at 100%" --
 noted, continuing through remaining production_plan.md gaps without
 further check-ins, same discipline as the rest of this session (verify
 before building, log every deferral honestly, never fabricate data).
+
+## §4.9 -- server-side XP day-boundary enforcement, same continuation
+
+Wrote (did not deploy) a new Cloud Function, functions/index.js's
+awardXpServer, closing the exact gap xp_repository.dart's own file
+comment has flagged since it was written: the daily-cap "is this a new
+day" check compares against the CALLER's device clock, which is
+spoofable by changing phone date/time settings. A Cloud Function's
+Date.now() reads the server's own clock -- not spoofable the same way.
+
+Scoped honestly, stated in the function's own comment block: this
+enforces the DAY BOUNDARY and per-category daily caps (general/quiz/
+magazine, faithfully porting core/xp_rules.dart's academicTierFor()
+Form-level classification and this session's sec4.4/sec4.5 cap logic to
+JS by hand -- no code-sharing between the Dart app and the Functions
+runtime, so the two must be kept in sync manually if either changes).
+It does NOT re-derive the XP AMOUNT from first principles (re-reading
+the actual question/points/difficulty server-side) -- the caller still
+supplies an already-computed rawAmount, same trust level the client path
+already has for the amount itself. Full formula recomputation
+server-side is real further work, not silently claimed as covered.
+
+**Deliberately NOT wired to any Flutter call site.** XpRepository
+.awardXp() is still what every screen calls today and still works
+correctly (own transaction, closes the read-then-write race, just not
+the device-clock gap). Deploying this function changes nothing by
+itself -- switching the client to call it via `cloud_functions` (already
+a pubspec dependency, confirmed) instead of writing to Firestore
+directly is a real, mechanical, lower-risk follow-up, not attempted
+blind in the same pass as writing brand-new server logic I can't
+deploy or test in this sandbox.
+
+Verified: `node --check functions/index.js` (syntax valid) and a direct
+`require()` of firebase-functions/v2/https resolved onCall/HttpsError as
+functions (import path is real, not guessed). Could not run the actual
+transaction logic end-to-end -- no Firebase emulator running in this
+sandboxed session, same testing ceiling every rules/functions change
+this session has had.

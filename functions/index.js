@@ -15,6 +15,7 @@
  */
 
 const { onObjectFinalized } = require("firebase-functions/v2/storage");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const { logger } = require("firebase-functions");
 const admin = require("firebase-admin");
@@ -351,3 +352,166 @@ exports.ingestPastPapers = onObjectFinalized(
     );
   }
 );
+
+// =========================================================================
+// SERVER-SIDE XP DAY-BOUNDARY ENFORCEMENT (production_plan.md §4.9)
+// =========================================================================
+// Deploy: firebase deploy --only functions:awardXpServer
+//
+// lib/repositories/xp_repository.dart's own file comment has flagged this
+// exact gap since it was written: "the daily-cap 'is this a new day yet'
+// check compares against the device's clock (DateTime.now()), not a
+// server-anchored value... a motivated user changing their device clock
+// could manipulate the reset timing." A Cloud Function's `Date.now()`
+// reads THIS SERVER's clock, not the caller's phone -- it cannot be
+// spoofed by changing a device's date/time settings the way the client
+// path can.
+//
+// Scope of what this closes vs. what it doesn't (stated plainly, not
+// implied): this enforces the DAY BOUNDARY / DAILY CAPS server-side.
+// It does NOT yet re-derive `rawAmount` from first principles (re-reading
+// the actual quiz question/points/difficulty and recomputing via the
+// exact core/xp_rules.dart formula) -- the caller still supplies the
+// already-computed amount, same trust level the client-side path has
+// today for the AMOUNT itself. Full server-side recomputation of every
+// XP formula (§4.2 quiz, §4.5 magazine) is real further work, not
+// something to silently claim is covered by this function.
+//
+// NOT YET WIRED to any Flutter call site -- XpRepository.awardXp() is
+// still what every screen calls today, and it still works correctly
+// (with its own client-side transaction closing the read-then-write
+// race, just not the device-clock gap). Deploying this function alone
+// changes nothing until the client is switched over to call it via
+// `cloud_functions` (already a pubspec dependency) instead of writing to
+// Firestore directly -- a real, mechanical, lower-risk follow-up once
+// this is deployed and confirmed working, deliberately not attempted
+// blind in the same pass as writing it.
+
+const XP_SOURCE_BASE_XP = {
+  mcq: 15, structural: 30, ac: 55,
+  paperUnlock: 0, magazineRead: 2, testCompletion: 0,
+  streakDaily: 0, streakMilestone: 0,
+  clubQuestion: 10, clubAnswer: 10, clubBestAnswer: 25,
+};
+const QUIZ_SOURCES = new Set(["mcq", "structural", "ac", "testCompletion"]);
+const MAGAZINE_SOURCES = new Set(["magazineRead"]);
+
+const XP_DAILY_CAP = 200;
+const QUIZ_DAILY_CAP_BY_TIER = { juniorSecondary: 120, seniorSecondary: 160, advanced: 200 };
+const QUIZ_OVERALL_DAILY_CAP = 280;
+const MAGAZINE_DAILY_CAP = 100;
+
+// Mirrors core/xp_rules.dart's academicTierFor() exactly -- keep the two
+// in sync by hand if either changes; there's no code-sharing between the
+// Dart app and this Functions runtime.
+function academicTierFor(educationLevel) {
+  switch (educationLevel) {
+    case "Form 1": case "Form 2": case "Form 3":
+      return "juniorSecondary";
+    case "Form 4": case "Form 5":
+      return "seniorSecondary";
+    case "Lower Sixth Arts": case "Lower Sixth Science":
+    case "Upper Sixth Arts": case "Upper Sixth Science":
+    case "University": case "Professional / Working Adult":
+    case "Independent Learner": case "Other":
+      return "advanced";
+    default:
+      return "juniorSecondary";
+  }
+}
+
+function isSameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+}
+
+exports.awardXpServer = onCall({ region: "us-east1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in required.");
+  }
+  const callerUid = request.auth.uid;
+  const { targetUserId, source, rawAmount, articleId, refId } = request.data || {};
+
+  if (typeof targetUserId !== "string" || !targetUserId) {
+    throw new HttpsError("invalid-argument", "targetUserId is required.");
+  }
+  // A user can only award XP to themselves through this path -- exactly
+  // matching the client-side rule's own `request.auth.uid == uid` self-
+  // only constraint. A future "admin grant" path would be a distinct,
+  // explicitly-audited function, not a parameter on this one.
+  if (targetUserId !== callerUid) {
+    throw new HttpsError("permission-denied", "Can only award XP to your own account.");
+  }
+  if (!Object.prototype.hasOwnProperty.call(XP_SOURCE_BASE_XP, source)) {
+    throw new HttpsError("invalid-argument", `Unknown XP source: ${source}`);
+  }
+  const amount = Math.trunc(Number(rawAmount));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { awarded: 0 };
+  }
+
+  const db = admin.firestore();
+  const userRef = db.collection("users").doc(targetUserId);
+
+  const awarded = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) throw new HttpsError("not-found", "User not found.");
+    const data = snap.data();
+    const now = new Date(); // this function's OWN server clock -- not the caller's
+
+    const storedDate = data.xpEarnedTodayDate ? data.xpEarnedTodayDate.toDate() : null;
+    const isNewDay = !storedDate || !isSameDay(storedDate, now);
+    const earnedToday = isNewDay ? 0 : Number(data.xpEarnedToday || 0);
+    let room = XP_DAILY_CAP - earnedToday;
+
+    const isQuiz = QUIZ_SOURCES.has(source);
+    const isMagazine = MAGAZINE_SOURCES.has(source);
+    let categoryField = null, dateField = null, categoryEarnedToday = 0;
+    if (isQuiz) {
+      categoryField = "quizXpEarnedToday"; dateField = "quizXpEarnedTodayDate";
+      const tier = academicTierFor(data.educationLevel || "");
+      const capForLevel = Math.min(QUIZ_DAILY_CAP_BY_TIER[tier], QUIZ_OVERALL_DAILY_CAP);
+      const storedCatDate = data[dateField] ? data[dateField].toDate() : null;
+      const catNewDay = !storedCatDate || !isSameDay(storedCatDate, now);
+      categoryEarnedToday = catNewDay ? 0 : Number(data[categoryField] || 0);
+      room = Math.min(room, capForLevel - categoryEarnedToday);
+    } else if (isMagazine) {
+      categoryField = "magazineXpEarnedToday"; dateField = "magazineXpEarnedTodayDate";
+      const storedCatDate = data[dateField] ? data[dateField].toDate() : null;
+      const catNewDay = !storedCatDate || !isSameDay(storedCatDate, now);
+      categoryEarnedToday = catNewDay ? 0 : Number(data[categoryField] || 0);
+      room = Math.min(room, MAGAZINE_DAILY_CAP - categoryEarnedToday);
+    }
+
+    const toAward = Math.max(0, Math.min(amount, room));
+    if (toAward <= 0) return 0;
+
+    const update = {
+      xpBalance: admin.firestore.FieldValue.increment(toAward),
+      lifetimeXP: admin.firestore.FieldValue.increment(toAward),
+      xpEarnedToday: earnedToday + toAward,
+      xpEarnedTodayDate: admin.firestore.Timestamp.fromDate(now),
+    };
+    if (categoryField) {
+      update[categoryField] = categoryEarnedToday + toAward;
+      update[dateField] = admin.firestore.Timestamp.fromDate(now);
+    }
+    tx.update(userRef, update);
+
+    const txnRef = db.collection("xpTransactions").doc();
+    tx.set(txnRef, {
+      userId: targetUserId,
+      type: "earn",
+      source,
+      amount: toAward,
+      articleId: articleId || null,
+      refId: refId || null,
+      timestamp: admin.firestore.Timestamp.fromDate(now),
+    });
+
+    return toAward;
+  });
+
+  return { awarded };
+});

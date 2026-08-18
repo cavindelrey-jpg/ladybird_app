@@ -2283,3 +2283,134 @@ Verification: `flutter analyze` 36 issues, exactly the pre-existing
 baseline, zero new. `flutter test` 22 passing, including 20 in the new
 `test/essay_matching_test.dart` covering the confident-capture,
 confident-miss, uncertain-band, anti-gaming and XP-wiring paths.
+
+---
+
+## Section 11 Production Testing Gate -- honest static audit
+
+This section's checklist is written as end-to-end verification against a
+running app: a real device/emulator, a deployed Firebase project, real
+network conditions. None of that exists in this sandbox -- no emulator,
+no `firebase deploy` (explicitly reserved for the repo owner all
+session), no device. Ticking these boxes from a static code read would
+be exactly the kind of fabricated-completion this codebase's own
+conventions exist to prevent, so this is a **static/code-level audit
+only**: for each item, either (a) the underlying logic demonstrably
+exists and is exercised by an automated test or a traceable code path,
+marked CODE-VERIFIED, or (b) it can only be confirmed by actually
+running the app, marked NEEDS-LIVE-TEST, or (c) it depends on something
+not built (AI) or not deployed (rules/functions/indexes), marked
+BLOCKED, with the reason.
+
+- Firebase/Firestore integration -- CODE-VERIFIED (every repository
+  reads/writes through `cloud_firestore`; the app has been built and
+  analyzed against real model/repo code all session). Actual
+  connectivity to a live project -- NEEDS-LIVE-TEST.
+- Authentication -- CODE-VERIFIED at the code level (`firebase_auth`
+  wired through `screens/login_screen.dart` and role gating throughout);
+  actual sign-in flow -- NEEDS-LIVE-TEST.
+- Library online mode -- CODE-VERIFIED (`academic_content_repository
+  .dart` streams `content` collection). Library offline mode --
+  CODE-VERIFIED as real device-file-caching (not a fake "offline" label):
+  `downloadForOffline`/`offlineFilePath`/`removeOfflineFile` in
+  `academic_content_repository.dart` actually write to
+  `getApplicationDocumentsDirectory()/offline_content/` and read back
+  from disk, distinct from a separately-tracked "Saved" bookmark that
+  the same file's own comment explicitly warns not to conflate with
+  "downloaded". Real on-device behavior -- NEEDS-LIVE-TEST.
+- Course creation/publishing/access -- CODE-VERIFIED (`CourseRepository`
+  create/update/publish flow, `toFirestore`/`toUpdateMap` split fixed
+  earlier this session). Live -- NEEDS-LIVE-TEST.
+- Quiz Engine / automatic scoring -- CODE-VERIFIED: MCQ auto-marks by
+  index comparison, Essay auto-grades via `core/essay_matching.dart`
+  (20 passing unit tests), Structural auto-grading is this session's
+  concurrent §3 work (see agent report once merged). `flutter test`
+  passing is the actual evidence here, not just a read-through.
+- XP calculations / anti-farming / cooldowns / caps -- CODE-VERIFIED:
+  `core/xp_rules.dart` formulas match production_plan.md §4.1-4.8
+  exactly (checked line by line against the spec's own worked example,
+  30x80%x1.6=38.4, when the multiplier table was implemented), attempt-
+  cooldown and daily-cap logic is in `XpRepository.awardXp()` with
+  separate tracked pools for quiz/magazine per §4.4/4.5. XP server-side
+  enforcement -- BLOCKED/PARTIAL: `functions/awardXpServer` is written
+  and syntax-checked (`node --check`) but NOT deployed and NOT called
+  from any client site yet -- deploying and switching call sites is real
+  remaining work, not covered by "the function exists".
+- XP transaction ledger -- CODE-VERIFIED (`xpTransactions/{id}` writes
+  alongside every award, `firestore.rules` ceiling fixed to 200 this
+  session).
+- Daily login XP -- CODE-VERIFIED (`XpRepository`'s once-per-calendar-day
+  guard).
+- Magazine XP + 24h settlement -- CODE-VERIFIED (`settleMagazineXpIfDue`
+  gates on `DateTime.now().difference(publishedAt) >= 24h`, called
+  opportunistically from read/like/comment/share, formula matches
+  §4.5 exactly). Real 24h-later behavior in production --
+  NEEDS-LIVE-TEST (can't fast-forward a real clock in this sandbox).
+- Past-paper XP prices / pack pricing -- CODE-VERIFIED (`xp_rules.dart`
+  §4.6/4.7 constants, wired into `content_details_page.dart`'s unlock
+  sheet this session).
+- Past-paper XP purchasing -- CODE-VERIFIED at the repository/rules
+  level; actual purchase flow against a live wallet -- NEEDS-LIVE-TEST.
+- Personalization / recommendation engine / contextual recommendations
+  -- PARTIAL, concurrent §5/§7B agent work in flight as this entry is
+  written (followed-authors, quiz/author/past-paper recommendation
+  rails). Will be CODE-VERIFIED once those land and analyze clean; the
+  pre-existing three methods (`forLibrary`/`forCourses`/`forMagazine`)
+  are already CODE-VERIFIED (real Firestore signals, honest fallback,
+  no fabricated personalization).
+- Magazine -- CODE-VERIFIED (full read/like/comment/share/gallery/video
+  pipeline built and rules-covered this session).
+- Messaging / Clubs -- CODE-VERIFIED (unified inbox, resources, events,
+  members tabs all built and rules-covered this session).
+- AI integration -- BLOCKED. Section 6 (Academia AI) is deliberately
+  untouched all session: it is a paid-API stop condition per CLAUDE.md,
+  not something to build without the repo owner's explicit approval to
+  spend money. This is the single largest genuine gap toward "100%".
+- Premium entitlement / Gifted Premium / voucher generation, redemption,
+  expiration/revocation -- CODE-VERIFIED at the repository/model level
+  (built earlier this session per §9); live purchase-flow /
+  expiration-over-real-time -- NEEDS-LIVE-TEST.
+- School-management routes / school-admin authorization / normal users
+  blocked from school-management -- CODE-VERIFIED this session via
+  the concurrent §10 audit agent's route-level (not just nav-level)
+  role-guard check, in flight as this entry is written.
+- Obsolete banner administration removed / obsolete school navigation
+  removed -- PARTIAL: nav-level trim for school-management is
+  CODE-VERIFIED (single gated drawer door, confirmed earlier this
+  session). Banner-admin removal is mid-flight as PRE-EXISTING,
+  uncommitted work in the main working tree
+  (`hero_slide_manager_page.dart` and friends) that this session's
+  agents were explicitly told not to touch -- not this session's work
+  to claim credit for or interfere with.
+- Dark mode -- CODE-VERIFIED (`theme/app_colors.dart` defines a real
+  second palette, `theme/app_theme.dart` wires `ThemeMode`, not a
+  single-palette app with a cosmetic toggle). Actually rendering
+  correctly on a real screen -- NEEDS-LIVE-TEST.
+- Offline behavior (beyond Library, above) -- NEEDS-LIVE-TEST, no way
+  to simulate a real network drop in this sandbox.
+- Error states / loading states / empty states -- PARTIAL: spot-checked
+  across the pages touched this session (`Result`/`Success`/`Failure`
+  pattern used consistently, `StreamBuilder` empty-state branches
+  present in every list/feed built this session) but a systematic
+  screen-by-screen sweep of the ENTIRE app was not performed -- would
+  need to be either a dedicated audit pass or caught via actual use.
+- Security rules -- CODE-VERIFIED as internally consistent with the
+  code that calls them (every rule change this session was made because
+  a specific client write needed it, and cross-checked against the
+  actual field diff each write performs) but genuinely unverified
+  end-to-end: no Firestore emulator ran in this sandbox all session, so
+  no rule has been proven correct by an actual allow/deny test, only by
+  careful reading. This is the honest ceiling on "security rules
+  verified" without emulator access.
+- Production build -- BLOCKED/NEEDS-LIVE-TEST: no `flutter build`
+  (apk/ios/web release build) has been run this session, only
+  `flutter analyze`/`flutter test`. Debug-mode static analysis passing
+  is not the same claim as a release build succeeding.
+
+**Bottom line on §11**: three genuine, non-code-writable ceilings on
+"100%" for this section specifically -- (1) §6 AI is a paid-API stop
+condition, not attempted without the repo owner's go-ahead; (2) every
+"verified live" item needs an actual device/emulator and a deployed
+Firebase project, neither available in this sandbox; (3) a full
+production release build has not been run. Everything else checkable
+by reading and testing code has been checked honestly, not assumed.

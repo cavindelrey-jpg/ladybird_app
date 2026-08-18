@@ -5,7 +5,13 @@
 //
 // Grading framework:
 //   - MCQ questions are graded the instant an attempt is submitted.
-//   - Structured/long-form questions start ungraded and are graded via
+//   - Essay (longForm) questions are auto-scored at submit time against
+//     the question's essential key points by core/essay_matching.dart —
+//     offline, in-process, no external service. They only enter the human
+//     queue when that matcher is explicitly undecided about one or more
+//     key points, and the human then confirms/rejects just those points
+//     rather than grading the answer from scratch.
+//   - Structured questions start ungraded and are graded via
 //     gradeResponse() — today, called by a lecturer/admin from the
 //     grading queue (watchPendingGradingQueue). That single method is
 //     the seam a future AI grader would call into instead of a human —
@@ -25,6 +31,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/constants.dart';
+import '../core/essay_matching.dart';
 import '../core/result.dart';
 import '../core/xp_rules.dart';
 import '../models/test.dart';
@@ -158,27 +165,81 @@ class TestRepository {
           final selected = rawAnswers[q.id];
           final selectedIndex = selected is int ? selected : -1;
           final correct = selectedIndex == q.correctIndex;
-          final pointsAwarded = correct ? q.points : 0;
+          final pointsAwarded = correct ? q.maxPoints : 0;
           final xp = questionXp(
             type: q.type,
             pointsAwarded: pointsAwarded,
-            maxPoints: q.points,
+            maxPoints: q.maxPoints,
             difficulty: test.difficulty,
             levelMultiplier: levelMultiplier,
           );
           totalXpFromQuestions += xp;
           responses.add(QuestionResponse(
-            questionId: q.id, type: q.type, maxPoints: q.points,
+            questionId: q.id, type: q.type, maxPoints: q.maxPoints,
             selectedIndex: selectedIndex, pointsAwarded: pointsAwarded,
             graded: true, xpEarned: xp,
           ));
+        } else if (q.type == QuestionType.longForm) {
+          // production_plan.md §3 Quiz Type 3: the student submitted their
+          // OWN short key points, not an essay. Match them against the
+          // question's essential points offline (core/essay_matching.dart —
+          // no external service, see that file's header) and score as
+          // "captured N of the 7–9 essential points".
+          final raw = rawAnswers[q.id];
+          final studentPoints = (raw is List
+                  ? raw.map((e) => e.toString())
+                  : (raw is String ? [raw] : const <String>[]))
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .toList();
+
+          final match = matchEssayKeyPoints(
+            keyPoints: q.keyPoints,
+            studentPoints: studentPoints,
+          );
+          final outcomes = match.matches
+              .map((m) => KeyPointOutcome(
+                    keyPointId: m.keyPointId,
+                    keyPointText: m.keyPointText,
+                    studentText: m.studentText,
+                    score: m.score,
+                    verdict: m.verdict,
+                  ))
+              .toList();
+
+          if (match.needsHumanReview) {
+            // Only the genuinely ambiguous points need a person. The
+            // response carries every outcome already decided, so the
+            // grading queue shows a mostly-finished picture and asks for
+            // a call on the flagged points only.
+            responses.add(QuestionResponse(
+              questionId: q.id, type: q.type, maxPoints: q.maxPoints,
+              textAnswer: studentPoints, keyPointOutcomes: outcomes,
+              graded: false,
+            ));
+          } else {
+            final pointsAwarded = match.capturedCount;
+            final xp = questionXp(
+              type: q.type,
+              pointsAwarded: pointsAwarded,
+              maxPoints: q.maxPoints,
+              difficulty: test.difficulty,
+              levelMultiplier: levelMultiplier,
+            );
+            totalXpFromQuestions += xp;
+            responses.add(QuestionResponse(
+              questionId: q.id, type: q.type, maxPoints: q.maxPoints,
+              textAnswer: studentPoints, keyPointOutcomes: outcomes,
+              pointsAwarded: pointsAwarded, graded: true, xpEarned: xp,
+            ));
+          }
         } else {
           final raw = rawAnswers[q.id];
           final textAnswer = raw is List
               ? raw.map((e) => e.toString()).toList()
               : (raw is String ? [raw] : <String>[]);
           responses.add(QuestionResponse(
-            questionId: q.id, type: q.type, maxPoints: q.points,
+            questionId: q.id, type: q.type, maxPoints: q.maxPoints,
             textAnswer: textAnswer, graded: false,
           ));
         }
@@ -256,15 +317,23 @@ class TestRepository {
         attemptMultiplier: attemptMultiplier,
       );
       await attemptRef.set(attempt.toFirestore());
-      totalXpFromQuestions = dampedTotalXpFromQuestions;
       bonus = dampedBonus;
 
-      // Award XP for the auto-graded (mcq) portion, grouped by source so
-      // the ledger shows one clean "+N XP · MCQ" entry per attempt
-      // rather than one row per question.
-      if (totalXpFromQuestions > 0) {
+      // Award XP for every auto-graded question, grouped BY SOURCE so the
+      // ledger shows one clean "+N XP · MCQ" / "+N XP · Essay" entry per
+      // attempt rather than one row per question. Grouping by source (it
+      // used to be a single lump booked as XpSource.mcq) matters now that
+      // an Essay can also be auto-graded at submit time — booking essay
+      // XP as MCQ XP would quietly corrupt the ledger's own breakdown.
+      final xpBySource = <XpSource, int>{};
+      for (final r in dampedResponses) {
+        if (r.xpEarned <= 0) continue;
+        final source = xpSourceForQuestionType(r.type);
+        xpBySource[source] = (xpBySource[source] ?? 0) + r.xpEarned;
+      }
+      for (final entry in xpBySource.entries) {
         await XpRepository.instance.awardXp(
-          userId, XpSource.mcq, totalXpFromQuestions,
+          userId, entry.key, entry.value,
           refId: attemptRef.id,
         );
       }
@@ -283,15 +352,26 @@ class TestRepository {
 
   // ── Grading (lecturer/admin, or a future AI grader) ─────────────────
 
-  /// Grades one structured/long-form response inside [attemptId]. Awards
-  /// that question's XP immediately, and — if this was the LAST ungraded
+  /// Grades one structured/Essay response inside [attemptId]. Awards that
+  /// question's XP immediately, and — if this was the LAST ungraded
   /// response in the attempt — also computes and awards the completion
   /// bonus, marking the attempt fully `graded`.
+  ///
+  /// [capturedKeyPointIds] is for Essay responses only: the ids of every
+  /// key point the human grader considers captured, INCLUDING the ones
+  /// the offline matcher already auto-confirmed. When it is supplied,
+  /// [pointsAwarded] is ignored and the score is derived from its length
+  /// instead — the Essay score is by definition "how many essential
+  /// points were captured" (production_plan.md §3), so allowing a grader
+  /// to tick 5 points and simultaneously type a score of 7 would let the
+  /// stored outcomes and the stored score disagree. Deriving it removes
+  /// that possibility entirely.
   Future<Result<void>> gradeResponse({
     required String attemptId,
     required String questionId,
     required int pointsAwarded,
     String? feedback,
+    List<String>? capturedKeyPointIds,
   }) async {
     try {
       int xpJustAwarded = 0;
@@ -309,13 +389,32 @@ class TestRepository {
         final target = attempt.responses[idx];
         if (target.graded) throw Exception('This answer was already graded');
 
+        // For an Essay, the grader's ticked key points ARE the score —
+        // record their decision on each outcome so the result screen can
+        // show exactly which essential points counted, and derive the
+        // points from that same list.
+        var effectivePoints = pointsAwarded;
+        List<KeyPointOutcome>? updatedOutcomes;
+        if (capturedKeyPointIds != null && target.keyPointOutcomes.isNotEmpty) {
+          final captured = capturedKeyPointIds.toSet();
+          updatedOutcomes = target.keyPointOutcomes
+              .map((o) => o.copyWith(
+                    verdict: captured.contains(o.keyPointId)
+                        ? KeyPointVerdict.captured
+                        : KeyPointVerdict.missed,
+                    humanDecision: captured.contains(o.keyPointId),
+                  ))
+              .toList();
+          effectivePoints = updatedOutcomes.where((o) => o.counted).length;
+        }
+
         // attempt.attemptMultiplier was fixed at submit time (§4.3
         // cooldown dampening) — a manually-graded question inside a
         // dampened attempt earns the same reduced rate as every other
         // question in it, not full rate.
         final xp = (questionXp(
           type: target.type,
-          pointsAwarded: pointsAwarded,
+          pointsAwarded: effectivePoints,
           maxPoints: target.maxPoints,
           difficulty: attempt.difficulty,
           levelMultiplier: attempt.levelMultiplier,
@@ -324,10 +423,11 @@ class TestRepository {
 
         final updatedResponses = List<QuestionResponse>.from(attempt.responses);
         updatedResponses[idx] = target.copyWith(
-          pointsAwarded: pointsAwarded.clamp(0, target.maxPoints),
+          pointsAwarded: effectivePoints.clamp(0, target.maxPoints),
           graded: true,
           feedback: feedback,
           xpEarned: xp,
+          keyPointOutcomes: updatedOutcomes,
         );
 
         final nowFullyGraded = updatedResponses.every((r) => r.graded);

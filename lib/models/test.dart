@@ -32,7 +32,7 @@ extension QuestionTypeExt on QuestionType {
     switch (this) {
       case QuestionType.mcq:        return 'Multiple Choice';
       case QuestionType.structured: return 'Structured';
-      case QuestionType.longForm:   return 'Long Form';
+      case QuestionType.longForm:   return 'Essay';
     }
   }
 
@@ -55,6 +55,57 @@ extension TestDifficultyExt on TestDifficulty {
       .firstWhere((d) => d.name == key, orElse: () => TestDifficulty.medium);
 }
 
+// ── Essay key points (production_plan.md §3, "Quiz Type 3 — Essay") ──────
+// The plan is explicit that an Essay question is NOT "type two pages of
+// prose into the app". It is: the author names the 7–9 essential points a
+// strong answer must contain, the student states the points they'd
+// include, and the score is simply how many of those essential points
+// they captured. So an Essay question's authored payload is a LIST OF KEY
+// POINTS, not a list of prose section headings (which is what the first
+// cut of this model shipped — see AUTOPILOT_LOG for the swap).
+
+/// The spec's stated range for "the essential points a strong answer
+/// should contain". Enforced in the authoring UI (TestComposerPage), not
+/// in this constructor — a malformed document read back from Firestore
+/// should still parse rather than throw in a fromMap.
+const int kMinEssayKeyPoints = 7;
+const int kMaxEssayKeyPoints = 9;
+
+/// One essential point of a strong essay answer. [text] is deliberately a
+/// short phrase/sentence ("Photosynthesis converts light energy to
+/// chemical energy"), never a paragraph — it is the unit the student's
+/// own submitted points get matched against.
+///
+/// [keywords] are OPTIONAL alternate phrasings the author can add for the
+/// same idea ("light reaction", "converts sunlight"). They exist purely
+/// to make the offline matcher (core/essay_matching.dart) fairer to a
+/// student who used different words for the right idea — each keyword is
+/// scored as an ALTERNATIVE to [text], never as an extra requirement on
+/// top of it.
+class EssayKeyPoint {
+  final String id;
+  final String text;
+  final List<String> keywords;
+
+  const EssayKeyPoint({
+    required this.id,
+    required this.text,
+    this.keywords = const [],
+  });
+
+  factory EssayKeyPoint.fromMap(Map<String, dynamic> m) => EssayKeyPoint(
+        id: m['id'] ?? '',
+        text: m['text'] ?? '',
+        keywords: List<String>.from(m['keywords'] ?? const []),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'text': text,
+        'keywords': keywords,
+      };
+}
+
 /// One question inside a Test. Which fields are meaningful depends on
 /// [type]:
 ///  - mcq: uses [options] + [correctIndex]. Auto-graded instantly.
@@ -62,9 +113,10 @@ extension TestDifficultyExt on TestDifficulty {
 ///    and optional [rubricGuidance] (shown to whoever grades it — human
 ///    today, an AI grader potentially later; see TestRepository's honest
 ///    scope note on that).
-///  - longForm: uses [requiredSections] (e.g. Summary / Methodology /
-///    Steps, or a theory subject's outline headings) — the answer UI
-///    renders one labelled box per section instead of free-form lines.
+///  - longForm (the plan's "Essay"): uses [keyPoints] — the 7–9 essential
+///    points. Scored out of the NUMBER of key points, not out of [points]
+///    (see [maxPoints]), because the plan defines the essay score as
+///    "how many essential points the student captured".
 class TestQuestion {
   final String id;
   final QuestionType type;
@@ -79,8 +131,8 @@ class TestQuestion {
   final int lineCount;
   final String? rubricGuidance;
 
-  // Long-form only
-  final List<String> requiredSections;
+  // Essay (longForm) only
+  final List<EssayKeyPoint> keyPoints;
 
   const TestQuestion({
     required this.id,
@@ -91,8 +143,17 @@ class TestQuestion {
     this.correctIndex = 0,
     this.lineCount = 4,
     this.rubricGuidance,
-    this.requiredSections = const [],
+    this.keyPoints = const [],
   });
+
+  /// What this question is actually scored out of. For an Essay this is
+  /// the KEY POINT COUNT — "captured 6 of 9" is the plan's own scoring
+  /// unit, and feeding pointsAwarded=6/maxPoints=9 into
+  /// core/xp_rules.dart's questionXp() gives exactly the ratio the XP
+  /// machinery already expects, with no parallel XP path. For mcq and
+  /// structured it is the author-set [points], unchanged.
+  int get maxPoints =>
+      type == QuestionType.longForm ? keyPoints.length : points;
 
   factory TestQuestion.fromMap(Map<String, dynamic> m) => TestQuestion(
         id: m['id'] ?? '',
@@ -103,7 +164,9 @@ class TestQuestion {
         correctIndex: (m['correctIndex'] as num?)?.toInt() ?? 0,
         lineCount: (m['lineCount'] as num?)?.toInt() ?? 4,
         rubricGuidance: m['rubricGuidance'],
-        requiredSections: List<String>.from(m['requiredSections'] ?? const []),
+        keyPoints: (m['keyPoints'] as List<dynamic>? ?? [])
+            .map((k) => EssayKeyPoint.fromMap(Map<String, dynamic>.from(k)))
+            .toList(),
       );
 
   Map<String, dynamic> toMap() => {
@@ -115,7 +178,7 @@ class TestQuestion {
         'correctIndex': correctIndex,
         'lineCount': lineCount,
         'rubricGuidance': rubricGuidance,
-        'requiredSections': requiredSections,
+        'keyPoints': keyPoints.map((k) => k.toMap()).toList(),
       };
 }
 
@@ -149,9 +212,23 @@ class Test {
   });
 
   int get questionCount => questions.length;
-  int get totalPossiblePoints => questions.fold(0, (s, q) => s + q.points);
+  int get totalPossiblePoints => questions.fold(0, (s, q) => s + q.maxPoints);
+
+  /// Questions that ALWAYS need a human grader. Essay (longForm) is
+  /// deliberately NOT in here any more: since the key-points redesign an
+  /// essay answer is auto-matched offline (core/essay_matching.dart) and
+  /// only reaches the grading queue when the matcher is genuinely
+  /// undecided about one of the points — which can't be known before the
+  /// student answers. So this stays a promise the UI can actually keep,
+  /// rather than warning every essay-taker about a review that usually
+  /// won't happen.
   bool get hasManualGrading =>
-      questions.any((q) => q.type != QuestionType.mcq);
+      questions.any((q) => q.type == QuestionType.structured);
+
+  /// Contains at least one Essay question — i.e. an attempt on this test
+  /// MIGHT route some points to a human for a final call.
+  bool get hasEssayQuestions =>
+      questions.any((q) => q.type == QuestionType.longForm);
 
   factory Test.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data() ?? {};

@@ -4,9 +4,21 @@
 //   - Structured: one multi-line box, answered one point per line —
 //     each non-empty line becomes one entry in the graded response's
 //     textAnswer list.
-//   - Long-form (AC): one labelled box per required section (Summary /
-//     Methodology / Steps, or a theory subject's outline headings) —
-//     whatever the test's author configured on the question.
+//   - Essay (longForm): NOT a prose box. production_plan.md §3 Quiz
+//     Type 3 is explicit — "Essay Quiz = demonstrate that you understand
+//     the structure and essential content of the essay, not reproduce a
+//     two-page essay inside the application". So the student gets one
+//     short line per essential point and states the points they would
+//     include; core/essay_matching.dart then scores how many of the
+//     author's 7–9 essential points they captured.
+//
+// UI decision for the Essay input (logged in AUTOPILOT_LOG): the student
+// TYPES their own points rather than ticking them off a displayed list of
+// the real key points. Showing the real points and asking which ones
+// matter would hand over the entire answer — the student would score 100%
+// by selecting everything, and the question would test nothing. Typing
+// their own phrasing is the only shape that actually demonstrates recall,
+// which is what the spec asks the Essay quiz to measure.
 
 import 'package:flutter/material.dart';
 import '../../models/app_user.dart';
@@ -41,7 +53,7 @@ class _TestTakingPageState extends State<TestTakingPage> {
       if (q.type == QuestionType.structured) {
         _textControllers[q.id] = TextEditingController();
       } else if (q.type == QuestionType.longForm) {
-        for (var i = 0; i < q.requiredSections.length; i++) {
+        for (var i = 0; i < q.keyPoints.length; i++) {
           _textControllers['${q.id}_$i'] = TextEditingController();
         }
       }
@@ -66,9 +78,14 @@ class _TestTakingPageState extends State<TestTakingPage> {
           if ((_textControllers[q.id]?.text.trim() ?? '').isEmpty) return false;
           break;
         case QuestionType.longForm:
-          for (var i = 0; i < q.requiredSections.length; i++) {
-            if ((_textControllers['${q.id}_$i']?.text.trim() ?? '').isEmpty) return false;
-          }
+          // Deliberately NOT "every box filled". The Essay score IS how
+          // many of the essential points the student managed to recall,
+          // so a student who can only produce four of nine points must
+          // still be able to submit and be scored 4/9 — blocking
+          // submission until all nine boxes are full would turn a
+          // scoring dimension into a hard gate. One point is the floor
+          // for having attempted the question at all.
+          if (_essayPointsEntered(q) == 0) return false;
           break;
       }
     }
@@ -96,10 +113,10 @@ class _TestTakingPageState extends State<TestTakingPage> {
           rawAnswers[q.id] = lines;
           break;
         case QuestionType.longForm:
-          rawAnswers[q.id] = List.generate(
-            q.requiredSections.length,
-            (i) => _textControllers['${q.id}_$i']?.text.trim() ?? '',
-          );
+          rawAnswers[q.id] = [
+            for (var i = 0; i < q.keyPoints.length; i++)
+              _textControllers['${q.id}_$i']?.text.trim() ?? '',
+          ].where((s) => s.isNotEmpty).toList();
           break;
       }
     }
@@ -214,19 +231,87 @@ class _TestTakingPageState extends State<TestTakingPage> {
     ]);
   }
 
+  /// How many non-empty points the student has entered for [q] so far.
+  int _essayPointsEntered(TestQuestion q) {
+    var count = 0;
+    for (var i = 0; i < q.keyPoints.length; i++) {
+      if ((_textControllers['${q.id}_$i']?.text.trim() ?? '').isNotEmpty) {
+        count++;
+      }
+    }
+    return count;
+  }
+
   Widget _longFormInput(TestQuestion q) {
+    final total = q.keyPoints.length;
+    final entered = _essayPointsEntered(q);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      for (var i = 0; i < q.requiredSections.length; i++) ...[
-        Text(q.requiredSections[i], style: AppText.subtitle),
-        const SizedBox(height: 6),
-        TextField(
-          controller: _textControllers['${q.id}_$i'],
-          maxLines: 5,
-          minLines: 3,
-          decoration: InputDecoration(hintText: 'Your ${q.requiredSections[i].toLowerCase()}...'),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: ac.primaryBg,
+          borderRadius: BorderRadius.circular(Rad.sm),
         ),
-        const SizedBox(height: 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.checklist_rounded, size: 16, color: ac.primary),
+            const SizedBox(width: 6),
+            Text('Essential points', style: AppText.subtitle.copyWith(color: ac.primary)),
+          ]),
+          const SizedBox(height: 6),
+          Text(
+            'A strong answer to this question contains $total essential points. '
+            "Write each point you would include as one short line — you're not "
+            'asked to write the full essay. Every point you capture earns marks.',
+            style: AppText.caption,
+          ),
+        ]),
+      ),
+      const SizedBox(height: 12),
+      for (var i = 0; i < total; i++) ...[
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 26, height: 26,
+            margin: const EdgeInsets.only(top: 8),
+            decoration: BoxDecoration(
+              color: (_textControllers['${q.id}_$i']?.text.trim() ?? '').isEmpty
+                  ? ac.surf2
+                  : ac.primaryBg,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text('${i + 1}',
+                  style: AppText.label.copyWith(
+                    color: (_textControllers['${q.id}_$i']?.text.trim() ?? '').isEmpty
+                        ? ac.muted
+                        : ac.primary,
+                  )),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _textControllers['${q.id}_$i'],
+              maxLines: 2,
+              minLines: 1,
+              textCapitalization: TextCapitalization.sentences,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: i == 0
+                    ? 'e.g. a key idea, cause, stage or consequence'
+                    : 'Point ${i + 1}',
+              ),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 10),
       ],
+      Row(children: [
+        Icon(Icons.edit_note_rounded, size: 14, color: ac.muted),
+        const SizedBox(width: 5),
+        Text('$entered of $total points written', style: AppText.caption),
+      ]),
     ]);
   }
 }

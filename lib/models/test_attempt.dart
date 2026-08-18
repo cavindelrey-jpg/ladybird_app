@@ -8,7 +8,16 @@
 // Grading framework:
 //   - mcq responses are graded the instant the attempt is submitted
 //     (TestRepository.submitAttempt) — deterministic, no human needed.
-//   - structured/longForm responses start ungraded (pointsAwarded: null,
+//   - longForm (Essay) responses are matched against the question's
+//     essential key points at submit time by core/essay_matching.dart,
+//     entirely offline. When the matcher is confident about every key
+//     point — the common case — the response is graded immediately too,
+//     scored as "captured N of the 7–9 essential points". Only when it
+//     is genuinely undecided about one or more points does the response
+//     stay ungraded and enter the human queue, and even then the human
+//     is deciding a handful of specific flagged points rather than
+//     reading prose from scratch.
+//   - structured responses always start ungraded (pointsAwarded: null,
 //     graded: false) and wait for TestRepository.gradeResponse(), called
 //     today by a lecturer/admin from the grading queue. That method is
 //     the seam an AI grader would plug into later (call it with a
@@ -19,6 +28,7 @@
 //     flagging that honestly rather than pretending it's live.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/essay_matching.dart';
 import 'test.dart';
 
 enum AttemptStatus { submitted, graded }
@@ -29,6 +39,80 @@ extension AttemptStatusExt on AttemptStatus {
       : AttemptStatus.submitted;
 }
 
+/// The stored verdict for ONE essential key point of an Essay answer
+/// (production_plan.md §3 Quiz Type 3). Produced by
+/// core/essay_matching.dart at submit time and then frozen into the
+/// attempt.
+///
+/// [keyPointText] is DENORMALIZED on purpose — copied out of the Test at
+/// submit time rather than re-read from it when grading. An attempt is a
+/// record of what the student was actually asked; if the author later
+/// edits or reorders the question's key points, this attempt's grading
+/// screen and result screen must still show what was true when it was
+/// taken. It also means the grading queue needs no second fetch.
+class KeyPointOutcome {
+  final String keyPointId;
+  final String keyPointText;
+
+  /// The student's own wording that the matcher paired with this key
+  /// point; empty when nothing matched it.
+  final String studentText;
+
+  /// The matcher's weighted-recall score, kept for transparency — a
+  /// grader can see how close the call was, and it makes any later
+  /// threshold tuning auditable against real attempts.
+  final double score;
+
+  final KeyPointVerdict verdict;
+
+  /// Set only when a human resolved an [KeyPointVerdict.uncertain] point
+  /// in the grading queue: true = the grader allowed it, false = the
+  /// grader rejected it. Null means no human ever touched this point.
+  final bool? humanDecision;
+
+  const KeyPointOutcome({
+    required this.keyPointId,
+    required this.keyPointText,
+    this.studentText = '',
+    this.score = 0,
+    required this.verdict,
+    this.humanDecision,
+  });
+
+  /// Whether this point counts toward the score right now — a human's
+  /// decision always wins over the matcher's.
+  bool get counted =>
+      humanDecision ?? (verdict == KeyPointVerdict.captured);
+
+  KeyPointOutcome copyWith({KeyPointVerdict? verdict, bool? humanDecision}) =>
+      KeyPointOutcome(
+        keyPointId: keyPointId,
+        keyPointText: keyPointText,
+        studentText: studentText,
+        score: score,
+        verdict: verdict ?? this.verdict,
+        humanDecision: humanDecision ?? this.humanDecision,
+      );
+
+  factory KeyPointOutcome.fromMap(Map<String, dynamic> m) => KeyPointOutcome(
+        keyPointId: m['keyPointId'] ?? '',
+        keyPointText: m['keyPointText'] ?? '',
+        studentText: m['studentText'] ?? '',
+        score: (m['score'] as num?)?.toDouble() ?? 0,
+        verdict: KeyPointVerdictExt.fromKey(m['verdict']),
+        humanDecision: m['humanDecision'] as bool?,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'keyPointId': keyPointId,
+        'keyPointText': keyPointText,
+        'studentText': studentText,
+        'score': score,
+        'verdict': verdict.name,
+        'humanDecision': humanDecision,
+      };
+}
+
 class QuestionResponse {
   final String questionId;
   final QuestionType type;
@@ -37,9 +121,16 @@ class QuestionResponse {
   // mcq
   final int? selectedIndex;
 
-  // structured / longForm — raw text, one entry per line (structured) or
-  // per required section (longForm), same order as the question defined.
+  // structured — raw text, one entry per answered line.
+  // longForm (Essay) — the student's OWN short key points, one entry
+  // each, in the order they entered them. Never a full essay: §3 is
+  // explicit that the student states the essential points rather than
+  // reproducing a two-page essay in the app.
   final List<String> textAnswer;
+
+  /// Essay only: one entry per authored key point, in the author's order.
+  /// Empty for mcq/structured responses.
+  final List<KeyPointOutcome> keyPointOutcomes;
 
   final int? pointsAwarded;
   final bool graded;
@@ -55,17 +146,30 @@ class QuestionResponse {
     required this.maxPoints,
     this.selectedIndex,
     this.textAnswer = const [],
+    this.keyPointOutcomes = const [],
     this.pointsAwarded,
     this.graded = false,
     this.feedback,
     this.xpEarned = 0,
   });
 
+  /// Key points still awaiting a human's final call.
+  List<KeyPointOutcome> get uncertainOutcomes => keyPointOutcomes
+      .where((o) => o.verdict == KeyPointVerdict.uncertain && o.humanDecision == null)
+      .toList();
+
+  /// How many essential points currently count as captured — the Essay
+  /// score, straight out of §3's "evaluate how many essential points the
+  /// student captured".
+  int get capturedKeyPointCount =>
+      keyPointOutcomes.where((o) => o.counted).length;
+
   QuestionResponse copyWith({
     int? pointsAwarded,
     bool? graded,
     String? feedback,
     int? xpEarned,
+    List<KeyPointOutcome>? keyPointOutcomes,
   }) =>
       QuestionResponse(
         questionId: questionId,
@@ -73,6 +177,7 @@ class QuestionResponse {
         maxPoints: maxPoints,
         selectedIndex: selectedIndex,
         textAnswer: textAnswer,
+        keyPointOutcomes: keyPointOutcomes ?? this.keyPointOutcomes,
         pointsAwarded: pointsAwarded ?? this.pointsAwarded,
         graded: graded ?? this.graded,
         feedback: feedback ?? this.feedback,
@@ -85,6 +190,9 @@ class QuestionResponse {
         maxPoints: (m['maxPoints'] as num?)?.toInt() ?? 0,
         selectedIndex: (m['selectedIndex'] as num?)?.toInt(),
         textAnswer: List<String>.from(m['textAnswer'] ?? const []),
+        keyPointOutcomes: (m['keyPointOutcomes'] as List<dynamic>? ?? [])
+            .map((o) => KeyPointOutcome.fromMap(Map<String, dynamic>.from(o)))
+            .toList(),
         pointsAwarded: (m['pointsAwarded'] as num?)?.toInt(),
         graded: m['graded'] ?? false,
         feedback: m['feedback'],
@@ -97,6 +205,7 @@ class QuestionResponse {
         'maxPoints': maxPoints,
         'selectedIndex': selectedIndex,
         'textAnswer': textAnswer,
+        'keyPointOutcomes': keyPointOutcomes.map((o) => o.toMap()).toList(),
         'pointsAwarded': pointsAwarded,
         'graded': graded,
         'feedback': feedback,

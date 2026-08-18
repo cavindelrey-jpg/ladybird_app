@@ -110,6 +110,21 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
   int get _activeExtraFilterCount =>
       (_levelFilter != null ? 1 : 0) + (_examBoardFilter != null ? 1 : 0) + (_yearFilter != null ? 1 : 0);
 
+  /// production_plan.md §7B — "Past Papers → recommends relevant Past
+  /// Papers." Mirrors _LibraryDiscovery's own gate (only a signed-in user
+  /// with real favorite subjects gets the rail, same "real signal or
+  /// nothing" standard as forLibrary/forCourses/forMagazine) and is
+  /// additionally scoped to the unfiltered Past Papers view — once the
+  /// user is already subject/level/exam/year-filtering or searching,
+  /// they're doing their own targeting and a second recommendation rail
+  /// on top would be noise, not help.
+  bool get _showPastPapersRecommended =>
+      _typeFilter == ContentType.pastPaper &&
+      _subjectFilter == null &&
+      _activeExtraFilterCount == 0 &&
+      !widget.user.isGuest &&
+      widget.user.favoriteSubjects.isNotEmpty;
+
   /// Handles HeroDestination.section taps from the Library banner: a key
   /// matching a ContentType name switches the type filter, anything else
   /// is treated as a subject name (same as tapping a subject tile).
@@ -233,14 +248,19 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
               ? _SearchResults(loading: _searchLoading, results: _searchResults ?? [], user: widget.user)
               : ((_typeFilter == null && _subjectFilter == null && _activeExtraFilterCount == 0)
                   ? _LibraryDiscovery(user: widget.user, onSubjectTap: _selectSubject)
-                  : _LiveFeed(
-                      user: widget.user,
-                      typeFilter: _typeFilter,
-                      subjectFilter: _subjectFilter,
-                      levelFilter: _levelFilter,
-                      examBoardFilter: _examBoardFilter,
-                      yearFilter: _yearFilter,
-                    )),
+                  : Column(children: [
+                      if (_showPastPapersRecommended) _PastPapersRecommended(user: widget.user),
+                      Expanded(
+                        child: _LiveFeed(
+                          user: widget.user,
+                          typeFilter: _typeFilter,
+                          subjectFilter: _subjectFilter,
+                          levelFilter: _levelFilter,
+                          examBoardFilter: _examBoardFilter,
+                          yearFilter: _yearFilter,
+                        ),
+                      ),
+                    ])),
         ),
       ]),
       ),
@@ -434,6 +454,67 @@ class _LiveFeed extends StatelessWidget {
         return _ContentGrid(items: items, user: user);
       },
     );
+  }
+}
+
+/// production_plan.md §7B "Recommended for You" rail for Past Papers —
+/// the counterpart to _LibraryDiscovery._recommended, but for a surface
+/// that (unlike the Library "All" view) has no discovery landing page of
+/// its own: Past Papers is entered pre-filtered
+/// (`initialTypeFilter: ContentType.pastPaper` from the drawer/home/hero
+/// banner), which skips _LibraryDiscovery entirely and would otherwise
+/// go straight to a bare grid. Real favorite-subject/education-level
+/// signal via RecommendationRepository.forPastPapers, honest empty state
+/// (hidden, not a fabricated "recommended" label over generic content —
+/// see the caller's _showPastPapersRecommended gate for why this only
+/// ever builds when there's a real signal to show).
+class _PastPapersRecommended extends StatelessWidget {
+  final AppUser user;
+  const _PastPapersRecommended({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        child: Text('Recommended for You', style: AppText.h2.copyWith(fontSize: 16)),
+      ),
+      const SizedBox(height: 12),
+      FutureBuilder<List<AcademicContent>>(
+        future: RecommendationRepository.instance.forPastPapers(
+          favoriteSubjects: user.favoriteSubjects,
+          institutionId: user.schoolId,
+          educationLevel: user.educationLevel.isEmpty ? null : user.educationLevel,
+        ),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return SizedBox(
+              height: 180,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: 3,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (_, __) => const ShimmerBlock(width: 150, height: 180),
+              ),
+            );
+          }
+          final items = snap.data ?? const <AcademicContent>[];
+          if (items.isEmpty) return const SizedBox.shrink();
+          return SizedBox(
+            height: 180,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (_, i) => _ContinueLearningCard(item: items[i], user: user),
+            ),
+          );
+        },
+      ),
+      const SizedBox(height: 12),
+    ]);
   }
 }
 
@@ -910,6 +991,7 @@ class _LibraryDiscovery extends StatelessWidget {
     return FutureBuilder<List<AcademicContent>>(
       future: RecommendationRepository.instance.forLibrary(
         favoriteSubjects: user.favoriteSubjects, institutionId: user.schoolId,
+        educationLevel: user.educationLevel.isEmpty ? null : user.educationLevel,
       ),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {

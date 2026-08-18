@@ -36,6 +36,7 @@ import '../pages/notifications_page.dart';
 import '../pages/help_support_page.dart';
 import '../features/testing/tests_subject_picker_page.dart';
 import '../features/testing/grading_page.dart';
+import '../features/testing/test_composer_page.dart';
 
 class AppDrawer extends StatelessWidget {
   final AppUser? user;
@@ -133,6 +134,13 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => const HelpSupportPage()))),
                 if (!_isGuest && user!.hasMinRole(UserRole.lecturer)) ...[
                   Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: ac.bdr2),
+                  // TestRepository.createTest() had no caller anywhere in
+                  // the app until this entry — tests could only have been
+                  // created straight in the Firestore console.
+                  _item(context, ac, Icons.post_add_rounded, 'Create Test', () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => TestComposerPage(author: user!)));
+                  }),
                   _item(context, ac, Icons.rate_review_rounded, 'Grading Queue', () {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => GradingPage(grader: user!)));

@@ -13,8 +13,11 @@ import 'package:flutter/services.dart';
 import '../../models/app_user.dart';
 import '../../models/hero_slide.dart';
 import '../../models/messaging.dart';
+import '../../models/club.dart';
 import '../../repositories/messaging_repository.dart';
 import '../../repositories/follow_repository.dart';
+import '../../repositories/club_repository.dart';
+import '../clubs/clubs_page.dart' show ClubDetailPage;
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
@@ -273,58 +276,79 @@ class _MessagesHomePageState extends State<MessagesHomePage> {
     );
   }
 
+  /// Merged Messages inbox — the mockup shows club/group threads (e.g.
+  /// "STEM Innovators Club") alongside 1:1 conversations in ONE
+  /// recency-sorted list, not a separate section. Rather than folding
+  /// clubs into the Conversation/conversations collection (a much larger,
+  /// riskier data-model change touching two already-working systems),
+  /// this merges two independent streams client-side into one sorted
+  /// list of [_InboxEntry] — Club keeps its own real chat backend
+  /// (clubs/{id}/messages), Conversation keeps its own; only the
+  /// Messages-home LIST rendering is unified.
   Widget _recentConversationsSection(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: StreamBuilder<List<Conversation>>(
         stream: MessagingRepository.instance.watchConversations(user.id),
-        builder: (context, snap) {
+        builder: (context, convSnap) {
           final ac = AppColors.of(context);
-          if (snap.connectionState == ConnectionState.waiting) {
-            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Recent Conversations', style: AppText.h2.copyWith(fontSize: 16)),
-              const SizedBox(height: 12),
-              ...List.generate(3, (_) => const Padding(
-                padding: EdgeInsets.only(bottom: 10),
-                child: Row(children: [
-                  ShimmerCircle(size: 44),
-                  SizedBox(width: 12),
-                  Expanded(child: ShimmerLine(height: 14)),
-                ]),
-              )),
-            ]);
-          }
-          if (snap.hasError) {
-            return Text('Failed to load: ${snap.error}', style: AppText.caption.copyWith(color: ac.red, fontSize: 11));
-          }
-          final conversations = snap.data ?? const <Conversation>[];
-          if (conversations.isEmpty) {
-            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Recent Conversations', style: AppText.h2.copyWith(fontSize: 16)),
-              const SizedBox(height: 12),
-              Text('No conversations yet — find someone and send a friend request.', style: AppText.bodySm),
-            ]);
-          }
-          final pinned = conversations.where((c) => c.pinnedBy.contains(user.id)).toList();
-          final recent = conversations.where((c) => !c.pinnedBy.contains(user.id)).toList();
-          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (pinned.isNotEmpty) ...[
-              Row(children: [
-                Icon(Icons.push_pin_rounded, size: 14, color: ac.gold),
-                const SizedBox(width: 6),
-                Text('Pinned', style: AppText.h2.copyWith(fontSize: 16)),
-              ]),
-              const SizedBox(height: 12),
-              ...pinned.map((c) => _ConversationRow(user: user, conversation: c)),
-              const SizedBox(height: 20),
-            ],
-            Text('Recent', style: AppText.h2.copyWith(fontSize: 16)),
-            const SizedBox(height: 12),
-            if (recent.isEmpty)
-              Text('Nothing else — every conversation is pinned.', style: AppText.bodySm)
-            else
-              ...recent.map((c) => _ConversationRow(user: user, conversation: c)),
-          ]);
+          return StreamBuilder<List<Club>>(
+            stream: ClubRepository.instance.watchMyClubs(user.id),
+            builder: (context, clubSnap) {
+              if (convSnap.connectionState == ConnectionState.waiting) {
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Recent Conversations', style: AppText.h2.copyWith(fontSize: 16)),
+                  const SizedBox(height: 12),
+                  ...List.generate(3, (_) => const Padding(
+                    padding: EdgeInsets.only(bottom: 10),
+                    child: Row(children: [
+                      ShimmerCircle(size: 44),
+                      SizedBox(width: 12),
+                      Expanded(child: ShimmerLine(height: 14)),
+                    ]),
+                  )),
+                ]);
+              }
+              if (convSnap.hasError) {
+                return Text('Failed to load: ${convSnap.error}', style: AppText.caption.copyWith(color: ac.red, fontSize: 11));
+              }
+              final conversations = convSnap.data ?? const <Conversation>[];
+              final clubs = (clubSnap.data ?? const <Club>[])
+                  .where((c) => c.lastMessageAt != null) // a club with no chat activity isn't an "inbox" entry
+                  .toList();
+              if (conversations.isEmpty && clubs.isEmpty) {
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Recent Conversations', style: AppText.h2.copyWith(fontSize: 16)),
+                  const SizedBox(height: 12),
+                  Text('No conversations yet — find someone and send a friend request.', style: AppText.bodySm),
+                ]);
+              }
+              final pinned = conversations.where((c) => c.pinnedBy.contains(user.id))
+                  .map<_InboxEntry>(_ConversationEntry.new).toList();
+              final recent = <_InboxEntry>[
+                ...conversations.where((c) => !c.pinnedBy.contains(user.id)).map(_ConversationEntry.new),
+                ...clubs.map(_ClubEntry.new),
+              ]..sort((a, b) => b.lastMessageAt.compareTo(a.lastMessageAt));
+              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (pinned.isNotEmpty) ...[
+                  Row(children: [
+                    Icon(Icons.push_pin_rounded, size: 14, color: ac.gold),
+                    const SizedBox(width: 6),
+                    Text('Pinned', style: AppText.h2.copyWith(fontSize: 16)),
+                  ]),
+                  const SizedBox(height: 12),
+                  ...pinned.map((e) => _InboxRow(user: user, entry: e)),
+                  const SizedBox(height: 20),
+                ],
+                Text('Recent', style: AppText.h2.copyWith(fontSize: 16)),
+                const SizedBox(height: 12),
+                if (recent.isEmpty)
+                  Text('Nothing else — every conversation is pinned.', style: AppText.bodySm)
+                else
+                  ...recent.map((e) => _InboxRow(user: user, entry: e)),
+              ]);
+            },
+          );
         },
       ),
     );
@@ -374,17 +398,73 @@ class _MessagesHomePageState extends State<MessagesHomePage> {
   }
 }
 
-/// One row in Pinned/Recent — long-press to pin/unpin, matching the
-/// mockup's Pinned-section split. Swipe gestures were considered but
-/// long-press reuses the same discoverable pattern chat bubbles already
-/// use for delete (chat_conversation_page.dart's _MessageBubble).
-class _ConversationRow extends StatelessWidget {
-  final AppUser user;
+/// One entry in the merged inbox list — either a 1:1 [Conversation] or a
+/// [Club] (club chat), rendered by the same [_InboxRow]. Only
+/// Conversation supports pin/unread (Club has neither concept yet).
+abstract class _InboxEntry {
+  DateTime get lastMessageAt;
+}
+
+class _ConversationEntry extends _InboxEntry {
   final Conversation conversation;
-  const _ConversationRow({required this.user, required this.conversation});
+  _ConversationEntry(this.conversation);
+  @override
+  DateTime get lastMessageAt => conversation.lastMessageAt;
+}
+
+class _ClubEntry extends _InboxEntry {
+  final Club club;
+  _ClubEntry(this.club);
+  @override
+  DateTime get lastMessageAt => club.lastMessageAt!; // filtered non-null by the caller
+}
+
+/// One row in Pinned/Recent — long-press to pin/unpin (Conversations
+/// only), matching the mockup's Pinned-section split. Swipe gestures
+/// were considered but long-press reuses the same discoverable pattern
+/// chat bubbles already use for delete (chat_conversation_page.dart's
+/// _MessageBubble).
+class _InboxRow extends StatelessWidget {
+  final AppUser user;
+  final _InboxEntry entry;
+  const _InboxRow({required this.user, required this.entry});
 
   @override
   Widget build(BuildContext context) {
+    final e = entry;
+    if (e is _ClubEntry) return _clubRow(context, e.club);
+    return _conversationRow(context, (e as _ConversationEntry).conversation);
+  }
+
+  Widget _clubRow(BuildContext context, Club club) {
+    final ac = AppColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: ACard(
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => ClubDetailPage(club: club, user: user))),
+        child: Row(children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(color: ac.primaryBg, shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: Text(club.emoji, style: const TextStyle(fontSize: 20)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(club.name, style: AppText.title.copyWith(fontSize: 14)),
+              Text(club.lastMessageSenderId == user.id ? 'You: ${club.lastMessageText}' : club.lastMessageText,
+                  style: AppText.bodySm.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ]),
+          ),
+          Text(_relativeTime(club.lastMessageAt!), style: AppText.caption.copyWith(fontSize: 10.5)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _conversationRow(BuildContext context, Conversation conversation) {
     final ac = AppColors.of(context);
     final otherId = conversation.otherParticipantId(user.id);
     final otherName = conversation.participantNames[otherId] ?? 'Unknown';

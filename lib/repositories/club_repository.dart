@@ -67,6 +67,9 @@ class ClubRepository {
           .collection(AppConstants.colMembers)
           .doc(userId);
       batch.set(memberRef, {
+        'userId': userId, // also the doc id, but needed as a FIELD too --
+                           // collectionGroup('members') queries (see
+                           // watchMyClubIds()) can't filter by doc id.
         'name': name,
         'photoUrl': photoUrl,
         'role': ClubRole.member.name,
@@ -139,6 +142,7 @@ class ClubRepository {
       final memberRef = _db.collection(AppConstants.colClubs).doc(req.clubId)
           .collection(AppConstants.colMembers).doc(req.userId);
       batch.set(memberRef, {
+        'userId': req.userId,
         'name': req.userName, 'photoUrl': req.userPhotoUrl,
         'role': ClubRole.member.name, 'joinedAt': FieldValue.serverTimestamp(),
       });
@@ -194,16 +198,59 @@ class ClubRepository {
 
   Future<Result<void>> sendMessage(String clubId, ClubMessage message) async {
     try {
-      await _db
-          .collection(AppConstants.colClubs)
-          .doc(clubId)
-          .collection(AppConstants.colMessages)
-          .add(message.toFirestore());
+      final batch = _db.batch();
+      final msgRef = _db.collection(AppConstants.colClubs).doc(clubId)
+          .collection(AppConstants.colMessages).doc();
+      batch.set(msgRef, message.toFirestore());
+      // Denormalized preview so this club can show up in the merged
+      // Messages inbox (MessagesHomePage) alongside 1:1 conversations —
+      // same shape as MessagingRepository.sendMessage's preview text.
+      batch.update(_db.collection(AppConstants.colClubs).doc(clubId), {
+        'lastMessageText': message.text,
+        'lastMessageSenderId': message.senderId,
+        'lastMessageAt': FieldValue.serverTimestamp(),
+      });
+      await batch.commit();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to send message', e);
     }
   }
+
+  // ── Merged-inbox support (Messaging mockup: club threads alongside
+  // 1:1 conversations in one Messages list) ─────────────────────────
+
+  /// IDs of every club [userId] belongs to, via a collectionGroup query
+  /// on `members` filtered by the `userId` FIELD (not doc id -- Firestore
+  /// collection-group queries can't filter by document id across
+  /// different parents). Needs a matching collection-group index on
+  /// `members.userId` -- see firestore.indexes.json (local file only,
+  /// same deploy caveat as firestore.rules).
+  Stream<List<String>> watchMyClubIds(String userId) => _db
+      .collectionGroup(AppConstants.colMembers)
+      .where('userId', isEqualTo: userId)
+      .snapshots()
+      .map((s) => s.docs
+          .map((d) => d.reference.parent.parent?.id)
+          .whereType<String>()
+          .toList());
+
+  /// Full Club docs for [watchMyClubIds] — the actual data the merged
+  /// inbox renders (name, emoji, lastMessage*).
+  Stream<List<Club>> watchMyClubs(String userId) => watchMyClubIds(userId).asyncMap((ids) async {
+        if (ids.isEmpty) return <Club>[];
+        final chunks = <List<String>>[];
+        for (var i = 0; i < ids.length; i += 30) {
+          chunks.add(ids.sublist(i, i + 30 > ids.length ? ids.length : i + 30));
+        }
+        final clubs = <Club>[];
+        for (final chunk in chunks) {
+          final snap = await _db.collection(AppConstants.colClubs)
+              .where(FieldPath.documentId, whereIn: chunk).get();
+          clubs.addAll(snap.docs.map(Club.fromFirestore));
+        }
+        return clubs;
+      });
 
   /// Soft-delete -- same reasoning as MessagingRepository.deleteMessage:
   /// keeps the doc so the thread shows a placeholder instead of a gap,
@@ -238,6 +285,7 @@ class ClubRepository {
       batch.set(
         docRef.collection(AppConstants.colMembers).doc(founderId),
         {
+          'userId': founderId,
           'name': founderName,
           'photoUrl': founderPhotoUrl,
           'role': ClubRole.admin.name,
@@ -317,8 +365,12 @@ class ClubRepository {
 
   Future<Result<void>> updateClub(Club club) async {
     try {
+      // toUpdateMap(), not toFirestore() -- the latter always stamps a
+      // fresh createdAt, which would silently overwrite a club's real
+      // creation date on every settings edit (same bug class this
+      // session already fixed for CourseRepository/PublicCourseRepository).
       await _db.collection(AppConstants.colClubs).doc(club.id)
-          .set(club.toFirestore(), SetOptions(merge: true));
+          .set(club.toUpdateMap(), SetOptions(merge: true));
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update club', e);

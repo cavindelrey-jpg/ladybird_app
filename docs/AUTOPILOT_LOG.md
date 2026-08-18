@@ -2057,6 +2057,52 @@ this is a real architecture change (Conversation needs a group-
 participant concept) flagged multiple times this session as a
 deliberate, larger scope cut, not an oversight; still open.
 
+## Same continuation: group-chat unification -- the last flagged
+Messaging gap, closed
+
+Built the Club-threads-in-Messages-inbox unification flagged as
+deferred multiple times this session. Deliberately did NOT fold clubs
+into the Conversation/conversations data model (would have touched two
+already-working systems' core collections) -- instead:
+- `Club` gained denormalized `lastMessageText`/`lastMessageSenderId`/
+  `lastMessageAt` (same shape/purpose as Conversation's own fields).
+  `ClubRepository.sendMessage()` now updates them alongside the actual
+  message write.
+- New `ClubRepository.watchMyClubIds()`/`watchMyClubs()` via a
+  `collectionGroup('members')` query filtered on a `userId` FIELD (added
+  to every member-doc write site -- joinClub/approveJoinRequest/
+  createClub's founder doc -- since collection-group queries can't
+  filter by document id across different parents). Added the matching
+  collection-group index to `firestore.indexes.json` (local file only,
+  same deploy caveat as rules -- needs `firebase deploy --only
+  firestore:indexes`).
+- `MessagesHomePage._recentConversationsSection` now merges
+  `watchConversations()` and `watchMyClubs()` into one `_InboxEntry`
+  list (`_ConversationEntry`/`_ClubEntry`), sorted by recency together.
+  Clubs render with their emoji as the avatar and route to
+  `ClubDetailPage` on tap. Pin-to-top stays Conversation-only for now
+  (Club has no `pinnedBy` concept yet) -- a club thread always lands in
+  Recent, never Pinned; flagging as a real, minor limitation rather than
+  a silent gap.
+- **Also fixed while in `Club.toFirestore()`**: it unconditionally
+  stamped a fresh `createdAt` on every write, which `ClubRepository
+  .updateClub()` was calling for EVERY settings edit -- the exact same
+  createdAt-on-update bug this session already fixed for
+  CourseRepository/PublicCourseRepository, found again by inspection
+  while touching an adjacent part of the same file. Split into
+  `toFirestore()` (create) and `toUpdateMap()` (update, no createdAt);
+  `updateClub()` now uses the latter.
+- Firestore rules: club chat's `lastMessageText`/`lastMessageSenderId`/
+  `lastMessageAt` trio can now be updated by any actual club member
+  (narrow diff-shape check, same pattern as every other counter-
+  increment branch this session added), not just staff/admins.
+- `flutter analyze`: full project 36 issues, same baseline -- zero new.
+
+This closes every concretely-identified mockup-fidelity gap from this
+round of user feedback across Magazine/Clubs/Messaging. Continuing
+into the rest of production_plan.md next, same "don't stop, verify
+before building, log every deferral" discipline.
+
 Also: user separately restated "don't stop until all are at 100%" --
 noted, continuing through remaining production_plan.md gaps without
 further check-ins, same discipline as the rest of this session (verify

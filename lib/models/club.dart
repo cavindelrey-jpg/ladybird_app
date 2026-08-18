@@ -17,6 +17,14 @@ class Club {
   final String? schoolId;
   final bool requiresApproval;
 
+  /// Denormalized preview of the club chat's most recent message — same
+  /// shape/purpose as Conversation's lastMessage* fields, so a club can
+  /// be listed alongside 1:1 conversations in one merged, recency-sorted
+  /// Messages inbox (see MessagesHomePage's _combinedInboxStream).
+  final String lastMessageText;
+  final String? lastMessageSenderId;
+  final DateTime? lastMessageAt;
+
   const Club({
     required this.id,
     required this.name,
@@ -29,6 +37,9 @@ class Club {
     this.memberCount = 0,
     this.schoolId,
     this.requiresApproval = false,
+    this.lastMessageText = '',
+    this.lastMessageSenderId,
+    this.lastMessageAt,
   });
 
   factory Club.fromFirestore(DocumentSnapshot doc) {
@@ -45,10 +56,24 @@ class Club {
       memberCount: (d['memberCount'] as num?)?.toInt() ?? 0,
       schoolId: d['schoolId'],
       requiresApproval: d['requiresApproval'] ?? false,
+      lastMessageText: d['lastMessageText'] ?? '',
+      lastMessageSenderId: d['lastMessageSenderId'],
+      lastMessageAt: (d['lastMessageAt'] as Timestamp?)?.toDate(),
     );
   }
 
+  /// For CREATE only — see [toUpdateMap] for editing an existing club
+  /// without clobbering its real `createdAt`, the same createdAt-on-
+  /// update bug this session already fixed for CourseRepository/
+  /// PublicCourseRepository.
   Map<String, dynamic> toFirestore() => {
+    ...toUpdateMap(),
+    'createdAt': FieldValue.serverTimestamp(),
+  };
+
+  /// Every field EXCEPT createdAt — safe to use for both create (spread
+  /// into toFirestore() above) and update (ClubRepository.updateClub()).
+  Map<String, dynamic> toUpdateMap() => {
     'name': name,
     'emoji': emoji,
     'description': description,
@@ -59,7 +84,9 @@ class Club {
     'memberCount': memberCount,
     'schoolId': schoolId,
     'requiresApproval': requiresApproval,
-    'createdAt': FieldValue.serverTimestamp(),
+    'lastMessageText': lastMessageText,
+    'lastMessageSenderId': lastMessageSenderId,
+    'lastMessageAt': lastMessageAt == null ? null : Timestamp.fromDate(lastMessageAt!),
   };
 }
 

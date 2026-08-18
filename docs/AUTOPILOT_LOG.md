@@ -2414,3 +2414,199 @@ condition, not attempted without the repo owner's go-ahead; (2) every
 Firebase project, neither available in this sandbox; (3) a full
 production release build has not been run. Everything else checkable
 by reading and testing code has been checked honestly, not assumed.
+
+---
+
+## §7B Past Papers recommendation rail + §10 architecture-separation audit
+
+Concurrent agent dispatch, same session. Scope: (1) build the one missing
+§7B contextual-recommendation surface (`RecommendationRepository` had
+`forLibrary`/`forCourses`/`forMagazine` but no `forPastPapers`, and §7B
+explicitly names "Past Papers → recommends relevant Past Papers"); (2) a
+signals audit across all four `RecommendationRepository` methods; (3) the
+§10 "three layers actually separate" security audit.
+
+### Environment note (logged because it changed what "the repo" meant)
+
+This agent's worktree was checked out at `aa6ce4b`, 89 commits behind
+`demo-prep`'s tip (`e39428d`) -- `recommendation_repository.dart` and most
+of the files this task names didn't exist in the worktree at all.
+Verified `aa6ce4b` was a clean ancestor of `e39428d` with no divergent
+commits on the worktree's own branch (`git merge-base --is-ancestor`,
+`git status` clean) before fast-forwarding the worktree branch to
+`e39428d`. This is a local, non-destructive catch-up of an agent's own
+disposable branch, not a force-push or history rewrite of anything
+shared -- but flagging it since it means this entry's diff is measured
+against `e39428d`, not the commit the worktree started on.
+
+### `forPastPapers()` -- built to mirror `forLibrary` exactly
+
+Same favorite-subject-first, round-robin-across-subjects, recent-fallback
+shape as the three existing methods (past papers ARE `AcademicContent`
+with `contentType == ContentType.pastPaper`, so this reuses
+`AcademicContentRepository.watch()` unchanged, just always scoped to that
+type). Wired into `academic_content_page.dart` as a new
+`_PastPapersRecommended` "Recommended for You" rail, gated exactly like
+the Library rail (signed-in + real favorite subjects, or the section
+doesn't render at all -- no fabricated personalization over a generic
+list).
+
+The wiring needed its own small design decision: Past Papers has no
+discovery landing page of its own the way Library does (`_LibraryDiscovery`,
+where `forLibrary`'s rail already lived). Past Papers is entered
+pre-filtered (`initialTypeFilter: ContentType.pastPaper` from the drawer/
+home/hero banner), which skips straight to the bare `_LiveFeed` grid.
+Rather than inventing a new discovery page, the rail now renders above
+`_LiveFeed` whenever the Past Papers view is unfiltered (no subject/level/
+exam/year filter active, not mid-search) -- same "don't show a second
+recommendation rail on top of a search/filter the user is already doing
+themselves" principle `forCourses`' own `_showRecommended` gate uses.
+
+### Signals audit -- honest state across all four methods (§7B's list)
+
+§7B names: Views, Searches, Quiz attempts, Completed content, Subjects,
+Courses, Recent activity, Academic level, Followed authors, plus fallback
+signals Popular/Recently-published/Academic-level/Selected-subjects/
+General-relevance.
+
+- **Subjects (favorite subjects)** -- REAL, all four methods
+  (`forLibrary`/`forCourses`/`forMagazine`/`forPastPapers`), unchanged
+  from before this session except `forPastPapers` being new.
+- **Academic level** -- REAL, added this session, but only where it's
+  cheap and honest: `forLibrary` and `forPastPapers` both now take an
+  optional `educationLevel` and map it via a new
+  `_educationLevelToContentLevel` bridge (`AppUser.educationLevel`'s
+  Cameroon-form vocabulary → `AcademicContent.level`'s `kAcademicLevels`)
+  reusing `AcademicContentRepository.watch()`'s existing `level` param --
+  no new infrastructure, no schema change. Deliberately NOT added to
+  `forCourses` (its `level` field is a different free-text vocabulary,
+  `kCourseLevels` like "GCE Advanced Level", with no defensible 1:1
+  mapping to `EducationLevels.all` without guessing) or `forMagazine`
+  (`MagazineArticle` has no level concept at all -- verified by grep, not
+  assumed). Both are real, scoped deferrals, not silently-unused
+  parameters.
+- **Recently-published / Popular / General-relevance fallback** -- REAL
+  in all four (each falls back to the repo's own recency-ordered query
+  when there's no favorite-subject match; none is a fabricated "popular"
+  ranking, all four already avoided that before this session).
+- **Views, Searches, Quiz attempts, Completed content, Courses (as a
+  cross-surface signal), Recent activity, Followed authors** -- NOT
+  implemented in any of the four methods, before or after this session.
+  `AcademicContentRepository` does track real per-user views
+  (`recordView`/`watchRecentlyViewed`) and read position, and
+  `messaging_repository.dart`/`club_repository.dart` track follows, but
+  none of that is wired into `RecommendationRepository` yet -- doing so
+  soundly (weighting recency-viewed subjects, mixing in followed-author
+  content) is a real feature addition, not a small honest add like
+  academic level was, and is out of scope for this pass. Logged as a
+  scoped deferral, not claimed.
+
+### §10 architecture-separation audit -- verified-safe, fixed, and still-a-gap
+
+**(a) Can a normal (non-school-admin) user reach a school-management
+screen via a route/deep-link/missing check, not just "no button"?**
+
+Traced every instantiation site of every school-management page
+(`AttendancePage`, `MarksPage`, `TimetablePage`, `AssignmentsPage`,
+`CalendarPage`, `AnnouncementsPage`, `AdminPanelPage`,
+`AdminAccountsPage`) across `lib/` by grep, not just the drawer:
+
+- VERIFIED-SAFE: `HomeShell`'s bottom nav (`app_router.dart`) is Home/
+  Library/Magazine/Courses/Profile only -- no school-management tab, in
+  either build mode.
+- VERIFIED-SAFE: `AppDrawer` carries no school-management destinations of
+  its own (per this task's starting premise) -- confirmed by reading the
+  whole file; its only school-management surface is the single
+  `SchoolManagementPage.open()` door gated on `user.canManageSchool`.
+- VERIFIED-SAFE: `SchoolHomePage` (which DOES have Quick Access tiles for
+  Attendance/Timetable/Marks/Announcements) and `ProfilePage`'s "School"
+  section (Notices/Calendar/Timetable/Assignments/Grades/Attendance) are
+  both gated on `AppConfig.isSchoolMode`, which is
+  `String.fromEnvironment('APP_MODE', ...)` -- a genuine **compile-time**
+  flag (`--dart-define=APP_MODE=school`), not a runtime toggle a signed-in
+  normal-Academia-build user could ever flip. A normal Academia app build
+  (the default, `APP_MODE=platform`) does not contain a reachable path to
+  either of these at all, for any role. `universal_home_page.dart`
+  (platform mode's home) was grepped directly for
+  Attendance/Marks/Timetable/AdminPanel/AdminAccounts/SchoolManagement/
+  Registrar -- zero matches.
+- VERIFIED-SAFE (design, not a gap): `AttendancePage`/`MarksPage`/
+  `TimetablePage`/`AssignmentsPage`/`CalendarPage` each start with
+  `if (user.isLecturer || user.canManageSchool) return <ManageView>;
+  return <StudentView>;` -- these pages ARE reachable by a plain student
+  in school-mode builds (via Profile's School section), by design: a
+  student viewing their own attendance/marks/timetable is a legitimate
+  Academia feature, not "school management" in the administrative sense.
+  Verified each one actually branches to a distinct, non-management view
+  rather than showing the same write-capable UI to everyone.
+- **FIXED -- real gap**: `AdminPanelPage` (role changes, suspend/
+  reactivate, seat creation, institution settings, the Sales Desk link)
+  and `AdminAccountsPage` (seat/account suspend, reactivate, assign, with
+  temp-password display) had **zero internal authorization check** --
+  no `canManageSchool`, no role branch, nothing. Both relied entirely on
+  their one current caller, `SchoolManagementPage`'s hub, which does gate
+  correctly on `canManageSchool` -- but that gate lived solely on the
+  caller. This is precisely the failure mode `school_management_page.dart`'s
+  own header comment warns against for itself ("the route must not be
+  secured merely by hiding its URL... the guard lives on the page, not on
+  the caller") -- the principle just hadn't been applied one level deeper,
+  to the two most sensitive pages the hub hosts. Not currently exploitable
+  (no other call site exists in either build mode -- verified by grep),
+  but a real latent gap: any future stray `Navigator.push`, Quick Access
+  shortcut, or notification deep link to either page would have had zero
+  protection. Fixed by adding the identical guard pattern
+  `school_management_page.dart` already uses for itself
+  (`if (!user.canManageSchool) return <AccessDenied>;`, a real legible
+  screen, not a silent pop) directly to both pages. `AnnouncementsPage`
+  takes `canPost` as a constructor bool computed by every caller as
+  `user.canPostAnnouncement` rather than checking the role itself --
+  verified all 4 call sites compute it correctly and consistently, so not
+  fixed as a **real** gap (nothing currently gets it wrong), but noted as
+  a **softer** defense-in-depth pattern than the page-level guards above;
+  left alone rather than refactored, since changing a shared page's
+  constructor signature to re-derive `canPost` internally is exactly the
+  kind of speculative refactor the brief says not to do to something that
+  already checks out functionally.
+
+**(b) Is entitlement logic (Premium/Gifted Premium/vouchers) cleanly
+separate from both Academia content access and School Management?**
+
+- VERIFIED-SAFE: `lib/models/entitlement.dart` is a fully self-contained
+  value object (tier/source/dates only) with zero imports of any
+  content, school-management, or repository type.
+  `lib/repositories/entitlement_repository.dart` imports only
+  `app_user.dart`/`entitlement.dart`/`purchase.dart`/`voucher.dart` --
+  nothing from `features/school_management/` or the academic-content
+  layer.
+  `academic_content_repository.dart` imports nothing from the
+  entitlement layer either -- premium-gating for content happens at the
+  UI layer (`content_details_page.dart` / `widgets/premium_unlock_sheet.dart`),
+  not baked into the content repository itself.
+- VERIFIED-SAFE: grepped `lib/features/school_management/` for
+  `entitlement`/`Entitlement`/`isPremium` -- zero matches. School
+  Management gates purely on `UserRole`/`canManageSchool`, never on
+  Premium status, matching §10's "these layers ... should not be
+  unnecessarily coupled."
+- No fix needed here -- this layer was already clean.
+
+### Deliberately NOT done (flagged, not hidden)
+
+- View/search/quiz-attempt/completed-content/followed-author signals for
+  `RecommendationRepository` (see signals audit above) -- would be a real
+  feature addition (new aggregation logic over existing tracking data),
+  not a small honest add; scoped out of this pass.
+- `forCourses`/`forMagazine` academic-level filtering -- no defensible
+  vocabulary bridge exists yet for Courses' free-text levels, and
+  Magazine has no level field at all; adding either soundly needs a
+  product decision on vocabulary or a schema change, not a code fix.
+- `AnnouncementsPage`'s `canPost` constructor-param pattern -- see §10(a)
+  above; a softer pattern than the two pages that got fixed, but not
+  currently wrong at any call site, so left alone rather than
+  speculatively refactored.
+- Did not touch `hero_slide_manager_page.dart`,
+  `courses_marketplace_page.dart`, or `hero_slide_repository.dart` --
+  explicitly out of scope (separate in-flight work in the main tree, not
+  this worktree).
+
+Verification: `flutter analyze` 36 issues, exactly the pre-existing
+baseline, zero new.

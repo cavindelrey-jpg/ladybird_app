@@ -173,8 +173,10 @@ int pastPaperPackPriceForContentLevel(String level) =>
     (pastPaperPriceForContentLevel(level) * kPastPaperPackMultiplier).round();
 
 /// Maps a question's format to the XP source whose flat `baseXp` rate
-/// (10 / 25 / 45 — decided rates, already live in xp_transaction.dart)
-/// anchors this question's XP.
+/// (MCQ 15 / Structural 30 / Essay 55 — production_plan.md §4.2, live in
+/// xp_transaction.dart) anchors this question's XP. The comment here used
+/// to quote 10 / 25 / 45, which were the pre-§4.2 rates; the code was
+/// already correct, only this note was stale.
 XpSource xpSourceForQuestionType(QuestionType type) {
   switch (type) {
     case QuestionType.mcq:        return XpSource.mcq;

@@ -2145,3 +2145,141 @@ functions (import path is real, not guessed). Could not run the actual
 transaction logic end-to-end -- no Firebase emulator running in this
 sandboxed session, same testing ceiling every rules/functions change
 this session has had.
+
+---
+
+## Section 3 Quiz Type 3 -- Essay rebuilt on the spec's key-points model
+
+`academia fix/academia_production_plan.md` section 3 defines the Essay
+quiz as: present the question, name the 7-9 essential points a strong
+answer contains, have the student state the points they'd include, score
+how many they captured, award XP from that. "Essay Quiz = demonstrate
+that you understand the structure and essential content of the essay,
+not reproduce a two-page essay inside the application."
+
+What was actually shipped bore no resemblance to that: `QuestionType
+.longForm` carried `requiredSections`, the taking UI rendered a labelled
+prose box per section, and EVERY answer went to a human grader who read
+it cold. Rebuilt to match the spec.
+
+### Design decisions (the non-obvious ones)
+
+- **Students type their own points; they are NOT shown the real key
+  points to tick.** The spec says "identify or enter the important
+  points", and a select-from-list UI was the tempting reading of
+  "identify". Rejected: displaying the 7-9 real points hands over the
+  entire answer, and a student scores 100% by selecting all of them. The
+  question would then test nothing. Typing their own phrasing is the
+  only shape that actually demonstrates recall.
+- **One short line per point, N lines for N key points, and submission
+  is allowed with only ONE filled.** The old UI required every box
+  filled. That's wrong here: "how many points did you capture" IS the
+  score, so a student who can only recall 4 of 9 must be able to submit
+  and be scored 4/9, not be blocked.
+- **Three verdicts, not two.** `core/essay_matching.dart` returns
+  captured / missed / **uncertain**. Above 0.60 weighted recall it
+  auto-awards, at/below 0.30 it auto-rejects, and in between it refuses
+  to guess and sends that ONE point to the human queue. This is what
+  makes the default case automatic (the brief's actual requirement)
+  while staying honest that lexical matching cannot do comprehension.
+  A human grader now settles a handful of flagged points instead of
+  reading prose from scratch.
+- **Matching is lexical and entirely offline.** Normalize (case, accent
+  folding for French-influenced spellings, punctuation), stopword
+  filter, light suffix stemmer, Levenshtein-1 tolerance on 5+ char
+  tokens for typos, and weighted recall. NO external AI/NLP API is
+  called -- that would have been a paid service and an explicit stop
+  condition. Stated limitation: it cannot tell that "powerhouse of the
+  cell" means "mitochondrion" unless the author added that as a keyword
+  alias, which is exactly why `EssayKeyPoint.keywords` exists.
+- **Tokens are weighted by how discriminative they are within the one
+  question.** A token appearing in many of that question's own key
+  points is mostly topic noise and is worth less. Without this, a
+  student writing the topic word repeatedly part-matches every point.
+- **Assignment is greedy ONE-TO-ONE.** Each student point may claim at
+  most one key point and vice versa. This is the anti-gaming property:
+  one kitchen-sink sentence, or the same vague sentence pasted into all
+  nine boxes, captures ONE point, not nine. Covered by tests.
+- **Score is out of the KEY POINT COUNT, not the author's `points`
+  field.** New `TestQuestion.maxPoints` returns `keyPoints.length` for
+  an Essay. "Captured 6 of 9" is then just pointsAwarded=6/maxPoints=9
+  through the existing `core/xp_rules.dart` `questionXp()` -- no
+  parallel XP path was invented, per the brief.
+- **`KeyPointOutcome` is denormalized into the attempt** (key point text
+  copied in at submit time, not re-read from the Test when grading). An
+  attempt is a record of what the student was actually asked; if the
+  author later edits the question, old attempts must still grade and
+  display against what was true then. Also saves the grading queue a
+  second fetch.
+- **A grader's score is DERIVED from their ticked key points, never
+  typed.** Allowing both would let the stored outcomes and the stored
+  score disagree. `gradeResponse` ignores `pointsAwarded` when
+  `capturedKeyPointIds` is supplied.
+- **`Test.hasManualGrading` no longer counts Essay questions.** It backs
+  a "Some answers reviewed manually" badge, and since essays usually
+  auto-grade now, including them would make the badge a promise the app
+  doesn't keep. Added `hasEssayQuestions` for the "might need review"
+  case instead.
+
+### Bugs found and fixed while in here (both real, neither invented)
+
+- **All auto-graded XP was booked to `XpSource.mcq` in one lump** by
+  `submitAttempt`. Harmless while MCQ was the only auto-graded format;
+  the moment an Essay also auto-grades at submit time it would have
+  mis-attributed essay XP as MCQ XP and corrupted the ledger's own
+  breakdown. Now grouped by source.
+- **The matcher's own reverse-substring shortcut**, caught by the unit
+  tests before it ever ran: a student answer of the single word
+  "energy" scored a PERFECT match against any key point containing that
+  word, because the answer was a substring of the key point. Removed
+  that direction; weighted recall scores partial answers proportionally
+  instead.
+- Stale comment in `core/xp_rules.dart` quoted the pre-section-4.2 base
+  rates "10 / 25 / 45". Actual live rates are 15 / 30 / 55. Comment
+  only -- no formula touched.
+
+### Built the missing authoring surface
+
+`TestRepository.createTest()/updateTest()` had **zero callers** -- there
+was no way to author a test inside the app at all, so key points had
+nowhere to be defined (tests could only have been created directly in
+the Firestore console). Added `features/testing/test_composer_page.dart`
+covering all three formats, with the Essay editor pre-seeding 7 key
+point rows and refusing to save outside 7-9, or with a paragraph-length
+"point" (>200 chars) that would match badly at grading time. Reachable
+from AppDrawer's existing lecturer+ section.
+
+### Schema break accepted, no migration shim written
+
+`requiredSections` is gone and `QuestionResponse` gained
+`keyPointOutcomes`. Verified before deciding: no seed/demo data writes
+to `tests` anywhere in `lib/`, consistent with this codebase's zero-fake-
+data convention, and the whole test system was built this same session.
+Old-shaped essay questions would parse to zero key points and score 0/0
+rather than crash. Not building migration code for data that almost
+certainly does not exist.
+
+### Deliberately NOT done (flagged, not hidden)
+
+- `XpSource.ac.label` still reads "Long Form" in the XP ledger while the
+  quiz UI now says "Essay". Left alone because the brief ring-fenced XP
+  economy files to "calling the existing functions only". One-word
+  display inconsistency, worth a follow-up.
+- Essay scores are computed CLIENT-side at submit, so a doctored attempt
+  document could forge a score. This is pre-existing and identical for
+  MCQ (client already computes correctness and XP at submit) -- not a
+  regression introduced here, and it belongs to the section 4.9
+  server-side XP enforcement workstream, not to this change.
+- `firestore.rules` needed NO edit: `tests`/`testAttempts` rules already
+  landed earlier this session, and `gradeResponse` still touches only
+  the four fields the update rule permits (`keyPointOutcomes` lives
+  inside `responses`). Verified rather than assumed.
+- The composer is a functional authoring form, not a question-bank
+  manager: no reordering, no duplicate-a-test, no draft autosave.
+- Automated quiz GENERATION (the section 3 checklist item after the
+  three quiz types) is untouched -- out of scope for this task.
+
+Verification: `flutter analyze` 36 issues, exactly the pre-existing
+baseline, zero new. `flutter test` 22 passing, including 20 in the new
+`test/essay_matching_test.dart` covering the confident-capture,
+confident-miss, uncertain-band, anti-gaming and XP-wiring paths.

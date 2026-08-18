@@ -138,17 +138,19 @@ class Conversation {
 }
 
 /// What kind of real Academia content a shared-content message points at.
-/// Only content types that actually exist as addressable records in this
-/// codebase are offered in the chat quick-attach row (see
-/// ChatConversationPage._showAttachSheet) — no "Note" or "Past Paper" type
-/// here yet because neither has a real model/collection to link to.
-enum SharedContentType { course, quiz, article }
+/// note/pastPaper both resolve to real AcademicContent items (ContentType
+/// .note / .pastPaper) — added once that content type existed with real
+/// pricing (production_plan.md §4.6/§4.7), matching the Messaging
+/// mockup's full five-icon attach row (Note/Course/Quiz/Article/Past Paper).
+enum SharedContentType { note, course, quiz, article, pastPaper }
 
 extension SharedContentTypeExt on SharedContentType {
   String get label => switch (this) {
+        SharedContentType.note => 'Note',
         SharedContentType.course => 'Course',
         SharedContentType.quiz => 'Quiz',
         SharedContentType.article => 'Article',
+        SharedContentType.pastPaper => 'Past Paper',
       };
 
   static SharedContentType? fromKey(String? key) {

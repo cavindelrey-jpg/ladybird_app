@@ -296,9 +296,11 @@ class MessagingRepository {
   }
 
   String _sharedContentEmoji(SharedContentType t) => switch (t) {
+        SharedContentType.note => '📝',
         SharedContentType.course => '🎓',
         SharedContentType.quiz => '❓',
         SharedContentType.article => '📰',
+        SharedContentType.pastPaper => '📄',
       };
 
   /// Toggles [userId]'s personal "pin to top" on a conversation — a view

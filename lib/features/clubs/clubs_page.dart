@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/models.dart';
 import '../../repositories/club_repository.dart';
 import '../../core/result.dart';
@@ -643,7 +644,7 @@ class _ClubDetailPageState extends State<ClubDetailPage>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this);
+    _tabs = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -706,8 +707,9 @@ class _ClubDetailPageState extends State<ClubDetailPage>
           ]),
         ]),
         iconTheme: hasBanner ? const IconThemeData(color: Colors.white) : null,
-        bottom: TabBar(controller: _tabs, tabs: const [
-          Tab(text: 'FEED'), Tab(text: 'DISCUSSIONS'), Tab(text: 'CHAT')]),
+        bottom: TabBar(controller: _tabs, isScrollable: true, tabs: const [
+          Tab(text: 'FEED'), Tab(text: 'DISCUSSIONS'), Tab(text: 'CHAT'), Tab(text: 'MEMBERS'),
+          Tab(text: 'RESOURCES'), Tab(text: 'EVENTS')]),
         actions: [
           IconButton(
             icon: const Icon(Icons.share_outlined),
@@ -745,6 +747,9 @@ class _ClubDetailPageState extends State<ClubDetailPage>
         _DiscussionsTab(club: widget.club, user: widget.user),
         _ChatTab(club: widget.club, user: widget.user,
             scroll: _scroll, ctrl: _ctrl, onSend: _send),
+        ClubMembersBody(club: widget.club, currentUser: widget.user),
+        _ResourcesTab(club: widget.club, user: widget.user),
+        _EventsTab(club: widget.club, user: widget.user),
       ]),
     );
   }
@@ -1218,6 +1223,359 @@ class _DiscussionCard extends StatelessWidget {
             ]),
           ]),
         ),
+      ),
+    );
+  }
+}
+
+/// Shared links/files — matches the mockup's RESOURCES tab. Any signed-in
+/// member can add one; the uploader or club staff can remove it.
+class _ResourcesTab extends StatelessWidget {
+  final Club club;
+  final AppUser user;
+  const _ResourcesTab({required this.club, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: C.bg,
+      body: StreamBuilder<List<ClubResource>>(
+        stream: ClubRepository.instance.watchResources(club.id),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Padding(padding: EdgeInsets.all(20), child: ShimmerBlock(height: 300));
+          }
+          if (snap.hasError) return ErrorView(message: snap.error.toString());
+          final resources = snap.data ?? const <ClubResource>[];
+          if (resources.isEmpty) {
+            return const EmptyState(icon: Icons.folder_open_outlined, title: 'No resources yet',
+                subtitle: 'Share a link or file useful to the whole club.');
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: resources.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (_, i) {
+              final r = resources[i];
+              final canRemove = r.uploaderId == user.id;
+              return ACard(
+                onTap: () {
+                  final uri = Uri.tryParse(r.url);
+                  if (uri != null) launchUrl(uri, mode: LaunchMode.externalApplication);
+                },
+                child: Row(children: [
+                  Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(10)),
+                    child: Icon(r.isFile ? Icons.insert_drive_file_outlined : Icons.link_rounded, color: C.primary, size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(r.title, style: AppText.title.copyWith(fontSize: 13.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text('Shared by ${r.uploaderName}', style: AppText.caption.copyWith(fontSize: 11)),
+                    ]),
+                  ),
+                  if (canRemove)
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18, color: C.muted),
+                      onPressed: () => ClubRepository.instance.deleteResource(club.id, r.id),
+                    ),
+                ]),
+              );
+            },
+          );
+        },
+      ),
+      floatingActionButton: user.isGuest ? null : FloatingActionButton(
+        backgroundColor: C.navy,
+        onPressed: () => showModalBottomSheet(
+          context: context, isScrollControlled: true,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          builder: (_) => _AddResourceSheet(club: club, user: user),
+        ),
+        child: const Icon(Icons.add_rounded, color: C.gold),
+      ),
+    );
+  }
+}
+
+class _AddResourceSheet extends StatefulWidget {
+  final Club club;
+  final AppUser user;
+  const _AddResourceSheet({required this.club, required this.user});
+
+  @override
+  State<_AddResourceSheet> createState() => _AddResourceSheetState();
+}
+
+class _AddResourceSheetState extends State<_AddResourceSheet> {
+  final _titleCtrl = TextEditingController();
+  final _urlCtrl = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _urlCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final title = _titleCtrl.text.trim();
+    final url = _urlCtrl.text.trim();
+    if (title.isEmpty || url.isEmpty) {
+      showToast(context, 'Add a title and a link.');
+      return;
+    }
+    setState(() => _saving = true);
+    final result = await ClubRepository.instance.addResource(widget.club.id, ClubResource(
+      id: '', clubId: widget.club.id, title: title, url: url,
+      uploaderId: widget.user.id, uploaderName: widget.user.name, uploaderPhotoUrl: widget.user.photoUrl,
+      createdAt: DateTime.now(),
+    ));
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (result is Success) {
+      Navigator.pop(context);
+    } else {
+      showToast(context, (result as Failure).message, isError: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
+      child: SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Share a Resource', style: AppText.title.copyWith(fontSize: 16)),
+          const SizedBox(height: 12),
+          TextField(controller: _titleCtrl, decoration: const InputDecoration(hintText: 'Title', border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          TextField(controller: _urlCtrl, decoration: const InputDecoration(hintText: 'Link (https://…)', border: OutlineInputBorder())),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _saving ? null : _submit,
+              style: ElevatedButton.styleFrom(backgroundColor: C.navy, foregroundColor: Colors.white),
+              child: _saving
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Share'),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// Upcoming club events with lightweight RSVP — matches the mockup's
+/// EVENTS tab.
+class _EventsTab extends StatelessWidget {
+  final Club club;
+  final AppUser user;
+  const _EventsTab({required this.club, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: C.bg,
+      body: StreamBuilder<List<ClubEvent>>(
+        stream: ClubRepository.instance.watchEvents(club.id),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Padding(padding: EdgeInsets.all(20), child: ShimmerBlock(height: 300));
+          }
+          if (snap.hasError) return ErrorView(message: snap.error.toString());
+          final events = (snap.data ?? const <ClubEvent>[])
+              .where((e) => e.startAt.isAfter(DateTime.now().subtract(const Duration(days: 1)))).toList();
+          if (events.isEmpty) {
+            return const EmptyState(icon: Icons.event_outlined, title: 'No upcoming events',
+                subtitle: 'Plan something for the club to look forward to.');
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: events.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (_, i) => _EventCard(club: club, event: events[i], user: user),
+          );
+        },
+      ),
+      floatingActionButton: user.isGuest ? null : FloatingActionButton(
+        backgroundColor: C.navy,
+        onPressed: () => showModalBottomSheet(
+          context: context, isScrollControlled: true,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          builder: (_) => _AddEventSheet(club: club, user: user),
+        ),
+        child: const Icon(Icons.add_rounded, color: C.gold),
+      ),
+    );
+  }
+}
+
+class _EventCard extends StatelessWidget {
+  final Club club;
+  final ClubEvent event;
+  final AppUser user;
+  const _EventCard({required this.club, required this.event, required this.user});
+
+  String _fmt(DateTime d) {
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final ampm = d.hour >= 12 ? 'PM' : 'AM';
+    return '${months[d.month - 1]} ${d.day} · $h:${d.minute.toString().padLeft(2, '0')} $ampm';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(event.title, style: AppText.title.copyWith(fontSize: 14.5)),
+        const SizedBox(height: 4),
+        Text(_fmt(event.startAt), style: AppText.bodySm.copyWith(fontSize: 12, color: C.primary)),
+        if ((event.location ?? '').isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Row(children: [
+            const Icon(Icons.place_outlined, size: 13, color: C.muted),
+            const SizedBox(width: 3),
+            Text(event.location!, style: AppText.caption.copyWith(fontSize: 11)),
+          ]),
+        ],
+        if ((event.description ?? '').isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(event.description!, style: AppText.bodySm.copyWith(fontSize: 12.5)),
+        ],
+        const SizedBox(height: 10),
+        Row(children: [
+          Text('${event.rsvpCount} going', style: AppText.caption.copyWith(fontSize: 11)),
+          const Spacer(),
+          if (!user.isGuest)
+            StreamBuilder<bool>(
+              stream: ClubRepository.instance.watchIsGoingToEvent(club.id, event.id, user.id),
+              builder: (context, snap) {
+                final going = snap.data ?? false;
+                return OutlinedButton(
+                  onPressed: () {
+                    HapticFeedback.selectionClick();
+                    ClubRepository.instance.toggleEventRsvp(club.id, event.id, user.id, !going);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: going ? C.grnb : null,
+                    side: BorderSide(color: going ? C.grn : C.bdr),
+                  ),
+                  child: Text(going ? 'Going ✓' : 'RSVP', style: AppText.caption.copyWith(
+                      fontSize: 11.5, fontWeight: FontWeight.w700, color: going ? C.grn : C.txt2)),
+                );
+              },
+            ),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _AddEventSheet extends StatefulWidget {
+  final Club club;
+  final AppUser user;
+  const _AddEventSheet({required this.club, required this.user});
+
+  @override
+  State<_AddEventSheet> createState() => _AddEventSheetState();
+}
+
+class _AddEventSheetState extends State<_AddEventSheet> {
+  final _titleCtrl = TextEditingController();
+  final _locationCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  DateTime _date = DateTime.now().add(const Duration(days: 1));
+  TimeOfDay _time = const TimeOfDay(hour: 17, minute: 0);
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _locationCtrl.dispose();
+    _descCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_titleCtrl.text.trim().isEmpty) {
+      showToast(context, 'Give the event a title.');
+      return;
+    }
+    setState(() => _saving = true);
+    final startAt = DateTime(_date.year, _date.month, _date.day, _time.hour, _time.minute);
+    final result = await ClubRepository.instance.addEvent(widget.club.id, ClubEvent(
+      id: '', clubId: widget.club.id, title: _titleCtrl.text.trim(),
+      description: _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
+      startAt: startAt, location: _locationCtrl.text.trim().isEmpty ? null : _locationCtrl.text.trim(),
+      creatorId: widget.user.id, creatorName: widget.user.name,
+    ));
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (result is Success) {
+      Navigator.pop(context);
+    } else {
+      showToast(context, (result as Failure).message, isError: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
+      child: SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('New Event', style: AppText.title.copyWith(fontSize: 16)),
+          const SizedBox(height: 12),
+          TextField(controller: _titleCtrl, decoration: const InputDecoration(hintText: 'Event title', border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                      context: context, initialDate: _date,
+                      firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)));
+                  if (picked != null) setState(() => _date = picked);
+                },
+                child: Text('${_date.day}/${_date.month}/${_date.year}'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () async {
+                  final picked = await showTimePicker(context: context, initialTime: _time);
+                  if (picked != null) setState(() => _time = picked);
+                },
+                child: Text(_time.format(context)),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 10),
+          TextField(controller: _locationCtrl, decoration: const InputDecoration(hintText: 'Location (optional)', border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          TextField(controller: _descCtrl, minLines: 2, maxLines: 4,
+              decoration: const InputDecoration(hintText: 'Description (optional)', border: OutlineInputBorder())),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _saving ? null : _submit,
+              style: ElevatedButton.styleFrom(backgroundColor: C.navy, foregroundColor: Colors.white),
+              child: _saving
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Create Event'),
+            ),
+          ),
+        ]),
       ),
     );
   }

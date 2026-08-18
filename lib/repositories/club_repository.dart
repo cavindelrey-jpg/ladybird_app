@@ -508,4 +508,93 @@ class ClubRepository {
     if (userId.isEmpty) return Stream.value(false);
     return _discussions(clubId).doc(discussionId).collection('likes').doc(userId).snapshots().map((d) => d.exists);
   }
+
+  // ── Resources ────────────────────────────────────────────
+
+  CollectionReference<Map<String, dynamic>> _resources(String clubId) => _db
+      .collection(AppConstants.colClubs).doc(clubId).collection('resources');
+
+  Stream<List<ClubResource>> watchResources(String clubId) => _resources(clubId)
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map((d) => ClubResource.fromFirestore(d, clubId)).toList());
+
+  Future<Result<void>> addResource(String clubId, ClubResource resource) async {
+    try {
+      await _resources(clubId).add(resource.toFirestore());
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to add resource', e);
+    }
+  }
+
+  Future<Result<String>> uploadResourceFile({required String clubId, required File file, required String fileName}) async {
+    try {
+      final ref = FirebaseStorage.instance.ref('club_resources/$clubId/${DateTime.now().millisecondsSinceEpoch}_$fileName');
+      await ref.putFile(file).timeout(const Duration(minutes: 3), onTimeout: () => throw Exception(
+          'Upload is taking too long. Check your connection and try again.'));
+      return Success(await ref.getDownloadURL());
+    } catch (e) {
+      return Failure('Failed to upload file', e);
+    }
+  }
+
+  Future<Result<void>> deleteResource(String clubId, String resourceId) async {
+    try {
+      await _resources(clubId).doc(resourceId).delete();
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to delete resource', e);
+    }
+  }
+
+  // ── Events ───────────────────────────────────────────────
+
+  CollectionReference<Map<String, dynamic>> _events(String clubId) => _db
+      .collection(AppConstants.colClubs).doc(clubId).collection(AppConstants.colEvents);
+
+  Stream<List<ClubEvent>> watchEvents(String clubId) => _events(clubId)
+      .orderBy('startAt')
+      .snapshots()
+      .map((s) => s.docs.map((d) => ClubEvent.fromFirestore(d, clubId)).toList());
+
+  Future<Result<void>> addEvent(String clubId, ClubEvent event) async {
+    try {
+      await _events(clubId).add(event.toFirestore());
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to add event', e);
+    }
+  }
+
+  Future<Result<void>> deleteEvent(String clubId, String eventId) async {
+    try {
+      await _events(clubId).doc(eventId).delete();
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to delete event', e);
+    }
+  }
+
+  Future<Result<void>> toggleEventRsvp(String clubId, String eventId, String userId, bool going) async {
+    if (userId.isEmpty) return const Failure('Sign in to RSVP.', null);
+    try {
+      final rsvpRef = _events(clubId).doc(eventId).collection('rsvps').doc(userId);
+      if (going) {
+        await rsvpRef.set({'rsvpAt': FieldValue.serverTimestamp()});
+        await _events(clubId).doc(eventId).update({'rsvpCount': FieldValue.increment(1)});
+      } else {
+        await rsvpRef.delete();
+        await _events(clubId).doc(eventId).update({'rsvpCount': FieldValue.increment(-1)});
+      }
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to update RSVP', e);
+    }
+  }
+
+  Stream<bool> watchIsGoingToEvent(String clubId, String eventId, String userId) {
+    if (userId.isEmpty) return Stream.value(false);
+    return _events(clubId).doc(eventId).collection('rsvps').doc(userId).snapshots().map((d) => d.exists);
+  }
 }

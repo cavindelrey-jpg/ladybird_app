@@ -568,9 +568,34 @@ service cloud.firestore {
           allow update, delete: if isOwner(resource.data.authorId) || canManageSchool();
         }
       }
+      // Loosened from school-staff-only: a club's own admins/moderators
+      // can create/manage their club's events too, not just school staff
+      // -- this rule pre-existed the ClubEvent model/UI (client-side
+      // never used it before), so widening it to the club's own mod
+      // structure is additive, not a weakening of anything already relied
+      // on. RSVP marker docs follow the same self-only shape as club
+      // discussion/post likes.
       match /events/{eventId} {
         allow read: if true;
-        allow write: if canManageSchool() || canUploadContent();
+        allow write: if canManageSchool() || canUploadContent()
+          || (isClubMember(clubId) && clubMemberRole(clubId) in ['admin', 'moderator']);
+
+        match /rsvps/{userId} {
+          allow read: if true;
+          allow create, delete: if isSignedIn() && request.auth.uid == userId;
+        }
+      }
+
+      // Club Resources tab — shared links/files. Any signed-in club
+      // member can add a resource; only the uploader or club staff can
+      // remove one.
+      match /resources/{resourceId} {
+        allow read: if true;
+        allow create: if isSignedIn() && request.resource.data.uploaderId == request.auth.uid;
+        allow update, delete: if isSignedIn() && (
+          resource.data.uploaderId == request.auth.uid
+          || (isClubMember(clubId) && clubMemberRole(clubId) in ['admin', 'moderator'])
+        );
       }
 
       // Discussions — Q&A threads with a mark-able best answer (see

@@ -19,6 +19,30 @@ class ClubMembersPage extends StatelessWidget {
   final AppUser currentUser;
   const ClubMembersPage({super.key, required this.club, required this.currentUser});
 
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: C.bg,
+      appBar: AppBar(
+        backgroundColor: C.bg, elevation: 0,
+        iconTheme: const IconThemeData(color: C.txt),
+        title: Text('${club.name} · Members', style: GoogleFonts.sora(
+            fontSize: 15, fontWeight: FontWeight.w700, color: C.txt)),
+      ),
+      body: AppBackground(child: ClubMembersBody(club: club, currentUser: currentUser)),
+    );
+  }
+}
+
+/// The member list + mod-management logic, without the Scaffold/AppBar —
+/// shared by [ClubMembersPage] (full page, reached via the club header's
+/// icon) and the club detail's own MEMBERS tab (same content, no second
+/// app bar needed since the tab bar already provides navigation chrome).
+class ClubMembersBody extends StatelessWidget {
+  final Club club;
+  final AppUser currentUser;
+  const ClubMembersBody({super.key, required this.club, required this.currentUser});
+
   String _roleLabel(ClubRole r) {
     switch (r) {
       case ClubRole.admin:     return 'Admin';
@@ -39,45 +63,36 @@ class ClubMembersPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: C.bg,
-      appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
-        title: Text('${club.name} · Members', style: GoogleFonts.sora(
-            fontSize: 15, fontWeight: FontWeight.w700, color: C.txt)),
-      ),
-      body: AppBackground(child: StreamBuilder<ClubRole>(
-        stream: ClubRepository.instance.watchUserRole(club.id, currentUser.id),
-        builder: (context, myRoleSnap) {
-          final myRole = myRoleSnap.data ?? ClubRole.visitor;
-          final canApprove = myRole == ClubRole.admin || myRole == ClubRole.moderator;
-          return StreamBuilder<List<ClubMember>>(
-            stream: ClubRepository.instance.watchMembers(club.id),
-            builder: (context, snap) {
-              if (snap.connectionState == ConnectionState.waiting) {
-                return const LoadingView();
-              }
-              final members = List<ClubMember>.from(snap.data ?? const <ClubMember>[]);
-              members.sort((a, b) {
-                const order = {ClubRole.admin: 0, ClubRole.moderator: 1, ClubRole.member: 2, ClubRole.visitor: 3};
-                final byRole = order[a.role]!.compareTo(order[b.role]!);
-                return byRole != 0 ? byRole : a.joinedAt.compareTo(b.joinedAt);
-              });
-              final adminCount = members.where((m) => m.role == ClubRole.admin).length;
+    return StreamBuilder<ClubRole>(
+      stream: ClubRepository.instance.watchUserRole(club.id, currentUser.id),
+      builder: (context, myRoleSnap) {
+        final myRole = myRoleSnap.data ?? ClubRole.visitor;
+        final canApprove = myRole == ClubRole.admin || myRole == ClubRole.moderator;
+        return StreamBuilder<List<ClubMember>>(
+          stream: ClubRepository.instance.watchMembers(club.id),
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const LoadingView();
+            }
+            final members = List<ClubMember>.from(snap.data ?? const <ClubMember>[]);
+            members.sort((a, b) {
+              const order = {ClubRole.admin: 0, ClubRole.moderator: 1, ClubRole.member: 2, ClubRole.visitor: 3};
+              final byRole = order[a.role]!.compareTo(order[b.role]!);
+              return byRole != 0 ? byRole : a.joinedAt.compareTo(b.joinedAt);
+            });
+            final adminCount = members.where((m) => m.role == ClubRole.admin).length;
 
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (canApprove) _PendingRequestsSection(club: club),
-                  for (int i = 0; i < members.length; i++)
-                    _memberTile(context, members[i], myRole, adminCount, members),
-                ],
-              );
-            },
-          );
-        },
-      )),
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (canApprove) _PendingRequestsSection(club: club),
+                for (int i = 0; i < members.length; i++)
+                  _memberTile(context, members[i], myRole, adminCount, members),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

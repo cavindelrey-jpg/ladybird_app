@@ -378,6 +378,115 @@ class ClubDiscussionReply {
   };
 }
 
+/// A shared link/file in a club's Resources tab. Stored at
+/// clubs/{clubId}/resources/{id}.
+class ClubResource {
+  final String id;
+  final String clubId;
+  final String title;
+  final String? description;
+  final String url;
+  final bool isFile; // true = uploaded to Storage; false = an external link
+  final String uploaderId;
+  final String uploaderName;
+  final String? uploaderPhotoUrl;
+  final DateTime createdAt;
+
+  const ClubResource({
+    required this.id,
+    required this.clubId,
+    required this.title,
+    this.description,
+    required this.url,
+    this.isFile = false,
+    required this.uploaderId,
+    required this.uploaderName,
+    this.uploaderPhotoUrl,
+    required this.createdAt,
+  });
+
+  factory ClubResource.fromFirestore(DocumentSnapshot doc, String clubId) {
+    final d = doc.data() as Map<String, dynamic>? ?? {};
+    return ClubResource(
+      id: doc.id,
+      clubId: clubId,
+      title: d['title'] ?? '',
+      description: d['description'],
+      url: d['url'] ?? '',
+      isFile: d['isFile'] ?? false,
+      uploaderId: d['uploaderId'] ?? '',
+      uploaderName: d['uploaderName'] ?? 'Member',
+      uploaderPhotoUrl: d['uploaderPhotoUrl'],
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toFirestore() => {
+    'title': title,
+    'description': description,
+    'url': url,
+    'isFile': isFile,
+    'uploaderId': uploaderId,
+    'uploaderName': uploaderName,
+    'uploaderPhotoUrl': uploaderPhotoUrl,
+    'createdAt': FieldValue.serverTimestamp(),
+  };
+}
+
+/// An upcoming club event. Stored at clubs/{clubId}/events/{id} — the
+/// firestore.rules path for this already existed (school-staff-only,
+/// pre-dating this model); loosened alongside this model landing so a
+/// club's own admins/moderators can create events too, not just staff.
+class ClubEvent {
+  final String id;
+  final String clubId;
+  final String title;
+  final String? description;
+  final DateTime startAt;
+  final String? location;
+  final String creatorId;
+  final String creatorName;
+  final int rsvpCount;
+
+  const ClubEvent({
+    required this.id,
+    required this.clubId,
+    required this.title,
+    this.description,
+    required this.startAt,
+    this.location,
+    required this.creatorId,
+    required this.creatorName,
+    this.rsvpCount = 0,
+  });
+
+  factory ClubEvent.fromFirestore(DocumentSnapshot doc, String clubId) {
+    final d = doc.data() as Map<String, dynamic>? ?? {};
+    return ClubEvent(
+      id: doc.id,
+      clubId: clubId,
+      title: d['title'] ?? '',
+      description: d['description'],
+      startAt: (d['startAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      location: d['location'],
+      creatorId: d['creatorId'] ?? '',
+      creatorName: d['creatorName'] ?? 'Member',
+      rsvpCount: (d['rsvpCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toFirestore() => {
+    'title': title,
+    'description': description,
+    'startAt': Timestamp.fromDate(startAt),
+    'location': location,
+    'creatorId': creatorId,
+    'creatorName': creatorName,
+    'rsvpCount': rsvpCount,
+    'createdAt': FieldValue.serverTimestamp(),
+  };
+}
+
 /// One row in a club's member-management list. Stored at
 /// clubs/{clubId}/members/{userId} alongside the role.
 class ClubMember {

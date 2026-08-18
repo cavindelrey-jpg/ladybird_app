@@ -2007,6 +2007,56 @@ Built all three for real this pass:
   metadata) rather than a fake stand-in.
 - `flutter analyze`: full project 36 issues, same baseline -- zero new.
 
+## Same continuation: Clubs Members/Resources/Events tabs + Messaging
+Note/Past-Paper attach types (user-flagged mockup gaps)
+
+Re-examined the Clubs and Messaging mockups side-by-side against what
+was actually built (same direct-comparison discipline as the Magazine
+fix above) and found more real gaps from earlier deferrals:
+
+- **Messaging**: the mockup's quick-attach row has 5 icons (Note/Course/
+  Quiz/Article/Past Paper); only Course/Quiz/Article were built, Note/
+  Past Paper skipped earlier citing "no content model." That reasoning
+  no longer holds -- AcademicContent already has ContentType.note and
+  .pastPaper, and Past Papers now have real pricing (this session's
+  sec4.6/4.7 work). Added both: SharedContentType gained note/pastPaper
+  variants, both resolve through the same real AcademicContentRepository
+  picker pattern already used for Course/Quiz/Article, and open via the
+  existing ContentDetailsPage (which already handles its own not-found
+  state).
+- **Clubs**: the mockup's club detail has 5 tabs (Feed/Discussions/
+  Members/Resources/Events); only Feed/Discussions/Chat existed.
+  Extracted `ClubMembersBody` out of the existing full-page
+  `ClubMembersPage` (same mod-management logic, no duplicate Scaffold)
+  and added it as a 4th tab -- the full page stays reachable from the
+  header icon too, no regression there.
+  Built real Resources (link/file sharing, uploader-or-staff delete) and
+  Events (title/date/location/description + lightweight RSVP) as fully
+  new features -- new `ClubResource`/`ClubEvent` models, repository CRUD,
+  and firestore.rules. The Events collection path (`clubs/{id}/events`)
+  already had a rule from a much earlier pass, but it was staff-only
+  (`canManageSchool()`/`canUploadContent()`) with no club-admin path --
+  loosened to also allow a club's own admins/moderators, since the whole
+  point of this tab is club self-service, not requiring school staff to
+  create every club's events. Resources got a brand new rule block
+  (uploader-or-staff write, matching the pattern every other club
+  subcollection this session already uses).
+- Club header tab bar is now 6 tabs (Feed/Discussions/Chat/Members/
+  Resources/Events) -- switched to `isScrollable: true` since 6 fixed-
+  width tabs don't fit one screen width.
+- `flutter analyze`: full project 36 issues, same baseline -- zero new.
+
+Not done: member-avatar-stack previews on discover-club cards (the small
+"+24" overlapping-avatars detail in the mockup's My Clubs cards) and the
+Discussion reply composer's Poll/Resource/Mention icon row -- both
+cosmetic-tier details, lower priority than the structural tab/attach-type
+gaps just closed. Also not done: unifying Club chat threads into the
+Messages inbox as single group-shaped entries (the mockup shows "STEM
+Innovators Club"/"Academia Authors" alongside 1:1 threads in one list) --
+this is a real architecture change (Conversation needs a group-
+participant concept) flagged multiple times this session as a
+deliberate, larger scope cut, not an oversight; still open.
+
 Also: user separately restated "don't stop until all are at 100%" --
 noted, continuing through remaining production_plan.md gaps without
 further check-ins, same discipline as the rest of this session (verify

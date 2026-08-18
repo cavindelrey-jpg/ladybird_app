@@ -21,10 +21,12 @@ import '../../models/messaging.dart';
 import '../../models/public_course.dart';
 import '../../models/test.dart';
 import '../../models/magazine_article.dart';
+import '../../models/academic_content.dart';
 import '../../repositories/messaging_repository.dart';
 import '../../repositories/public_course_repository.dart';
 import '../../repositories/test_repository.dart';
 import '../../repositories/magazine_repository.dart';
+import '../../repositories/academic_content_repository.dart';
 import '../../services/link_preview_service.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
@@ -34,6 +36,7 @@ import '../../widgets/app_background.dart';
 import '../courses_marketplace/course_reader_page.dart';
 import '../testing/test_taking_page.dart';
 import '../magazine/article_reader_page.dart';
+import '../academic_content/content_details_page.dart';
 
 class ChatConversationPage extends StatefulWidget {
   final String conversationId;
@@ -350,6 +353,11 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
           ),
           const Divider(height: 1),
           ListTile(
+            leading: Icon(Icons.sticky_note_2_outlined, color: ac.blu),
+            title: const Text('Share a Note'),
+            onTap: () { Navigator.pop(context); _pickNote(); },
+          ),
+          ListTile(
             leading: Icon(Icons.menu_book_rounded, color: ac.grn),
             title: const Text('Share a Course'),
             onTap: () { Navigator.pop(context); _pickCourse(); },
@@ -363,6 +371,11 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
             leading: Icon(Icons.article_rounded, color: ac.org),
             title: const Text('Share an Article'),
             onTap: () { Navigator.pop(context); _pickArticle(); },
+          ),
+          ListTile(
+            leading: Icon(Icons.history_edu_rounded, color: ac.gold),
+            title: const Text('Share a Past Paper'),
+            onTap: () { Navigator.pop(context); _pickPastPaper(); },
           ),
         ]),
       ),
@@ -409,6 +422,38 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     ));
     if (article != null) {
       await _sendShared(type: SharedContentType.article, id: article.id, title: article.title, subtitle: article.category);
+    }
+  }
+
+  Future<void> _pickNote() async {
+    final note = await Navigator.of(context).push<AcademicContent>(MaterialPageRoute(
+      builder: (_) => _ContentPickerPage<AcademicContent>(
+        title: 'Share a Note',
+        stream: AcademicContentRepository.instance.watch(contentType: ContentType.note),
+        matches: (n, q) => n.title.toLowerCase().contains(q) || n.subject.toLowerCase().contains(q),
+        itemTitle: (n) => n.title,
+        itemSubtitle: (n) => n.subject,
+        icon: Icons.sticky_note_2_outlined,
+      ),
+    ));
+    if (note != null) {
+      await _sendShared(type: SharedContentType.note, id: note.id, title: note.title, subtitle: note.subject);
+    }
+  }
+
+  Future<void> _pickPastPaper() async {
+    final paper = await Navigator.of(context).push<AcademicContent>(MaterialPageRoute(
+      builder: (_) => _ContentPickerPage<AcademicContent>(
+        title: 'Share a Past Paper',
+        stream: AcademicContentRepository.instance.watch(contentType: ContentType.pastPaper),
+        matches: (p, q) => p.title.toLowerCase().contains(q) || p.subject.toLowerCase().contains(q),
+        itemTitle: (p) => p.title,
+        itemSubtitle: (p) => p.subject,
+        icon: Icons.history_edu_rounded,
+      ),
+    ));
+    if (paper != null) {
+      await _sendShared(type: SharedContentType.pastPaper, id: paper.id, title: paper.title, subtitle: paper.subject);
     }
   }
 
@@ -745,6 +790,16 @@ class _SharedContentCardState extends State<_SharedContentCard> {
             showToast(context, 'This article is no longer available.');
           }
           break;
+        case SharedContentType.note:
+        case SharedContentType.pastPaper:
+          // Both are AcademicContent items — ContentDetailsPage itself
+          // handles the not-found/no-longer-exists case (see its own
+          // StreamBuilder), same as opening one from the Library grid.
+          if (mounted) {
+            Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => ContentDetailsPage(contentId: id, user: widget.currentUser)));
+          }
+          break;
       }
     } finally {
       if (mounted) setState(() => _opening = false);
@@ -752,9 +807,11 @@ class _SharedContentCardState extends State<_SharedContentCard> {
   }
 
   IconData get _icon => switch (widget.message.sharedType!) {
+        SharedContentType.note => Icons.sticky_note_2_outlined,
         SharedContentType.course => Icons.menu_book_rounded,
         SharedContentType.quiz => Icons.quiz_rounded,
         SharedContentType.article => Icons.article_rounded,
+        SharedContentType.pastPaper => Icons.history_edu_rounded,
       };
 
   @override

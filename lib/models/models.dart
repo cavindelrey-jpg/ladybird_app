@@ -19,6 +19,8 @@ export 'assignment.dart';
 export 'calendar_event.dart';
 export 'hero_slide.dart';
 export 'magazine_article.dart';
+export 'magazine_gallery_post.dart';
+export 'magazine_video_post.dart';
 export 'daily_challenge.dart';
 export 'xp_transaction.dart';
 export 'test.dart';

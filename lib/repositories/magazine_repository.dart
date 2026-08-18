@@ -10,6 +10,8 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../models/magazine_article.dart';
+import '../models/magazine_gallery_post.dart';
+import '../models/magazine_video_post.dart';
 import '../models/xp_transaction.dart';
 import '../core/result.dart';
 import 'xp_repository.dart';
@@ -20,6 +22,130 @@ class MagazineRepository {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   CollectionReference<Map<String, dynamic>> get _articles => _db.collection('articles');
+  CollectionReference<Map<String, dynamic>> get _galleryPosts => _db.collection('magazine_gallery');
+  CollectionReference<Map<String, dynamic>> get _videoPosts => _db.collection('magazine_videos');
+
+  // ── Student Gallery ──────────────────────────────────────────────────────
+
+  Stream<List<MagazineGalleryPost>> watchGalleryPosts({int limit = 20}) => _galleryPosts
+      .orderBy('createdAt', descending: true)
+      .limit(limit)
+      .snapshots()
+      .map((s) => s.docs.map(MagazineGalleryPost.fromFirestore).toList());
+
+  Future<Result<String>> createGalleryPost(MagazineGalleryPost post) async {
+    try {
+      final ref = await _galleryPosts.add(post.toFirestore());
+      return Success(ref.id);
+    } catch (e) {
+      return Failure('Failed to publish gallery post', e);
+    }
+  }
+
+  /// Called after createGalleryPost() + uploadGalleryImage() to attach the
+  /// now-uploaded image URLs to the post doc created before the images
+  /// existed (the doc id is needed as the Storage path, so create has to
+  /// happen first).
+  Future<Result<void>> setGalleryImages(String postId, List<String> imageUrls) async {
+    try {
+      await _galleryPosts.doc(postId).update({'imageUrls': imageUrls});
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to attach photos', e);
+    }
+  }
+
+  Future<Result<String>> uploadGalleryImage({required String postId, required int index, required File file}) async {
+    try {
+      final ref = FirebaseStorage.instance.ref('magazine_gallery/$postId/$index.jpg');
+      await ref.putFile(file).timeout(const Duration(seconds: 60), onTimeout: () => throw Exception(
+          'Upload is taking too long. Check your connection and try again.'));
+      return Success(await ref.getDownloadURL());
+    } catch (e) {
+      return Failure('Failed to upload image', e);
+    }
+  }
+
+  Future<Result<void>> toggleGalleryLike(String postId, String userId) async {
+    if (userId.isEmpty) return const Failure('Sign in to like posts.', null);
+    try {
+      final likeRef = _galleryPosts.doc(postId).collection('likes').doc(userId);
+      final exists = (await likeRef.get()).exists;
+      if (exists) {
+        await likeRef.delete();
+        await _galleryPosts.doc(postId).update({'likeCount': FieldValue.increment(-1)});
+      } else {
+        await likeRef.set({'likedAt': FieldValue.serverTimestamp()});
+        await _galleryPosts.doc(postId).update({'likeCount': FieldValue.increment(1)});
+      }
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to update like', e);
+    }
+  }
+
+  Stream<bool> watchIsGalleryLiked(String postId, String userId) {
+    if (userId.isEmpty) return Stream.value(false);
+    return _galleryPosts.doc(postId).collection('likes').doc(userId).snapshots().map((d) => d.exists);
+  }
+
+  // ── Latest Videos ─────────────────────────────────────────────────────────
+
+  Stream<List<MagazineVideoPost>> watchVideoPosts({int limit = 20}) => _videoPosts
+      .orderBy('createdAt', descending: true)
+      .limit(limit)
+      .snapshots()
+      .map((s) => s.docs.map(MagazineVideoPost.fromFirestore).toList());
+
+  Future<Result<String>> createVideoPost(MagazineVideoPost post) async {
+    try {
+      final ref = await _videoPosts.add(post.toFirestore());
+      return Success(ref.id);
+    } catch (e) {
+      return Failure('Failed to publish video', e);
+    }
+  }
+
+  Future<Result<String>> uploadVideoFile({required String postId, required File file}) async {
+    try {
+      final ref = FirebaseStorage.instance.ref('magazine_videos/$postId/video.mp4');
+      await ref.putFile(file).timeout(const Duration(minutes: 5), onTimeout: () => throw Exception(
+          'Upload is taking too long. Check your connection and try again.'));
+      return Success(await ref.getDownloadURL());
+    } catch (e) {
+      return Failure('Failed to upload video', e);
+    }
+  }
+
+  Future<Result<String>> uploadVideoThumbnail({required String postId, required File file}) async {
+    try {
+      final ref = FirebaseStorage.instance.ref('magazine_videos/$postId/thumbnail.jpg');
+      await ref.putFile(file).timeout(const Duration(seconds: 60), onTimeout: () => throw Exception(
+          'Upload is taking too long. Check your connection and try again.'));
+      return Success(await ref.getDownloadURL());
+    } catch (e) {
+      return Failure('Failed to upload thumbnail', e);
+    }
+  }
+
+  /// Same create-then-attach-media pattern as gallery posts — the doc id
+  /// is needed as the Storage path, so create() has to run before upload.
+  Future<Result<void>> setVideoUrls(String postId, {required String videoUrl, String? thumbnailUrl}) async {
+    try {
+      await _videoPosts.doc(postId).update({'videoUrl': videoUrl, if (thumbnailUrl != null) 'thumbnailUrl': thumbnailUrl});
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to attach video', e);
+    }
+  }
+
+  Future<void> incrementVideoViews(String postId) async {
+    try {
+      await _videoPosts.doc(postId).update({'viewCount': FieldValue.increment(1)});
+    } catch (_) {
+      // best-effort — a missed view count isn't worth surfacing
+    }
+  }
 
   // ── Feed variants ──────────────────────────────────────────────────────
 

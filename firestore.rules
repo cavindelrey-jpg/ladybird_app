@@ -644,6 +644,35 @@ service cloud.firestore {
       }
     }
 
+    // ── magazine_gallery/{id}, magazine_videos/{id} ─────────────────────
+    // "Student Gallery" and "Latest Videos" — the academia_fix Magazine
+    // mockup's two other post types, distinct from articles/{id}. Same
+    // owner-write/public-read/likeCount-increment shape as articles.
+    match /magazine_gallery/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount']))
+      );
+      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+
+      match /likes/{userId} {
+        allow read: if true;
+        allow create, delete: if isSignedIn() && request.auth.uid == userId;
+      }
+    }
+    match /magazine_videos/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.authorId == request.auth.uid
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount']) &&
+            request.resource.data.viewCount == resource.data.viewCount + 1)
+      );
+      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+    }
+
     // ── articles/{id}  (Magazine) ─────────────────────────────────────
     match /articles/{articleId} {
       allow read: if resource.data.published == true

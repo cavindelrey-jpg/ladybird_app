@@ -109,10 +109,19 @@ class EssayKeyPoint {
 /// One question inside a Test. Which fields are meaningful depends on
 /// [type]:
 ///  - mcq: uses [options] + [correctIndex]. Auto-graded instantly.
-///  - structured: uses [lineCount] (how many ruled answer-lines to render)
-///    and optional [rubricGuidance] (shown to whoever grades it — human
-///    today, an AI grader potentially later; see TestRepository's honest
-///    scope note on that).
+///  - structured (production_plan.md §3, "Quiz Type 2 — Short Answer /
+///    Structural"): uses [lineCount] (how many ruled answer-lines to
+///    render), optional [expectedPoints] — the author's expected
+///    answer/key points, SAME shape as an Essay's [EssayKeyPoint] and
+///    matched the same way by core/essay_matching.dart — and optional
+///    [rubricGuidance] (free-text guidance shown to whoever grades it).
+///    Unlike Essay, the spec does not mandate a point count for
+///    Structural, so [expectedPoints] is genuinely optional: a question
+///    authored WITH expected points auto-grades (mirrors Essay exactly,
+///    including routing individually-uncertain points to a human); a
+///    question authored WITHOUT any (the pre-existing shape, or a
+///    genuinely rubric-only question with no discrete expected answer)
+///    still goes to a human grader in full, exactly as before.
 ///  - longForm (the plan's "Essay"): uses [keyPoints] — the 7–9 essential
 ///    points. Scored out of the NUMBER of key points, not out of [points]
 ///    (see [maxPoints]), because the plan defines the essay score as
@@ -130,6 +139,13 @@ class TestQuestion {
   // Structured only
   final int lineCount;
   final String? rubricGuidance;
+  /// The author's expected answer/key points for a Structured question —
+  /// optional (see class doc). Reuses [EssayKeyPoint] rather than a new
+  /// type: an expected point is the exact same shape as an essential
+  /// essay point (a short phrase plus optional alternate-wording
+  /// keywords), and core/essay_matching.dart's matcher is already generic
+  /// lexical matching, not Essay-specific in its logic.
+  final List<EssayKeyPoint> expectedPoints;
 
   // Essay (longForm) only
   final List<EssayKeyPoint> keyPoints;
@@ -143,17 +159,28 @@ class TestQuestion {
     this.correctIndex = 0,
     this.lineCount = 4,
     this.rubricGuidance,
+    this.expectedPoints = const [],
     this.keyPoints = const [],
   });
 
-  /// What this question is actually scored out of. For an Essay this is
-  /// the KEY POINT COUNT — "captured 6 of 9" is the plan's own scoring
-  /// unit, and feeding pointsAwarded=6/maxPoints=9 into
-  /// core/xp_rules.dart's questionXp() gives exactly the ratio the XP
-  /// machinery already expects, with no parallel XP path. For mcq and
-  /// structured it is the author-set [points], unchanged.
-  int get maxPoints =>
-      type == QuestionType.longForm ? keyPoints.length : points;
+  /// What this question is actually scored out of.
+  ///  - Essay: the KEY POINT COUNT — "captured 6 of 9" is the plan's own
+  ///    scoring unit, and feeding pointsAwarded=6/maxPoints=9 into
+  ///    core/xp_rules.dart's questionXp() gives exactly the ratio the XP
+  ///    machinery already expects, with no parallel XP path.
+  ///  - Structured WITH [expectedPoints] authored: same reasoning,
+  ///    scored out of the expected-point count so an auto-graded
+  ///    Structured answer feeds questionXp() the identical way an Essay
+  ///    does.
+  ///  - mcq, and Structured with no [expectedPoints] (still fully
+  ///    human-graded): the author-set [points], unchanged.
+  int get maxPoints {
+    if (type == QuestionType.longForm) return keyPoints.length;
+    if (type == QuestionType.structured && expectedPoints.isNotEmpty) {
+      return expectedPoints.length;
+    }
+    return points;
+  }
 
   factory TestQuestion.fromMap(Map<String, dynamic> m) => TestQuestion(
         id: m['id'] ?? '',
@@ -164,6 +191,9 @@ class TestQuestion {
         correctIndex: (m['correctIndex'] as num?)?.toInt() ?? 0,
         lineCount: (m['lineCount'] as num?)?.toInt() ?? 4,
         rubricGuidance: m['rubricGuidance'],
+        expectedPoints: (m['expectedPoints'] as List<dynamic>? ?? [])
+            .map((k) => EssayKeyPoint.fromMap(Map<String, dynamic>.from(k)))
+            .toList(),
         keyPoints: (m['keyPoints'] as List<dynamic>? ?? [])
             .map((k) => EssayKeyPoint.fromMap(Map<String, dynamic>.from(k)))
             .toList(),
@@ -178,6 +208,7 @@ class TestQuestion {
         'correctIndex': correctIndex,
         'lineCount': lineCount,
         'rubricGuidance': rubricGuidance,
+        'expectedPoints': expectedPoints.map((k) => k.toMap()).toList(),
         'keyPoints': keyPoints.map((k) => k.toMap()).toList(),
       };
 }
@@ -214,21 +245,40 @@ class Test {
   int get questionCount => questions.length;
   int get totalPossiblePoints => questions.fold(0, (s, q) => s + q.maxPoints);
 
-  /// Questions that ALWAYS need a human grader. Essay (longForm) is
-  /// deliberately NOT in here any more: since the key-points redesign an
-  /// essay answer is auto-matched offline (core/essay_matching.dart) and
-  /// only reaches the grading queue when the matcher is genuinely
-  /// undecided about one of the points — which can't be known before the
-  /// student answers. So this stays a promise the UI can actually keep,
-  /// rather than warning every essay-taker about a review that usually
-  /// won't happen.
-  bool get hasManualGrading =>
-      questions.any((q) => q.type == QuestionType.structured);
+  /// Questions GUARANTEED to need a human grader, knowable from the Test
+  /// alone (before any student ever attempts it). Essay (longForm) is
+  /// never in here: since the key-points redesign every essay is authored
+  /// with its 7–9 key points and auto-matched offline
+  /// (core/essay_matching.dart), so a human is only ever needed for
+  /// specific post-grading-uncertain points — not knowable pre-attempt,
+  /// so it can't honestly back a "will need review" promise here (see
+  /// [hasEssayQuestions] instead). A Structured question, by contrast,
+  /// splits cleanly at author time: one with [TestQuestion.expectedPoints]
+  /// authored auto-grades the same way an Essay does (and, same as Essay,
+  /// might still flag an individual uncertain point after the fact); one
+  /// with none has no expected answer to match against at all and is
+  /// ALWAYS fully human-graded, which — unlike Essay's uncertainty — IS
+  /// knowable before any attempt exists. So this flag now means "at least
+  /// one Structured question has no expected points authored", not "this
+  /// test has structured questions". It still under-promises in one way,
+  /// honestly: an expectedPoints-authored Structured or an Essay question
+  /// can ALSO land an individual point in the human queue after the
+  /// student answers, and that case is deliberately not reflected here for
+  /// the same "don't promise a review that usually won't happen" reason
+  /// Essay was excluded for.
+  bool get hasManualGrading => questions.any(
+      (q) => q.type == QuestionType.structured && q.expectedPoints.isEmpty);
 
   /// Contains at least one Essay question — i.e. an attempt on this test
   /// MIGHT route some points to a human for a final call.
   bool get hasEssayQuestions =>
       questions.any((q) => q.type == QuestionType.longForm);
+
+  /// Contains at least one Structured question authored WITH expected
+  /// points — i.e. auto-gradable, but (mirroring [hasEssayQuestions])
+  /// might still route an individual uncertain point to a human.
+  bool get hasAutoGradedStructuredQuestions => questions.any((q) =>
+      q.type == QuestionType.structured && q.expectedPoints.isNotEmpty);
 
   factory Test.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data() ?? {};

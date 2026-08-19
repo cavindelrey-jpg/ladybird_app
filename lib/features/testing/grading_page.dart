@@ -4,18 +4,24 @@
 // for the `testAttempts` collection; that rules update is still pending
 // (see TestRepository's file-level honest scope note).
 //
-// Two quite different jobs land here:
-//   - Structured answers: a human reads the text and types a score, as
-//     before.
-//   - Essay answers: these were already auto-scored against their
-//     essential key points at submit time (core/essay_matching.dart), and
-//     only arrive here when the matcher was explicitly UNDECIDED about
-//     one or more points. So the grader is not scoring an essay from
-//     scratch — they see each essential point next to the student's own
-//     wording, with the confident calls already made, and just settle the
-//     flagged ones. The score is then derived from the ticked points
-//     rather than typed, so the stored outcomes and the stored score can
-//     never disagree.
+// Two quite different jobs land here, split by whether the response
+// carries QuestionResponse.keyPointOutcomes rather than by QuestionType —
+// a Structured answer authored with expected points (production_plan.md
+// §3 Quiz Type 2) is graded exactly the SAME way an Essay is, not
+// differently just because of its type:
+//   - No key point outcomes (a plain Structured answer with no expected
+//     points authored, or the old shape): a human reads the text and
+//     types a score, as before.
+//   - Has key point outcomes (Essay, always — or Structured, when the
+//     author defined expected points): these were already auto-scored
+//     against their essential/expected points at submit time
+//     (core/essay_matching.dart), and only arrive here when the matcher
+//     was explicitly UNDECIDED about one or more points. So the grader is
+//     not scoring the answer from scratch — they see each point next to
+//     the student's own wording, with the confident calls already made,
+//     and just settle the flagged ones. The score is then derived from
+//     the ticked points rather than typed, so the stored outcomes and the
+//     stored score can never disagree.
 //
 // This is also the seam a future AI grader would plug into: whatever
 // eventually generates a suggested score would call
@@ -25,7 +31,7 @@
 import 'package:flutter/material.dart';
 import '../../core/essay_matching.dart';
 import '../../models/app_user.dart';
-import '../../models/test.dart' show QuestionType, QuestionTypeExt;
+import '../../models/test.dart' show QuestionTypeExt;
 import '../../models/test_attempt.dart';
 import '../../repositories/test_repository.dart';
 import '../../theme/app_theme.dart';
@@ -105,17 +111,18 @@ class _AttemptGradingDetailPageState extends State<_AttemptGradingDetailPage> {
   final Set<String> _saving = {};
   final Set<String> _justGraded = {};
 
-  /// Per essay response: which key point ids the grader currently counts
-  /// as captured. Seeded from the matcher's own confident calls, so the
+  /// Per key-point response (Essay, or Structured authored with expected
+  /// points): which key point ids the grader currently counts as
+  /// captured. Seeded from the matcher's own confident calls, so the
   /// grader starts from the auto-result and only adjusts.
-  final Map<String, Set<String>> _essayCaptured = {};
+  final Map<String, Set<String>> _pointsCaptured = {};
 
   TextEditingController _points(String qId, int max) =>
       _pointsCtrl.putIfAbsent(qId, () => TextEditingController(text: max.toString()));
   TextEditingController _feedback(String qId) =>
       _feedbackCtrl.putIfAbsent(qId, () => TextEditingController());
 
-  Set<String> _captured(QuestionResponse r) => _essayCaptured.putIfAbsent(
+  Set<String> _captured(QuestionResponse r) => _pointsCaptured.putIfAbsent(
         r.questionId,
         () => r.keyPointOutcomes
             .where((o) => o.counted)
@@ -124,9 +131,9 @@ class _AttemptGradingDetailPageState extends State<_AttemptGradingDetailPage> {
       );
 
   Future<void> _save(QuestionResponse r) async {
-    final isEssay = r.type == QuestionType.longForm && r.keyPointOutcomes.isNotEmpty;
+    final usesKeyPoints = r.keyPointOutcomes.isNotEmpty;
     int points;
-    if (isEssay) {
+    if (usesKeyPoints) {
       // Derived from the ticked key points, never typed — see
       // TestRepository.gradeResponse's note on why.
       points = _captured(r).length;
@@ -145,7 +152,7 @@ class _AttemptGradingDetailPageState extends State<_AttemptGradingDetailPage> {
       questionId: r.questionId,
       pointsAwarded: points,
       feedback: _feedback(r.questionId).text.trim().isEmpty ? null : _feedback(r.questionId).text.trim(),
-      capturedKeyPointIds: isEssay ? _captured(r).toList() : null,
+      capturedKeyPointIds: usesKeyPoints ? _captured(r).toList() : null,
     );
     if (!mounted) return;
     setState(() {
@@ -186,13 +193,13 @@ class _AttemptGradingDetailPageState extends State<_AttemptGradingDetailPage> {
 
   Widget _responseGradingCard(QuestionResponse r) {
     final alreadyGraded = r.graded || _justGraded.contains(r.questionId);
-    final isEssay = r.type == QuestionType.longForm && r.keyPointOutcomes.isNotEmpty;
+    final usesKeyPoints = r.keyPointOutcomes.isNotEmpty;
     return ACard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           StatusBadge(label: r.type.label, color: ac.pur),
           const Spacer(),
-          if (isEssay && !alreadyGraded)
+          if (usesKeyPoints && !alreadyGraded)
             StatusBadge(
               label: '${r.uncertainOutcomes.length} to settle',
               color: ac.org,
@@ -200,8 +207,8 @@ class _AttemptGradingDetailPageState extends State<_AttemptGradingDetailPage> {
           if (alreadyGraded) StatusBadge(label: 'Graded', color: ac.grn),
         ]),
         const SizedBox(height: 10),
-        if (isEssay)
-          _essayKeyPointReview(r, alreadyGraded)
+        if (usesKeyPoints)
+          _keyPointReview(r, alreadyGraded)
         else ...[
           for (final line in r.textAnswer) ...[
             Text('• $line', style: AppText.bodySm),
@@ -213,7 +220,7 @@ class _AttemptGradingDetailPageState extends State<_AttemptGradingDetailPage> {
         const SizedBox(height: 12),
         if (!alreadyGraded) ...[
           Row(children: [
-            if (!isEssay) ...[
+            if (!usesKeyPoints) ...[
               SizedBox(
                 width: 90,
                 child: TextField(
@@ -233,7 +240,7 @@ class _AttemptGradingDetailPageState extends State<_AttemptGradingDetailPage> {
           ]),
           const SizedBox(height: 10),
           PrimaryBtn(
-            label: isEssay
+            label: usesKeyPoints
                 ? 'Save Grade · ${_captured(r).length}/${r.maxPoints} points captured'
                 : 'Save Grade',
             loading: _saving.contains(r.questionId),
@@ -250,11 +257,13 @@ class _AttemptGradingDetailPageState extends State<_AttemptGradingDetailPage> {
     );
   }
 
-  /// Every essential key point, paired with what the student actually
-  /// wrote for it and the matcher's own verdict. The grader can retick
-  /// any of them; the ones the matcher flagged as uncertain are called
-  /// out so it's obvious where a decision is genuinely needed.
-  Widget _essayKeyPointReview(QuestionResponse r, bool alreadyGraded) {
+  /// Every essential/expected key point, paired with what the student
+  /// actually wrote for it and the matcher's own verdict. Used for both
+  /// Essay and a Structured question graded against expected points. The
+  /// grader can retick any of them; the ones the matcher flagged as
+  /// uncertain are called out so it's obvious where a decision is
+  /// genuinely needed.
+  Widget _keyPointReview(QuestionResponse r, bool alreadyGraded) {
     final captured = _captured(r);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(

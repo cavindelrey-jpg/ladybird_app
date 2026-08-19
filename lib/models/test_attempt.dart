@@ -17,15 +17,22 @@
 //     stay ungraded and enter the human queue, and even then the human
 //     is deciding a handful of specific flagged points rather than
 //     reading prose from scratch.
-//   - structured responses always start ungraded (pointsAwarded: null,
-//     graded: false) and wait for TestRepository.gradeResponse(), called
-//     today by a lecturer/admin from the grading queue. That method is
-//     the seam an AI grader would plug into later (call it with a
-//     model-suggested score instead of a human-typed one) — nothing
-//     about the data model or XP math changes if the grader on the other
-//     end becomes automated, which is the "future AI evaluation" the
-//     spec asks to leave room for. No AI grading call is wired up yet —
-//     flagging that honestly rather than pretending it's live.
+//   - structured responses (production_plan.md §3 Quiz Type 2) follow the
+//     identical rule to Essay whenever the question was authored with
+//     TestQuestion.expectedPoints: matched the same way, at submit time,
+//     by the same core/essay_matching.dart matcher, with only genuinely
+//     undecided points reaching the human queue. A structured question
+//     authored with NO expected points (the pre-existing shape, or a
+//     genuinely rubric-only question) always starts ungraded
+//     (pointsAwarded: null, graded: false) and waits for
+//     TestRepository.gradeResponse(), called today by a lecturer/admin
+//     from the grading queue. That method is the seam an AI grader would
+//     plug into later (call it with a model-suggested score instead of a
+//     human-typed one) — nothing about the data model or XP math changes
+//     if the grader on the other end becomes automated, which is the
+//     "future AI evaluation" the spec asks to leave room for. No AI
+//     grading call is wired up yet — flagging that honestly rather than
+//     pretending it's live.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/essay_matching.dart';
@@ -39,10 +46,10 @@ extension AttemptStatusExt on AttemptStatus {
       : AttemptStatus.submitted;
 }
 
-/// The stored verdict for ONE essential key point of an Essay answer
-/// (production_plan.md §3 Quiz Type 3). Produced by
-/// core/essay_matching.dart at submit time and then frozen into the
-/// attempt.
+/// The stored verdict for ONE essential/expected key point of an Essay or
+/// auto-graded Structured answer (production_plan.md §3, Quiz Types 2 and
+/// 3). Produced by core/essay_matching.dart at submit time and then
+/// frozen into the attempt.
 ///
 /// [keyPointText] is DENORMALIZED on purpose — copied out of the Test at
 /// submit time rather than re-read from it when grading. An attempt is a
@@ -121,15 +128,20 @@ class QuestionResponse {
   // mcq
   final int? selectedIndex;
 
-  // structured — raw text, one entry per answered line.
+  // structured — raw text, one entry per answered line (whether or not
+  // the question was authored with expectedPoints — this is always what
+  // the student actually typed).
   // longForm (Essay) — the student's OWN short key points, one entry
   // each, in the order they entered them. Never a full essay: §3 is
   // explicit that the student states the essential points rather than
   // reproducing a two-page essay in the app.
   final List<String> textAnswer;
 
-  /// Essay only: one entry per authored key point, in the author's order.
-  /// Empty for mcq/structured responses.
+  /// One entry per authored expected/key point, in the author's order —
+  /// for an Essay (always) or a Structured question authored WITH
+  /// TestQuestion.expectedPoints (auto-graded the same way). Empty for
+  /// mcq and for a Structured response with no expected points (still
+  /// fully human-graded).
   final List<KeyPointOutcome> keyPointOutcomes;
 
   final int? pointsAwarded;
@@ -158,9 +170,10 @@ class QuestionResponse {
       .where((o) => o.verdict == KeyPointVerdict.uncertain && o.humanDecision == null)
       .toList();
 
-  /// How many essential points currently count as captured — the Essay
-  /// score, straight out of §3's "evaluate how many essential points the
-  /// student captured".
+  /// How many essential/expected points currently count as captured —
+  /// the Essay/auto-graded-Structured score, straight out of §3's
+  /// "evaluate how many essential points the student captured" /
+  /// "evaluate automatically where possible" wording for each format.
   int get capturedKeyPointCount =>
       keyPointOutcomes.where((o) => o.counted).length;
 

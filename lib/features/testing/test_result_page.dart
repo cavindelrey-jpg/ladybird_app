@@ -102,8 +102,12 @@ class TestResultPage extends StatelessWidget {
   }
 
   Widget _responseTile(AppColors ac, QuestionResponse r) {
-    final isEssay =
-        r.type == QuestionType.longForm && r.keyPointOutcomes.isNotEmpty;
+    // Essay always uses key points; a Structured question does too when
+    // authored with expected points (production_plan.md §3 Quiz Type 2) —
+    // graded and displayed the same way either way.
+    final usesKeyPoints = r.keyPointOutcomes.isNotEmpty;
+    final pointsLabel =
+        r.type == QuestionType.longForm ? 'essential points' : 'expected points';
     return ACard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -121,12 +125,12 @@ class TestResultPage extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 !r.graded
-                    ? (isEssay
+                    ? (usesKeyPoints
                         ? '${r.uncertainOutcomes.length} point'
                             '${r.uncertainOutcomes.length == 1 ? '' : 's'} awaiting review'
                         : 'Awaiting review')
-                    : (isEssay
-                        ? 'Captured ${r.pointsAwarded} of ${r.maxPoints} essential points · +${r.xpEarned} XP'
+                    : (usesKeyPoints
+                        ? 'Captured ${r.pointsAwarded} of ${r.maxPoints} $pointsLabel · +${r.xpEarned} XP'
                         : '${r.pointsAwarded}/${r.maxPoints} pts · +${r.xpEarned} XP'),
                 style: AppText.caption,
               ),
@@ -137,11 +141,12 @@ class TestResultPage extends StatelessWidget {
             ]),
           ),
         ]),
-        // The single most useful thing an essay attempt can tell a
-        // student is WHICH essential points they missed — that's the
-        // revision list. Showing it is the whole "demonstrate you
-        // understand the structure of the essay" idea closing the loop.
-        if (isEssay) ...[
+        // The single most useful thing an essay/structured-with-expected-
+        // points attempt can tell a student is WHICH points they missed —
+        // that's the revision list. Showing it is the whole "demonstrate
+        // you understand the essential/expected content" idea closing the
+        // loop.
+        if (usesKeyPoints) ...[
           const SizedBox(height: 10),
           for (final o in r.keyPointOutcomes) ...[
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

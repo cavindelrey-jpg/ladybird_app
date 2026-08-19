@@ -14,7 +14,11 @@
 // It covers all three question formats rather than Essay alone: a
 // composer that could only add Essay questions couldn't produce a
 // realistic mixed test, which is the shape models/test.dart is explicitly
-// designed around.
+// designed around. Structured questions (§3 Quiz Type 2) also get an
+// authoring surface for TestQuestion.expectedPoints here — optional,
+// unlike Essay's mandatory 7–9, since the spec sets no point count for
+// Structural; leaving it empty keeps a question fully human-graded
+// exactly as before.
 //
 // Scope, stated honestly: this is a functional authoring form, not a
 // full-blown question-bank manager. There's no reordering, no duplication
@@ -45,6 +49,12 @@ class _QuestionDraft {
   // Structured
   final TextEditingController lineCount = TextEditingController(text: '4');
   final TextEditingController rubric = TextEditingController();
+  /// Optional expected answer/key points (production_plan.md §3 Quiz
+  /// Type 2) — reuses the same [_KeyPointDraft] shape as Essay's
+  /// [keyPoints] since an expected point IS an [EssayKeyPoint]. Left
+  /// empty, this question stays fully human-graded exactly like before;
+  /// filled in, it auto-grades the same way an Essay does.
+  final List<_KeyPointDraft> expectedPoints = [];
 
   // Essay
   final List<_KeyPointDraft> keyPoints = [];
@@ -61,6 +71,9 @@ class _QuestionDraft {
     d.correctIndex = q.correctIndex;
     d.lineCount.text = q.lineCount.toString();
     d.rubric.text = q.rubricGuidance ?? '';
+    for (final k in q.expectedPoints) {
+      d.expectedPoints.add(_KeyPointDraft.fromKeyPoint(k));
+    }
     for (final k in q.keyPoints) {
       d.keyPoints.add(_KeyPointDraft.fromKeyPoint(k));
     }
@@ -75,6 +88,9 @@ class _QuestionDraft {
     }
     lineCount.dispose();
     rubric.dispose();
+    for (final k in expectedPoints) {
+      k.dispose();
+    }
     for (final k in keyPoints) {
       k.dispose();
     }
@@ -91,6 +107,16 @@ class _QuestionDraft {
         correctIndex: correctIndex,
         lineCount: int.tryParse(lineCount.text.trim()) ?? 4,
         rubricGuidance: rubric.text.trim().isEmpty ? null : rubric.text.trim(),
+        // Blank rows (an "Add point" click never followed by typing) are
+        // dropped rather than saved as empty-text points, which would
+        // otherwise silently count toward expectedPoints.length (and so
+        // toward TestQuestion.maxPoints) without ever being matchable.
+        expectedPoints: type == QuestionType.structured
+            ? (expectedPoints
+                .map((k) => k.toKeyPoint())
+                .where((k) => k.text.isNotEmpty)
+                .toList())
+            : const [],
         keyPoints: type == QuestionType.longForm
             ? keyPoints.map((k) => k.toKeyPoint()).toList()
             : const [],
@@ -240,6 +266,18 @@ class _TestComposerPageState extends State<TestComposerPage> {
         case QuestionType.structured:
           final points = int.tryParse(q.points.text.trim()) ?? 0;
           if (points <= 0) return '$label needs a points value above 0.';
+          // Expected points are optional (unlike Essay's mandatory 7–9 —
+          // the spec doesn't set a count for Structural), but any that
+          // ARE entered get the same paragraph-length sanity check Essay
+          // key points get, for the same reason: a long "point" matches
+          // badly at grading time.
+          final expectedTexts = q.expectedPoints
+              .map((k) => k.text.text.trim())
+              .where((t) => t.isNotEmpty);
+          if (expectedTexts.any((t) => t.length > 200)) {
+            return '$label has an expected point that reads like a '
+                'paragraph. Keep each one to a short phrase or sentence.';
+          }
           break;
         case QuestionType.longForm:
           final texts =
@@ -545,6 +583,8 @@ class _TestComposerPageState extends State<TestComposerPage> {
   }
 
   Widget _structuredEditor(_QuestionDraft q) {
+    final filled =
+        q.expectedPoints.where((k) => k.text.text.trim().isNotEmpty).length;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Expanded(
@@ -571,6 +611,81 @@ class _TestComposerPageState extends State<TestComposerPage> {
           labelText: 'Grading guidance (optional)',
           hintText: 'Shown to whoever grades this answer',
         ),
+      ),
+      const SizedBox(height: 14),
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: ac.primaryBg,
+          borderRadius: BorderRadius.circular(Rad.sm),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.checklist_rounded, size: 16, color: ac.primary),
+            const SizedBox(width: 6),
+            Text('Expected answer points (optional)',
+                style: AppText.subtitle.copyWith(color: ac.primary)),
+          ]),
+          const SizedBox(height: 6),
+          Text(
+            filled == 0
+                ? 'Add the short points a correct answer should contain '
+                    'and this question is marked automatically, the same '
+                    'way an Essay question is. Leave this empty and it '
+                    'stays fully human-graded, using the guidance above.'
+                : 'Scored out of $filled point${filled == 1 ? '' : 's'} — '
+                    'one mark per expected point the student captures in '
+                    'their own words.',
+            style: AppText.caption,
+          ),
+        ]),
+      ),
+      const SizedBox(height: 12),
+      for (var i = 0; i < q.expectedPoints.length; i++) ...[
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 24, height: 24,
+            margin: const EdgeInsets.only(top: 10),
+            decoration: BoxDecoration(color: ac.surf2, shape: BoxShape.circle),
+            child: Center(child: Text('${i + 1}', style: AppText.label)),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(children: [
+              TextField(
+                controller: q.expectedPoints[i].text,
+                maxLines: 2,
+                minLines: 1,
+                onChanged: (_) => setState(() {}),
+                decoration:
+                    InputDecoration(hintText: 'Expected point ${i + 1}'),
+              ),
+              const SizedBox(height: 4),
+              TextField(
+                controller: q.expectedPoints[i].keywords,
+                style: AppText.caption,
+                decoration: const InputDecoration(
+                  hintText: 'Alternative wordings, comma separated (optional)',
+                ),
+              ),
+            ]),
+          ),
+          IconButton(
+            icon: Icon(Icons.close_rounded, color: ac.muted, size: 18),
+            tooltip: 'Remove point',
+            onPressed: () => setState(() {
+              q.expectedPoints.removeAt(i).dispose();
+            }),
+          ),
+        ]),
+        const SizedBox(height: 8),
+      ],
+      TextButton.icon(
+        onPressed: () => setState(
+            () => q.expectedPoints.add(_KeyPointDraft(id: _newId('ep')))),
+        icon: const Icon(Icons.add_rounded, size: 16),
+        label: const Text('Add expected point'),
       ),
     ]);
   }

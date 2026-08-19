@@ -1,9 +1,13 @@
 // lib/features/testing/test_taking_page.dart
 // Renders all three question formats in one scrollable attempt:
 //   - MCQ: radio-style option list.
-//   - Structured: one multi-line box, answered one point per line —
-//     each non-empty line becomes one entry in the graded response's
-//     textAnswer list.
+//   - Structured: one multi-line box, answered one point per line — each
+//     non-empty line becomes one entry in the graded response's
+//     textAnswer list. When the question was authored with expected
+//     answer/key points (production_plan.md §3 Quiz Type 2), those lines
+//     are matched offline against them the same way an Essay's are
+//     (core/essay_matching.dart); otherwise the answer goes to a human
+//     grader exactly as before.
 //   - Essay (longForm): NOT a prose box. production_plan.md §3 Quiz
 //     Type 3 is explicit — "Essay Quiz = demonstrate that you understand
 //     the structure and essential content of the essay, not reproduce a
@@ -219,8 +223,20 @@ class _TestTakingPageState extends State<TestTakingPage> {
   }
 
   Widget _structuredInput(TestQuestion q) {
+    // production_plan.md §3 Quiz Type 2: when the author defined expected
+    // answer/key points, this answer is matched against them offline
+    // (core/essay_matching.dart, same matcher as Essay) rather than sent
+    // straight to a human — worth telling the student, same as the Essay
+    // input does for its own auto-grading.
+    final autoGraded = q.expectedPoints.isNotEmpty;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Write one point per line (${q.lineCount} lines expected)', style: AppText.caption),
+      Text(
+        autoGraded
+            ? 'Write one point per line (${q.lineCount} lines expected). '
+                'Each point you capture is marked automatically.'
+            : 'Write one point per line (${q.lineCount} lines expected)',
+        style: AppText.caption,
+      ),
       const SizedBox(height: 6),
       TextField(
         controller: _textControllers[q.id],

@@ -3163,3 +3163,254 @@ academic_content_page.dart`, `lib/features/courses_marketplace/
 courses_marketplace_page.dart` (pre-existing WIP + this pass),
 `lib/features/clubs/clubs_page.dart`,
 `lib/features/messages/messages_home_page.dart`.
+
+---
+
+## §1 Library -- two-parallel-systems audit + fix, online/offline
+## permission investigation, and Homepage's own "Recommended for You"
+
+### Worktree provisioning check (per this session's now-standard first step)
+
+`git log --oneline -3` on this worktree's own `demo-prep` showed 3 stale
+"Fix flutter_quill/flutter_quill_extensions version conflict" commits with
+no relation to `origin/demo-prep` (`git merge-base --is-ancestor` returned
+false; `git log HEAD..origin/demo-prep` showed 101 commits behind, 0
+ahead). Working tree was clean, so `git merge origin/demo-prep --ff-only`
+brought the worktree current with zero risk before touching anything --
+same environment-drift issue flagged in this file's §5 entry above,
+confirming it's a recurring provisioning quirk for fresh worktrees on this
+machine, not a one-off.
+
+### Investigation 1 -- the two "Library" systems: confirmed genuine
+### duplicate, not two real systems
+
+Traced every read AND write call site of `LibraryRepository` and the
+`library` Firestore collection across `lib/`, not just the Homepage:
+
+- **`LibraryRepository.addItem()` (the only write path into the `library`
+  collection) has ZERO call sites anywhere in `lib/`.** Grepped the whole
+  tree; the only match is the method's own definition. This means the
+  `library` collection has never been written to by this app -- it isn't
+  a legacy shelf with real data sitting in it that reads still depend on,
+  it's an empty collection with dead read paths pointed at it. This is the
+  single fact that settles the investigation: a genuinely dead, parallel
+  duplicate of `AcademicContentRepository`/`academic_content`, exactly
+  production_plan.md §1's "obsolete or placeholder Library logic," not a
+  second real system serving a different purpose.
+- Confirmed via `app_router.dart` and `app_drawer.dart` that the actual
+  Library a user reaches from primary navigation (bottom-nav "Library" tab
+  and the drawer's "Content Library"/"Past Questions" items) is
+  `AcademicContentPage` (`lib/features/academic_content/`), backed by
+  `AcademicContentRepository`/`academic_content` collection -- confirming
+  that repository is the live system.
+- Found `LibraryRepository`'s remaining callers were: `universal_home_page
+  .dart` (Home's "Recommended for You" row AND, separately, the "Today's
+  Progress" / Continue Reading card -- see below), `pages/search_page.dart`
+  (the Library tab of global in-app search), and `lib/features/library/
+  library_page.dart` + `library_reader_page.dart` -- a second, entirely
+  separate "Library" feature directory that turned out to have **zero
+  importers anywhere else in `lib/`** (`LibraryPage` is never routed to
+  from any nav/drawer/button; `LibraryReaderPage` is only ever pushed from
+  Home's own Continue Reading tap-through -- see below). Both are fully
+  orphaned dead code, not reachable through any real user flow.
+- **A second, related dead-code finding inside the same investigation**:
+  Home's "Today's Progress" card read `AppUser.continueReadingItemId/
+  Title/Page/TotalPages` -- fields written ONLY by `LibraryReaderPage`'s
+  `AuthService.setContinueReading()` call. But `LibraryReaderPage` has no
+  entry point anywhere in the app except Home's own "tap to reopen"
+  handler on that same card, which only fires once
+  `continueReadingItemId` is already non-null. That's a closed loop with
+  no way in: those fields could never actually populate for any real user,
+  ever, in the current app. Meanwhile a fully-built, correctly-scoped
+  replacement -- `AcademicContentRepository.continueReading()` /
+  `recordReadPosition()` / `savedReadPage()`, wired into the REAL in-app
+  PDF viewer (`content_viewer_page.dart`) already used by the real Library
+  -- had **zero UI call sites** anywhere before this session. Fixed as
+  part of this same pass (see below) since it's the direct downstream
+  consequence of the identical two-parallel-systems root cause, in the
+  same file, and leaving it broken while "fixing" the neighboring
+  Recommended-for-You section in the same file would have been dishonest.
+
+### Fix -- retired `LibraryRepository` from the Homepage and Search,
+### left the repository/model files in place
+
+Per the brief's own instruction ("do NOT delete the repository/model file
+outright unless you've confirmed absolutely nothing else in `lib/` reads
+or writes it"): `library_page.dart`/`library_reader_page.dart` still
+reference `LibraryRepository`/`LibraryItem`, so `lib/repositories/
+library_repository.dart` and `lib/models/library_item.dart` were left
+untouched. `lib/features/library/library_page.dart` and `library_reader_
+page.dart` themselves were also deliberately left in place, undeleted --
+confirmed orphaned/unreachable (see above) but the brief only named the
+repository/model files explicitly, and deleting page files not named in
+scope risked overreach for no functional benefit (nothing imports them,
+so they cost nothing at runtime or in `flutter analyze`). Flagging this
+whole `lib/features/library/` + `library_repository.dart` +
+`library_item.dart` cluster as a clean, contained candidate for deletion
+in a future pass, now that this session has confirmed in writing that
+nothing else in the app depends on it.
+
+What was actually changed:
+- **`universal_home_page.dart`'s "Recommended for You" row**: was
+  `LibraryRepository.recent()` (recency-only, no personalization) +
+  `CourseRepository.watchAll()` (first 4 alphabetically, school-linked
+  users only) -- see the Homepage section below for the real replacement.
+- **`universal_home_page.dart`'s "Today's Progress" card**: swapped the
+  dead `AppUser.continueReading*` fields for a `FutureBuilder` over
+  `AcademicContentRepository.instance.continueReading(userId)`, cached by
+  user id (same "cache the Future by key" pattern this file already uses
+  for the recommended row, so unrelated `setState()` calls elsewhere on
+  the page don't re-issue the read). "Reopen" now pushes the real
+  `ContentViewerPage` (with `offlineFilePath()` resolved first, same as
+  the real download flow in `content_details_page.dart`) instead of the
+  dead `LibraryReaderPage`. Since only the in-app PDF viewer records a
+  read position, anything `continueReading()` returns is guaranteed to be
+  a PDF -- documented in a comment rather than re-detecting the file kind.
+- **`pages/search_page.dart`'s Library search tab**: was
+  `LibraryRepository.search()` returning `LibraryItem`s from the empty
+  `library` collection, whose results (had there been any) would then have
+  been handed to `ContentDetailsPage(contentId: ...)` -- a page that reads
+  from the `academic_content` collection, not `library`. That's a second,
+  independent bug the dead system was carrying: even if `library` had ever
+  had data, tapping a search result would have opened "Content no longer
+  exists" for a real id from the wrong collection. Switched to
+  `AcademicContentRepository.search()` / `List<AcademicContent>`, which
+  makes the existing `ContentDetailsPage(contentId: _content[i].id)` call
+  actually correct for the first time.
+
+### Investigation 2 -- "the online/offline permission problem": already
+### fixed by an earlier session, verified rather than re-fixed
+
+Read `firestore.rules`' `library/{id}` and `academic_content/{id}` blocks
+and `storage.rules` in full, and re-derived the "Saved" vs "Downloaded"
+split and the offline download path in `academic_content_repository.dart`
+line by line (the file's own header comment already warns future sessions
+not to conflate the two -- confirmed the code honors its own warning:
+`toggleSave`/`watchIsSaved` are the cross-device Firestore bookmark,
+`downloadForOffline`/`offlineFilePath`/`removeOfflineFile` are the
+per-device `SharedPreferences`-tracked local file, and un-saving correctly
+also removes the local file rather than orphaning it).
+
+Concrete finding: `firestore.rules`' own comment on the `library/{id}`
+block states plainly that this collection "had NO rule at all before
+(default-deny), which is why all of those threw permission-denied" --
+i.e. the online/offline permission problem production_plan.md §1 is
+pointing at **was a missing Firestore rule for `library` (and, per
+`storage.rules`' own header, a Storage bucket with no rules deployed via
+this repo at all)**, and both were already fixed in an earlier session,
+before this one started. `academic_content/{id}}`'s rules (read: true for
+everyone including guests; self-scoped `saves`/`recent_views`/
+`readPositions` subcollection rules, each with the collection-group-query
+fix documented inline) show no equivalent gap. `content_files/{institutionId}`
+and `thumbnails/{institutionId}` in `storage.rules` are public-read,
+lecturer+-write, matching the Firestore rule; `downloadForOffline()`'s raw
+`http.Request` GET goes against a `getDownloadURL()` token URL, which
+carries its own access grant independent of Storage rules, so no
+online/offline mismatch there either. Did not find a second, still-open
+permission bug beyond what the two already-committed rule files
+themselves document as fixed -- reporting that honestly rather than
+inventing a fix for a problem that no longer exists, per this session's
+standing anti-fabrication discipline.
+
+### Homepage's own "Recommended for You" -- real signals, kept
+### structurally separate from RecommendationRepository (§7B)
+
+production_plan.md §1 is explicit: "the homepage's 'Recommended for You'
+system must remain separate from contextual recommendations used
+elsewhere in the application" -- so `_loadRecommended()` does **not** call
+`RecommendationRepository` (the §7B contextual-recommendations system
+this same session built out earlier, backing the Library/Courses/
+Magazine/Quizzes/Past-Papers rails). It legitimately reads some of the
+same underlying real signal SOURCES `RecommendationRepository` also reads
+(`AppUser.favoriteSubjects`, `TestRepository.subjectCompletionCountsOnce()`)
+-- per this task's own framing, "separate" means a structurally distinct
+computation that can evolve independently, not that every signal source
+must be reinvented from scratch.
+
+Old behavior: `LibraryRepository.recent()` (recency only, dead collection
+-- see Investigation 1) + `CourseRepository.watchAll()` sliced to the
+first 4 alphabetically for school-linked users only -- literally
+unpersonalized recency dressed up as "Recommended for You," exactly
+production_plan.md's "broken" complaint.
+
+New behavior, built as two pure top-level helper functions
+(`rankHomeSubjectsByUsage`, `rankHomeCoursesByEnrollment` in
+`universal_home_page.dart`, deliberately independent copies of
+`RecommendationRepository.rankSubjectsByUsage`'s *shape*, not shared
+calls into it) plus the async `_loadRecommended()` that uses them:
+
+- **Library half**: favorite-subject-first, usage-weighted (favorite
+  subjects reordered by `TestRepository.subjectCompletionCountsOnce()`,
+  same real "frequently completes X quizzes outranks a subject only
+  starred" signal §5 already established), round-robin across subjects
+  (one pass per subject, not draining the top pick's whole quota) so a
+  student with several favorites sees a mix -- same shape
+  `RecommendationRepository.forLibrary` uses, independently implemented.
+  Honest recent-content fallback for guests, users with no favorites yet,
+  or an empty favorite-subject match.
+- **Courses half**: real "Courses accessed" signal --
+  `AppUser.courseIds` (already-enrolled courses) partitioned first via
+  `rankHomeCoursesByEnrollment`, both halves keeping `CourseRepository
+  .watchAll()`'s own name order (a stable partition, not a re-sort).
+  `Course` (school-registrar courses: code/lecturer/credits) has no
+  subject field, unlike `PublicCourse`, so favorite-subject matching isn't
+  possible here without fabricating a mapping -- enrollment is the one
+  real, honest signal available for this specific card type, so that's
+  what's used; not claiming subject-based personalization this data
+  shape can't actually support.
+- **Card widget type change**: `_recommendedLibraryCard` now takes
+  `AcademicContent` instead of the dead `LibraryItem`, and its tap target
+  was fixed from a generic `_open(..., AcademicContentPage(...))` (didn't
+  even open the tapped item) to the correct
+  `ContentDetailsPage(contentId: item.id, ...)` -- a second small
+  correctness fix riding along with the type swap.
+- **Deliberately NOT added to Home's own signal mix**: academic level
+  (would need duplicating `RecommendationRepository`'s
+  `_educationLevelToContentLevel` bridge table as a second copy purely for
+  this one card row -- judged not worth the duplication for a first pass);
+  followed authors (no followable-author concept exists for
+  `AcademicContent` or school `Course` the way `MagazineArticle.authorId`
+  has one -- forcing a Follow signal in here would be exactly the
+  fabricated-personalization pattern this codebase's own conventions
+  flag); Magazine/Quizzes/Past-Papers as additional card types on Home
+  (the brief's own instruction was to keep the existing Library+Courses
+  mix, not add new card types to this specific row). All flagged as scoped
+  deferrals, not silently dropped.
+
+### Tests
+
+`test/home_recommendation_ranking_test.dart` (new, 10 cases, mirrors
+`test/recommendation_ranking_test.dart`'s pattern): `rankHomeSubjectsByUsage`
+-- descending-count reorder, all-zero/empty-map no-op, explicit tie-break,
+non-favorite subject ignored, empty-favorites edge case (5, same coverage
+as the §7B original since it's the same shape); `rankHomeCoursesByEnrollment`
+-- enrolled-first stable partition, no-enrollment no-op, all-enrolled
+no-op, empty-course-list edge case, an enrolled id absent from the course
+list is silently ignored rather than erroring (5).
+
+### Verification
+
+`flutter analyze`: 36 issues, exactly the established baseline, confirmed
+on multiple runs after every edit in this pass, zero new. `flutter test`:
+the isolated new file (`flutter test test/home_recommendation_ranking_test.dart`)
+passed 10/10 cleanly. Full-suite (`flutter test`) runs on this shared
+machine showed visibly interleaved/duplicated output from other agents'
+concurrent `flutter test` processes running in sibling worktrees at the
+same time (confirmed independently: a `flutter test` run in this same
+session crashed the shell with an access-violation fork failure under
+that contention), so the exact final total fluctuated run to run and
+isn't trustworthy to quote on its own. Pinned it down properly with
+`flutter test --concurrency=1`, which prints a `loading <file>` line at
+each file's own starting test-count offset: `home_recommendation_ranking_
+test.dart` loads right after `essay_matching_test.dart` at offset +20 and
+the next file loads at +30, confirming its 10 tests actually ran (and
+passed -- the run ended "All tests passed!"). Every run in this pass,
+noisy or clean, ended with "All tests passed!" and zero reported
+failures -- no regression signal, but flagging the shared-machine
+contention itself
+for whoever reads this next, same as this file's own note on Windows
+plugin-registrant regeneration noise elsewhere in this session.
+
+Files touched: `lib/features/dashboard/universal_home_page.dart`,
+`lib/pages/search_page.dart`, `test/home_recommendation_ranking_test.dart`
+(new).

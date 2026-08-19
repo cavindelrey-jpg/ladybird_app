@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../models/models.dart';
 import '../models/public_course.dart';
-import '../repositories/library_repository.dart';
+import '../repositories/academic_content_repository.dart';
 import '../repositories/club_repository.dart';
 import '../repositories/messaging_repository.dart';
 import '../repositories/public_course_repository.dart';
@@ -27,7 +27,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
   late TabController _tabController;
   bool _isLoading = false;
 
-  List<LibraryItem> _content = [];
+  List<AcademicContent> _content = [];
   List<Club> _clubs = [];
   List<Map<String, dynamic>> _users = [];
   List<PublicCourse> _courses = [];
@@ -53,14 +53,14 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
     // stuck showing zero results.
     bool contentFailed = false, clubsFailed = false, usersFailed = false, coursesFailed = false;
     final results = await Future.wait([
-      _safe(() => LibraryRepository.instance.search(query, schoolId: widget.user.schoolId), <LibraryItem>[], (f) => contentFailed = f),
+      _safe(() => AcademicContentRepository.instance.search(query, institutionId: widget.user.schoolId), <AcademicContent>[], (f) => contentFailed = f),
       _safe(() => ClubRepository.instance.searchClubs(query), <Club>[], (f) => clubsFailed = f),
       _safe(() => MessagingRepository.instance.searchUsers(query), <Map<String, dynamic>>[], (f) => usersFailed = f),
       _safe(() => PublicCourseRepository.instance.watchLatest().first, <PublicCourse>[], (f) => coursesFailed = f),
     ]);
 
     setState(() {
-      _content = results[0] as List<LibraryItem>;
+      _content = results[0] as List<AcademicContent>;
       _clubs = results[1] as List<Club>;
       _users = results[2] as List<Map<String, dynamic>>;
       _courses = (results[3] as List<PublicCourse>)

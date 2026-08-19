@@ -30,7 +30,6 @@ import '../../models/hero_slide.dart';
 import '../../models/announcement.dart';
 import '../../models/magazine_article.dart';
 import '../../models/daily_challenge.dart';
-import '../../models/library_item.dart';
 import '../../models/academic_content.dart';
 import '../../models/course.dart';
 import '../../models/personal_study_slot.dart';
@@ -40,7 +39,8 @@ import '../../repositories/timetable_repository.dart';
 import '../../repositories/announcement_repository.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../repositories/daily_challenge_repository.dart';
-import '../../repositories/library_repository.dart';
+import '../../repositories/academic_content_repository.dart';
+import '../../repositories/test_repository.dart';
 import '../../repositories/course_repository.dart';
 import '../../services/auth_service.dart';
 import '../../repositories/xp_repository.dart';
@@ -50,7 +50,8 @@ import '../../pages/daily_challenge_page.dart';
 import '../../pages/search_page.dart';
 import '../../pages/notifications_page.dart';
 import '../../pages/profile_page.dart';
-import '../library/library_reader_page.dart';
+import '../academic_content/content_viewer_page.dart';
+import '../academic_content/content_details_page.dart';
 import '../testing/xp_dashboard_page.dart';
 import '../testing/tests_subject_picker_page.dart';
 import '../academic_content/academic_content_page.dart';
@@ -66,6 +67,55 @@ import '../courses/course_detail_page.dart';
 const List<BoxShadow> _glow = [
   BoxShadow(color: Color(0x14000000), blurRadius: 20, offset: Offset(0, 6)),
 ];
+
+// ── Home's own "Recommended for You" ranking helpers ───────────────────
+// Pure, top-level, unit-tested (test/home_recommendation_ranking_test.dart)
+// -- deliberately independent copies of the same *shape* of logic
+// RecommendationRepository.rankSubjectsByUsage uses for §7B's contextual
+// recommendations, not a shared call into that class. production_plan.md
+// §1 is explicit that "the homepage's 'Recommended for You' system must
+// remain separate from contextual recommendations used elsewhere in the
+// application" -- these functions are what keeps the two computations able
+// to evolve independently while still reading the same underlying real
+// signals (favorite subjects, quiz-completion usage counts, course
+// enrollment).
+
+/// Reorders [favoriteSubjects] by descending completion count in [usage] --
+/// the subject a student actually completes quizzes in most often outranks
+/// one they only starred. Ties (most commonly: no usage data yet, all
+/// zero) keep their ORIGINAL relative order via an explicit index
+/// tie-break, since Dart's `List.sort` is not guaranteed stable -- this is
+/// what makes "no usage data" a true no-op.
+List<String> rankHomeSubjectsByUsage(
+  List<String> favoriteSubjects,
+  Map<String, int> usage,
+) {
+  final indexed = favoriteSubjects.asMap().entries.toList()
+    ..sort((a, b) {
+      final byUsage = (usage[b.value] ?? 0).compareTo(usage[a.value] ?? 0);
+      if (byUsage != 0) return byUsage;
+      return a.key.compareTo(b.key);
+    });
+  return indexed.map((e) => e.value).toList();
+}
+
+/// Stable partition of [courses] into ones the student is enrolled in
+/// ([enrolledCourseIds]) first, then the rest -- the real "Courses
+/// accessed" signal. Both halves keep their original relative order (a
+/// partition, not a sort), so this doesn't disturb whatever order the
+/// caller's query already returned (typically alphabetical by name, from
+/// CourseRepository.watchAll).
+List<Course> rankHomeCoursesByEnrollment(
+  List<Course> courses,
+  Set<String> enrolledCourseIds,
+) {
+  final enrolled = <Course>[];
+  final other = <Course>[];
+  for (final c in courses) {
+    (enrolledCourseIds.contains(c.id) ? enrolled : other).add(c);
+  }
+  return [...enrolled, ...other];
+}
 
 class UniversalHomePage extends StatefulWidget {
   final AppUser? user;
@@ -482,88 +532,127 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     );
   }
 
-  Widget _progressCard(BuildContext context) {
-    final hasReading = !_isGuest && (_u!.continueReadingItemId != null);
-    final total = _isGuest ? null : _u!.continueReadingTotalPages;
-    final page = _isGuest ? 0 : _u!.continueReadingPage;
-    final pct = (hasReading && total != null && total > 0) ? page / total : null;
+  // Real Continue Reading position, sourced from
+  // AcademicContentRepository's per-user readPositions (recorded by
+  // content_viewer_page.dart's in-app PDF viewer -- the one content kind
+  // with a real page count). This card used to read
+  // AppUser.continueReadingItemId/Title/Page/TotalPages, fields ONLY ever
+  // written by lib/features/library/library_reader_page.dart -- a page
+  // that turned out to have no other entry point anywhere in the app
+  // (nothing pushed it except this card's own "tap to reopen" handler,
+  // which only fires once continueReadingItemId is already set). That's a
+  // dead loop, not a working feature: those fields could never actually
+  // populate for any real user. See docs/AUTOPILOT_LOG.md for the full
+  // investigation. Swapped to the real, already-recorded
+  // AcademicContentRepository.continueReading() so this card can actually
+  // show true data once wired up.
+  String? _continueReadingKey;
+  Future<({AcademicContent content, int page, int totalPages})?>? _cachedContinueReadingFuture;
+  Future<({AcademicContent content, int page, int totalPages})?> get _continueReadingFuture {
+    final key = _u?.id ?? '';
+    if (_cachedContinueReadingFuture == null || _continueReadingKey != key) {
+      _continueReadingKey = key;
+      _cachedContinueReadingFuture = _isGuest
+          ? Future.value(null)
+          : AcademicContentRepository.instance.continueReading(_u!.id);
+    }
+    return _cachedContinueReadingFuture!;
+  }
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-          color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), boxShadow: _glow),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(Icons.show_chart_rounded, size: 15, color: ac.primary),
-          const SizedBox(width: 4),
-          Expanded(child: Text("Today's Progress", style: GoogleFonts.sora(
-              fontSize: 11.5, fontWeight: FontWeight.w700, color: ac.txt))),
-          if (pct != null)
-            Text('${(pct * 100).round()}%', style: GoogleFonts.sora(
-                fontSize: 11.5, fontWeight: FontWeight.w800, color: ac.txt)),
-        ]),
-        const SizedBox(height: 10),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: pct ?? 0,
-            backgroundColor: ac.bdr2,
-            valueColor: AlwaysStoppedAnimation(ac.primary),
-            minHeight: 6,
-          ),
-        ),
-        const SizedBox(height: 14),
-        if (hasReading)
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(Rad.xs),
-              onTap: () {
-                HapticFeedback.lightImpact();
-                _reopenContinueReading(context);
-              },
-              child: Row(children: [
-                Container(
-                  padding: const EdgeInsets.all(9),
-                  decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(9)),
-                  child: Icon(Icons.menu_book_rounded, color: ac.primary, size: 18),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Continue Reading', style: GoogleFonts.inter(fontSize: 9.5, color: ac.primary)),
-                    Text(_u!.continueReadingTitle ?? '', maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: ac.txt)),
-                    Text(total != null ? 'Page $page of $total' : 'Page $page',
-                        style: GoogleFonts.inter(fontSize: 9.5, color: ac.muted)),
+  Widget _progressCard(BuildContext context) {
+    return FutureBuilder<({AcademicContent content, int page, int totalPages})?>(
+      future: _continueReadingFuture,
+      builder: (context, snap) {
+        final loading = snap.connectionState == ConnectionState.waiting;
+        final data = snap.data;
+        final hasReading = data != null;
+        final total = data?.totalPages;
+        final page = data?.page ?? 0;
+        final pct = (hasReading && total != null && total > 0) ? page / total : null;
+
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+              color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), boxShadow: _glow),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.show_chart_rounded, size: 15, color: ac.primary),
+              const SizedBox(width: 4),
+              Expanded(child: Text("Today's Progress", style: GoogleFonts.sora(
+                  fontSize: 11.5, fontWeight: FontWeight.w700, color: ac.txt))),
+              if (pct != null)
+                Text('${(pct * 100).round()}%', style: GoogleFonts.sora(
+                    fontSize: 11.5, fontWeight: FontWeight.w800, color: ac.txt)),
+            ]),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: pct ?? 0,
+                backgroundColor: ac.bdr2,
+                valueColor: AlwaysStoppedAnimation(ac.primary),
+                minHeight: 6,
+              ),
+            ),
+            const SizedBox(height: 14),
+            if (loading)
+              const SizedBox(height: 18, width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+            else if (data != null)
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Rad.xs),
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    _reopenContinueReading(context, data);
+                  },
+                  child: Row(children: [
+                    Container(
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(9)),
+                      child: Icon(Icons.menu_book_rounded, color: ac.primary, size: 18),
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('Continue Reading', style: GoogleFonts.inter(fontSize: 9.5, color: ac.primary)),
+                        Text(data.content.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: ac.txt)),
+                        Text(total != null ? 'Page $page of $total' : 'Page $page',
+                            style: GoogleFonts.inter(fontSize: 9.5, color: ac.muted)),
+                      ]),
+                    ),
+                    Icon(Icons.chevron_right_rounded, color: ac.muted, size: 16),
                   ]),
                 ),
-                Icon(Icons.chevron_right_rounded, color: ac.muted, size: 16),
-              ]),
-            ),
-          )
-        else
-          Text('No reading in progress -- open something from the Library to start.',
-              style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted, height: 1.3)),
-      ]),
+              )
+            else
+              Text('No reading in progress -- open something from the Library to start.',
+                  style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted, height: 1.3)),
+          ]),
+        );
+      },
     );
   }
 
-  Future<void> _reopenContinueReading(BuildContext context) async {
-    if (_isGuest || _u!.continueReadingItemId == null) return;
-    final items = await LibraryRepository.instance.recent(schoolId: _u!.schoolId, limit: 60);
-    LibraryItem? match;
-    for (final it in items) {
-      if (it.id == _u!.continueReadingItemId) { match = it; break; }
-    }
-    match ??= LibraryItem(
-      id: _u!.continueReadingItemId!, title: _u!.continueReadingTitle ?? 'Untitled',
-      author: '', subject: '', size: '', views: 0, type: ContentType.note,
-      totalPages: _u!.continueReadingTotalPages,
-    );
+  Future<void> _reopenContinueReading(
+      BuildContext context, ({AcademicContent content, int page, int totalPages}) data) async {
+    final localPath = await AcademicContentRepository.instance.offlineFilePath(data.content.id);
     if (!context.mounted) return;
     Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => LibraryReaderPage(user: _u!, item: match!)));
+        builder: (_) => ContentViewerPage(
+              fileUrl: data.content.fileUrl ?? '',
+              localFilePath: localPath,
+              title: data.content.title,
+              // Only the in-app PDF viewer records a read position (the
+              // one content kind with a real page count -- see
+              // AcademicContentRepository's own comment), so anything
+              // continueReading() returns is always a PDF.
+              kind: ViewableFileKind.pdf,
+              contentId: data.content.id,
+              userId: _u!.id,
+            )));
   }
 
   Widget _challengeCard(BuildContext context) {
@@ -907,17 +996,41 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
 
   // -- Recommended for You -- mix of Library + Courses --------------------
   //
-  // Cached by (schoolId, guest) rather than called fresh in build() --
-  // unrelated setState() calls elsewhere on this page (e.g. returning from
-  // the Daily Challenge, line ~613) rebuild this whole ListView, and an
-  // inline `future: _loadRecommended()` would hand FutureBuilder a new
-  // Future identity every time, re-issuing the Library + Course reads for
-  // no reason -- same bug class already fixed for the banner carousel and
-  // the Clubs/Courses search streams.
+  // This is the Homepage's OWN, independently-computed "Recommended for
+  // You" (production_plan.md §1's "Homepage / Recommendations" -- distinct
+  // from the plan's own §7B contextual, per-surface recommendations that
+  // back the Library/Courses/Magazine/Quizzes/Past Papers rails elsewhere
+  // via RecommendationRepository). The plan is explicit: "the homepage's
+  // 'Recommended for You' system must remain separate from contextual
+  // recommendations used elsewhere in the application" -- so this method
+  // does NOT call RecommendationRepository. It legitimately reads some of
+  // the SAME underlying real signals (favoriteSubjects,
+  // TestRepository.subjectCompletionCountsOnce, course enrollment)
+  // RecommendationRepository also reads -- "separate" means a structurally
+  // distinct computation that can evolve independently, not that every
+  // signal source must be reinvented.
+  //
+  // Previously this was LibraryRepository.recent() -- the `library`
+  // Firestore collection turned out to have ZERO writers anywhere in this
+  // app (LibraryRepository.addItem() has no call site at all), so it was a
+  // dead, never-populated duplicate of AcademicContentRepository, not a
+  // second real system -- plus CourseRepository.watchAll() with no
+  // personalization beyond "first 4 alphabetically". That's exactly
+  // production_plan.md's "broken 'Recommended for You'" complaint: pure
+  // recency dressed up as personalization. See docs/AUTOPILOT_LOG.md for
+  // the full two-Library-systems investigation.
+  //
+  // Cached by (userId, schoolId, guest) rather than called fresh in
+  // build() -- unrelated setState() calls elsewhere on this page (e.g.
+  // returning from the Daily Challenge) rebuild this whole ListView, and
+  // an inline `future: _loadRecommended()` would hand FutureBuilder a new
+  // Future identity every time, re-issuing the reads for no reason -- same
+  // bug class already fixed for the banner carousel and the Clubs/Courses
+  // search streams.
   String? _recommendedKey;
   Future<List<Object>>? _cachedRecommendedFuture;
   Future<List<Object>> get _recommendedFuture {
-    final key = '${_u?.schoolId}:$_isGuest';
+    final key = '${_u?.id}:${_u?.schoolId}:$_isGuest';
     if (_cachedRecommendedFuture == null || _recommendedKey != key) {
       _recommendedKey = key;
       _cachedRecommendedFuture = _loadRecommended();
@@ -957,7 +1070,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (_, i) {
               final it = items[i];
-              if (it is LibraryItem) return _recommendedLibraryCard(context, it);
+              if (it is AcademicContent) return _recommendedLibraryCard(context, it);
               if (it is Course) return _recommendedCourseCard(context, it);
               return const SizedBox.shrink();
             },
@@ -968,13 +1081,66 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Future<List<Object>> _loadRecommended() async {
-    final libraryItems = await LibraryRepository.instance.recent(schoolId: _u?.schoolId, limit: 4);
-    List<Course> courses = [];
-    if (!_isGuest && _u!.schoolId != null) {
+    final contentRepo = AcademicContentRepository.instance;
+    final schoolId = _u?.schoolId;
+    final favSubjects = _u?.favoriteSubjects ?? const <String>[];
+
+    // Real Subjects signal, usage-weighted: favorite subjects, reordered so
+    // the one the student actually completes quizzes in most often gets
+    // first pick in the round-robin below. Reuses
+    // TestRepository.subjectCompletionCountsOnce() as a plain data source
+    // (already built for RecommendationRepository's own usage weighting) --
+    // not a call into RecommendationRepository itself, keeping this
+    // computation structurally independent per the plan's "must remain
+    // separate" requirement.
+    var libraryItems = <AcademicContent>[];
+    if (!_isGuest && favSubjects.isNotEmpty) {
+      var usage = const <String, int>{};
       try {
-        courses = await CourseRepository.instance.watchAll(_u!.schoolId!).first
+        usage = await TestRepository.instance.subjectCompletionCountsOnce(_u!.id);
+      } catch (_) {
+        // Usage weighting is a refinement, not the core signal -- fall
+        // through to unweighted favorite-subject order rather than failing
+        // the whole recommendation load over it.
+      }
+      final ranked = rankHomeSubjectsByUsage(favSubjects, usage);
+      // Round-robin one pass per subject (not draining the top subject's
+      // whole quota first) so a student with several favorites sees a mix.
+      final perSubject = await Future.wait(ranked.map((s) => contentRepo
+          .watch(institutionId: schoolId, subject: s)
+          .first
+          .timeout(const Duration(seconds: 5), onTimeout: () => const <AcademicContent>[])));
+      final seenIds = <String>{};
+      var round = 0;
+      while (libraryItems.length < 4 && perSubject.any((l) => round < l.length)) {
+        for (final list in perSubject) {
+          if (round >= list.length) continue;
+          final item = list[round];
+          if (seenIds.add(item.id)) libraryItems.add(item);
+          if (libraryItems.length >= 4) break;
+        }
+        round++;
+      }
+    }
+    // Honest recent-content fallback -- guests, users with no favorite
+    // subjects yet, or a favorite-subject match that came back empty all
+    // see real recent Library content instead of an empty rail.
+    if (libraryItems.isEmpty) {
+      final fallback = await contentRepo
+          .watch(institutionId: schoolId)
+          .first
+          .timeout(const Duration(seconds: 5), onTimeout: () => const <AcademicContent>[]);
+      libraryItems = fallback.take(4).toList();
+    }
+
+    var courses = <Course>[];
+    if (!_isGuest && schoolId != null) {
+      try {
+        final all = await CourseRepository.instance.watchAll(schoolId).first
             .timeout(const Duration(seconds: 3));
-        courses = courses.take(4).toList();
+        // Real "Courses accessed" signal: a course the student is actually
+        // enrolled in surfaces before ones they aren't.
+        courses = rankHomeCoursesByEnrollment(all, _u!.courseIds.toSet()).take(4).toList();
       } catch (_) {
         courses = [];
       }
@@ -982,7 +1148,14 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return [...libraryItems, ...courses];
   }
 
-  Widget _recommendedLibraryCard(BuildContext context, LibraryItem item) {
+  String _formatContentSize(int? bytes) {
+    if (bytes == null) return '';
+    if (bytes >= 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes >= 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '$bytes B';
+  }
+
+  Widget _recommendedLibraryCard(BuildContext context, AcademicContent item) {
     final radius = BorderRadius.circular(Rad.md);
     return Material(
       color: ac.purBg,
@@ -991,7 +1164,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         borderRadius: radius,
         onTap: () {
           HapticFeedback.selectionClick();
-          _open(context, AcademicContentPage(user: _u ?? AppUser.guest()));
+          _open(context, ContentDetailsPage(contentId: item.id, user: _u ?? AppUser.guest()));
         },
         child: Container(
           width: 150,
@@ -1000,7 +1173,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             Row(children: [
               Icon(Icons.description_rounded, size: 12, color: ac.pur),
               const SizedBox(width: 4),
-              Text(item.type.name, style: GoogleFonts.inter(
+              Text(item.contentType.label, style: GoogleFonts.inter(
                   fontSize: 10, fontWeight: FontWeight.w600, color: ac.pur)),
             ]),
             const SizedBox(height: 8),
@@ -1008,7 +1181,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                 style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, height: 1.2)),
             const Spacer(),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Expanded(child: Text(item.size, style: GoogleFonts.inter(fontSize: 10, color: ac.txt2))),
+              Expanded(child: Text(_formatContentSize(item.fileSizeBytes),
+                  style: GoogleFonts.inter(fontSize: 10, color: ac.txt2))),
               Icon(Icons.bookmark_outline_rounded, size: 16, color: ac.pur),
             ]),
           ]),

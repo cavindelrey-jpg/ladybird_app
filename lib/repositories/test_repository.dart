@@ -106,6 +106,56 @@ class TestRepository {
     return counts;
   }
 
+  /// Bounded recent-tests fetch across every subject — the fallback/pool
+  /// query for RecommendationRepository.forQuizzes(), same "recency,
+  /// unfiltered, filtered client-side by caller" shape as
+  /// PublicCourseRepository.watchLatest() and MagazineRepository
+  /// .watchFeed(). Uses the `published`+`createdAt` composite index that
+  /// already exists in firestore.indexes.json for this exact query
+  /// shape (see the file's own comment near that index) — no new index
+  /// needed.
+  Future<List<Test>> recentPublishedOnce({int limit = 60}) async {
+    final snap = await _tests
+        .where('published', isEqualTo: true)
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .get();
+    return snap.docs.map(Test.fromFirestore).toList();
+  }
+
+  // ── Usage signal (production_plan.md §5) ────────────────────────────
+  // "Mathematics + Physics → follows Physics authors → frequently
+  // completes Physics quizzes" — the plan's own example of a usage signal
+  // the recommendation system should pick up on. Rather than add a new
+  // denormalized per-subject counter (a write-time bookkeeping pipeline
+  // nothing else in this codebase needed until now), this derives the
+  // signal from data that is ALREADY recorded on every attempt —
+  // TestAttempt.subject — via one bounded query. Cheap, honest, and
+  // self-correcting (no counter that can drift from the underlying
+  // attempts).
+
+  /// How many of [userId]'s most recent test attempts were in each
+  /// subject. Bounded to [sampleSize] so this stays a single cheap query
+  /// regardless of account age — a recency-weighted signal ("what have
+  /// you been doing lately"), not a lifetime total, which is also the
+  /// more honest thing to rank "frequently completes" against.
+  Future<Map<String, int>> subjectCompletionCountsOnce(String userId,
+      {int sampleSize = 100}) async {
+    if (userId.isEmpty) return const {};
+    final snap = await _attempts
+        .where('userId', isEqualTo: userId)
+        .orderBy('submittedAt', descending: true)
+        .limit(sampleSize)
+        .get();
+    final counts = <String, int>{};
+    for (final doc in snap.docs) {
+      final subject = (doc.data()['subject'] as String?) ?? '';
+      if (subject.isEmpty) continue;
+      counts[subject] = (counts[subject] ?? 0) + 1;
+    }
+    return counts;
+  }
+
   // ── Authoring (lecturer/admin) ───────────────────────────────────────
 
   Future<Result<String>> createTest(Test test) async {

@@ -11,9 +11,11 @@
 import '../models/academic_content.dart';
 import '../models/magazine_article.dart';
 import '../models/public_course.dart';
+import '../models/test.dart';
 import '../repositories/academic_content_repository.dart';
 import '../repositories/magazine_repository.dart';
 import '../repositories/public_course_repository.dart';
+import '../repositories/test_repository.dart';
 
 class RecommendationRepository {
   RecommendationRepository._();
@@ -45,23 +47,85 @@ class RecommendationRepository {
     'Business':          ['Careers'],
   };
 
+  /// production_plan.md §5's own worked example — "Mathematics + Physics
+  /// → ... → frequently completes Physics quizzes" — says usage should
+  /// outrank a favorite subject the user only starred and never actually
+  /// engages with. Pure/stateless (no Firestore call in here — callers
+  /// derive [completionCounts] separately, e.g.
+  /// TestRepository.subjectCompletionCountsOnce()) so it's directly unit-
+  /// testable; see test/recommendation_ranking_test.dart.
+  ///
+  /// Returns [favoriteSubjects] reordered by descending completion count.
+  /// Subjects tied on count (most commonly: everyone at 0, i.e. no usage
+  /// signal yet) keep their ORIGINAL relative order — Dart's `List.sort`
+  /// is not guaranteed stable, so ties are broken explicitly by original
+  /// index rather than left to chance. This is what makes "no usage data"
+  /// a true no-op: with an all-zero [completionCounts] map, this returns
+  /// [favoriteSubjects] unchanged.
+  static List<String> rankSubjectsByUsage(
+    List<String> favoriteSubjects,
+    Map<String, int> completionCounts,
+  ) {
+    final indexed = favoriteSubjects.asMap().entries.toList()
+      ..sort((a, b) {
+        final byCount = (completionCounts[b.value] ?? 0)
+            .compareTo(completionCounts[a.value] ?? 0);
+        if (byCount != 0) return byCount;
+        return a.key.compareTo(b.key);
+      });
+    return indexed.map((e) => e.value).toList();
+  }
+
+  /// Re-sorts [items] so the subject the user completes most often
+  /// (per [rankedSubjects], already usage-ranked) comes first, WITHOUT
+  /// disturbing the relative order of items that share a subject — those
+  /// keep whatever order the caller's pool was already in (typically
+  /// recency). Implemented as an explicit index tie-break rather than
+  /// relying on `List.sort`'s stability, for the same reason
+  /// [rankSubjectsByUsage] does.
+  static List<T> _sortBySubjectRank<T>(
+    List<T> items,
+    List<String> rankedSubjects,
+    String Function(T) subjectOf,
+  ) {
+    final rankIndex = {for (var i = 0; i < rankedSubjects.length; i++) rankedSubjects[i]: i};
+    final indexed = items.asMap().entries.toList()
+      ..sort((a, b) {
+        final byRank = (rankIndex[subjectOf(a.value)] ?? rankedSubjects.length)
+            .compareTo(rankIndex[subjectOf(b.value)] ?? rankedSubjects.length);
+        if (byRank != 0) return byRank;
+        return a.key.compareTo(b.key);
+      });
+    return indexed.map((e) => e.value).toList();
+  }
+
   /// Library recommendations: favorite-subject content first (round-robin
   /// across subjects so one subject doesn't crowd out the rest), falling
   /// back to recent content site-wide for users with no favorites set yet
   /// (new/guest users still see something real, never an empty rail).
+  ///
+  /// [subjectUsageCounts], when supplied (TestRepository
+  /// .subjectCompletionCountsOnce()), reorders which favorite subject
+  /// gets the round-robin's first pick — see [rankSubjectsByUsage].
+  /// Defaults to empty, which is a no-op (identical to the pre-§5-usage
+  /// behavior), so every existing caller keeps working unchanged.
   Future<List<AcademicContent>> forLibrary({
     required List<String> favoriteSubjects,
+    Map<String, int> subjectUsageCounts = const {},
     String? institutionId,
     int limit = 8,
   }) async {
     final repo = AcademicContentRepository.instance;
     if (favoriteSubjects.isNotEmpty) {
+      final rankedSubjects = rankSubjectsByUsage(favoriteSubjects, subjectUsageCounts);
       final results = <AcademicContent>[];
       final seenIds = <String>{};
       // Round-robin one pass per subject rather than draining the first
       // subject's whole quota first, so a student with 3 favorites sees
-      // a mix, not just their first pick.
-      final perSubject = await Future.wait(favoriteSubjects.map((s) => repo
+      // a mix, not just their first pick. Subject ORDER here is the
+      // usage-ranked order, so the subject actually completed most often
+      // gets the earliest picks in each round.
+      final perSubject = await Future.wait(rankedSubjects.map((s) => repo
           .watch(institutionId: institutionId, subject: s)
           .first
           .timeout(const Duration(seconds: 5), onTimeout: () => const [])));
@@ -97,8 +161,14 @@ class RecommendationRepository {
   /// Wired into courses_marketplace_page.dart's "Recommended for You"
   /// rail (shown only in the un-filtered discovery view, and only for a
   /// signed-in user who has actually set favorite subjects).
+  ///
+  /// [subjectUsageCounts] (optional, see [forLibrary]'s matching doc)
+  /// re-sorts the matched courses so ones in a subject the user actually
+  /// completes quizzes in surface before ones in a subject they merely
+  /// starred — recency within a subject is preserved either way.
   Future<List<PublicCourse>> forCourses({
     required List<String> favoriteSubjects,
+    Map<String, int> subjectUsageCounts = const {},
     int limit = 8,
   }) async {
     final repo = PublicCourseRepository.instance;
@@ -106,10 +176,46 @@ class RecommendationRepository {
         .timeout(const Duration(seconds: 5), onTimeout: () => const []);
     if (favoriteSubjects.isNotEmpty) {
       final favSet = favoriteSubjects.toSet();
-      final matched = pool.where((c) => favSet.contains(c.subject)).take(limit).toList();
-      if (matched.isNotEmpty) return matched;
+      final rankedSubjects = rankSubjectsByUsage(favoriteSubjects, subjectUsageCounts);
+      final matched = pool.where((c) => favSet.contains(c.subject)).toList();
+      final ranked = _sortBySubjectRank(matched, rankedSubjects, (c) => c.subject);
+      final result = ranked.take(limit).toList();
+      if (result.isNotEmpty) return result;
     }
     return pool.take(limit).toList();
+  }
+
+  /// Quiz recommendations: same favorite-subject-first, usage-weighted,
+  /// recent-fallback shape as [forCourses]. `tests` has a real per-
+  /// subject query (TestRepository.watchTestsBySubject), but subscribing
+  /// to one live stream per favorite subject just for a bounded
+  /// recommendation rail is disproportionate — reuses the same "one
+  /// bounded recent pool, filter+rank client-side" shape [forCourses]
+  /// already uses for exactly that reason.
+  ///
+  /// [institutionId] mirrors TestRepository.watchTestsBySubject's own
+  /// visibility rule: a test with a null institutionId is open to every
+  /// student studying the subject; one with an institutionId is only
+  /// shown to that school's own students.
+  Future<List<Test>> forQuizzes({
+    required List<String> favoriteSubjects,
+    Map<String, int> subjectUsageCounts = const {},
+    String? institutionId,
+    int limit = 8,
+  }) async {
+    final pool = await TestRepository.instance.recentPublishedOnce(limit: 60);
+    final visible = pool
+        .where((t) => t.institutionId == null || t.institutionId == institutionId)
+        .toList();
+    if (favoriteSubjects.isNotEmpty) {
+      final favSet = favoriteSubjects.toSet();
+      final rankedSubjects = rankSubjectsByUsage(favoriteSubjects, subjectUsageCounts);
+      final matched = visible.where((t) => favSet.contains(t.subject)).toList();
+      final ranked = _sortBySubjectRank(matched, rankedSubjects, (t) => t.subject);
+      final result = ranked.take(limit).toList();
+      if (result.isNotEmpty) return result;
+    }
+    return visible.take(limit).toList();
   }
 
   /// Magazine recommendations: favorite subjects are translated to

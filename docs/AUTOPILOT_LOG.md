@@ -2414,3 +2414,199 @@ condition, not attempted without the repo owner's go-ahead; (2) every
 Firebase project, neither available in this sandbox; (3) a full
 production release build has not been run. Everything else checkable
 by reading and testing code has been checked honestly, not assumed.
+
+---
+
+## Section 3 Quiz Type 2 -- Structural rebuilt on the same key-points model as Essay
+
+`academia fix/academia_production_plan.md` section 3 defines Structured
+("Short Answer / Structural") as: store the student's answer, compare it
+against the expected answer, use expected answers/key points, evaluate
+automatically where possible, assign a score, award XP from that. Before
+this change none of that existed for `QuestionType.structured` --
+`TestQuestion` had no expected-answer field at all, `rubricGuidance` was
+free-text guidance shown only to a human, and `Test.hasManualGrading` was
+literally `questions.any((q) => q.type == structured)` -- every
+Structured answer, unconditionally, went to a human grader. Rebuilt to
+match the spec, as the direct sibling of this same session's Essay
+rebuild (see "Section 3 Quiz Type 3" above) rather than a separate
+design.
+
+### Design decisions (the non-obvious ones)
+
+- **Reused `EssayKeyPoint` verbatim for `TestQuestion.expectedPoints`,
+  did not invent a new type.** An expected answer point for Structured is
+  the exact same shape an essential point is for Essay -- short phrase
+  plus optional alternate-wording keywords -- and the brief explicitly
+  asked to consider this. `core/essay_matching.dart`'s
+  `matchEssayKeyPoints()` was already generic lexical matching, not
+  Essay-specific in its logic (nothing in the file reads "essay"
+  semantically, only in naming/comments), so Structured reuses the exact
+  same function via a new `TestRepository._matchAndGrade()` private
+  helper shared by both call sites -- one matching implementation, one
+  tuning surface, not two copies that could drift.
+- **`expectedPoints` is OPTIONAL, unlike Essay's mandatory 7-9.** The
+  spec sets no point count for Structural (Essay's 7-9 range is stated
+  explicitly for Essay only), so a Structured question can be authored
+  either way: WITH expected points, and it auto-grades exactly like an
+  Essay (confident capture/miss, genuinely uncertain points routed to a
+  human queue); WITHOUT any, and it stays fully human-graded, unchanged
+  from before -- for the pre-existing shape, or a genuinely rubric-only
+  question where a discrete expected-points list wouldn't fit (e.g. "show
+  your working" math problems where `rubricGuidance` remains the only
+  real grading tool). Composer UI reflects this: an "Expected answer
+  points (optional)" panel under the existing lineCount/points/rubric
+  fields, empty by default, with copy that states plainly what leaving it
+  empty means.
+- **`TestQuestion.maxPoints` scores an expected-points-authored Structured
+  question out of the expected-point COUNT, mirroring Essay exactly** --
+  "captured 2 of 3" feeds `pointsAwarded=2/maxPoints=3` into the existing
+  `questionXp()`, no parallel XP path. A Structured question with no
+  expected points keeps scoring out of the author-set `points` field,
+  unchanged.
+- **`Test.hasManualGrading` redefined to mean "at least one Structured
+  question has no expected points authored"** -- not "this test has
+  Structured questions" (the old, always-true definition) and not
+  "genuinely uncertain post-grading" (Essay's redefinition from the prior
+  Essay rebuild). Unlike Essay, this particular split IS cleanly knowable
+  pre-attempt: a Structured question either has expected points to match
+  against or it doesn't, and that's authored, not discovered at grading
+  time. Documented honestly in the doc comment that this still
+  under-promises in one way it shares with Essay: an expectedPoints-
+  authored Structured (or an Essay) question can still land an
+  individual point in the human queue after the student answers, and
+  that case is deliberately not reflected in this flag, for the same
+  "don't promise a review that usually won't happen" reason Essay's flag
+  was narrowed for. Added `Test.hasAutoGradedStructuredQuestions`
+  alongside the pre-existing `Test.hasEssayQuestions` for symmetry (not
+  yet wired into any UI -- there was no existing call site asking this
+  specific question, unlike `hasManualGrading` which already backed a
+  UI badge).
+- **Generalized the grading/result UI by DATA SHAPE, not by type.**
+  `grading_page.dart` and `test_result_page.dart` both gated their
+  key-point-review UI on `r.type == QuestionType.longForm &&
+  r.keyPointOutcomes.isNotEmpty` -- which would have silently broken for
+  an auto-graded-with-uncertain-points Structured response: the grader
+  would have seen a plain text box and a blind points field instead of
+  the per-point checklist, and typing a raw score would have bypassed
+  `gradeResponse()`'s ticked-points derivation entirely (the stored
+  outcomes and the stored score would disagree, exactly the bug that
+  logic exists to prevent). Both pages now branch on
+  `r.keyPointOutcomes.isNotEmpty` alone -- the actual condition that
+  determines whether a response has a per-point checklist to show,
+  independent of which `QuestionType` produced it. Renamed
+  `_essayKeyPointReview`/`_essayCaptured`/`isEssay` to
+  `_keyPointReview`/`_pointsCaptured`/`usesKeyPoints` to match. This
+  wasn't in the file list the brief named explicitly, but the auto-grade-
+  with-uncertain-points path is silently broken without it, so it's part
+  of the real deliverable, not scope creep.
+- **`test_taking_page.dart` needed no structural UI change** -- "one
+  point per line" via the existing single multi-line `TextField` in
+  `_structuredInput` already produces exactly the `List<String>` shape
+  `_matchAndGrade()` expects, confirming the brief's own prediction. Only
+  addition: a one-line note telling the student when their answer is
+  matched automatically (mirrors the Essay input's own "essential points"
+  callout), so the UI doesn't silently behave differently per question
+  without saying so.
+- **Composer validation is deliberately looser than Essay's.** Essay
+  rejects a key point count outside 7-9; Structured's `expectedPoints`
+  has no count requirement (per the spec gap noted above) -- only the
+  same paragraph-length sanity check Essay key points get (a >200-char
+  "point" matches badly at grading time), and only applied to whatever
+  IS entered. Blank rows added via "Add expected point" and never typed
+  into are dropped at save time rather than saved as empty-text points
+  (which would otherwise silently inflate `expectedPoints.length`, and so
+  `maxPoints`, with an unmatchable phantom point) -- stricter than the
+  pre-existing Essay composer's own equivalent gap, not matched to it on
+  purpose.
+
+### Bugs found and fixed while in here
+
+- The `grading_page.dart`/`test_result_page.dart` type-gated key-point UI
+  above -- not yet triggered by any real data before this change (no
+  Structured question could have `keyPointOutcomes` before today), so
+  not a regression, but it would have been a real, silent bug the moment
+  Structured auto-grading landed without this fix.
+
+### Schema addition, no migration shim written
+
+`TestQuestion.expectedPoints` (`List<EssayKeyPoint>`, defaults to
+`const []`) is purely additive -- `fromMap` defaults it to empty for any
+existing document, which falls through to the pre-existing "no expected
+points -> fully human-graded" path automatically, identical to how a
+genuinely-authored old-shape Structured question behaves. Verified before
+deciding: no seed/demo data writes to `tests` anywhere in `lib/` (same
+finding as the Essay rebuild, same codebase, same session), so there is
+nothing to migrate, only forward-compatible new documents to write.
+
+### firestore.rules -- checked, no edit needed
+
+Same reasoning as the Essay rebuild: `tests` create/update is gated by
+role only, not by field (`firestore.rules` lines ~989-995), so a new
+field inside a question's map in the `questions` array needs no rule
+change. `testAttempts` update is restricted to
+`['responses','status','gradedAt','totalXpAwarded']`
+(`firestore.rules` line ~1005-1007) -- the new Structured
+`keyPointOutcomes` lives inside `responses`, exactly like Essay's, and
+`submitAttempt`/`gradeResponse` touch nothing outside that allow-list.
+Verified by reading the actual rule text, not assumed from the Essay
+precedent alone.
+
+### Automated Quiz Generation (§3, the subsection after the three quiz
+types) -- assessed, deliberately NOT built
+
+Read it in full: "generate quizzes automatically from course
+content/notes/documents; generate MCQs, structural questions, essay
+questions and their essential-point structures; associate with source
+content; allow admin review before publishing." This requires
+understanding arbitrary course content/notes well enough to produce
+correct MCQ distractors, a coherent structural expected-answer set, and a
+plausible 7-9-point essay structure -- extracting that from unstructured
+text is squarely a generative-language-model task, not a keyword/regex
+job. Section 6 ("Academia AI") is the plan's own explicit AI section and
+the only other place in this document that discusses generation, which
+confirms this reading rather than being a coincidence. A paid API call
+(Firebase AI Logic / Gemini, or an equivalent LLM) is genuinely required
+-- this is a real, hard requirement, not a design choice avoiding one --
+and CLAUDE.md's autopilot rules list "spending real money (a paid API
+call)" as one of exactly three real stop conditions. Consistent with this
+codebase's zero-fabrication convention (no fake "AI" features, ever, per
+CLAUDE.md's own house rules and the Essay rebuild's identical reasoning
+for why its matcher is hand-rolled lexical matching rather than a fake
+NLP call), did not build a naive keyword-extraction substitute to check
+the box -- that would produce low-quality MCQs/structural questions
+presented as if they were a real feature, which is worse than not having
+the feature. Deliberately not done. What it would need: an approved paid
+LLM API (Gemini via Firebase AI Logic is already scaffolded as a skill in
+this repo's `.claude/skills/`, or Claude via Anthropic's API), an admin
+review/publish gate before a generated quiz becomes public (the spec
+asks for this explicitly), and a way to associate a generated Test with
+its source `AcademicContent`/course document (`sourceContentId`-shaped
+field on `Test`, not present today).
+
+### Deliberately NOT done (flagged, not hidden)
+
+- Same client-side-scoring caveat as Essay: a Structured auto-grade is
+  computed client-side at submit time, so a doctored attempt document
+  could forge a score. Pre-existing, identical for MCQ and Essay, belongs
+  to the section 4.9 server-side XP enforcement workstream.
+- `Test.hasAutoGradedStructuredQuestions` has no UI call site yet (see
+  above) -- added for model-level symmetry with `hasEssayQuestions`, not
+  because a screen currently needs it.
+- No composer constant analogous to `kMinEssayKeyPoints`/
+  `kMaxEssayKeyPoints` for Structured, because the spec sets no such
+  range for this quiz type -- inventing one would be a rule this session
+  made up, not one the spec asks for.
+- Automated Quiz Generation -- see above; blocked on a paid API call, not
+  attempted.
+
+Verification: `flutter analyze` 36 issues, exactly the pre-existing
+baseline, zero new. `flutter test` all passing, including the new
+`test/structured_matching_test.dart` covering `TestQuestion.maxPoints`'s
+fallback/auto-grade split, `Test.hasManualGrading`'s new definition
+across all three cases (no expected points / expected points authored /
+pure MCQ), the shared matcher on a Structured-flavored key-point set
+(confident capture, genuinely uncertain), and the Structural base-XP
+(30) wiring through the existing `questionXp()` -- mirroring
+`test/essay_matching_test.dart`'s own pattern rather than inventing a
+different test style for the sibling feature.

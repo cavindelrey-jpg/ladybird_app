@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../models/magazine_article.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'author_profile_page.dart';
@@ -13,22 +14,23 @@ import 'author_profile_page.dart';
 class TopWritersPage extends StatelessWidget {
   const TopWritersPage({super.key});
 
-  Color _rankColor(int rank) {
+  Color _rankColor(AppColors ac, int rank) {
     switch (rank) {
-      case 1:  return C.gold;
-      case 2:  return C.muted;
-      case 3:  return C.org;
-      default: return C.txt2;
+      case 1:  return ac.gold;
+      case 2:  return ac.muted;
+      case 3:  return ac.org;
+      default: return ac.txt2;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text('Top Writers', style: AppText.title),
       ),
       body: AppBackground(child: FutureBuilder<List<TopWriterEntry>>(
@@ -60,7 +62,7 @@ class TopWritersPage extends StatelessWidget {
                     SizedBox(
                       width: 28,
                       child: Text('$rank', style: AppText.h2.copyWith(
-                          fontSize: 16, color: _rankColor(rank))),
+                          fontSize: 16, color: _rankColor(ac, rank))),
                     ),
                     const SizedBox(width: 8),
                     UserAvatar(
@@ -77,7 +79,7 @@ class TopWritersPage extends StatelessWidget {
                       ]),
                     ),
                     Text(w.score.toStringAsFixed(1), style: AppText.h2.copyWith(
-                        fontSize: 15, color: C.primary)),
+                        fontSize: 15, color: ac.primary)),
                   ]),
                 ),
               );
@@ -94,6 +96,7 @@ class _LeaderboardSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: 6,
@@ -102,7 +105,7 @@ class _LeaderboardSkeleton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-              color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+              color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
           child: const Row(children: [
             ShimmerCircle(size: 18),
             SizedBox(width: 8),

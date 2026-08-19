@@ -9,6 +9,7 @@ import '../../models/magazine_video_post.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 
@@ -87,16 +88,17 @@ class _VideoComposerPageState extends State<VideoComposerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
-      appBar: AppBar(backgroundColor: C.bg, elevation: 0, iconTheme: const IconThemeData(color: C.txt),
+      backgroundColor: ac.bg,
+      appBar: AppBar(backgroundColor: ac.bg, elevation: 0, iconTheme: IconThemeData(color: ac.txt),
           title: Text('Share a Video', style: AppText.title),
           actions: [
             TextButton(
               onPressed: _posting ? null : _submit,
               child: _posting
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text('Post', style: AppText.button.copyWith(color: C.primary)),
+                  : Text('Post', style: AppText.button.copyWith(color: ac.primary)),
             ),
           ]),
       body: AppBackground(child: SafeArea(child: SingleChildScrollView(
@@ -109,10 +111,10 @@ class _VideoComposerPageState extends State<VideoComposerPage> {
             onTap: _pickVideo,
             child: Container(
               width: double.infinity, height: 120,
-              decoration: BoxDecoration(color: C.surf2, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+              decoration: BoxDecoration(color: ac.surf2, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
               child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Icon(_video != null ? Icons.check_circle_rounded : Icons.videocam_outlined,
-                    color: _video != null ? C.grn : C.muted, size: 28),
+                    color: _video != null ? ac.grn : ac.muted, size: 28),
                 const SizedBox(height: 6),
                 Text(_video != null ? 'Video selected' : 'Tap to pick a video', style: AppText.bodySm),
               ])),
@@ -124,11 +126,11 @@ class _VideoComposerPageState extends State<VideoComposerPage> {
             child: Container(
               width: 120, height: 80,
               decoration: BoxDecoration(
-                color: C.surf2, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr),
+                color: ac.surf2, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: ac.bdr),
                 image: _thumbnail != null ? DecorationImage(image: FileImage(_thumbnail!), fit: BoxFit.cover) : null,
               ),
               child: _thumbnail == null
-                  ? const Icon(Icons.add_photo_alternate_outlined, color: C.muted)
+                  ? Icon(Icons.add_photo_alternate_outlined, color: ac.muted)
                   : null,
             ),
           ),

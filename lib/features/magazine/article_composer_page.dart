@@ -23,6 +23,7 @@ import '../../repositories/follow_repository.dart';
 import '../../repositories/notification_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 
 import '../../widgets/app_background.dart';
@@ -233,6 +234,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
 
   Future<void> _delete() async {
     if (widget.existing == null) return;
+    final ac = AppColors.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -241,7 +243,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           TextButton(onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete', style: TextStyle(color: C.red))),
+              child: Text('Delete', style: TextStyle(color: ac.red))),
         ],
       ),
     );
@@ -254,15 +256,16 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text(_isNew ? 'Write an Article' : 'Edit Article', style: AppText.title),
         actions: [
           if (!_isNew)
-            IconButton(icon: const Icon(Icons.delete_outline_rounded, color: C.red), onPressed: _delete),
+            IconButton(icon: Icon(Icons.delete_outline_rounded, color: ac.red), onPressed: _delete),
         ],
       ),
       body: AppBackground(child: Column(children: [
@@ -279,7 +282,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
                   child: Container(
                     height: 150, width: double.infinity,
                     decoration: BoxDecoration(
-                      color: C.navy, borderRadius: BorderRadius.circular(Rad.md),
+                      color: ac.navy, borderRadius: BorderRadius.circular(Rad.md),
                       image: _pickedCover != null
                           ? DecorationImage(image: FileImage(_pickedCover!), fit: BoxFit.cover)
                           : (widget.existing?.thumbnailUrl != null
@@ -309,13 +312,13 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
                         duration: const Duration(milliseconds: 150),
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                         decoration: BoxDecoration(
-                          color: active ? C.primary : C.surf2,
+                          color: active ? ac.primary : ac.surf2,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: active ? C.primary : C.bdr),
+                          border: Border.all(color: active ? ac.primary : ac.bdr),
                         ),
                         child: Text(cat, style: AppText.caption.copyWith(
                             fontSize: 12, fontWeight: FontWeight.w700,
-                            color: active ? Colors.white : C.txt2)),
+                            color: active ? Colors.white : ac.txt2)),
                       ),
                     ),
                   );
@@ -336,7 +339,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
               const SizedBox(height: 4),
               TextField(
                 controller: _descriptionCtrl,
-                style: AppText.bodySm.copyWith(color: C.txt2),
+                style: AppText.bodySm.copyWith(color: ac.txt2),
                 maxLines: 2,
                 maxLength: 160,
                 decoration: const InputDecoration(
@@ -345,12 +348,12 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
                   counterText: '',
                 ),
               ),
-              const Divider(color: C.bdr2),
+              Divider(color: ac.bdr2),
               const SizedBox(height: 12),
               Container(
                 constraints: const BoxConstraints(minHeight: 280),
                 decoration: BoxDecoration(
-                    color: C.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr)),
+                    color: ac.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: ac.bdr)),
                 padding: const EdgeInsets.all(8),
                 child: quill.QuillEditor.basic(
                   controller: _quillCtrl,
@@ -366,8 +369,8 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(Rad.sm)),
-                  child: Text(_error!, style: AppText.bodySm.copyWith(color: C.red)),
+                  decoration: BoxDecoration(color: ac.redBg, borderRadius: BorderRadius.circular(Rad.sm)),
+                  child: Text(_error!, style: AppText.bodySm.copyWith(color: ac.red)),
                 ),
               ],
               const SizedBox(height: 100),
@@ -375,7 +378,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
           ),
         ),
         Container(
-          decoration: const BoxDecoration(color: C.surf, border: Border(top: BorderSide(color: C.bdr))),
+          decoration: BoxDecoration(color: ac.surf, border: Border(top: BorderSide(color: ac.bdr))),
           child: quill.QuillSimpleToolbar(
             controller: _quillCtrl,
             config: quill.QuillSimpleToolbarConfig(
@@ -408,7 +411,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
               if (_lastAutoSavedAt != null) ...[
                 Text('Autosaved ${_lastAutoSavedAt!.hour.toString().padLeft(2, '0')}:'
                     '${_lastAutoSavedAt!.minute.toString().padLeft(2, '0')}',
-                    style: AppText.caption.copyWith(fontSize: 10.5, color: C.muted)),
+                    style: AppText.caption.copyWith(fontSize: 10.5, color: ac.muted)),
                 const SizedBox(height: 6),
               ],
               Row(children: [

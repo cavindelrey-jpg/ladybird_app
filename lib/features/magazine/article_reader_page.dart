@@ -22,6 +22,7 @@ import '../../repositories/magazine_repository.dart';
 import '../../repositories/notification_repository.dart';
 import '../../models/app_notification.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import 'author_profile_page.dart';
 import 'article_composer_page.dart';
@@ -108,15 +109,16 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
   @override
   Widget build(BuildContext context) {
     final a = widget.article;
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         actions: [
           if (_isOwnArticle)
             IconButton(
-              icon: const Icon(Icons.edit_outlined, color: C.txt),
+              icon: Icon(Icons.edit_outlined, color: ac.txt),
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => ArticleComposerPage(user: widget.currentUser!, existing: a))),
             ),
@@ -136,8 +138,8 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
                 ),
               const SizedBox(height: 20),
               Wrap(spacing: 6, runSpacing: 6, children: [
-                StatusBadge(label: a.category, color: C.primary),
-                ...a.tags.map((t) => StatusBadge(label: t, color: C.gold, bg: C.goldp)),
+                StatusBadge(label: a.category, color: ac.primary),
+                ...a.tags.map((t) => StatusBadge(label: t, color: ac.gold, bg: ac.goldBg)),
               ]),
               const SizedBox(height: 10),
               Text(a.title, style: AppText.h1),
@@ -158,11 +160,11 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
                           radius: 18, photoUrl: a.authorPhotoUrl),
                       const SizedBox(width: 10),
                       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(a.authorName, style: AppText.subtitle.copyWith(color: C.txt, fontSize: 13.5)),
+                        Text(a.authorName, style: AppText.subtitle.copyWith(color: ac.txt, fontSize: 13.5)),
                         Text(_formatDate(a.createdAt), style: AppText.caption),
                       ]),
                       const Spacer(),
-                      const Icon(Icons.visibility_outlined, size: 15, color: C.muted),
+                      Icon(Icons.visibility_outlined, size: 15, color: ac.muted),
                       const SizedBox(width: 4),
                       Text('${a.readCount}', style: AppText.caption),
                     ]),
@@ -170,13 +172,13 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
                 ),
               ),
               const SizedBox(height: 20),
-              const Divider(color: C.bdr2),
+              Divider(color: ac.bdr2),
               const SizedBox(height: 20),
               _ArticleBody(article: a),
               const SizedBox(height: 24),
               _ActionRow(article: a, currentUser: widget.currentUser),
               const SizedBox(height: 24),
-              const Divider(color: C.bdr2),
+              Divider(color: ac.bdr2),
               const SizedBox(height: 16),
               Text('Comments (${a.commentCount})', style: AppText.h2.copyWith(fontSize: 15)),
               const SizedBox(height: 14),
@@ -185,10 +187,10 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
                   Expanded(
                     child: TextField(
                       controller: _commentCtrl,
-                      style: AppText.bodySm.copyWith(color: C.txt),
+                      style: AppText.bodySm.copyWith(color: ac.txt),
                       decoration: InputDecoration(
                         hintText: 'Add a comment…',
-                        filled: true, fillColor: C.surf3,
+                        filled: true, fillColor: ac.surf3,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                         border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
@@ -204,7 +206,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
                           color: Colors.transparent,
                           shape: const CircleBorder(),
                           child: IconButton(
-                            icon: const Icon(Icons.send_rounded, color: C.primary),
+                            icon: Icon(Icons.send_rounded, color: ac.primary),
                             onPressed: _postComment,
                           ),
                         ),
@@ -235,7 +237,7 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Row(children: [
-                            Text(c.authorName, style: AppText.subtitle.copyWith(color: C.txt)),
+                            Text(c.authorName, style: AppText.subtitle.copyWith(color: ac.txt)),
                             const SizedBox(width: 6),
                             Text(_formatDate(c.createdAt), style: AppText.caption),
                           ]),
@@ -307,6 +309,7 @@ class _ActionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final u = currentUser;
     final repo = MagazineRepository.instance;
+    final ac = AppColors.of(context);
     return Row(children: [
       if (u == null)
         Text('Sign in to like or save this article.', style: AppText.caption)
@@ -317,7 +320,7 @@ class _ActionRow extends StatelessWidget {
             final liked = snap.data ?? false;
             return _ActionChip(
               icon: liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              color: liked ? C.red : C.txt2,
+              color: liked ? ac.red : ac.txt2,
               label: '${article.likeCount}',
               onTap: () {
                 HapticFeedback.selectionClick();
@@ -333,7 +336,7 @@ class _ActionRow extends StatelessWidget {
             final saved = snap.data ?? false;
             return _ActionChip(
               icon: saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-              color: saved ? C.gold : C.txt2,
+              color: saved ? ac.gold : ac.txt2,
               label: saved ? 'Saved' : 'Save',
               onTap: () {
                 HapticFeedback.selectionClick();
@@ -345,7 +348,7 @@ class _ActionRow extends StatelessWidget {
       ],
       const Spacer(),
       _ActionChip(
-        icon: Icons.share_outlined, color: C.txt2, label: 'Share',
+        icon: Icons.share_outlined, color: ac.txt2, label: 'Share',
         onTap: () {
           HapticFeedback.selectionClick();
           Share.share('${article.title}\n\nRead it on Academia Magazine.');

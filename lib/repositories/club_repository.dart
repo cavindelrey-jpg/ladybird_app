@@ -220,20 +220,50 @@ class ClubRepository {
   // ── Merged-inbox support (Messaging mockup: club threads alongside
   // 1:1 conversations in one Messages list) ─────────────────────────
 
-  /// IDs of every club [userId] belongs to, via a collectionGroup query
-  /// on `members` filtered by the `userId` FIELD (not doc id -- Firestore
-  /// collection-group queries can't filter by document id across
-  /// different parents). Needs a matching collection-group index on
-  /// `members.userId` -- see firestore.indexes.json (local file only,
-  /// same deploy caveat as firestore.rules).
-  Stream<List<String>> watchMyClubIds(String userId) => _db
+  /// Shared source for [watchMyClubIds] and [watchMyClubReadState] -- one
+  /// underlying collectionGroup query on `members` filtered by the
+  /// `userId` FIELD (not doc id -- Firestore collection-group queries
+  /// can't filter by document id across different parents), so both
+  /// derived streams don't each pay for their own listener. Needs a
+  /// matching collection-group index on `members.userId` -- see
+  /// firestore.indexes.json (local file only, same deploy caveat as
+  /// firestore.rules).
+  Stream<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _watchMyMemberships(String userId) => _db
       .collectionGroup(AppConstants.colMembers)
       .where('userId', isEqualTo: userId)
       .snapshots()
-      .map((s) => s.docs
+      .map((s) => s.docs);
+
+  Stream<List<String>> watchMyClubIds(String userId) => _watchMyMemberships(userId)
+      .map((docs) => docs
           .map((d) => d.reference.parent.parent?.id)
           .whereType<String>()
           .toList());
+
+  /// clubId -> this user's `lastReadAt` in that club's Chat tab (null =
+  /// never opened it). Powers the Club unread indicator in the merged
+  /// Messages inbox (see MessagesHomePage) via [clubHasUnreadMessages],
+  /// comparing this against each Club's own `lastMessageAt`.
+  Stream<Map<String, DateTime?>> watchMyClubReadState(String userId) => _watchMyMemberships(userId)
+      .map((docs) => {
+            for (final d in docs)
+              if (d.reference.parent.parent?.id != null)
+                d.reference.parent.parent!.id: (d.data()['lastReadAt'] as Timestamp?)?.toDate(),
+          });
+
+  /// Records that [userId] has opened [clubId]'s Chat tab just now --
+  /// call sites should call this when the Chat tab actually becomes
+  /// visible (see ClubDetailPage), mirroring MessagingRepository
+  /// .markConversationRead's best-effort, fire-and-forget shape.
+  Future<void> markClubRead(String clubId, String userId) async {
+    try {
+      await _db.collection(AppConstants.colClubs).doc(clubId)
+          .collection(AppConstants.colMembers).doc(userId)
+          .update({'lastReadAt': FieldValue.serverTimestamp()});
+    } catch (_) {
+      // best-effort -- a missed read-receipt update shouldn't block the UI
+    }
+  }
 
   /// Full Club docs for [watchMyClubIds] — the actual data the merged
   /// inbox renders (name, emoji, lastMessage*).

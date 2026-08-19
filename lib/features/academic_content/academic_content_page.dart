@@ -15,6 +15,7 @@ import '../../models/academic_content.dart';
 import '../../models/hero_slide.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../repositories/recommendation_repository.dart';
+import '../../repositories/test_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
@@ -902,15 +903,29 @@ class _LibraryDiscovery extends StatelessWidget {
     );
   }
 
+  /// production_plan.md §5's usage signal — real subjects the user
+  /// actually completes quizzes in (TestRepository, bounded to their most
+  /// recent attempts), not a new denormalized counter. See
+  /// RecommendationRepository.rankSubjectsByUsage for how this reorders
+  /// the favorite-subject picks below it.
+  Future<List<AcademicContent>> _loadRecommended() async {
+    final usage = user.isGuest
+        ? const <String, int>{}
+        : await TestRepository.instance.subjectCompletionCountsOnce(user.id);
+    return RecommendationRepository.instance.forLibrary(
+      favoriteSubjects: user.favoriteSubjects,
+      subjectUsageCounts: usage,
+      institutionId: user.schoolId,
+    );
+  }
+
   /// production_plan.md §7B — real favorite-subject-driven picks, not a
   /// generic list. Hidden entirely (see the caller's `if`) rather than
   /// shown empty for users with no favorite subjects set — an empty
   /// "Recommended for You" rail is worse than not showing the section.
   Widget _recommended(BuildContext context) {
     return FutureBuilder<List<AcademicContent>>(
-      future: RecommendationRepository.instance.forLibrary(
-        favoriteSubjects: user.favoriteSubjects, institutionId: user.schoolId,
-      ),
+      future: _loadRecommended(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return SizedBox(

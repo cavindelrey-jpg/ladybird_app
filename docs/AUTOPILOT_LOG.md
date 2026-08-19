@@ -2988,3 +2988,178 @@ pure MCQ), the shared matcher on a Structured-flavored key-point set
 (30) wiring through the existing `questionXp()` -- mirroring
 `test/essay_matching_test.dart`'s own pattern rather than inventing a
 different test style for the sibling feature.
+
+---
+
+## §7B finished: admin banner removal (the twice-deferred half)
+
+Two prior passes this session built contextual recommendations
+("Recommendations were added ALONGSIDE banners, not in place of them")
+but explicitly deferred the actual banner-admin-removal half of §7B as
+"too disruptive to attempt blind." Picking that up now that the
+recommendation side is real and already wired into Library/Past Papers/
+Courses/Magazine/Quizzes.
+
+### Starting-state check (found real pre-existing uncommitted WIP)
+
+`git status` showed uncommitted changes to exactly the files this task
+touches: `hero_slide_manager_page.dart`, `courses_marketplace_page.dart`,
+`hero_slide_repository.dart`. Read all three diffs before writing
+anything:
+- `hero_slide_repository.dart` / `hero_slide_manager_page.dart`: a
+  `watchOrphaned()` query + a read-only "Legacy" tab in the admin manager
+  for `heroSlides` docs whose `placement` doesn't match any current
+  `HeroPlacement` -- unrelated to banner removal in origin (written to
+  handle old retired-placement docs like the pre-8/11 `magazine` value),
+  but turned out to be exactly the safety net this task needed: trimming
+  `HeroPlacement` down to `home` makes every Courses/Library/Past
+  Questions/Clubs/Messages doc "orphaned" the same way, so they surface
+  for admin cleanup instead of silently vanishing. Kept and built on top
+  of, not redone.
+- `courses_marketplace_page.dart`: a small, complete, unrelated bugfix
+  (`_selectCategory()` now also clears `_searchQuery`/`_searchOpen` so a
+  leftover search string can't make a freshly-selected category render
+  empty). Coherent and finished, not a fragment -- kept as-is.
+
+All three were folded into this pass's commit rather than committed
+separately first, since by the time I'd read them I was about to edit
+the same files anyway; noted here so the diff isn't mistaken for
+one person's work.
+
+### What "remove the admin banner system" actually means here
+
+production_plan.md §7B says two things that read as in tension: "Admins
+should no longer configure ordinary application banners" AND (same
+section) "Keep the Universal Homepage unchanged for now." Resolved by
+reading Home as the carve-out, not the target: the Home banner
+(`universal_home_page.dart`'s `HeroBannerCarousel(placement:
+HeroPlacement.home, ...)`) is exactly the kind of Universal-Homepage
+behavior that section says to leave alone, so it stays admin-configurable
+-- "ordinary application banners" means the other five (Courses/Library/
+Past Questions/Clubs/Messages), which are what actually got removed.
+`universal_home_page.dart` itself was not opened for editing at all this
+pass, per that same instruction.
+
+### What was built
+
+- **`HeroPlacement` trimmed to `home` only** (`models/hero_slide.dart`).
+  This is the actual removal mechanism -- rather than hand-deleting five
+  admin UI branches, cutting the enum down means
+  `HeroSlideManagerPage`'s placement chips (`HeroPlacement.values.map`)
+  and `HeroBannerCarousel`'s placement param both shrink to one valid
+  value for free, with the compiler catching every stale reference. Any
+  existing Firestore doc still stamped `courses`/`library`/
+  `pastQuestions`/`clubs`/`messages` is not deleted -- it falls straight
+  into the pre-existing `watchOrphaned()`/"Legacy" tab described above,
+  so an admin can review and delete real old banner images/copy rather
+  than losing them silently. `HeroDestination` (what a slide links TO)
+  is untouched and still has all six targets -- that enum was never the
+  "which page hosts this banner" one, and the Home banner should still
+  be able to link out to Courses/Library/Clubs/Magazine/Messages.
+- **Removed the `HeroBannerCarousel` call and its now-dead
+  onSectionSelect plumbing from the four surfaces that had one**:
+  `academic_content_page.dart` (Library/Past Questions -- deleted
+  `_selectLibrarySection`, unused after the banner that called it is
+  gone), `courses_marketplace_page.dart` (Courses), `clubs_page.dart`
+  (Clubs), `messages_home_page.dart` (Messages -- also removed
+  `_scrollCtrl`/`_requestsKey`/`_conversationsKey`/`_newMessageKey`/
+  `_scrollToSection`/the `KeyedSubtree` wraps and the `cacheExtent: 3000`
+  tuning, all of which existed for exactly one purpose per that file's
+  own header comment -- "Stateful specifically so the banner can scroll
+  to a section" -- and had no other caller once the banner's gone;
+  updated the header comment to say so instead of leaving it describing
+  removed behavior).
+- **Simplified `hero_slide_manager_page.dart`'s editor** to match: the
+  "Shows on" placement dropdown is gone (nothing left to choose --
+  `HeroPlacement.values` has one entry) and `_sectionKeyHint`'s five-case
+  switch collapsed to one fixed string, since `UniversalHomePage` doesn't
+  even wire an `onSectionSelect` for its own banner today. `_placement`
+  is now a `final HeroPlacement.home` field kept only because `_save()`
+  needs a value to construct the `HeroSlide`, not user-editable state.
+- **New contextual-recommendation replacement for the removed Clubs
+  banner**: `RecommendationRepository.forClubs()` + a "Recommended for
+  You" rail in `clubs_page.dart`, positioned after the search bar and
+  category chips (per this task's explicit placement note) and before
+  "My Clubs". Deliberately synchronous and pool-based, unlike every other
+  `forX` method -- `ClubsPage` already streams the full school-scoped
+  club list via `watchClubs()`, so ranking that in memory avoids a
+  redundant Firestore read for what's typically a small collection.
+  Matched via a new `_subjectToClubCategory` bridge map
+  (`kAcademicSubjects` -> `Club.category`'s separate, coarser vocabulary
+  General/Academic/Debate/Sports/Arts/Tech/Language/Volunteering) --
+  same "two vocabularies, explicit conservative bridge, unmapped subject
+  contributes nothing" pattern `_subjectToArticleCategories` already
+  established for Magazine. Gated identically to every other rail:
+  signed-in + real favorite subjects + non-empty result, else hidden
+  entirely, and only shown in the unfiltered (no search, no category)
+  view.
+- **Library/Past Papers/Courses needed no new recommendation work** --
+  `forLibrary`/`forPastPapers`/`forCourses` and their rails already
+  existed from the two earlier §7B passes and already render below the
+  search bar and tag/category/filter row on their respective pages, so
+  removing the banner from those three pages was a pure subtraction.
+
+### Placement rule ("every banner replacement below the search bar and
+### tags bar") -- verified per surface, not assumed
+
+- Library/Past Questions: banner was ABOVE the search bar; now removed,
+  and the pre-existing recommendation rails render inside the page body,
+  below both the search bar and the type/subject `_FilterRow` -- already
+  compliant once the banner on top was deleted.
+- Courses: banner was ABOVE the category chips; the pre-existing
+  "Recommended for You" rail already rendered below the chips (and below
+  where the search field opens, which sits above the whole `ListView`) --
+  already compliant.
+- Clubs: banner was ABOVE both the search bar and category chips; the
+  new rail was deliberately placed after both, not left at the old
+  banner's slot.
+- Messages: banner was ABOVE the search bar; removed, no replacement (see
+  below) -- nothing now sits above the search bar on this page except the
+  page header.
+
+### Deliberately NOT done (flagged, not hidden)
+
+- **No recommendation rail on Messages.** §7B's own examples (Library/
+  Courses/Magazine/Past Papers) are all content-discovery surfaces;
+  Messages is a 1:1/friend-request inbox with no content to recommend.
+  Considered a "People you may know" suggestion using the existing
+  `FollowRepository`/school-scoping, but that's a real, separate feature
+  (a suggestion algorithm over people, not content) beyond what removing
+  a banner obligates, and this codebase's own convention (see
+  `RecommendationRepository`'s file header) is real-signal-or-nothing
+  rather than filling a slot with an invented feature to avoid leaving it
+  empty. Logged as a scoped, deliberate gap, not an oversight.
+- **`forClubs()` does not touch Views/Searches/Quiz attempts/Completed
+  content/Recent activity/Followed authors** -- same honest gap the two
+  prior §7B passes already logged for the other four `forX` methods
+  (`recommendation_repository.dart`'s own "Signals audit" note, session
+  2026-08-17). Not attempted here either; still a real, larger feature
+  addition than this pass's scope.
+- **Did not delete the orphaned `heroSlides` Firestore docs or their
+  Storage images.** The Legacy tab exists precisely so a human admin
+  reviews and deletes them deliberately (old banner copy/images may still
+  have value, e.g. reusable creative) rather than this pass silently
+  destroying data as a side effect of an enum trim.
+- **`firestore.rules`** -- checked; `heroSlides/{id}`'s rule
+  (`allow write: if canManageSchool()`) is not placement-specific, so no
+  rule change was needed for this trim.
+
+### Verification
+
+`flutter analyze`: 36 issues, exactly the established baseline (same
+count the two prior §7B passes and the Structured-quiz work above both
+also confirmed), zero new -- confirms the `HeroPlacement` trim left no
+stale reference anywhere in `lib/` (would have shown up as a compile
+error, not a lint issue, so a clean analyze here is a real compile-level
+guarantee, not just style-clean).
+
+Files touched: `lib/models/hero_slide.dart`,
+`lib/widgets/hero_banner_carousel.dart`,
+`lib/repositories/hero_slide_repository.dart` (pre-existing WIP, kept),
+`lib/repositories/recommendation_repository.dart`,
+`lib/features/admin/hero_slide_manager_page.dart` (pre-existing WIP +
+this pass's simplification), `lib/features/academic_content/
+academic_content_page.dart`, `lib/features/courses_marketplace/
+courses_marketplace_page.dart` (pre-existing WIP + this pass),
+`lib/features/clubs/clubs_page.dart`,
+`lib/features/messages/messages_home_page.dart`.

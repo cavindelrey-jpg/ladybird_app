@@ -12,7 +12,6 @@ import 'package:flutter/services.dart';
 import '../../core/debouncer.dart';
 import '../../models/app_user.dart';
 import '../../models/academic_content.dart';
-import '../../models/hero_slide.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../repositories/recommendation_repository.dart';
 import '../../repositories/test_repository.dart';
@@ -20,7 +19,6 @@ import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/hero_banner_carousel.dart';
 import '../../widgets/app_background.dart';
 import 'content_details_page.dart';
 import 'content_upload_page.dart';
@@ -126,25 +124,6 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
       !widget.user.isGuest &&
       widget.user.favoriteSubjects.isNotEmpty;
 
-  /// Handles HeroDestination.section taps from the Library banner: a key
-  /// matching a ContentType name switches the type filter, anything else
-  /// is treated as a subject name (same as tapping a subject tile).
-  void _selectLibrarySection(String key) {
-    for (final t in ContentType.values) {
-      if (t.name == key) {
-        HapticFeedback.selectionClick();
-        setState(() {
-          _typeFilter = t;
-          _searchResults = null;
-          _isSearching = false;
-          _searchCtrl.clear();
-        });
-        return;
-      }
-    }
-    _selectSubject(key);
-  }
-
   void _selectSubject(String subject) {
     HapticFeedback.selectionClick();
     setState(() {
@@ -207,12 +186,6 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
             ),
           ]),
         ),
-        HeroBannerCarousel(
-          placement: HeroPlacement.library,
-          user: widget.user,
-          onSectionSelect: _selectLibrarySection,
-        ),
-        const SizedBox(height: 4),
         Row(children: [
           Expanded(child: _SearchBar(controller: _searchCtrl, onChanged: _onSearchChanged)),
           Padding(

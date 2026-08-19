@@ -13,11 +13,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/models.dart';
 import '../../repositories/club_repository.dart';
+import '../../repositories/recommendation_repository.dart';
 import '../../core/result.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/hero_banner_carousel.dart';
 import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
 import '../messages/messages_home_page.dart';
@@ -86,21 +86,20 @@ class _ClubsPageState extends State<ClubsPage> {
               children: [
                 _header(context),
                 const SizedBox(height: 10),
-                HeroBannerCarousel(
-                  placement: HeroPlacement.clubs,
-                  user: widget.user,
-                  onSectionSelect: (key) => setState(() {
-                    _searchQuery = key;
-                    _searchCtrl.text = key;
-                  }),
-                ),
-                const SizedBox(height: 10),
                 _searchAndFilter(),
                 if (categories.length > 1) ...[
                   const SizedBox(height: 12),
                   _categoryChips(categories),
                 ],
                 const SizedBox(height: 20),
+                // production_plan.md §7B — "Contextual recommendations should
+                // exist throughout Academia." Only shown in the unfiltered
+                // view, same "don't stack a recommendation rail on top of a
+                // search/filter the user is already doing" gate every other
+                // surface's rail uses (Library/Courses/Past Papers).
+                if (_searchQuery.isEmpty && _selectedCategory == null) ...[
+                  _recommendedClubsSection(context, allClubs),
+                ],
                 _myClubsSection(context, filtered),
                 const SizedBox(height: 24),
                 _discoverClubsSection(context, filtered, allClubs),
@@ -249,6 +248,43 @@ class _ClubsPageState extends State<ClubsPage> {
                 ),
             ]),
           ),
+      ]),
+    );
+  }
+
+  /// production_plan.md §7B — "Contextual recommendations should exist
+  /// throughout Academia," replacing the removed Clubs banner. Ranks the
+  /// club list this page already streamed (`allClubs`) against the
+  /// signed-in user's favorite subjects via
+  /// RecommendationRepository.forClubs -- no second Firestore read, same
+  /// "hide entirely rather than show an empty personalized rail"
+  /// treatment as every other surface's recommendation rail.
+  Widget _recommendedClubsSection(BuildContext context, List<Club> allClubs) {
+    if (widget.user.isGuest || widget.user.favoriteSubjects.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final recommended = RecommendationRepository.instance
+        .forClubs(pool: allClubs, favoriteSubjects: widget.user.favoriteSubjects);
+    if (recommended.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Recommended for You', style: AppText.h2.copyWith(fontSize: 16)),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 260,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: recommended.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (_, i) => _DiscoverClubCard(
+              club: recommended[i], user: widget.user,
+              onOpen: () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => ClubDetailPage(club: recommended[i], user: widget.user))),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
       ]),
     );
   }

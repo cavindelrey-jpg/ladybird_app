@@ -27,6 +27,18 @@ class HeroSlideRepository {
       .snapshots()
       .map((s) => s.docs.map(HeroSlide.fromFirestore).toList());
 
+  /// Docs whose stored `placement` no longer matches any current
+  /// [HeroPlacement] (e.g. legacy 'magazine' slides from before that
+  /// placement was retired). watchActive/watchAll are both scoped to a
+  /// single current placement, so without this query such docs -- and any
+  /// Storage image they reference -- are permanently invisible to admins
+  /// and can never be edited or deleted. Surfaced via the "Legacy" tab in
+  /// HeroSlideManagerPage.
+  Stream<List<QueryDocumentSnapshot<Map<String, dynamic>>>> watchOrphaned() => _col
+      .where('placement', whereNotIn: HeroPlacement.values.map((p) => p.name).toList())
+      .snapshots()
+      .map((s) => s.docs);
+
   Future<Result<void>> delete(String id) async {
     try {
       await _col.doc(id).delete();

@@ -9,6 +9,7 @@
 // standard (see MagazineRepository's computed Featured/Trending).
 
 import '../models/academic_content.dart';
+import '../models/club.dart';
 import '../models/magazine_article.dart';
 import '../models/public_course.dart';
 import '../models/test.dart';
@@ -45,6 +46,22 @@ class RecommendationRepository {
     'Computer Science':  ['Science & Tech'],
     'Arts & Literature': ['Arts & Culture'],
     'Business':          ['Careers'],
+  };
+
+  /// Bridges a favorite subject (`kAcademicSubjects`) to a `Club.category`
+  /// (`_kClubCategories` in create_club_page.dart/club_settings_page.dart:
+  /// General/Academic/Debate/Sports/Arts/Tech/Language/Volunteering) — same
+  /// "two vocabularies for the same idea" problem [_subjectToArticleCategories]
+  /// solves for Magazine. Deliberately coarse: several subjects legitimately
+  /// share 'Academic', and a subject with no defensible pairing (Business,
+  /// Other) is left unmapped rather than guessed at.
+  static const Map<String, String> _subjectToClubCategory = {
+    'Mathematics':       'Academic',
+    'Science':           'Academic',
+    'Social Studies':    'Academic',
+    'Computer Science':  'Tech',
+    'Languages':         'Language',
+    'Arts & Literature': 'Arts',
   };
 
   /// Bridges [AppUser.educationLevel] (the free-pick Cameroon-form
@@ -347,5 +364,32 @@ class RecommendationRepository {
         .first
         .timeout(const Duration(seconds: 5), onTimeout: () => const []);
     return fallback.take(limit).toList();
+  }
+
+  /// Clubs recommendations: production_plan.md §7B's "contextual
+  /// recommendations should exist throughout Academia," replacing the
+  /// removed Clubs banner. Unlike every other `forX` method here, this is
+  /// synchronous and takes an already-fetched [pool] rather than issuing
+  /// its own Firestore read -- ClubsPage already holds the full,
+  /// school-scoped club list live via its own `watchClubs` stream, and
+  /// clubs is a small enough collection per school that a second read
+  /// would be pure duplication, not a new signal. Matched via
+  /// [_subjectToClubCategory]; a favorite subject with no mapping
+  /// contributes nothing, same "no signal, no match" rule as every other
+  /// bridge map in this file. Returns an empty list (never the whole
+  /// pool) when nothing matches -- the caller hides the section entirely
+  /// rather than fall back to a generic list, since [pool] is already
+  /// fully visible to the user one scroll away in Discover Clubs.
+  List<Club> forClubs({
+    required List<Club> pool,
+    required List<String> favoriteSubjects,
+    int limit = 6,
+  }) {
+    final wanted = <String>{
+      for (final s in favoriteSubjects)
+        if (_subjectToClubCategory[s] != null) _subjectToClubCategory[s]!,
+    };
+    if (wanted.isEmpty) return const [];
+    return pool.where((c) => wanted.contains(c.category)).take(limit).toList();
   }
 }

@@ -5,13 +5,15 @@
 // (mutual, unlocks messaging) are deliberately shown as two separate
 // systems here, not merged.
 //
-// Stateful (not Stateless) specifically so the banner can scroll to a
-// section via onSectionSelect -- see _scrollToSection.
+// production_plan.md §7B retired this page's admin-configured banner.
+// Messages isn't a content-discovery surface the way Library/Courses/
+// Magazine/Past Papers are (there's nothing to "recommend" in an inbox),
+// so unlike those pages this one has no replacement recommendation rail --
+// a real absence, not a placeholder waiting to be filled.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/app_user.dart';
-import '../../models/hero_slide.dart';
 import '../../models/messaging.dart';
 import '../../models/club.dart';
 import '../../repositories/messaging_repository.dart';
@@ -22,7 +24,6 @@ import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/hero_banner_carousel.dart';
 import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
 import '../../pages/profile_page.dart';
@@ -38,35 +39,7 @@ class MessagesHomePage extends StatefulWidget {
 }
 
 class _MessagesHomePageState extends State<MessagesHomePage> {
-  final _scrollCtrl = ScrollController();
-  final _requestsKey = GlobalKey();
-  final _conversationsKey = GlobalKey();
-  final _newMessageKey = GlobalKey();
-
   AppUser get user => widget.user;
-
-  @override
-  void dispose() {
-    _scrollCtrl.dispose();
-    super.dispose();
-  }
-
-  /// Handles HeroDestination.section taps from the Messages banner.
-  void _scrollToSection(String key) {
-    final target = switch (key) {
-      'requests' => _requestsKey,
-      'conversations' => _conversationsKey,
-      'newMessage' => _newMessageKey,
-      _ => null,
-    };
-    final ctx = target?.currentContext;
-    if (ctx == null) {
-      showToast(context, 'Nothing to jump to there yet.');
-      return;
-    }
-    Scrollable.ensureVisible(ctx,
-        duration: const Duration(milliseconds: 400), curve: Curves.easeOutCubic, alignment: 0.05);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,35 +48,21 @@ class _MessagesHomePageState extends State<MessagesHomePage> {
       backgroundColor: ac.bg,
       body: AppBackground(child: SafeArea(
         child: ListView(
-          controller: _scrollCtrl,
           padding: const EdgeInsets.only(bottom: 24),
-          // Default cacheExtent (~250px) only realizes children near the
-          // viewport, so _requestsKey/_conversationsKey/_newMessageKey can
-          // have a null currentContext on first load and silently break
-          // HeroDestination.section scrolling (_scrollToSection). This list
-          // is short and fixed (not a builder), so building it all upfront
-          // is cheap and guarantees every section key is realized.
-          cacheExtent: 3000,
           children: [
             _header(context),
-            const SizedBox(height: 10),
-            HeroBannerCarousel(
-              placement: HeroPlacement.messages,
-              user: user,
-              onSectionSelect: _scrollToSection,
-            ),
             const SizedBox(height: 10),
             _searchBar(context),
             const SizedBox(height: 16),
             _followFriendCards(context),
             const SizedBox(height: 20),
-            KeyedSubtree(key: _requestsKey, child: _friendRequestsSection(context)),
+            _friendRequestsSection(context),
             const SizedBox(height: 20),
-            KeyedSubtree(key: _conversationsKey, child: _recentConversationsSection(context)),
+            _recentConversationsSection(context),
             const SizedBox(height: 24),
             _howItWorksSection(ac),
             const SizedBox(height: 20),
-            KeyedSubtree(key: _newMessageKey, child: _newMessageButton(context)),
+            _newMessageButton(context),
           ],
         ),
       )),

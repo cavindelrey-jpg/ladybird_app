@@ -26,24 +26,24 @@ enum HeroDestination {
   const HeroDestination(this.label);
 }
 
-/// Which surface a slide belongs to -- lets one admin-managed system
-/// (Part 14) back the banner on every page that asked for one (Home,
-/// Courses, Library, Past Questions, Clubs, Messages) instead of a
-/// separate one-off mechanism per page. Defaults to [home] so every slide
-/// that existed before this field was added keeps behaving exactly as
-/// before.
+/// Which surface a slide belongs to. production_plan.md §7B retired the
+/// admin-controlled banner system everywhere except Home (the Universal
+/// Homepage is explicitly kept unchanged by that same section) -- Courses,
+/// Library, Past Questions, Clubs and Messages banners were replaced by
+/// automatic, context-aware content recommendations instead (see
+/// RecommendationRepository) and so lost their [HeroPlacement] entries.
+/// Any pre-existing Firestore doc still stamped with one of those retired
+/// placement strings is not deleted -- it becomes "orphaned" (see
+/// HeroSlideRepository.watchOrphaned) and surfaces read-only under the
+/// admin manager's "Legacy" tab for cleanup, rather than silently
+/// vanishing.
 ///
-/// Magazine has no entry here on purpose: its banner is the computed
+/// Magazine never had an entry here: its banner was always the computed
 /// "Featured" carousel (most-read articles, see _FeaturedCarousel in
 /// magazine_feed_page.dart), not an admin-curated one -- a social feed's
 /// top slot should reflect what's actually popular right now.
 enum HeroPlacement {
-  home('Home'),
-  courses('Courses'),
-  library('Library'),
-  pastQuestions('Past Questions'),
-  clubs('Clubs'),
-  messages('Messages');
+  home('Home');
 
   final String label;
   const HeroPlacement(this.label);

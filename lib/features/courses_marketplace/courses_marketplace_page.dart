@@ -12,7 +12,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/app_user.dart';
-import '../../models/hero_slide.dart';
 import '../../models/public_course.dart';
 import '../../repositories/public_course_repository.dart';
 import '../../repositories/recommendation_repository.dart';
@@ -20,7 +19,6 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/category_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/hero_banner_carousel.dart';
 import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
 import '../../pages/profile_page.dart';
@@ -109,6 +107,19 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
 
   bool get _canCreate => widget.user != null;
 
+  /// Switches category and clears any active search. Every entry point that
+  /// changes _category (banner section-jump, category chips, popular
+  /// topics) must go through this -- otherwise a leftover _searchQuery
+  /// keeps filtering the newly-selected category's feed, which can make it
+  /// render empty even though the category has courses.
+  void _selectCategory(String? category) {
+    setState(() {
+      _category = category;
+      _searchQuery = '';
+      _searchOpen = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
@@ -137,13 +148,6 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
             child: ListView(
               padding: const EdgeInsets.only(bottom: 24),
               children: [
-                HeroBannerCarousel(
-                  placement: HeroPlacement.courses,
-                  user: widget.user,
-                  onSectionSelect: (key) =>
-                      setState(() => _category = key == 'All' ? null : key),
-                ),
-                const SizedBox(height: 18),
                 _categoryChips(ac),
                 const SizedBox(height: 14),
                 _browseByCurriculumCta(context, ac),
@@ -281,7 +285,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
               borderRadius: BorderRadius.circular(20),
               onTap: () {
                 HapticFeedback.selectionClick();
-                setState(() => _category = cat == 'All' ? null : cat);
+                _selectCategory(cat == 'All' ? null : cat);
               },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
@@ -454,7 +458,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
                   borderRadius: BorderRadius.circular(Rad.md),
                   onTap: () {
                     HapticFeedback.selectionClick();
-                    setState(() => _category = cat);
+                    _selectCategory(cat);
                   },
                   child: Container(
                     padding: const EdgeInsets.all(12),

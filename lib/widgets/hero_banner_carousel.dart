@@ -1,9 +1,13 @@
 // lib/widgets/hero_banner_carousel.dart
-// The Home banner carousel, generalized so any surface with a
-// HeroPlacement (Home, Courses, Library, Past Questions, Clubs,
-// Magazine, Messages) can drop in the same admin-editable, swipeable
-// banner instead of a one-off hardcoded hero. Backed entirely by
+// The admin-editable, swipeable Home banner carousel. Backed entirely by
 // HeroSlideRepository -- this widget just picks a placement and renders.
+//
+// production_plan.md §7B retired every other HeroPlacement (Courses,
+// Library, Past Questions, Clubs, Messages) in favor of automatic content
+// recommendations (see RecommendationRepository), so HeroPlacement now has
+// only [HeroPlacement.home] -- this widget is still generalized over
+// [HeroPlacement] rather than hardcoded to Home, since Home is itself just
+// the one remaining value, not a special case.
 //
 // A superAdmin viewing an empty carousel gets an inline "Add your first
 // {Placement} banner" nudge that opens HeroSlideManagerPage pre-scoped to

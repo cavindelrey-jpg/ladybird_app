@@ -523,12 +523,23 @@ class ClubMember {
   final ClubRole role;
   final DateTime joinedAt;
 
+  /// Last time this member opened the club Chat tab (ClubRepository
+  /// .markClubRead) — lives here, per-member, rather than as a
+  /// `Map<userId, Timestamp>` field on the Club doc itself, because a club
+  /// can have arbitrarily many members and a map keyed by every member's
+  /// id would grow unboundedly on one shared, contended document (see
+  /// ClubRepository.watchMyClubReadState's doc comment for the full
+  /// reasoning). Null means "never opened Chat here" — compared against
+  /// Club.lastMessageAt to decide whether the club shows as unread.
+  final DateTime? lastReadAt;
+
   const ClubMember({
     required this.userId,
     required this.name,
     this.photoUrl,
     required this.role,
     required this.joinedAt,
+    this.lastReadAt,
   });
 
   factory ClubMember.fromFirestore(DocumentSnapshot doc) {
@@ -540,6 +551,20 @@ class ClubMember {
       role: ClubRole.values.firstWhere(
           (r) => r.name == d['role'], orElse: () => ClubRole.member),
       joinedAt: (d['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastReadAt: (d['lastReadAt'] as Timestamp?)?.toDate(),
     );
   }
+}
+
+/// True when [lastMessageAt] is strictly after [lastReadAt] — the actual
+/// comparison behind the Club chat unread indicator, factored out as a
+/// pure function (no Firestore, no BuildContext) so it's unit-testable
+/// without an emulator. Mirrors Conversation.unreadCount's per-user
+/// concept but as a timestamp comparison rather than a maintained counter
+/// — see ClubMember.lastReadAt's doc comment for why a counter doesn't
+/// fit a club's potentially-large membership.
+bool clubHasUnreadMessages({required DateTime? lastMessageAt, required DateTime? lastReadAt}) {
+  if (lastMessageAt == null) return false; // no chat activity at all yet
+  if (lastReadAt == null) return true; // has activity, never opened Chat
+  return lastMessageAt.isAfter(lastReadAt);
 }

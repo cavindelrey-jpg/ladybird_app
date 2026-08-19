@@ -641,14 +641,29 @@ class _ClubDetailPageState extends State<ClubDetailPage>
   final _ctrl = TextEditingController();
   final _scroll = ScrollController();
 
+  static const _chatTabIndex = 2;
+
   @override
   void initState() {
     super.initState();
     _tabs = TabController(length: 6, vsync: this);
+    _tabs.addListener(_onTabChanged);
+  }
+
+  /// Marks the club Chat read the moment the tab actually becomes
+  /// visible — mirrors ChatConversationPage calling markConversationRead
+  /// in initState, just gated on tab selection here since ClubDetailPage
+  /// hosts five other tabs a member might open without ever seeing Chat.
+  void _onTabChanged() {
+    if (_tabs.indexIsChanging) return; // fires again on settle; act once
+    if (_tabs.index == _chatTabIndex) {
+      ClubRepository.instance.markClubRead(widget.club.id, widget.user.id);
+    }
   }
 
   @override
   void dispose() {
+    _tabs.removeListener(_onTabChanged);
     _tabs.dispose();
     _ctrl.dispose();
     _scroll.dispose();

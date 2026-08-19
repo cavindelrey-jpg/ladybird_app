@@ -665,6 +665,12 @@ service cloud.firestore {
           || (isClubMember(clubId) && clubMemberRole(clubId) == 'moderator'
               && resource.data.role in ['member', 'moderator']
               && request.resource.data.role in ['member', 'moderator'])
+          // Self-service read-receipt (ClubRepository.markClubRead) — any
+          // member, regardless of role, marking their OWN doc's
+          // lastReadAt only. Everything else about this doc (role in
+          // particular) stays gated on the branches above.
+          || (request.auth.uid == memberId &&
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastReadAt']))
         );
         allow delete: if isSignedIn() && (
           request.auth.uid == memberId // leave

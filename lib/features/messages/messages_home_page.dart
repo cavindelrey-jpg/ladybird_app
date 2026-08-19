@@ -295,58 +295,69 @@ class _MessagesHomePageState extends State<MessagesHomePage> {
           return StreamBuilder<List<Club>>(
             stream: ClubRepository.instance.watchMyClubs(user.id),
             builder: (context, clubSnap) {
-              if (convSnap.connectionState == ConnectionState.waiting) {
-                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Recent Conversations', style: AppText.h2.copyWith(fontSize: 16)),
-                  const SizedBox(height: 12),
-                  ...List.generate(3, (_) => const Padding(
-                    padding: EdgeInsets.only(bottom: 10),
-                    child: Row(children: [
-                      ShimmerCircle(size: 44),
-                      SizedBox(width: 12),
-                      Expanded(child: ShimmerLine(height: 14)),
-                    ]),
-                  )),
-                ]);
-              }
-              if (convSnap.hasError) {
-                return Text('Failed to load: ${convSnap.error}', style: AppText.caption.copyWith(color: ac.red, fontSize: 11));
-              }
-              final conversations = convSnap.data ?? const <Conversation>[];
-              final clubs = (clubSnap.data ?? const <Club>[])
-                  .where((c) => c.lastMessageAt != null) // a club with no chat activity isn't an "inbox" entry
-                  .toList();
-              if (conversations.isEmpty && clubs.isEmpty) {
-                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Recent Conversations', style: AppText.h2.copyWith(fontSize: 16)),
-                  const SizedBox(height: 12),
-                  Text('No conversations yet — find someone and send a friend request.', style: AppText.bodySm),
-                ]);
-              }
-              final pinned = conversations.where((c) => c.pinnedBy.contains(user.id))
-                  .map<_InboxEntry>(_ConversationEntry.new).toList();
-              final recent = <_InboxEntry>[
-                ...conversations.where((c) => !c.pinnedBy.contains(user.id)).map(_ConversationEntry.new),
-                ...clubs.map(_ClubEntry.new),
-              ]..sort((a, b) => b.lastMessageAt.compareTo(a.lastMessageAt));
-              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                if (pinned.isNotEmpty) ...[
-                  Row(children: [
-                    Icon(Icons.push_pin_rounded, size: 14, color: ac.gold),
-                    const SizedBox(width: 6),
-                    Text('Pinned', style: AppText.h2.copyWith(fontSize: 16)),
-                  ]),
-                  const SizedBox(height: 12),
-                  ...pinned.map((e) => _InboxRow(user: user, entry: e)),
-                  const SizedBox(height: 20),
-                ],
-                Text('Recent', style: AppText.h2.copyWith(fontSize: 16)),
-                const SizedBox(height: 12),
-                if (recent.isEmpty)
-                  Text('Nothing else — every conversation is pinned.', style: AppText.bodySm)
-                else
-                  ...recent.map((e) => _InboxRow(user: user, entry: e)),
-              ]);
+              // clubId -> this user's lastReadAt in that club's Chat tab —
+              // see ClubRepository.watchMyClubReadState's doc comment for
+              // why Club unread is a timestamp comparison, not a counter
+              // like Conversation.unreadCount.
+              return StreamBuilder<Map<String, DateTime?>>(
+                stream: ClubRepository.instance.watchMyClubReadState(user.id),
+                builder: (context, readSnap) {
+                  final clubReadState = readSnap.data ?? const <String, DateTime?>{};
+                  if (convSnap.connectionState == ConnectionState.waiting) {
+                    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Recent Conversations', style: AppText.h2.copyWith(fontSize: 16)),
+                      const SizedBox(height: 12),
+                      ...List.generate(3, (_) => const Padding(
+                        padding: EdgeInsets.only(bottom: 10),
+                        child: Row(children: [
+                          ShimmerCircle(size: 44),
+                          SizedBox(width: 12),
+                          Expanded(child: ShimmerLine(height: 14)),
+                        ]),
+                      )),
+                    ]);
+                  }
+                  if (convSnap.hasError) {
+                    return Text('Failed to load: ${convSnap.error}', style: AppText.caption.copyWith(color: ac.red, fontSize: 11));
+                  }
+                  final conversations = convSnap.data ?? const <Conversation>[];
+                  final clubs = (clubSnap.data ?? const <Club>[])
+                      .where((c) => c.lastMessageAt != null) // a club with no chat activity isn't an "inbox" entry
+                      .toList();
+                  if (conversations.isEmpty && clubs.isEmpty) {
+                    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Recent Conversations', style: AppText.h2.copyWith(fontSize: 16)),
+                      const SizedBox(height: 12),
+                      Text('No conversations yet — find someone and send a friend request.', style: AppText.bodySm),
+                    ]);
+                  }
+                  final pinned = conversations.where((c) => c.pinnedBy.contains(user.id))
+                      .map<_InboxEntry>(_ConversationEntry.new).toList();
+                  final recent = <_InboxEntry>[
+                    ...conversations.where((c) => !c.pinnedBy.contains(user.id)).map(_ConversationEntry.new),
+                    ...clubs.map((c) => _ClubEntry(c, unread: clubHasUnreadMessages(
+                        lastMessageAt: c.lastMessageAt, lastReadAt: clubReadState[c.id]))),
+                  ]..sort((a, b) => b.lastMessageAt.compareTo(a.lastMessageAt));
+                  return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    if (pinned.isNotEmpty) ...[
+                      Row(children: [
+                        Icon(Icons.push_pin_rounded, size: 14, color: ac.gold),
+                        const SizedBox(width: 6),
+                        Text('Pinned', style: AppText.h2.copyWith(fontSize: 16)),
+                      ]),
+                      const SizedBox(height: 12),
+                      ...pinned.map((e) => _InboxRow(user: user, entry: e)),
+                      const SizedBox(height: 20),
+                    ],
+                    Text('Recent', style: AppText.h2.copyWith(fontSize: 16)),
+                    const SizedBox(height: 12),
+                    if (recent.isEmpty)
+                      Text('Nothing else — every conversation is pinned.', style: AppText.bodySm)
+                    else
+                      ...recent.map((e) => _InboxRow(user: user, entry: e)),
+                  ]);
+                },
+              );
             },
           );
         },
@@ -414,7 +425,8 @@ class _ConversationEntry extends _InboxEntry {
 
 class _ClubEntry extends _InboxEntry {
   final Club club;
-  _ClubEntry(this.club);
+  final bool unread;
+  _ClubEntry(this.club, {required this.unread});
   @override
   DateTime get lastMessageAt => club.lastMessageAt!; // filtered non-null by the caller
 }
@@ -432,12 +444,13 @@ class _InboxRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final e = entry;
-    if (e is _ClubEntry) return _clubRow(context, e.club);
+    if (e is _ClubEntry) return _clubRow(context, e);
     return _conversationRow(context, (e as _ConversationEntry).conversation);
   }
 
-  Widget _clubRow(BuildContext context, Club club) {
+  Widget _clubRow(BuildContext context, _ClubEntry entry) {
     final ac = AppColors.of(context);
+    final club = entry.club;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: ACard(
@@ -458,7 +471,15 @@ class _InboxRow extends StatelessWidget {
                   style: AppText.bodySm.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
             ]),
           ),
-          Text(_relativeTime(club.lastMessageAt!), style: AppText.caption.copyWith(fontSize: 10.5)),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(_relativeTime(club.lastMessageAt!), style: AppText.caption.copyWith(fontSize: 10.5)),
+            const SizedBox(height: 6),
+            if (entry.unread)
+              Container(
+                width: 10, height: 10,
+                decoration: BoxDecoration(color: ac.primary, shape: BoxShape.circle),
+              ),
+          ]),
         ]),
       ),
     );

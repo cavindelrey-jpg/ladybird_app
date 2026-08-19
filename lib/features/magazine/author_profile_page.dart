@@ -15,6 +15,7 @@ import '../../repositories/follow_repository.dart';
 import '../../repositories/institution_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'article_reader_page.dart';
@@ -38,11 +39,12 @@ class AuthorProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text(_isOwnProfile ? 'Your Articles' : 'Writer Profile', style: AppText.title),
       ),
       body: AppBackground(child: StreamBuilder<List<MagazineArticle>>(
@@ -123,7 +125,7 @@ class AuthorProfilePage extends StatelessWidget {
                               final name = inst.data?.schoolName;
                               if (name == null || name.isEmpty) return const SizedBox.shrink();
                               return Row(children: [
-                                const Icon(Icons.school_outlined, size: 14, color: C.muted),
+                                Icon(Icons.school_outlined, size: 14, color: ac.muted),
                                 const SizedBox(width: 4),
                                 Text(name, style: AppText.caption.copyWith(fontSize: 12)),
                               ]);
@@ -152,18 +154,18 @@ class AuthorProfilePage extends StatelessWidget {
                                 maxLines: 1, overflow: TextOverflow.ellipsis),
                           ),
                           if (!a.published)
-                            const Padding(
-                              padding: EdgeInsets.only(left: 8),
-                              child: StatusBadge(label: 'DRAFT', color: C.org, bg: C.orgb),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: StatusBadge(label: 'DRAFT', color: ac.org, bg: ac.orgBg),
                             ),
                         ]),
                         const SizedBox(height: 6),
                         Row(children: [
-                          const Icon(Icons.visibility_outlined, size: 13, color: C.muted),
+                          Icon(Icons.visibility_outlined, size: 13, color: ac.muted),
                           const SizedBox(width: 3),
                           Text('${a.readCount}', style: AppText.caption),
                           const SizedBox(width: 10),
-                          const Icon(Icons.mode_comment_outlined, size: 13, color: C.muted),
+                          Icon(Icons.mode_comment_outlined, size: 13, color: ac.muted),
                           const SizedBox(width: 3),
                           Text('${a.commentCount}', style: AppText.caption),
                         ]),
@@ -171,7 +173,7 @@ class AuthorProfilePage extends StatelessWidget {
                     ),
                     if (_isOwnProfile)
                       IconButton(
-                        icon: const Icon(Icons.edit_outlined, size: 18, color: C.txt2),
+                        icon: Icon(Icons.edit_outlined, size: 18, color: ac.txt2),
                         onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                             builder: (_) => ArticleComposerPage(user: currentUser!, existing: a))),
                       ),
@@ -193,6 +195,7 @@ class _FollowButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return StreamBuilder<bool>(
       stream: FollowRepository.instance.watchIsFollowing(currentUserId, authorId),
       builder: (context, snap) {
@@ -206,8 +209,8 @@ class _FollowButton extends StatelessWidget {
                     FollowRepository.instance.unfollow(currentUserId, authorId);
                   },
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: C.txt2,
-                    side: const BorderSide(color: C.bdr),
+                    foregroundColor: ac.txt2,
+                    side: BorderSide(color: ac.bdr),
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                   ),
                   child: Text('Following', style: AppText.caption.copyWith(fontSize: 12, fontWeight: FontWeight.w700)),
@@ -218,7 +221,7 @@ class _FollowButton extends StatelessWidget {
                     FollowRepository.instance.follow(currentUserId, authorId);
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: C.primary,
+                    backgroundColor: ac.primary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
                   ),
@@ -237,6 +240,7 @@ class _AuthorSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -256,7 +260,7 @@ class _AuthorSkeleton extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+                color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
               child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 ShimmerLine(height: 15),
                 SizedBox(height: 10),

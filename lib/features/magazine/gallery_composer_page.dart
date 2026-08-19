@@ -9,6 +9,7 @@ import '../../models/magazine_gallery_post.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 
@@ -72,16 +73,17 @@ class _GalleryComposerPageState extends State<GalleryComposerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
-      appBar: AppBar(backgroundColor: C.bg, elevation: 0, iconTheme: const IconThemeData(color: C.txt),
+      backgroundColor: ac.bg,
+      appBar: AppBar(backgroundColor: ac.bg, elevation: 0, iconTheme: IconThemeData(color: ac.txt),
           title: Text('Share Photos', style: AppText.title),
           actions: [
             TextButton(
               onPressed: _posting ? null : _submit,
               child: _posting
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Text('Post', style: AppText.button.copyWith(color: C.primary)),
+                  : Text('Post', style: AppText.button.copyWith(color: ac.primary)),
             ),
           ]),
       body: AppBackground(child: SafeArea(child: SingleChildScrollView(
@@ -99,8 +101,8 @@ class _GalleryComposerPageState extends State<GalleryComposerPage> {
               onTap: _pickImages,
               child: Container(
                 width: 90, height: 90,
-                decoration: BoxDecoration(color: C.surf2, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: C.bdr)),
-                child: const Icon(Icons.add_photo_alternate_outlined, color: C.muted),
+                decoration: BoxDecoration(color: ac.surf2, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: ac.bdr)),
+                child: Icon(Icons.add_photo_alternate_outlined, color: ac.muted),
               ),
             ),
           ]),

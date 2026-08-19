@@ -2414,3 +2414,185 @@ condition, not attempted without the repo owner's go-ahead; (2) every
 Firebase project, neither available in this sandbox; (3) a full
 production release build has not been run. Everything else checkable
 by reading and testing code has been checked honestly, not assumed.
+
+---
+
+## §5 Personalization -- followed authors (already built, verified not
+## rebuilt), quiz recommendations, usage-weighted ranking, Today's Study
+## Program merge
+
+### Environment problem found and fixed before any code work
+
+This worktree's checked-out branch was **not** `demo-prep` at session
+start, despite being dispatched as "checked out from branch demo-prep."
+`git log` showed a completely unrelated history (13+ duplicate "Fix
+flutter_quill/flutter_quill_extensions version conflict" commits),
+`docs/AUTOPILOT_LOG.md` didn't exist, `lib/repositories/
+recommendation_repository.dart` didn't exist, `academia fix/
+academia_production_plan.md` didn't exist, and `lib/features/timetable/`
+had only `timetable_page.dart`, missing `personal_study_page.dart` --
+i.e. none of the "current state, already verified" claims in the dispatch
+prompt held. `git diff --stat HEAD demo-prep` showed 209 files / ~19k
+lines of divergence. Ran `git reset --hard demo-prep` on this worktree's
+own local branch (working tree was already clean, nothing lost) to bring
+it to the real current state before doing anything else -- continuing on
+the stale branch would have meant redoing already-shipped work on top of
+a dead-end history. Flagging prominently since this is an environment/
+provisioning issue, not a design decision, and the next session dispatched
+into a fresh worktree should verify branch state (`git log --oneline -5`
+matches what the dispatch prompt claims) before trusting a "current state"
+section at face value.
+
+### Audit first, per this session's standing discipline -- and this was
+### the biggest finding of the pass
+
+Before building anything, audited each of the 4 §5 items against the
+ACTUAL current code (not the dispatch prompt's claims, which turned out
+stale on two of four items):
+
+- **Item 1, "Followed authors"** -- the dispatch prompt said `AppUser` has
+  no such field and this is "a genuine, unbuilt gap." **False.** A full,
+  real, already-shipped follow system already exists: `FollowRepository`
+  (flat `follows/{followerId}_{followedId}` collection -- deliberately
+  NOT an array field on the user doc, so both "who I follow" and "who
+  follows me" are single-field queries with no composite index, and no
+  Firestore `whereIn`-30 cap the way an array field would eventually hit),
+  a real Follow/Following button on `AuthorProfilePage`, a live follower/
+  following count, and a full "Following" tab on the Magazine feed
+  (`FollowRepository.watchFollowingIds` -> `MagazineRepository
+  .watchFeedFromAuthors`, plus a `_FollowingAuthorsSection` listing who
+  you follow with live profiles). `firestore.rules` already covers
+  `follows/{id}` (public read, self-only create/delete, no update). This
+  is a BETTER design than the array-field approach the brief suggested --
+  built nothing new here, confirmed it's real and wired end-to-end.
+- **Item 2 (author signal in recommendations)** -- also already covered
+  by the same Following tab above (`watchFeedFromAuthors`, real query
+  against `MagazineArticle.authorId`). Did not add a redundant
+  `forAuthors()` to `RecommendationRepository` that nothing would call --
+  would be infrastructure beyond what's needed, the exact anti-pattern
+  this codebase's own conventions flag.
+- **Item 2 (quiz recommendations)** -- this part of the claim WAS
+  accurate: `RecommendationRepository` had `forLibrary`/`forCourses`/
+  `forMagazine` but no `forQuizzes`, and it had zero live callers wired
+  into any Quizzes surface. Built it (see below).
+- **Item 4 (Today's Study Program)** -- partially stale: the digest
+  already existed on Home (`universal_home_page.dart._todaysStudyProgram`,
+  a real card streaming `PersonalStudyRepository.watchToday()`), but it
+  only showed the Personal Study Timetable half of §5's two timetable
+  concepts -- never merged in the School Timetable half, which is exactly
+  what the spec's own worked example implies ("Mathematics -> Physics ->
+  English" class slots alongside "Physics Quiz -- 15 min" personal
+  slots). This was the one genuinely half-built item. Finished it (below).
+
+### What was actually built
+
+- **`TestRepository.recentPublishedOnce({limit})`** -- bounded recent-
+  tests fetch across every subject, same "recency pool, filter client-
+  side" shape `PublicCourseRepository.watchLatest()`/`MagazineRepository
+  .watchFeed()` already use. Reuses the `published`+`createdAt` composite
+  index that already exists in `firestore.indexes.json` for this exact
+  query shape -- no index changes needed.
+- **`TestRepository.subjectCompletionCountsOnce(userId, {sampleSize})`**
+  -- the §5 usage signal ("Mathematics + Physics -> ... -> frequently
+  completes Physics quizzes"), derived from data ALREADY recorded on
+  every `TestAttempt` (`.subject`), via one bounded query
+  (`userId`+`submittedAt`, also an existing index) over the user's most
+  recent 100 attempts. No new denormalized counter, no new write-time
+  bookkeeping -- exactly the "derive from what already exists" call this
+  session's brief itself asked for over building new infra.
+- **`RecommendationRepository.rankSubjectsByUsage()`** (pure, static,
+  unit-tested) -- reorders a favorite-subject list by descending
+  completion count, with an EXPLICIT index tie-break rather than relying
+  on `List.sort` (not guaranteed stable in Dart) so "no usage data yet"
+  is a true no-op that preserves the user's original favorite order.
+  Plus a matching `_sortBySubjectRank<T>()` helper that re-sorts an
+  already-recency-ordered result list by subject rank without disturbing
+  within-subject order.
+- **`RecommendationRepository.forQuizzes()`** -- new, same favorite-
+  subject-first / usage-weighted / honest-recent-fallback shape as
+  `forCourses`. `institutionId` mirrors `TestRepository
+  .watchTestsBySubject`'s own visibility rule (null = open to everyone
+  studying the subject).
+- **`forLibrary`/`forCourses`** both gained an optional
+  `subjectUsageCounts` parameter (default `{}`, a true no-op -- every
+  existing caller keeps working unchanged until it opts in).
+- **Wired in**: `academic_content_page.dart`'s Library "Recommended for
+  You" rail now also fetches `subjectCompletionCountsOnce()` and passes
+  it to `forLibrary`. `tests_subject_picker_page.dart` (the Quizzes home
+  surface) gained a new "Recommended for You" horizontal rail above the
+  subject grid, same favorite-subjects-only visibility gate as the other
+  three rails, each card opening `TestTakingPage` directly.
+- **Today's Study Program**: `universal_home_page.dart._todaysStudyProgram`
+  now streams BOTH `PersonalStudyRepository.watchToday()` AND today's
+  School Timetable slots (reusing `TimetablePage`'s own lecturer/
+  classLevel/all stream-selection logic, filtered to today's weekday),
+  merges them into one list sorted by start time, and tags each row
+  (color + a small "Class ·" label on school entries) so a scheduled
+  class and a self-planned revision session read as genuinely different
+  things, not silently conflated into one undifferentiated list. Guest/
+  independent (no `schoolId`) users see exactly what they saw before --
+  the school stream is `Stream.value(const [])` for them, a real no-op
+  not a special-cased branch.
+- **Test coverage**: `test/recommendation_ranking_test.dart`, 5 cases --
+  descending-count reorder, all-zero/empty-map no-op, explicit tie-break
+  (not relying on sort stability), a subject with usage data that isn't a
+  favorite is ignored, empty-favorites edge case.
+
+### Deliberately NOT done
+
+- **`courses_marketplace_page.dart` NOT wired to the new
+  `subjectUsageCounts` param**, despite `forCourses` supporting it --
+  this file is explicitly on this session's do-not-touch list (separate,
+  substantial, pre-existing uncommitted WIP sitting in the main working
+  tree, not part of any agent's task). Caught this myself mid-session,
+  reverted a first-draft wiring attempt in that exact file before
+  committing anything. `RecommendationRepository.forCourses()` is fully
+  ready for it -- whoever resolves that file's WIP can wire it in with
+  the same two-line pattern used in `academic_content_page.dart` and
+  `tests_subject_picker_page.dart`.
+- **No `AppUser.followedAuthorIds` array field** -- the existing flat
+  `follows` collection is the better design (see above); adding a
+  redundant, eventually-`whereIn`-30-capped array field would be a
+  regression, not an improvement.
+- **`Test.subject` and `PublicCourse.subject` are free-text**, not locked
+  to `kAcademicSubjects` like the Library's subject picker
+  (`test_composer_page.dart` uses a plain `TextEditingController`, not a
+  `ChoiceChip` grid). This means `forQuizzes`/`forCourses`'s exact-string
+  match against a user's `favoriteSubjects` silently matches nothing for
+  a test/course whose author typed a slightly different subject string
+  (e.g. "Maths" vs "Mathematics"). Pre-existing gap (the same shape
+  already existed for `forCourses` before this session), not fixed here
+  -- fixing the composer's subject field is its own, separate task.
+- **No push/local notification for Today's Study Program.** Checked
+  `lib/services/` for any notification-scheduling mechanism -- none
+  exists (no `flutter_local_notifications` or equivalent wired up
+  anywhere in this app). Building a full notification pipeline is a much
+  bigger lift than this pass calls for and wasn't asked for beyond "the
+  notification engine CAN generate" (the spec's own words leave the
+  actual notification part optional/future). Stayed with the honest,
+  real, on-screen card -- same scope call the pre-existing code comment
+  on this widget had already made before this session touched it.
+- **Reverted 7 generated plugin registrant files** (`linux/flutter/
+  generated_plugin_registrant.{cc,h}`, `linux/flutter/
+  generated_plugins.cmake`, `macos/Flutter/GeneratedPluginRegistrant.swift`,
+  `windows/flutter/generated_plugin_registrant.{cc,h}`, `windows/flutter/
+  generated_plugins.cmake`) that showed as modified after running
+  `flutter analyze`/`flutter test` on this Windows machine. Confirmed
+  before reverting: `pubspec.yaml`/`pubspec.lock` have zero diff (so no
+  new dependency triggered this), and `git diff` on each file showed only
+  an LF-vs-CRLF line-ending warning with no actual content change -- pure
+  Windows Flutter-tooling regeneration noise, not a real change to commit.
+
+### Verification
+
+`flutter analyze`: 36 issues, exactly the established baseline, zero new
+(confirmed both before and after reverting the out-of-scope
+`courses_marketplace_page.dart` edit). `flutter test`: 27 passing (20
+pre-existing essay-matching + 1 pre-existing quill-paste + 5 new
+`recommendation_ranking_test.dart` + 1 placeholder), 0 failing.
+
+Files touched: `lib/repositories/recommendation_repository.dart`,
+`lib/repositories/test_repository.dart`, `lib/features/academic_content/
+academic_content_page.dart`, `lib/features/testing/
+tests_subject_picker_page.dart`, `lib/features/dashboard/
+universal_home_page.dart`, `test/recommendation_ranking_test.dart` (new).

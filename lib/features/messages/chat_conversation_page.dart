@@ -107,7 +107,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     await MessagingRepository.instance.sendMessage(
       conversationId: widget.conversationId,
       senderId: widget.currentUser.id, senderName: widget.currentUser.name,
-      text: text,
+      text: text, recipientId: widget.otherUserId,
     );
   }
 
@@ -132,6 +132,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         senderId: widget.currentUser.id, senderName: widget.currentUser.name,
         imageUrl: isVideo ? null : upload.value,
         videoUrl: isVideo ? upload.value : null,
+        recipientId: widget.otherUserId,
       );
     } else if (mounted) {
       _showUploadFailedSnackBar(() => _uploadAndSendMedia(file, isVideo));
@@ -163,6 +164,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         conversationId: widget.conversationId,
         senderId: widget.currentUser.id, senderName: widget.currentUser.name,
         fileUrl: upload.value, fileName: fileName,
+        recipientId: widget.otherUserId,
       );
     } else if (mounted) {
       _showUploadFailedSnackBar(() => _uploadAndSendFile(file, fileName));
@@ -390,6 +392,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       conversationId: widget.conversationId,
       senderId: widget.currentUser.id, senderName: widget.currentUser.name,
       sharedType: type, sharedId: id, sharedTitle: title, sharedSubtitle: subtitle,
+      recipientId: widget.otherUserId,
     );
   }
 

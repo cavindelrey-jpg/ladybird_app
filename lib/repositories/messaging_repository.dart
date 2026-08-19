@@ -254,6 +254,15 @@ class MessagingRepository {
       .snapshots()
       .map((s) => s.docs.map((d) => ChatMessage.fromFirestore(d, conversationId)).toList());
 
+  /// [recipientId] is the other participant in this (1:1-only, for now)
+  /// conversation — passed explicitly by the caller rather than read back
+  /// from the conversation doc, so this stays a single write with no extra
+  /// read. When provided, their `unreadCount` is atomically incremented in
+  /// the SAME batch as the message write and the lastMessage* preview
+  /// update — see the doc comment on [markConversationRead] for the other
+  /// half of this (resetting it to 0 on open). Optional (defaults null,
+  /// a true no-op) so this doesn't break any caller that hasn't been
+  /// updated to pass it.
   Future<Result<void>> sendMessage({
     required String conversationId,
     required String senderId,
@@ -267,6 +276,7 @@ class MessagingRepository {
     String? sharedId,
     String? sharedTitle,
     String? sharedSubtitle,
+    String? recipientId,
   }) async {
     try {
       final batch = _db.batch();
@@ -287,6 +297,7 @@ class MessagingRepository {
         'lastMessageText': preview,
         'lastMessageSenderId': senderId,
         'lastMessageAt': FieldValue.serverTimestamp(),
+        if (recipientId != null) 'unreadCount.$recipientId': FieldValue.increment(1),
       });
       await batch.commit();
       return const Success(null);
@@ -407,7 +418,19 @@ class MessagingRepository {
   /// client-side (Firestore can't query "array doesn't contain X"
   /// directly) — fine for normal conversation lengths; revisit with a
   /// denormalized unread-count field if history grows very large.
+  ///
+  /// Also resets [userId]'s `unreadCount` entry to 0 — the other half of
+  /// sendMessage()'s increment. Done as its own best-effort write (not
+  /// batched with the readBy updates below) so a conversation with zero
+  /// unread messages still clears a stale unreadCount left over from
+  /// before this reset existed, and so one failing doesn't block the
+  /// other.
   Future<void> markConversationRead(String conversationId, String userId) async {
+    try {
+      await _conversations.doc(conversationId).update({'unreadCount.$userId': 0});
+    } catch (_) {
+      // best-effort — same reasoning as the readBy update below
+    }
     try {
       final recent = await _conversations
           .doc(conversationId)

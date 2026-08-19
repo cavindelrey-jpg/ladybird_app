@@ -2988,3 +2988,249 @@ pure MCQ), the shared matcher on a Structured-flavored key-point set
 (30) wiring through the existing `questionXp()` -- mirroring
 `test/essay_matching_test.dart`'s own pattern rather than inventing a
 different test style for the sibling feature.
+
+---
+
+## Clubs + Messaging / Academia Magazine audit -- honest static audit,
+## unread-state built (real gap on both surfaces), Magazine dark mode
+## converted (was 0%, not partial)
+
+production_plan.md §1's Clubs+Messaging and Academia Magazine checklists,
+re-audited against the ACTUAL current code per this session's standing
+discipline -- same static/code-level rigor as the §10 architecture audit
+and the §11 Production Testing Gate audit earlier this session (no
+emulator/device in this sandbox, so nothing here is claimed "verified
+live" unless it's genuinely code-verified or explicitly marked
+NEEDS-LIVE-TEST). Job was to audit the already-rebuilt Messaging/Clubs/
+Magazine surfaces, not rebuild them -- only fixed genuine gaps actually
+found.
+
+### Environment note
+
+This worktree's `demo-prep` was 3 commits behind `origin/demo-prep`
+(stale `flutter_quill` version-conflict-fix history, matching the exact
+failure mode a prior session already flagged as a provisioning issue) --
+`git merge origin/demo-prep --ff-only` before starting, per this
+session's own standing advice to verify branch state first.
+
+### Clubs + Messaging -- traced end to end
+
+- **Sending messages -- CODE-VERIFIED, both surfaces real, not stubs.**
+  `ChatConversationPage._sendText/_uploadAndSendMedia/_uploadAndSendFile/
+  _sendShared` all call `MessagingRepository.sendMessage()`, which writes
+  the message doc AND the denormalized `lastMessageText`/
+  `lastMessageSenderId`/`lastMessageAt` preview fields in a SINGLE
+  `_db.batch()` -- atomic, not two calls that could partially fail (this
+  was actually traced, not assumed from the method name). Same shape for
+  Club chat: `ClubDetailPage._send` -> `ClubRepository.sendMessage()`,
+  same single-batch pattern (message + club preview fields together).
+- **Receiving messages -- CODE-VERIFIED, correctly wired.**
+  `MessagingRepository.watchMessages()` streams `conversations/{id}/
+  messages` ordered by `sentAt` ascending with `limitToLast(60)` (a prior
+  session's own fix for an earlier unbounded-stream bug -- confirmed
+  still in place, not regressed). `ClubRepository.watchMessages()` mirrors
+  it: `time` ascending, `limit(100)`. Both `StreamBuilder`s in
+  `chat_conversation_page.dart`/`clubs_page.dart._ChatTab` render in that
+  order and auto-scroll to the bottom on new data -- read the actual
+  scroll-to-bottom logic, not just the query.
+- **Displaying conversations correctly -- CODE-VERIFIED.** The merged
+  inbox (`_InboxEntry` in `messages_home_page.dart`) sorts
+  Conversation+Club entries together by descending `lastMessageAt`,
+  splits Pinned/Recent (Conversation-only, `pinnedBy`), and renders
+  "You: <preview>" only when `lastMessageSenderId == user.id`. Since the
+  preview fields are written atomically with every send (see above),
+  there's no window where the inbox can show stale/wrong preview text.
+- **Unread/read states -- the flagged likely gap, and it WAS a real gap,
+  on both surfaces, for two different reasons:**
+  - **Conversation.unreadCount existed as a schema field AND a UI badge
+    but was DEAD** -- `Conversation.fromFirestore`/`toFirestore` both
+    handle it, and `messages_home_page.dart`'s `_conversationRow` already
+    read `conversation.unreadCount[user.id]` to render a numeric badge --
+    but NOTHING ever wrote to it. `sendMessage()`'s batch only touched
+    `lastMessageText`/`lastMessageSenderId`/`lastMessageAt`;
+    `markConversationRead()` only updated each message's `readBy` array,
+    never `unreadCount`. Net effect: the badge was permanently 0,
+    unconditionally, for every conversation, forever -- a fully-wired-
+    looking feature that silently never worked. **Fixed**: `sendMessage()`
+    gained an optional `recipientId` param; when passed, the SAME batch
+    that writes the message now also does
+    `'unreadCount.$recipientId': FieldValue.increment(1)` (still one
+    atomic write, not a second call). `markConversationRead()` now also
+    resets `'unreadCount.$userId': 0` as its first step. All 4
+    `sendMessage()` call sites in `chat_conversation_page.dart` updated to
+    pass `recipientId: widget.otherUserId`. No `firestore.rules` change
+    needed here -- `conversations/{id}`'s update rule is already
+    `request.auth.uid in resource.data.participantIds` with no field
+    restriction, so this was already covered.
+  - **Per-message read receipts (the double-check icon) were ALREADY
+    real** -- `readBy` array per message, `markConversationRead()`
+    batch-updates it on open, `_MessageBubble` reads
+    `message.readBy.contains(otherUserId)` for the checkmark color.
+    CONFIRMED REAL, not touched.
+  - **Club chat had ZERO unread concept at all** -- not a dead field like
+    Conversation, genuinely nothing: no field on `ClubMessage`, no field
+    on `Club`, and `messages_home_page.dart`'s own pre-existing comment
+    said so explicitly ("Only Conversation supports pin/unread -- Club
+    has neither concept yet"). Per this task's explicit instruction to
+    build a minimal real version rather than skip it: **built**
+    `ClubMember.lastReadAt` (lives on the per-member subdocument
+    `clubs/{id}/members/{userId}`, NOT a `Map<userId,Timestamp>` on the
+    Club doc itself -- deliberately avoids an unboundedly-growing map on
+    one shared, contended document as club membership scales, unlike
+    Conversation's 2-participant case where a map is fine),
+    `clubHasUnreadMessages({lastMessageAt, lastReadAt})` (pure comparison
+    function, unit-tested, not embedded inline), `ClubRepository
+    .markClubRead()`/`.watchMyClubReadState()` (shares one underlying
+    collectionGroup query with the pre-existing `watchMyClubIds()` via a
+    new private `_watchMyMemberships()` rather than paying for two
+    listeners). Wired in: `ClubDetailPage` marks read via a `TabController`
+    listener when the Chat tab (index 2) actually becomes selected
+    (mirrors `ChatConversationPage` calling `markConversationRead` in
+    `initState`, just gated on tab visibility since ClubDetailPage hosts
+    5 other tabs); `messages_home_page.dart`'s club inbox row now shows a
+    small unread dot (boolean, not a fabricated count -- there's no
+    real per-message read-receipt for club chat to count from, so a dot
+    is the honest granularity here, not a corner cut).
+  - **Real rules gap found and fixed while building the Club half**:
+    `firestore.rules`' `clubs/{clubId}/members/{memberId}` update rule
+    only allowed `canManageSchool()`/club-admin/club-moderator to update
+    a membership doc -- ZERO self-service branch. A plain member calling
+    `markClubRead()` on their own doc would have been silently
+    permission-denied for the majority of users (everyone who isn't an
+    admin/moderator of that specific club). Fixed by adding one scoped
+    branch: `request.auth.uid == memberId &&
+    diff(...).affectedKeys().hasOnly(['lastReadAt'])` -- self-service for
+    that one field only, doesn't touch the existing role-change gating.
+    Not deployed (this session never runs `firebase deploy`, per
+    standing instructions) -- flagging so whoever deploys rules next
+    knows this branch is now required for the Club unread feature to
+    actually write anything against a live project, not just pass local
+    review.
+- **Firebase/Firestore synchronization -- CODE-VERIFIED for the specific
+  question asked ("is sendMessage's denormalized lastMessageText write
+  atomic with the message write").** Yes, for both Conversation and Club,
+  confirmed by reading the actual `_db.batch()` calls, not assumed from
+  the method being named `sendMessage`.
+
+### Academia Magazine -- traced end to end
+
+- **Dark-mode support -- the flagged likely gap, and it was WORSE than
+  partial: it was 0%, not "some coverage."** Grepped every file under
+  `lib/features/magazine/` for `C.xxx` (the light-only static palette
+  from `theme/app_theme.dart` -- see that file's own header comment: `C`
+  is a compile-time constant that CANNOT respond to the dark-mode
+  toggle, `AppColors.of(context)` is the dark-aware replacement, and a
+  2026-08-10 session-log entry already named `magazine` as one of ~43
+  files still on the old palette after that pass's conversion sweep).
+  Confirmed: ALL 9 Magazine files (`article_composer_page.dart`,
+  `article_reader_page.dart`, `author_profile_page.dart`,
+  `gallery_composer_page.dart`, `gallery_viewer_page.dart`,
+  `magazine_feed_page.dart`, `magazine_video_player_page.dart`,
+  `top_writers_page.dart`, `video_composer_page.dart`) used `C.xxx`
+  exclusively -- zero `AppColors.of(context)` usage anywhere in the
+  directory before this pass, unlike `features/messages/` (converted in
+  the 2026-08-10 sweep, confirmed by reading `messages_home_page.dart`/
+  `chat_conversation_page.dart`, both fully `ac.`-based already) or
+  `features/clubs/` (also still 100% `C.xxx`, confirmed by reading
+  `clubs_page.dart` -- NOT converted despite Clubs being "extensively
+  rebuilt earlier this session"; flagging as a separate, still-open gap
+  since it's outside this task's Magazine-only dark-mode scope).
+  **Fixed for real, file by file** (same proven `final ac =
+  AppColors.of(context);` + `C.xxx` -> `ac.xxx` pattern the 2026-08-10
+  sweep used, including removing `const` from every widget that now
+  depends on a runtime `ac` value): `top_writers_page.dart`,
+  `gallery_composer_page.dart`, `video_composer_page.dart`,
+  `author_profile_page.dart`, `article_reader_page.dart`,
+  `article_composer_page.dart`, `magazine_feed_page.dart` (the large one,
+  ~1210 lines, every widget class in the file: `_MagazineFeedPageState`,
+  `_FeaturedCarousel`/`_FeaturedCard`, `_ArticleListCard`, `_LikeButton`,
+  `_FollowingAuthorsSection`, `_StudentGallerySection`,
+  `_LatestVideosSection`, `_RecommendedClubsSection`) -- fully converted,
+  zero remaining `C.xxx` in each of these 7 files (verified by re-grep
+  after editing, not assumed).
+  - **Deliberately NOT converted, and why (not an oversight):**
+    `gallery_viewer_page.dart` and `magazine_video_player_page.dart` are
+    both full-screen media viewers with an intentionally-always-black
+    background and white/black chrome regardless of theme -- the same
+    honest design pattern every photo/video viewer in this class of app
+    uses (Instagram, Google Photos, etc.), not a light-mode bug. The one
+    `C.red` reference in `gallery_viewer_page.dart` (the like-heart icon
+    on a pure-black background) was left alone for the same reason --
+    converting it to `ac.red` would change essentially nothing visible
+    against black in either theme, and touching a file otherwise correct
+    by design isn't a fix.
+  - `magazine_feed_page.dart`'s top-level `_kCategoryColors` (a `const
+    CategoryColorMap({...C.xxx})`) was deliberately left un-converted --
+    grepped and confirmed `CategoryColorMap` (`theme/category_colors.dart`)
+    is ALSO used by `courses_marketplace_page.dart`, one of this session's
+    three explicitly do-not-touch files (separate uncommitted WIP in the
+    main tree). Changing the shared `CategoryColorMap`/`category_colors.dart`
+    class shape to take a context/AppColors param would touch that
+    off-limits file's behavior too, so this one const map was left as the
+    single remaining `C.xxx` reference in the directory -- flagged
+    explicitly, not silently skipped.
+- **Feed / posts / authors / post engagement -- CODE-VERIFIED, real.**
+  Traced `article_reader_page.dart`'s `_ActionRow`/`_LikeButton`/comment
+  form down into `MagazineRepository`: `toggleLike`/`toggleBookmark`/
+  `recordShare`/`postComment`/`recordRead` are real Firestore
+  reads/writes (not stubs), and `postComment`/`toggleLike`/`recordShare`
+  each call `unawaited(settleMagazineXpIfDue(articleId))` -- the real
+  24h-settlement XP pipeline a prior session in this same run built and
+  logged as CODE-VERIFIED in the §11 audit. Not rebuilt here, just
+  re-confirmed by reading the actual call sites rather than trusting the
+  prior claim at face value.
+- **Personalization/recommendations -- CODE-VERIFIED, already true, not
+  rebuilt.** `magazine_feed_page.dart`'s `_RecommendedSection` calls
+  `RecommendationRepository.forMagazine(favoriteSubjects: ...)` on the
+  For You tab (gated on the user having real favorite subjects set, same
+  honest-fallback gate every other `forX` rail uses), and the Following
+  tab's `_FollowingAuthorsSection` is backed by `FollowRepository
+  .watchFollowingIds()` -- both real signals, cited not rebuilt.
+
+### Deliberately NOT done (flagged, not hidden)
+
+- **Clubs dark-mode conversion** -- out of scope for this task (Magazine-
+  only per the brief), but found and flagged above as a real, separate,
+  still-open gap: `features/clubs/` is 100% `C.xxx`, same as Magazine was
+  before this pass. A future pass converting Clubs can reuse the exact
+  same pattern applied here.
+- **`gallery_viewer_page.dart`/`magazine_video_player_page.dart`** --
+  correctly light/dark-invariant by design (full-screen media viewer
+  chrome), not converted, see above.
+- **`_kCategoryColors` in `magazine_feed_page.dart`** -- shared with the
+  off-limits `courses_marketplace_page.dart` via `CategoryColorMap`; left
+  as the one remaining `C.xxx` reference in the directory rather than
+  risk touching that file's behavior.
+- **Client-side unread-count trust** -- `unreadCount`/`lastReadAt` are
+  both written directly by the client (not a Cloud Function), same trust
+  model as every other client-computed field in this app (XP, likes,
+  etc.) flagged elsewhere in this session's §4.9/§11 notes. Not a new gap
+  introduced by this pass, just inheriting the pre-existing pattern.
+- **Actual live send/receive/typing-indicator/upload-retry behavior on a
+  real device, and the `firestore.rules` self-service `lastReadAt` branch
+  actually taking effect against a deployed project** -- NEEDS-LIVE-TEST,
+  no emulator/device in this sandbox all session (same ceiling the §11
+  audit already documented).
+
+### Verification
+
+`flutter analyze`: 36 issues, exactly the pre-existing baseline, zero new
+(re-confirmed after fixing one transient regression mid-pass -- a new
+doc comment's `Map<userId, Timestamp>` in `lib/models/club.dart` tripped
+`unintended_html_in_doc_comment` at 37 issues; fixed by backtick-quoting
+the type in the comment, back to 36). `flutter test`: 43 passing, 0
+failing -- 38 pre-existing (20 essay-matching + 1 quill-paste + 5
+recommendation-ranking + 11 structured-matching + 1 placeholder) + 5 new
+`test/club_unread_test.dart` cases covering `clubHasUnreadMessages`'s
+full branch set (no activity, never-read-but-active, message-after-read,
+message-before-read, and the exact-equal-timestamp edge case).
+
+Files touched: `lib/repositories/messaging_repository.dart`,
+`lib/features/messages/chat_conversation_page.dart`,
+`lib/features/messages/messages_home_page.dart`, `lib/models/club.dart`,
+`lib/repositories/club_repository.dart`,
+`lib/features/clubs/clubs_page.dart`, `firestore.rules` (local only, not
+deployed), `test/club_unread_test.dart` (new),
+`lib/features/magazine/{article_composer_page,article_reader_page,
+author_profile_page,gallery_composer_page,video_composer_page,
+top_writers_page,magazine_feed_page}.dart`.

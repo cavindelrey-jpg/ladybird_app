@@ -34,7 +34,9 @@ import '../../models/library_item.dart';
 import '../../models/academic_content.dart';
 import '../../models/course.dart';
 import '../../models/personal_study_slot.dart';
+import '../../models/timetable_slot.dart';
 import '../../repositories/personal_study_repository.dart';
+import '../../repositories/timetable_repository.dart';
 import '../../repositories/announcement_repository.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../repositories/daily_challenge_repository.dart';
@@ -817,41 +819,87 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   // -- Today's Study Program (production_plan.md §5) ----------------------
-  // Real personal-timetable entries for today only, ordered by start
-  // time. No push/local notification here (no such package is wired into
-  // this app yet) -- an honest in-app reminder, not a fake "we'll notify
-  // you" promise.
+  // The spec's own worked example ("Today's Study Program: Mathematics —
+  // 30 min, Physics Quiz — 15 min, Read: Mechanics — 20 min") merges BOTH
+  // timetable concepts §5 defines -- the School Timetable (admin-authored,
+  // e.g. "Monday: Mathematics -> Physics -> English") and the Personal
+  // Study Timetable (self-authored revision sessions) -- into one ordered
+  // list for today. This used to show only Personal Study slots; now
+  // merges in today's School Timetable slot too, for students who have
+  // one (independent/no-school users still see their personal slots only,
+  // same as before). No push/local notification here (no such package is
+  // wired into this app yet) -- an honest in-app reminder, not a fake
+  // "we'll notify you" promise, matching this section's own prior note.
+  Stream<List<TimetableSlot>> _todaysSchoolTimetableStream() {
+    final schoolId = _u?.schoolId;
+    if (schoolId == null || schoolId.isEmpty) return Stream.value(const []);
+    final u = _u!;
+    final base = u.isLecturer
+        ? TimetableRepository.instance.watchForLecturer(schoolId, u.id)
+        : u.classLevel.isNotEmpty
+            ? TimetableRepository.instance.watchForClass(schoolId, u.classLevel)
+            : TimetableRepository.instance.watchAll(schoolId);
+    final today = DateTime.now().weekday;
+    return base.map((slots) => slots.where((s) => s.dayOfWeek == today).toList());
+  }
+
   Widget _todaysStudyProgram(BuildContext context) {
     return StreamBuilder<List<PersonalStudySlot>>(
       stream: PersonalStudyRepository.instance.watchToday(_u!.id),
-      builder: (context, snap) {
-        final slots = snap.data ?? const <PersonalStudySlot>[];
-        if (snap.connectionState == ConnectionState.waiting || slots.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.lg), border: Border.all(color: ac.bdr)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Icon(Icons.event_available_rounded, size: 18, color: ac.gold),
-                const SizedBox(width: 8),
-                Expanded(child: Text("Today's Study Program", style: AppText.h2.copyWith(fontSize: 15))),
-              ]),
-              const SizedBox(height: 12),
-              ...slots.map((s) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(children: [
-                  Container(width: 6, height: 6, decoration: BoxDecoration(color: ac.gold, shape: BoxShape.circle)),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text(s.activity, style: AppText.bodySm.copyWith(fontSize: 13))),
-                  Text('${s.startTime}–${s.endTime}', style: AppText.caption.copyWith(fontSize: 11)),
+      builder: (context, personalSnap) {
+        return StreamBuilder<List<TimetableSlot>>(
+          stream: _todaysSchoolTimetableStream(),
+          builder: (context, schoolSnap) {
+            final waiting = personalSnap.connectionState == ConnectionState.waiting ||
+                schoolSnap.connectionState == ConnectionState.waiting;
+            final personal = personalSnap.data ?? const <PersonalStudySlot>[];
+            final school = schoolSnap.data ?? const <TimetableSlot>[];
+            if (waiting || (personal.isEmpty && school.isEmpty)) {
+              return const SizedBox.shrink();
+            }
+            // Merge both real sources into one ordered-by-start-time list,
+            // each entry tagged with WHERE it came from so a school class
+            // and a self-planned revision session read as visibly
+            // different things, not one conflated list.
+            final entries = <_TodayEntry>[
+              ...school.map((s) => _TodayEntry(
+                  startTime: s.startTime, endTime: s.endTime,
+                  label: s.courseName, isSchool: true)),
+              ...personal.map((s) => _TodayEntry(
+                  startTime: s.startTime, endTime: s.endTime,
+                  label: s.activity, isSchool: false)),
+            ]..sort((a, b) => a.startTime.compareTo(b.startTime));
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.lg), border: Border.all(color: ac.bdr)),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(Icons.event_available_rounded, size: 18, color: ac.gold),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text("Today's Study Program", style: AppText.h2.copyWith(fontSize: 15))),
+                  ]),
+                  const SizedBox(height: 12),
+                  ...entries.map((e) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(children: [
+                      Container(
+                        width: 6, height: 6,
+                        decoration: BoxDecoration(
+                            color: e.isSchool ? ac.primary : ac.gold, shape: BoxShape.circle)),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(e.label, style: AppText.bodySm.copyWith(fontSize: 13))),
+                      if (e.isSchool) ...[
+                        Text('Class · ', style: AppText.caption.copyWith(fontSize: 10, color: ac.primary)),
+                      ],
+                      Text('${e.startTime}–${e.endTime}', style: AppText.caption.copyWith(fontSize: 11)),
+                    ]),
+                  )),
                 ]),
-              )),
-            ]),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -1000,5 +1048,22 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       ),
     );
   }
+}
+
+/// One row in the merged "Today's Study Program" list -- either a School
+/// Timetable class or a Personal Study Timetable session, tagged so the
+/// UI can label which is which rather than presenting both as the same
+/// kind of thing. See _UniversalHomePageState._todaysStudyProgram.
+class _TodayEntry {
+  final String startTime;
+  final String endTime;
+  final String label;
+  final bool isSchool;
+  const _TodayEntry({
+    required this.startTime,
+    required this.endTime,
+    required this.label,
+    required this.isSchool,
+  });
 }
 

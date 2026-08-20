@@ -3843,3 +3843,132 @@ looked for an actual, objective defect instead.
   touched files: 0 errors (only pre-existing `prefer_const_constructors`
   infos). Full-project `flutter analyze` kicked off to confirm no
   collateral breakage before committing.
+
+## Session (2026-08-20): finish school-management removal + Individual/Silver/Gold entitlement system
+
+User's ask: cross-check the whole `lib/` system, finish removing school-
+management while preserving custom work, then implement a real
+Individual/Premium-Silver/Premium-Gold account/entitlement system (Silver =
+every premium feature except Video Courses, Gold = everything; funded by
+direct payment or an Academia vendor voucher), with one authoritative
+feature-classification registry applied everywhere, then re-verify the
+whole system compiles and tests pass.
+
+**Found on arrival**: a prior session (uncommitted, working-tree only) had
+already deleted ~45 school-management files (institution linking, school
+admin, timetable/attendance/assignments/marks, serial-number seat claiming)
+but never updated the ~15 files that still imported them — the app did not
+compile. `lib/screens/app_router.dart` in particular was untouched despite
+depending entirely on `InstitutionProvider`/`InstitutionThemeEngine`/
+`InstitutionSplashScreen`/`SchoolConfig`/`SchoolHomePage`, all deleted.
+
+**Assumptions/defaults, logged per the "never idle" rule**:
+- `lib/models/announcement.dart` was among the deleted files but is NOT
+  school-management (no `Institution` dependency, `schoolId` already
+  optional, still consumed by the kept Announcements feature) — restored
+  it verbatim from `git show HEAD:lib/models/announcement.dart` rather
+  than leaving Announcements broken.
+- `lib/models/course.dart`/`repositories/course_repository.dart`/
+  `features/courses/` (the school-scoped Course catalog, `schoolId`
+  required) is a school-management artifact whose only real consumers
+  (Attendance/Assignments) were already deleted — it was unreachable in
+  practice (every account now has an empty `schoolId`) but still
+  compiled and was still wired into Home's "Recommended for You" rail.
+  Deleted it fully rather than leave dead-but-reachable code, including
+  trimming `test/home_recommendation_ranking_test.dart`'s
+  `rankHomeCoursesByEnrollment` cases (that helper went with it) and the
+  "Today's Study Program" section's School Timetable half (kept the
+  Personal Study Timetable half, which is real and unrelated).
+- `lib/academia.dart`, `theme/theme.dart`, `features/features.dart`,
+  `providers/providers.dart` were dead barrel-of-barrels files (only
+  self-referencing, nothing in the live app imports them) that exported a
+  mix of deleted and live files — deleted rather than half-repaired.
+- `AppConfig`/`isSchoolMode` (the school-vs-platform white-label build
+  flag) is itself a school-management concept — removed
+  `config/app_config.dart` and the two `if (AppConfig.isSchoolMode)`
+  branches in `profile_page.dart` (the whole "School" nav section +
+  "Switch School" button) it gated.
+- `LoginScreen` no longer takes a `SchoolConfig school` param (there's no
+  institution to brand it with) — hardcoded "Academia" / "Sign in to your
+  account" in its place; its only remaining call site is
+  `app_drawer.dart`'s guest sign-in entry.
+- `AuthService.claimLinkedSeat`/`claimSerialAndCreateAccount`/
+  `watchSchoolUsers` (school-seat/serial enrollment) removed along with
+  `SerialRepository` — no remaining caller since the onboarding screens
+  that used them are gone.
+
+**Entitlement system implementation** (`models/entitlement.dart` is the
+architecture's own file header: "adding tiers is what would force the
+redesign this is trying to avoid... a genuinely different capability
+level is the only thing that should ever be added here" — Video Courses
+being Gold-only is exactly that trigger):
+- `EntitlementTier`: `free` → `free, silver, gold` (enum declaration
+  order matters — `tier.index` comparisons decide redemption
+  upgrade/stack behavior). A stored legacy `tier: 'premium'` (pre-split)
+  or legacy flat `isPremium: true` both migrate to `gold` on read — the
+  honest reading, since the old single tier meant full access.
+- `EntitlementPackage` (`purchase.dart`): 4 durations × 2 tiers = 8
+  values; added `.tier` and a NEW `.suggestedPriceFcfa` getter — the
+  latter is a real exception to this file's own "no hardcoded price"
+  rule, since it backs the app's OWN direct-payment sheet (which
+  genuinely needs a sticker price), not the sales-agent flow (which
+  still always types the real amount collected). Default price ladder
+  (1500–21000 FCFA depending on tier/duration) is a placeholder,
+  logged rather than silently invented — no real pricing feed exists.
+- `Voucher`/redemption: added a stored `tier` field, copied from the
+  package at issuance (never retroactive). Redemption grants
+  `max(currentActiveTier, voucherTier)` — redeeming a Silver voucher
+  while already Gold extends the expiry without downgrading.
+- `core/feature_access.dart` (NEW): the single authoritative
+  Free/Authenticated/Silver/Gold/Unavailable registry —
+  `FeatureAccess.canAccess(user, AppFeature.x)` is meant to be the only
+  place any UI/route/action decides tier access from here on. Role-gated
+  staff features (sales desk, grading, test composer) are deliberately
+  classified `unavailable` here and still gate via `AppUser.hasMinRole`
+  directly — this file doesn't duplicate that, to avoid two sources of
+  truth for the same check.
+- Video Courses (the concrete Gold-only feature the task named): added
+  `PublicCourse.videoUrl` (optional — any signed-in creator can attach
+  one) and a locked/unlocked `_VideoLessonSection` in
+  `course_reader_page.dart` gated by `FeatureAccess`. No such feature
+  existed before this session (grepped "Video Course" — zero hits) so
+  this is new, not a re-gate of something existing.
+- `firestore.rules`: `isValidGiftRedemption()` still checked
+  `entitlementTier == 'premium'` — a real bug that would have silently
+  rejected every voucher redemption if deployed. Fixed AND hardened: the
+  written tier must now equal either the voucher's own `tier` field or
+  the account's already-stored tier (closing the actual bypass — a
+  Silver-voucher holder writing `entitlementTier: 'gold'` directly).
+  Also added a `payments/{id}` rule — `premium_unlock_sheet.dart` writes
+  there and no rule existed at all (default-deny), so the direct-payment
+  path would have failed on every attempt; the rule only permits
+  recording `status: 'pending'`, matching this codebase's existing
+  "client never self-grants paid access" posture (`subscriptions/{id}`,
+  `serials/{code}`).
+- Redesigned `account_choice_screen.dart` (Individual/Silver/Gold, third
+  card no longer "Student — My School") and `premium_unlock_sheet.dart`
+  (tier + duration picker feeding the price/package, replacing the old
+  flat "5,000 FCFA one-time" sheet).
+
+**Verification**: `flutter analyze` 0 errors (26 pre-existing style
+infos/warnings, same baseline class as prior sessions noted, e.g. the
+`withOpacity`/`groupValue` deprecations). `flutter test`: 48/48 passing
+across all 7 suites, including the trimmed home-recommendation test.
+Committed as one changeset (115 files) — `git add -u` scoped to
+`lib/ test/ firestore.rules storage.rules` plus the one new file, so the
+unrelated pre-existing untracked clutter (zip/jpg/Screenshot/scripts/
+flutter_*.log at the repo root, and three untouched/unverified
+`features/testing/*.dart` files from separate WIP) was deliberately left
+out of the commit rather than swept in.
+
+**Deliberately not done, flagged not hidden**: `firestore.rules`' many
+now-dead school-management collection rules (`schools/{id}/timetable`,
+`/attendance`, `/assignments`, top-level `marks/{id}`, `serials/{code}`,
+`institutions/{id}`, etc.) were left in place — nothing in `lib/` writes
+to those paths anymore so they're inert, not a security bypass, and a
+full rules rewrite was judged lower priority than shipping a compiling,
+tested app this session. Revisit if a future pass wants the rules file
+itself fully clean. `AccountType.linked`/`AccountType.guest` enum values
+were left as-is (harmless unused-in-practice values) rather than
+collapsing to just `independent`, since removing them would cascade into
+`accountTypeLabel`/model-equality call sites for no functional gain.

@@ -25,7 +25,7 @@ import '../../pages/profile_page.dart';
 import 'course_reader_page.dart';
 import 'course_composer_page.dart';
 import 'course_creator_profile_page.dart';
-import 'course_browse_page.dart';
+import 'course_navigation_page.dart';
 
 const _kCategoryIcons = <String, IconData>{
   'Mathematics':      Icons.functions_rounded,
@@ -217,10 +217,11 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
     );
   }
 
-  /// Entry point into the hierarchical "table of contents" browser
-  /// (course_browse_page.dart) — deliberately big and colorful, not a
-  /// slim row, since it's an equally valid front door into the
-  /// marketplace as search or the category chips above it.
+  /// Entry point into the Course Navigation tree
+  /// (course_navigation_page.dart: Academic Section > Subject > Topic >
+  /// Lessons) — deliberately big and colorful, not a slim row, since
+  /// it's an equally valid front door into the marketplace as search or
+  /// the category chips above it.
   Widget _browseByCurriculumCta(BuildContext context, AppColors ac) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -232,7 +233,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
           onTap: () {
             HapticFeedback.selectionClick();
             Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => CourseBrowsePage(currentUser: widget.user)));
+                builder: (_) => CourseNavigationPage(currentUser: widget.user)));
           },
           child: Container(
             padding: const EdgeInsets.all(20),
@@ -253,9 +254,9 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
               const SizedBox(width: 14),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Browse by Curriculum', style: AppText.h2.copyWith(fontSize: 17, color: Colors.white)),
+                  Text('Course Navigation', style: AppText.h2.copyWith(fontSize: 17, color: Colors.white)),
                   const SizedBox(height: 3),
-                  Text('Subject → Level → Topic → Lessons',
+                  Text('Section → Subject → Topic → Lessons',
                       style: AppText.bodySm.copyWith(fontSize: 12.5, color: Colors.white.withOpacity(0.9))),
                 ]),
               ),

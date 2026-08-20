@@ -428,17 +428,19 @@ class _Breadcrumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final segments = [course.category, course.subject, course.level, course.topic];
+    // Academic Section > Subject > Topic — matches CourseBrowsePage's own
+    // tree order (see that file for why `category`, the Mathematics/
+    // Science/... domain tag, is no longer a hierarchy tier here).
+    final segments = [course.level, course.subject, course.topic];
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(Rad.sm),
         onTap: () => Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => CourseBrowsePage(
+                section: course.level,
                 currentUser: currentUser,
-                initialCategory: course.category,
                 initialSubject: course.subject,
-                initialLevel: course.level,
                 initialTopic: course.topic))),
         child: Wrap(
           crossAxisAlignment: WrapCrossAlignment.center,

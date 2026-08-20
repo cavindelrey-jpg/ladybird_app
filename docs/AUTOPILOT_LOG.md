@@ -3488,6 +3488,135 @@ session's own standing advice to verify branch state first.
     needed here -- `conversations/{id}`'s update rule is already
     `request.auth.uid in resource.data.participantIds` with no field
     restriction, so this was already covered.
+
+## Session (2026-08-20 cont'd): Course Navigation redesign
+
+User asked to redesign Course Navigation into a proper academic hierarchy:
+Academic Section (Primary/JSS/SSS/High School/Undergraduate, extensible,
+admin-manageable, each with its own image) > Subject > Topic/Course, with
+every node (section/subject/course/topic/quiz/subsection) getting a real
+thumbnail instead of a letter-avatar, integrated into the EXISTING Library
+rather than a new parallel system.
+
+**Key discovery before writing any code**: `models/test.dart` already had
+almost exactly this — `QuizCategory` (id/name/emoji/imageUrl/order, a real
+Firestore doc, not free text) seeded with `kDefaultQuizCategories =
+['Primary School', 'Junior Secondary School', 'Senior Secondary School',
+'High School', 'Undergraduate']` — the exact 5 names asked for — plus a
+full working UI (`quiz_categories_page.dart` ->
+`tests_subject_picker_page.dart` -> `tests_topic_picker_page.dart` ->
+`tests_list_page.dart`), all with HierarchyAvatar image tiles and an
+edit-look bottom sheet (`quiz_icon_editor.dart`). It only drove Quizzes.
+Meanwhile marketplace Courses (`PublicCourse`) had a SEPARATE, adjacent
+system: category(domain)/subject/level(free text)/topic/lesson, browsable
+via the old `course_browse_page.dart`, with its own `CurriculumIcon`/
+`curriculum_icons` lookup collection. Building a THIRD near-identical
+category system for Course Navigation would have been exactly the
+"unnecessarily duplicating data" the user explicitly said not to do.
+
+**Decision: unify, don't triplicate.** Extracted the quiz-category CRUD
+out of `TestRepository` into a new standalone
+`repositories/academic_section_repository.dart` (model:
+`models/academic_section.dart`, `AcademicSection` +
+`kDefaultAcademicSections`), still backed by the SAME Firestore collection
+name (`quiz_categories` — kept as-is to avoid a data migration; nothing
+about it is quiz-specific anymore, documented in both new files' headers).
+`models/test.dart`'s `QuizCategory`/`kDefaultQuizCategories` are now a
+`typedef`/const-alias onto the shared model so every existing Quiz call
+site (`TestRepository.quizCategoriesOnce()` etc., now thin delegating
+wrappers) kept compiling unchanged. Course Navigation's new top tier
+(`course_navigation_page.dart`, mirrors `quiz_categories_page.dart`'s
+tile-grid pattern almost exactly on purpose — same interaction pattern for
+both browsers, not two different ones) reads/writes the exact same
+section list/images Quizzes use, so an admin manages ONE set of sections
+and one set of photos, not two.
+
+**Mapping onto the existing `PublicCourse` schema (no schema migration,
+no new required fields)**: repurposed the already-existing free-text
+`level` field as the section name (was previously typed free text like
+"GCE Advanced Level"; now picked from the managed section list via a chip
+picker in `course_composer_page.dart`, defaulting to the first section for
+a brand-new lesson, same UX `test_composer_page.dart` already used for its
+category picker). The old domain `category` field (Mathematics/Science/...)
+stays exactly as-is for the flat marketplace feed/chips — it's just no
+longer a hierarchy tier in the NEW browse tree, since the user's own
+hierarchy example (Senior Secondary -> History -> French Revolution ->
+Fall of the Bastille) never mentioned a domain-category layer at all.
+`course_browse_page.dart` was rewritten in place (not duplicated) from a
+4-tier category>subject>level>topic tree into a 2-tier subject>topic tree
+scoped to one section (`CourseBrowsePage(section: ...)`), reusing
+`PublicCourseRepository`'s existing `curriculum_icons`
+lookup/upload/HierarchyAvatar machinery with new `navSubjectIconKey`/
+`navTopicIconKey` key prefixes (parallel to Quiz's own `quizSubject::`/
+`quizTopic::` prefixes already sharing that same collection) so old
+category-scoped icon assignments don't collide with the new section-scoped
+ones — old ones become harmless orphans, not deleted, not migrated (an
+honest "grows from real data" tradeoff, same as this codebase's existing
+`kUncategorizedQuizBucket`-style fallbacks elsewhere). Old 4-tier methods
+(`subjectsIn`/`topicsIn`/`curriculumTreeOnce`/`subjectIconKey`/etc.) were
+left in `public_course_repository.dart` unused rather than deleted —
+`topicSequence()` is still called by `continueReadingFor()` (prev/next
+lesson), a genuinely separate feature untouched by this redesign.
+`course_reader_page.dart`'s breadcrumb (was category>subject>level>topic)
+updated to section>subject>topic and its "tap to browse siblings" link
+updated to the new `CourseBrowsePage(section:...)` constructor — this was
+the one real call-site break the rewrite caused, found by grep-auditing
+every `CourseBrowsePage(` call site after the rewrite, not assumed safe.
+
+Existing per-course thumbnails (`PublicCourse.coverImageUrl`,
+`AcademicContent.thumbnailUrl`, `Test.thumbnailUrl`) were already real,
+already wired, already admin-uploadable before this session — confirmed
+by reading each model/composer rather than assumed, so none were touched
+or overwritten. `CourseBrowsePage`'s lesson-list tiles were changed to
+show the lesson's own `coverImageUrl` (was previously always a numbered
+chip, no thumbnail at all) as its primary visual identity, falling back to
+the numbered chip only when no cover is set — closing the one real
+"missing thumbnail surface" gap found in the existing Course browse UI.
+
+**NOT done this session, flagged not hidden**: deep Library
+(`AcademicContent`) integration into the same Section>Subject>Topic tree —
+`AcademicContent` has no `topic` field at all (it's institution-scoped
+uploaded documents: notes/PDFs/past papers, not authored lesson sequences
+like `PublicCourse`), and its `level` values (`kAcademicLevels`: Form 1-5,
+Lower/Upper Sixth, ...) don't line up 1:1 with the new section names.
+Forcing Library items into the exact same 4th-tier would have meant adding
+a topic-granularity field to a live content model with unclear author-side
+semantics — bigger than this session's scope and not something to guess
+silently. Cross-linking Library content into Course Navigation by subject
+(a "resources for this subject" rail on the Subject tier) is the natural
+next step but wasn't built here.
+
+**Environment note, not caused by this work**: `flutter analyze` on the
+full project currently reports ~165 errors, ALL of them missing-file /
+undefined-symbol errors from ~42 Institution/School-management files
+(`models/institution.dart`, `features/school_management/`,
+`repositories/institution_repository.dart`, `providers/institution_
+provider.dart`, etc.) that are deleted in the working tree but not
+committed, not stashed, not touched by this session. `git stash list`
+shows two "external WIP" stashes from a concurrent session, and none of
+these 42 deletions are in either stash — strong signal another
+process/session is actively mid-edit on this same working tree right now.
+Deliberately did not touch, restore, or stage any of those files — out of
+scope, high blast radius, and someone else's in-progress work. Verified
+every file this session created/edited individually appears with zero
+errors in that same analyze run (course_navigation_page.dart and
+course_browse_page.dart don't appear in the error output at all; the only
+two hits under `course_composer_page.dart`/`courses_marketplace_page.dart`
+are pre-existing `deprecated_member_use` infos on lines this session never
+touched). Committed only the exact files this session created/modified by
+name, never `git add -A`, so as not to sweep the other session's WIP into
+this commit.
+
+Files created: `lib/models/academic_section.dart`,
+`lib/repositories/academic_section_repository.dart`,
+`lib/features/courses_marketplace/course_navigation_page.dart`.
+Files modified: `lib/models/test.dart`, `lib/repositories/test_repository.dart`,
+`lib/repositories/public_course_repository.dart`,
+`lib/features/courses_marketplace/course_browse_page.dart`,
+`lib/features/courses_marketplace/course_composer_page.dart`,
+`lib/features/courses_marketplace/courses_marketplace_page.dart`,
+`lib/features/courses_marketplace/course_reader_page.dart`,
+`lib/widgets/app_drawer.dart`.
   - **Per-message read receipts (the double-check icon) were ALREADY
     real** -- `readBy` array per message, `markConversationRead()`
     batch-updates it on open, `_MessageBubble` reads

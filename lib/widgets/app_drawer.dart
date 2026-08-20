@@ -27,6 +27,7 @@ import '../features/onboarding/account_choice_screen.dart';
 import '../screens/login_screen.dart';
 import '../models/school_config.dart';
 import '../features/courses_marketplace/courses_marketplace_page.dart';
+import '../features/courses_marketplace/course_navigation_page.dart';
 import '../features/clubs/clubs_page.dart';
 import '../features/academic_content/academic_content_page.dart';
 import '../features/messages/messages_home_page.dart';
@@ -34,7 +35,7 @@ import '../models/academic_content.dart';
 import '../features/magazine/magazine_feed_page.dart';
 import '../pages/notifications_page.dart';
 import '../pages/help_support_page.dart';
-import '../features/testing/tests_subject_picker_page.dart';
+import '../features/testing/quiz_categories_page.dart';
 import '../features/testing/grading_page.dart';
 import '../features/testing/test_composer_page.dart';
 
@@ -62,6 +63,10 @@ class AppDrawer extends StatelessWidget {
                 _item(context, ac, Icons.school_rounded, 'Courses', () {
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => CoursesMarketplacePage(user: user)));
+                }),
+                _item(context, ac, Icons.account_tree_rounded, 'Course Navigation', () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => CourseNavigationPage(currentUser: user)));
                 }),
                 _item(context, ac, Icons.folder_copy_rounded, 'Content Library', () {
                   if (_isGuest) {
@@ -94,7 +99,7 @@ class AppDrawer extends StatelessWidget {
                 }),
                 _item(context, ac, Icons.quiz_rounded, 'Tests & Quizzes', () {
                   Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => TestsSubjectPickerPage(user: user ?? AppUser.guest())));
+                      builder: (_) => QuizCategoriesPage(user: user ?? AppUser.guest())));
                 }),
                 _item(context, ac, Icons.chat_bubble_outline_rounded, 'Messages', () {
                   if (_isGuest) {

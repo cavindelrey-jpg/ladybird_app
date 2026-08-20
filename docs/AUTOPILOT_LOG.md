@@ -3972,3 +3972,66 @@ itself fully clean. `AccountType.linked`/`AccountType.guest` enum values
 were left as-is (harmless unused-in-practice values) rather than
 collapsing to just `independent`, since removing them would cascade into
 `accountTypeLabel`/model-equality call sites for no functional gain.
+
+## Session (2026-08-20, same day continued): integrated a large uncommitted Clubs/Messages/Magazine remake
+
+After the entitlement-system commit above, `flutter analyze` picked up a
+SEPARATE, large, uncommitted change set already sitting in the working
+tree (not authored by this session — dropped in as new files: a Clubs/
+Messages/Magazine remake covering real presence, a local disk cache for
+the inbox, media-viewer widgets, club logo photos, and magazine search).
+User confirmed: integrate it, analyze, commit, push.
+
+- Applied `patches/UserAvatar_patch.md` (a hand-off note left for exactly
+  this) to `widgets/widgets.dart` — `UserAvatar` now renders photos
+  through `Image.network`'s `loadingBuilder`/`errorBuilder` instead of
+  `CircleAvatar.backgroundImage` (which silently paints a blank circle on
+  a slow/404 load, with no way to show a fallback), plus optional
+  `showPresenceDot`/`online`/`presenceBorderColor` params. Fixed one bug
+  IN the patch itself while applying it: it declared
+  `presenceBorderColor` but the sample code never read it (hardcoded
+  `ac.bg` instead) — wired it through for real. Deleted the patch file
+  after applying it (a consumed hand-off note, not a permanent doc).
+- `test/club_unread_test.dart` no longer compiled — `clubHasUnreadMessages`
+  and `ClubMember.lastReadAt` (a previous session's unread-badge feature)
+  were removed by this remake, replaced by a real "members online"
+  presence stat (`ClubRepository.pingClubActive`/`watchOnlineCount`).
+  `messages_home_page.dart` states this explicitly ("Club has none of
+  those concepts yet"), confirming it's a deliberate design change, not
+  an oversight — deleted the orphaned test rather than reinventing a
+  feature the current design intentionally dropped.
+- `firestore.rules`: found and fixed two real gaps this remake would have
+  hit in production. (1) The `clubs/{id}/members/{id}` self-service
+  branch still named the now-unused `lastReadAt` field, not the new
+  presence write's `lastActiveAt` — `pingClubActive()` would have failed
+  permission-denied for every ordinary member. (2) `toggleReplyLike()`/
+  `watchIsReplyLiked()` are new repository methods with NO matching rule
+  at all — added a `likeCount`-only self-service branch (mirroring the
+  existing `posts/{id}` pattern) plus a nested `replies/{id}/likes/{userId}`
+  rule. `messaging_repository.dart`'s presence/cache/unread-count changes
+  needed no rule changes — all covered by the existing broad
+  participant-scoped `conversations/{id}` update rule.
+- Verified `magazine_repository.dart`'s new `searchArticles()` is
+  read-only against `articles/{id}` (already publicly readable when
+  published) — no rule gap there.
+
+**Verification**: `flutter analyze` 0 errors (39 pre-existing style
+infos/warnings — same baseline class, a few new ones from the new files
+themselves). `flutter test`: 43/43 passing (one earlier run showed a
+"Connection closed before test suite loaded" on one suite — traced to a
+stale background `flutter test` process from earlier in this same
+session still holding a VM-service port; killed it via `TaskStop` and the
+retry was clean). Committed (19 files, scoped the same way as the prior
+commit — `git add -u` plus the specific new files, still excluding the
+same unrelated root-level clutter and the untouched `features/testing/*`
+WIP) and **pushed** to `origin/demo-prep` on explicit user request
+(`ecd02d7..a3c8860`).
+
+**Environment note for future sessions**: `git` and `flutter` commands
+issued through the Bash tool intermittently hung indefinitely in this
+sandbox this session (fork/spawn errors, or silent hangs on `git status`/
+`git diff`/`git commit` with a heredoc body) — PowerShell was reliable
+for the same commands throughout. `git commit -m` with a multi-line
+PowerShell here-string also failed ("not a git command", an argument-
+passing issue); `git commit -F <file>` worked. If Bash git commands start
+hanging again, switch to PowerShell rather than retrying Bash repeatedly.

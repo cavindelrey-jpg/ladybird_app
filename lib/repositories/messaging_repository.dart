@@ -3,7 +3,26 @@
 // (mutual, request-gated) is what unlocks messaging — Following
 // (FollowRepository) is a completely separate, one-way relationship and
 // grants no messaging rights on its own.
+//
+// ── 2024 remake changes ────────────────────────────────────────────────
+// - watchConversations / watchMessages now emit a cached snapshot
+//   immediately (via MessageCacheService) before the live Firestore
+//   listener attaches, and write every live update back to the cache.
+//   See message_cache_service.dart's file header for the reasoning.
+// - pingActive(): a real (not faked) per-conversation "I have this
+//   thread open right now" signal, built the exact same way setTyping()
+//   already was — a cheap merged field write, no new collection.
+// - unreadCount was declared on Conversation and read in the UI
+//   (messages_home_page.dart's inbox badge) but never actually written
+//   anywhere — sendMessage() didn't increment it and
+//   markConversationRead() didn't reset it, so the badge was always 0.
+//   Fixed in both places below.
+// - sendMessage() gained `recipientId` (needed for the unreadCount fix
+//   above — Firestore has no "every participant except the sender"
+//   update) and `sharedThumbnailUrl` (denormalized alongside the
+//   existing sharedTitle/sharedSubtitle, same treatment).
 
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
@@ -11,6 +30,7 @@ import '../models/messaging.dart';
 import '../models/app_user.dart';
 import '../core/constants.dart';
 import '../core/result.dart';
+import '../services/message_cache_service.dart';
 
 class MessagingRepository {
   MessagingRepository._();
@@ -210,15 +230,49 @@ class MessagingRepository {
     }
   }
 
-  Stream<List<Conversation>> watchConversations(String userId) => _conversations
-      .where('participantIds', arrayContains: userId)
-      .orderBy('lastMessageAt', descending: true)
-      .snapshots()
-      .map((s) => s.docs.map(Conversation.fromFirestore).toList());
+  /// Recency-sorted conversations for [userId]. Emits a cached snapshot
+  /// first (if one exists on disk from a previous session) so the inbox
+  /// paints instantly instead of sitting blank until the first Firestore
+  /// snapshot arrives, then switches to — and stays on — the live
+  /// stream. Every live update is written back to the cache so the next
+  /// cold start has fresher data to paint. See message_cache_service.dart.
+  Stream<List<Conversation>> watchConversations(String userId) {
+    late final StreamController<List<Conversation>> controller;
+    StreamSubscription<List<Conversation>>? liveSub;
 
-  /// Single conversation doc — backs the typing indicator and anything
-  /// else the chat screen needs from the conversation itself rather than
-  /// its message subcollection.
+    controller = StreamController<List<Conversation>>(
+      onListen: () {
+        MessageCacheService.instance.getConversations(userId).then((cached) {
+          if (cached.isNotEmpty && !controller.isClosed) controller.add(cached);
+        });
+        liveSub = _conversations
+            .where('participantIds', arrayContains: userId)
+            .orderBy('lastMessageAt', descending: true)
+            .snapshots()
+            .map((s) => s.docs.map(Conversation.fromFirestore).toList())
+            .listen(
+              (live) {
+                if (controller.isClosed) return;
+                controller.add(live);
+                unawaited(MessageCacheService.instance.putConversations(userId, live));
+              },
+              onError: (Object e, StackTrace st) {
+                if (!controller.isClosed) controller.addError(e, st);
+              },
+            );
+      },
+      onCancel: () async {
+        await liveSub?.cancel();
+        if (!controller.isClosed) await controller.close();
+      },
+    );
+    return controller.stream;
+  }
+
+  /// Single conversation doc — backs the typing indicator, the
+  /// per-conversation presence dot, and anything else the chat screen
+  /// needs from the conversation itself rather than its message
+  /// subcollection.
   Stream<Conversation?> watchConversation(String conversationId) => _conversations
       .doc(conversationId)
       .snapshots()
@@ -239,34 +293,73 @@ class MessagingRepository {
     }
   }
 
-  /// Live message stream, most-recent [limit] messages. Previously had no
-  /// limit at all — every conversation open re-fetched and re-listened to
-  /// the ENTIRE message history, the one thing that visibly diverged from
-  /// WhatsApp/Telegram-tier smoothness as a thread grew (slow first load,
-  /// unbounded Firestore read cost). `limitToLast` + ascending order keeps
-  /// the query index-free (same single-field orderBy as before) while
-  /// bounding what's fetched to a recent window.
-  Stream<List<ChatMessage>> watchMessages(String conversationId, {int limit = 60}) => _conversations
-      .doc(conversationId)
-      .collection(AppConstants.colMessages)
-      .orderBy('sentAt')
-      .limitToLast(limit)
-      .snapshots()
-      .map((s) => s.docs.map((d) => ChatMessage.fromFirestore(d, conversationId)).toList());
+  /// Records that [userId] currently has [conversationId]'s screen open.
+  /// Call sites should ping this on open and on a slow interval (e.g.
+  /// every 45-60s) while the screen stays mounted — see
+  /// Conversation.activeAt / isRecentlyActive for how readers interpret
+  /// it, and this file's header comment for why this is real presence
+  /// rather than a faked global "online" flag.
+  Future<void> pingActive(String conversationId, String userId) async {
+    try {
+      await _conversations.doc(conversationId)
+          .set({'activeAt': {userId: FieldValue.serverTimestamp()}}, SetOptions(merge: true))
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // best-effort — same reasoning as setTyping
+    }
+  }
 
-  /// [recipientId] is the other participant in this (1:1-only, for now)
-  /// conversation — passed explicitly by the caller rather than read back
-  /// from the conversation doc, so this stays a single write with no extra
-  /// read. When provided, their `unreadCount` is atomically incremented in
-  /// the SAME batch as the message write and the lastMessage* preview
-  /// update — see the doc comment on [markConversationRead] for the other
-  /// half of this (resetting it to 0 on open). Optional (defaults null,
-  /// a true no-op) so this doesn't break any caller that hasn't been
-  /// updated to pass it.
+  /// Live message stream, most-recent [limit] messages. Emits a cached
+  /// snapshot first (see watchConversations doc comment — same pattern,
+  /// same reasoning) so reopening a conversation shows the last-known
+  /// messages immediately instead of a loading spinner, then the live
+  /// window takes over. `limitToLast` + ascending order keeps the query
+  /// index-free (a single-field orderBy) while bounding what's fetched
+  /// to a recent window.
+  Stream<List<ChatMessage>> watchMessages(String conversationId, {int limit = 60}) {
+    late final StreamController<List<ChatMessage>> controller;
+    StreamSubscription<List<ChatMessage>>? liveSub;
+
+    controller = StreamController<List<ChatMessage>>(
+      onListen: () {
+        MessageCacheService.instance.getMessages(conversationId).then((cached) {
+          if (cached.isNotEmpty && !controller.isClosed) controller.add(cached);
+        });
+        liveSub = _conversations
+            .doc(conversationId)
+            .collection(AppConstants.colMessages)
+            .orderBy('sentAt')
+            .limitToLast(limit)
+            .snapshots()
+            .map((s) => s.docs.map((d) => ChatMessage.fromFirestore(d, conversationId)).toList())
+            .listen(
+              (live) {
+                if (controller.isClosed) return;
+                controller.add(live);
+                unawaited(MessageCacheService.instance.putMessages(conversationId, live));
+              },
+              onError: (Object e, StackTrace st) {
+                if (!controller.isClosed) controller.addError(e, st);
+              },
+            );
+      },
+      onCancel: () async {
+        await liveSub?.cancel();
+        if (!controller.isClosed) await controller.close();
+      },
+    );
+    return controller.stream;
+  }
+
   Future<Result<void>> sendMessage({
     required String conversationId,
     required String senderId,
     required String senderName,
+    /// The other participant — used only to increment their unread
+    /// counter (Firestore has no "increment for everyone except X"
+    /// update). Optional so this stays source-compatible with any other
+    /// call site; unreadCount simply won't advance without it.
+    String? recipientId,
     String text = '',
     String? imageUrl,
     String? videoUrl,
@@ -276,7 +369,7 @@ class MessagingRepository {
     String? sharedId,
     String? sharedTitle,
     String? sharedSubtitle,
-    String? recipientId,
+    String? sharedThumbnailUrl,
   }) async {
     try {
       final batch = _db.batch();
@@ -285,7 +378,8 @@ class MessagingRepository {
         id: '', conversationId: conversationId, senderId: senderId, senderName: senderName,
         text: text, imageUrl: imageUrl, videoUrl: videoUrl, fileUrl: fileUrl, fileName: fileName,
         sentAt: DateTime.now(), readBy: [senderId],
-        sharedType: sharedType, sharedId: sharedId, sharedTitle: sharedTitle, sharedSubtitle: sharedSubtitle,
+        sharedType: sharedType, sharedId: sharedId, sharedTitle: sharedTitle,
+        sharedSubtitle: sharedSubtitle, sharedThumbnailUrl: sharedThumbnailUrl,
       ).toFirestore());
 
       final preview = text.isNotEmpty ? text
@@ -293,12 +387,16 @@ class MessagingRepository {
           : (videoUrl != null ? '🎥 Video'
           : (fileUrl != null ? '📎 ${fileName ?? "File"}'
           : (sharedType != null ? '${_sharedContentEmoji(sharedType)} ${sharedTitle ?? sharedType.label}' : ''))));
-      batch.update(_conversations.doc(conversationId), {
+      final convUpdate = <String, dynamic>{
         'lastMessageText': preview,
         'lastMessageSenderId': senderId,
         'lastMessageAt': FieldValue.serverTimestamp(),
-        if (recipientId != null) 'unreadCount.$recipientId': FieldValue.increment(1),
-      });
+      };
+      // See file header — unreadCount was previously never written.
+      if (recipientId != null && recipientId.isNotEmpty) {
+        convUpdate['unreadCount.$recipientId'] = FieldValue.increment(1);
+      }
+      batch.update(_conversations.doc(conversationId), convUpdate);
       await batch.commit();
       return const Success(null);
     } catch (e) {
@@ -419,18 +517,11 @@ class MessagingRepository {
   /// directly) — fine for normal conversation lengths; revisit with a
   /// denormalized unread-count field if history grows very large.
   ///
-  /// Also resets [userId]'s `unreadCount` entry to 0 — the other half of
-  /// sendMessage()'s increment. Done as its own best-effort write (not
-  /// batched with the readBy updates below) so a conversation with zero
-  /// unread messages still clears a stale unreadCount left over from
-  /// before this reset existed, and so one failing doesn't block the
-  /// other.
+  /// Also resets [userId]'s entry in `unreadCount` to 0 — always, even
+  /// if there was nothing to update in `readBy` above, since the two are
+  /// otherwise independent writes and a stale badge is worse than one
+  /// extra cheap field update.
   Future<void> markConversationRead(String conversationId, String userId) async {
-    try {
-      await _conversations.doc(conversationId).update({'unreadCount.$userId': 0});
-    } catch (_) {
-      // best-effort — same reasoning as the readBy update below
-    }
     try {
       final recent = await _conversations
           .doc(conversationId)
@@ -442,11 +533,11 @@ class MessagingRepository {
         final readBy = List<String>.from(d.data()['readBy'] ?? []);
         return !readBy.contains(userId);
       });
-      if (toUpdate.isEmpty) return;
       final batch = _db.batch();
       for (final doc in toUpdate) {
         batch.update(doc.reference, {'readBy': FieldValue.arrayUnion([userId])});
       }
+      batch.update(_conversations.doc(conversationId), {'unreadCount.$userId': 0});
       await batch.commit();
     } catch (_) {
       // best-effort — a failed read-receipt update shouldn't block the UI

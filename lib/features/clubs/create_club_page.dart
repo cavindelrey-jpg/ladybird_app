@@ -3,6 +3,14 @@
 // its admin automatically (ClubRepository.createClub already sets this up).
 // This screen was the missing piece: the backend supported it, there was
 // just no UI to reach it.
+//
+// ── Clubs remake change ─────────────────────────────────────────────────
+// The emoji picker grid is gone. A club's real logo is now
+// Club.thumbnailUrl — an actual photo the founder picks here (separate
+// from the wide banner, which already existed). `_emoji` is kept
+// internally only as the invisible fallback icon key (see
+// theme/club_visuals.dart's ClubLogo) shown until a thumbnail is
+// uploaded, auto-derived from category rather than picked by anyone.
 
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -14,7 +22,7 @@ import '../../models/club.dart';
 import '../../repositories/club_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
-import '../../theme/app_colors.dart';
+import '../../theme/club_visuals.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'clubs_page.dart';
@@ -22,10 +30,6 @@ import 'clubs_page.dart';
 const _kClubCategories = [
   'General', 'Academic', 'Debate', 'Sports', 'Arts',
   'Tech', 'Language', 'Volunteering',
-];
-
-const _kEmojiSuggestions = [
-  '🎓', '📚', '🎨', '⚽', '🎭', '🧪', '💻', '🎵', '♟️', '🌍', '🗣️', '📷',
 ];
 
 class CreateClubPage extends StatefulWidget {
@@ -40,11 +44,16 @@ class _CreateClubPageState extends State<CreateClubPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
-  String _emoji = '🎓';
+
+  /// Invisible fallback only — see file header. Kept in sync with
+  /// [_category] so a club that never uploads a thumbnail still shows a
+  /// sensible icon rather than the generic default.
+  String _emoji = ClubVisuals.categoryDefaultKey['General']!;
   String _category = 'General';
   bool _restrictToSchool = true;
   bool _requiresApproval = false;
   File? _bannerFile;
+  File? _thumbnailFile;
   bool _saving = false;
   String? _error;
 
@@ -60,6 +69,19 @@ class _CreateClubPageState extends State<CreateClubPage> {
   Future<void> _pickBanner() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (picked != null) setState(() => _bannerFile = File(picked.path));
+  }
+
+  Future<void> _pickThumbnail() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked != null) setState(() => _thumbnailFile = File(picked.path));
+  }
+
+  void _onCategoryChanged(String? v) {
+    if (v == null) return;
+    setState(() {
+      _category = v;
+      _emoji = ClubVisuals.categoryDefaultKey[v] ?? _emoji;
+    });
   }
 
   Future<void> _create() async {
@@ -90,16 +112,27 @@ class _CreateClubPageState extends State<CreateClubPage> {
     }
     final newId = (result as Success<String>).value;
 
+    // Banner and thumbnail are two independent uploads to two independent
+    // Storage paths (see ClubRepository.uploadBanner/uploadThumbnail) —
+    // one failing shouldn't block the other or the club's creation,
+    // which has already succeeded by this point.
+    String? bannerUrl;
     if (_bannerFile != null) {
       final upload = await repo.uploadBanner(clubId: newId, imageFile: _bannerFile!);
-      if (upload is Success<String>) {
-        await repo.updateClub(Club(
-          id: newId, name: club.name, emoji: club.emoji, description: club.description,
-          moderatorName: club.moderatorName, moderatorId: club.moderatorId,
-          category: club.category, bannerUrl: upload.value, schoolId: club.schoolId,
-          requiresApproval: club.requiresApproval,
-        ));
-      }
+      if (upload is Success<String>) bannerUrl = upload.value;
+    }
+    String? thumbnailUrl;
+    if (_thumbnailFile != null) {
+      final upload = await repo.uploadThumbnail(clubId: newId, imageFile: _thumbnailFile!);
+      if (upload is Success<String>) thumbnailUrl = upload.value;
+    }
+    if (bannerUrl != null || thumbnailUrl != null) {
+      await repo.updateClub(Club(
+        id: newId, name: club.name, emoji: club.emoji, description: club.description,
+        moderatorName: club.moderatorName, moderatorId: club.moderatorId,
+        category: club.category, bannerUrl: bannerUrl, thumbnailUrl: thumbnailUrl,
+        schoolId: club.schoolId, requiresApproval: club.requiresApproval,
+      ));
     }
 
     if (!mounted) return;
@@ -110,7 +143,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
         club: Club(
           id: newId, name: club.name, emoji: club.emoji, description: club.description,
           moderatorName: club.moderatorName, moderatorId: club.moderatorId,
-          category: club.category, bannerUrl: _bannerFile != null ? null : club.bannerUrl,
+          category: club.category, bannerUrl: bannerUrl, thumbnailUrl: thumbnailUrl,
           memberCount: 1, schoolId: club.schoolId, requiresApproval: club.requiresApproval,
         ),
         user: widget.user,
@@ -120,14 +153,13 @@ class _CreateClubPageState extends State<CreateClubPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: ac.bg,
+      backgroundColor: C.bg,
       appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
+        backgroundColor: C.bg, elevation: 0,
+        iconTheme: const IconThemeData(color: C.txt),
         title: Text('Create a Club', style: GoogleFonts.sora(
-            fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
+            fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
       ),
       body: AppBackground(child: Form(
         key: _formKey,
@@ -146,7 +178,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
                 child: Container(
                 height: 120, width: double.infinity,
                 decoration: BoxDecoration(
-                  color: ac.navy, borderRadius: BorderRadius.circular(Rad.md),
+                  color: C.navy, borderRadius: BorderRadius.circular(Rad.md),
                   image: _bannerFile != null
                       ? DecorationImage(image: FileImage(_bannerFile!), fit: BoxFit.cover)
                       : null,
@@ -154,51 +186,71 @@ class _CreateClubPageState extends State<CreateClubPage> {
                 child: _bannerFile == null
                     ? const Center(child: Icon(Icons.add_photo_alternate_outlined,
                         color: Colors.white70, size: 28))
-                    : null,
+                    : Align(
+                        alignment: Alignment.bottomRight,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
+                            child: const Icon(Icons.edit, color: Colors.white, size: 16),
+                          ),
+                        ),
+                      ),
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Center(
-              child: Text('Banner (optional)', style: GoogleFonts.inter(fontSize: 11.5, color: ac.muted)),
+              child: Text('Banner — the wide cover photo on your club page', style: GoogleFonts.inter(fontSize: 11.5, color: C.muted)),
             ),
             const SizedBox(height: 20),
-            Text('Emoji', style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8, runSpacing: 8,
-              children: _kEmojiSuggestions.map((e) {
-                final selected = e == _emoji;
-                return Material(
+            // The club's real logo — an actual picture, not a pick-from-a-
+            // set icon. Shown as the small badge on every club card and
+            // the big circle on the club page until this is set, a
+            // category-based icon fills in automatically (see ClubLogo).
+            Center(
+              child: Column(children: [
+                Material(
                   color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(Rad.sm),
+                  shape: const CircleBorder(),
                   child: InkWell(
-                    borderRadius: BorderRadius.circular(Rad.sm),
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      setState(() => _emoji = e);
-                    },
+                    customBorder: const CircleBorder(),
+                    onTap: () { HapticFeedback.selectionClick(); _pickThumbnail(); },
                     child: Container(
-                      width: 44, height: 44,
+                      width: 92, height: 92,
                       decoration: BoxDecoration(
-                        color: selected ? ac.goldBg : ac.surf3,
-                        borderRadius: BorderRadius.circular(Rad.sm),
-                        border: Border.all(color: selected ? ac.gold : ac.bdr),
+                        color: C.surf3, shape: BoxShape.circle,
+                        border: Border.all(color: C.bdr),
+                        image: _thumbnailFile != null
+                            ? DecorationImage(image: FileImage(_thumbnailFile!), fit: BoxFit.cover)
+                            : null,
                       ),
-                      child: Center(child: Text(e, style: const TextStyle(fontSize: 20))),
+                      child: _thumbnailFile == null
+                          ? Icon(Icons.add_a_photo_outlined, color: C.muted, size: 26)
+                          : Align(
+                              alignment: Alignment.bottomRight,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
+                                child: const Icon(Icons.edit, color: Colors.white, size: 14),
+                              ),
+                            ),
                     ),
                   ),
-                );
-              }).toList(),
+                ),
+                const SizedBox(height: 6),
+                Text('Club logo', style: GoogleFonts.inter(fontSize: 11.5, color: C.muted)),
+              ]),
             ),
             const SizedBox(height: 20),
             TextFormField(
               controller: _nameCtrl,
-              style: GoogleFonts.inter(fontSize: 14, color: ac.txt),
+              style: GoogleFonts.inter(fontSize: 14, color: C.txt),
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Club name is required' : null,
               decoration: InputDecoration(
                 labelText: 'Club Name',
-                filled: true, fillColor: ac.surf3,
+                filled: true, fillColor: C.surf3,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
               ),
             ),
@@ -206,11 +258,11 @@ class _CreateClubPageState extends State<CreateClubPage> {
             TextFormField(
               controller: _descCtrl,
               maxLines: 3,
-              style: GoogleFonts.inter(fontSize: 14, color: ac.txt),
+              style: GoogleFonts.inter(fontSize: 14, color: C.txt),
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Add a short description' : null,
               decoration: InputDecoration(
                 labelText: 'Description',
-                filled: true, fillColor: ac.surf3,
+                filled: true, fillColor: C.surf3,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
               ),
             ),
@@ -219,29 +271,29 @@ class _CreateClubPageState extends State<CreateClubPage> {
               initialValue: _category,
               decoration: InputDecoration(
                 labelText: 'Category',
-                filled: true, fillColor: ac.surf3,
+                filled: true, fillColor: C.surf3,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
               ),
               items: _kClubCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-              onChanged: (v) => setState(() => _category = v!),
+              onChanged: _onCategoryChanged,
             ),
             if (_isSchoolLinked) ...[
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                    color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
+                    color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
                 child: SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text('Restrict to my school', style: GoogleFonts.inter(
-                      fontSize: 13.5, fontWeight: FontWeight.w600, color: ac.txt)),
+                      fontSize: 13.5, fontWeight: FontWeight.w600, color: C.txt)),
                   subtitle: Text(
                       _restrictToSchool
                           ? 'Only people at your school will see this club.'
                           : 'Open to everyone on Academia.',
-                      style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
+                      style: GoogleFonts.inter(fontSize: 11.5, color: C.txt2)),
                   value: _restrictToSchool,
-                  activeThumbColor: ac.gold,
+                  activeThumbColor: C.gold,
                   onChanged: (v) => setState(() => _restrictToSchool = v),
                 ),
               ),
@@ -250,18 +302,18 @@ class _CreateClubPageState extends State<CreateClubPage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                  color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
+                  color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
               child: SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text('Require approval to join', style: GoogleFonts.inter(
-                    fontSize: 13.5, fontWeight: FontWeight.w600, color: ac.txt)),
+                    fontSize: 13.5, fontWeight: FontWeight.w600, color: C.txt)),
                 subtitle: Text(
                     _requiresApproval
                         ? 'People must request to join — you approve each one.'
                         : 'Anyone can join instantly.',
-                    style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
+                    style: GoogleFonts.inter(fontSize: 11.5, color: C.txt2)),
                 value: _requiresApproval,
-                activeThumbColor: ac.gold,
+                activeThumbColor: C.gold,
                 onChanged: (v) => setState(() => _requiresApproval = v),
               ),
             ),
@@ -269,20 +321,20 @@ class _CreateClubPageState extends State<CreateClubPage> {
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: ac.redBg, borderRadius: BorderRadius.circular(Rad.sm)),
-                child: Text(_error!, style: GoogleFonts.inter(fontSize: 12, color: ac.red)),
+                decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(Rad.sm)),
+                child: Text(_error!, style: GoogleFonts.inter(fontSize: 12, color: C.red)),
               ),
             ],
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
+              decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
               child: Row(children: [
-                Icon(Icons.info_outline_rounded, size: 16, color: ac.primary),
+                const Icon(Icons.info_outline_rounded, size: 16, color: C.primary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text("You'll be the club's admin — you can add moderators later from Members.",
-                      style: GoogleFonts.inter(fontSize: 11.5, color: ac.primary)),
+                      style: GoogleFonts.inter(fontSize: 11.5, color: C.primary)),
                 ),
               ]),
             ),

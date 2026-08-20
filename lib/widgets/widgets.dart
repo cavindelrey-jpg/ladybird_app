@@ -9,6 +9,7 @@ import '../models/public_course.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 import '../config/branding.dart';
+import 'chat_media_widgets.dart' show PresenceDot;
 
 // ════════════════════════════════════════════════════════════════════════════
 // BUTTONS
@@ -526,27 +527,64 @@ class UserAvatar extends StatelessWidget {
   final Color? fg;
   final String? photoUrl;
   final VoidCallback? onTap;
+
+  /// Whether to draw the small presence dot in the bottom-right corner.
+  /// Off by default so every existing call site is unaffected.
+  final bool showPresenceDot;
+
+  /// Only read when [showPresenceDot] is true. Callers should pass a
+  /// REAL signal — e.g. Conversation.isRecentlyActive(userId) — never a
+  /// hardcoded true. See messaging.dart's Conversation.activeAt doc
+  /// comment for why this project treats presence this way.
+  final bool online;
+
+  /// Color the presence dot's ring is drawn in, so it reads as a "cutout"
+  /// against whatever surface the avatar sits on. Defaults to
+  /// AppColors.surf (the common case — ACard rows); pass ac.bg explicitly
+  /// for avatars on the page/AppBar background instead of a card.
+  final Color? presenceBorderColor;
+
   const UserAvatar({
     super.key, required this.initials, this.radius = 20,
     this.bg, this.fg, this.photoUrl, this.onTap,
+    this.showPresenceDot = false, this.online = false, this.presenceBorderColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final avatar = photoUrl != null
-        ? CircleAvatar(
-            radius: radius,
-            backgroundImage: NetworkImage(photoUrl!),
-            onBackgroundImageError: (_, __) {},
-          )
-        : CircleAvatar(
-            radius: radius,
-            backgroundColor: bg ?? ac.primaryBg,
-            child: Text(initials, style: TextStyle(
-                fontSize: radius * 0.6, fontWeight: FontWeight.w700,
-                color: fg ?? ac.primary)),
-          );
+    final size = radius * 2;
+
+    Widget avatar;
+    if (photoUrl != null && photoUrl!.isNotEmpty) {
+      avatar = ClipOval(
+        child: Image.network(
+          photoUrl!,
+          width: size, height: size, fit: BoxFit.cover,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return _initialsCircle(ac);
+          },
+          // The actual fix: on failure, fall back to a REAL initials
+          // circle instead of CircleAvatar's silent blank paint.
+          errorBuilder: (context, error, stack) => _initialsCircle(ac),
+        ),
+      );
+    } else {
+      avatar = _initialsCircle(ac);
+    }
+
+    if (showPresenceDot) {
+      avatar = Stack(clipBehavior: Clip.none, children: [
+        avatar,
+        Positioned(
+          right: -1, bottom: -1,
+          child: PresenceDot(online: online, size: (radius * 0.62).clamp(9, 16),
+              borderColor: presenceBorderColor ?? ac.surf),
+        ),
+      ]);
+    }
+
     if (onTap == null) return avatar;
     return Material(
       color: Colors.transparent,
@@ -555,6 +593,14 @@ class UserAvatar extends StatelessWidget {
       child: InkWell(onTap: onTap, child: avatar),
     );
   }
+
+  Widget _initialsCircle(AppColors ac) => CircleAvatar(
+        radius: radius,
+        backgroundColor: bg ?? ac.primaryBg,
+        child: Text(initials, style: TextStyle(
+            fontSize: radius * 0.6, fontWeight: FontWeight.w700,
+            color: fg ?? ac.primary)),
+      );
 }
 
 // ════════════════════════════════════════════════════════════════════════════

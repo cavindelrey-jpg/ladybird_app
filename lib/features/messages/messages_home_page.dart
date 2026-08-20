@@ -10,6 +10,19 @@
 // Magazine/Past Papers are (there's nothing to "recommend" in an inbox),
 // so unlike those pages this one has no replacement recommendation rail --
 // a real absence, not a placeholder waiting to be filled.
+//
+// ── 2024 remake changes ────────────────────────────────────────────────
+// - The search bar was decorative — a styled Row with static placeholder
+//   text and no TextField, so typing into it was never actually
+//   possible. It's now a real TextField that filters Pinned/Recent by
+//   participant/club name and last-message text.
+// - Inbox rows show the real per-conversation presence dot (see
+//   Conversation.isRecentlyActive) instead of no indicator at all.
+// - watchConversations now emits a cached snapshot before the live
+//   Firestore listener attaches (see MessagingRepository), so this page
+//   paints instantly on a warm cache instead of showing the shimmer
+//   placeholder every time — no code change needed here, the
+//   StreamBuilder benefits automatically.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -23,6 +36,7 @@ import '../clubs/clubs_page.dart' show ClubDetailPage;
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/club_visuals.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
@@ -41,9 +55,19 @@ class MessagesHomePage extends StatefulWidget {
 class _MessagesHomePageState extends State<MessagesHomePage> {
   AppUser get user => widget.user;
 
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
+    final searching = _query.trim().isNotEmpty;
     return Scaffold(
       backgroundColor: ac.bg,
       body: AppBackground(child: SafeArea(
@@ -54,13 +78,17 @@ class _MessagesHomePageState extends State<MessagesHomePage> {
             const SizedBox(height: 10),
             _searchBar(context),
             const SizedBox(height: 16),
-            _followFriendCards(context),
-            const SizedBox(height: 20),
-            _friendRequestsSection(context),
-            const SizedBox(height: 20),
+            if (!searching) ...[
+              _followFriendCards(context),
+              const SizedBox(height: 20),
+              _friendRequestsSection(context),
+              const SizedBox(height: 20),
+            ],
             _recentConversationsSection(context),
-            const SizedBox(height: 24),
-            _howItWorksSection(ac),
+            if (!searching) ...[
+              const SizedBox(height: 24),
+              _howItWorksSection(ac),
+            ],
             const SizedBox(height: 20),
             _newMessageButton(context),
           ],
@@ -100,12 +128,29 @@ class _MessagesHomePageState extends State<MessagesHomePage> {
       child: Row(children: [
         Expanded(
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(14), border: Border.all(color: ac.bdr)),
             child: Row(children: [
               Icon(Icons.search_rounded, size: 18, color: ac.muted),
               const SizedBox(width: 8),
-              Text('Search people by name, course, or school…', style: AppText.bodySm.copyWith(color: ac.muted)),
+              Expanded(
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: (v) => setState(() => _query = v),
+                  style: AppText.bodySm.copyWith(color: ac.txt),
+                  decoration: InputDecoration(
+                    hintText: 'Search conversations…',
+                    hintStyle: AppText.bodySm.copyWith(color: ac.muted),
+                    border: InputBorder.none, isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              if (_query.isNotEmpty)
+                InkWell(
+                  onTap: () { _searchCtrl.clear(); setState(() => _query = ''); },
+                  child: Icon(Icons.close_rounded, size: 16, color: ac.muted),
+                ),
             ]),
           ),
         ),
@@ -244,7 +289,12 @@ class _MessagesHomePageState extends State<MessagesHomePage> {
   /// list of [_InboxEntry] — Club keeps its own real chat backend
   /// (clubs/{id}/messages), Conversation keeps its own; only the
   /// Messages-home LIST rendering is unified.
+  ///
+  /// When [_query] is non-empty this renders a flat, filtered "Search
+  /// Results" list instead of the Pinned/Recent split — see the file
+  /// header for why the search bar didn't do anything before.
   Widget _recentConversationsSection(BuildContext context) {
+    final query = _query.trim().toLowerCase();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: StreamBuilder<List<Conversation>>(
@@ -254,69 +304,88 @@ class _MessagesHomePageState extends State<MessagesHomePage> {
           return StreamBuilder<List<Club>>(
             stream: ClubRepository.instance.watchMyClubs(user.id),
             builder: (context, clubSnap) {
-              // clubId -> this user's lastReadAt in that club's Chat tab —
-              // see ClubRepository.watchMyClubReadState's doc comment for
-              // why Club unread is a timestamp comparison, not a counter
-              // like Conversation.unreadCount.
-              return StreamBuilder<Map<String, DateTime?>>(
-                stream: ClubRepository.instance.watchMyClubReadState(user.id),
-                builder: (context, readSnap) {
-                  final clubReadState = readSnap.data ?? const <String, DateTime?>{};
-                  if (convSnap.connectionState == ConnectionState.waiting) {
-                    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Recent Conversations', style: AppText.h2.copyWith(fontSize: 16)),
-                      const SizedBox(height: 12),
-                      ...List.generate(3, (_) => const Padding(
-                        padding: EdgeInsets.only(bottom: 10),
-                        child: Row(children: [
-                          ShimmerCircle(size: 44),
-                          SizedBox(width: 12),
-                          Expanded(child: ShimmerLine(height: 14)),
-                        ]),
-                      )),
-                    ]);
-                  }
-                  if (convSnap.hasError) {
-                    return Text('Failed to load: ${convSnap.error}', style: AppText.caption.copyWith(color: ac.red, fontSize: 11));
-                  }
-                  final conversations = convSnap.data ?? const <Conversation>[];
-                  final clubs = (clubSnap.data ?? const <Club>[])
-                      .where((c) => c.lastMessageAt != null) // a club with no chat activity isn't an "inbox" entry
-                      .toList();
-                  if (conversations.isEmpty && clubs.isEmpty) {
-                    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Recent Conversations', style: AppText.h2.copyWith(fontSize: 16)),
-                      const SizedBox(height: 12),
-                      Text('No conversations yet — find someone and send a friend request.', style: AppText.bodySm),
-                    ]);
-                  }
-                  final pinned = conversations.where((c) => c.pinnedBy.contains(user.id))
-                      .map<_InboxEntry>(_ConversationEntry.new).toList();
-                  final recent = <_InboxEntry>[
-                    ...conversations.where((c) => !c.pinnedBy.contains(user.id)).map(_ConversationEntry.new),
-                    ...clubs.map((c) => _ClubEntry(c, unread: clubHasUnreadMessages(
-                        lastMessageAt: c.lastMessageAt, lastReadAt: clubReadState[c.id]))),
-                  ]..sort((a, b) => b.lastMessageAt.compareTo(a.lastMessageAt));
-                  return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    if (pinned.isNotEmpty) ...[
-                      Row(children: [
-                        Icon(Icons.push_pin_rounded, size: 14, color: ac.gold),
-                        const SizedBox(width: 6),
-                        Text('Pinned', style: AppText.h2.copyWith(fontSize: 16)),
-                      ]),
-                      const SizedBox(height: 12),
-                      ...pinned.map((e) => _InboxRow(user: user, entry: e)),
-                      const SizedBox(height: 20),
-                    ],
-                    Text('Recent', style: AppText.h2.copyWith(fontSize: 16)),
-                    const SizedBox(height: 12),
-                    if (recent.isEmpty)
-                      Text('Nothing else — every conversation is pinned.', style: AppText.bodySm)
-                    else
-                      ...recent.map((e) => _InboxRow(user: user, entry: e)),
-                  ]);
-                },
-              );
+              if (convSnap.connectionState == ConnectionState.waiting) {
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(query.isEmpty ? 'Recent Conversations' : 'Search Results', style: AppText.h2.copyWith(fontSize: 16)),
+                  const SizedBox(height: 12),
+                  ...List.generate(3, (_) => const Padding(
+                    padding: EdgeInsets.only(bottom: 10),
+                    child: Row(children: [
+                      ShimmerCircle(size: 44),
+                      SizedBox(width: 12),
+                      Expanded(child: ShimmerLine(height: 14)),
+                    ]),
+                  )),
+                ]);
+              }
+              if (convSnap.hasError) {
+                CrashService.instance.recordError(convSnap.error, convSnap.stackTrace,
+                    context: 'MessagesHomePage.watchConversations(${user.id})');
+                return Text('Failed to load: ${convSnap.error}', style: AppText.caption.copyWith(color: ac.red, fontSize: 11));
+              }
+              final conversations = convSnap.data ?? const <Conversation>[];
+              final clubs = (clubSnap.data ?? const <Club>[])
+                  .where((c) => c.lastMessageAt != null) // a club with no chat activity isn't an "inbox" entry
+                  .toList();
+
+              bool convMatches(Conversation c) {
+                if (query.isEmpty) return true;
+                final other = c.participantNames[c.otherParticipantId(user.id)] ?? '';
+                return other.toLowerCase().contains(query) ||
+                    c.lastMessageText.toLowerCase().contains(query);
+              }
+              bool clubMatches(Club c) {
+                if (query.isEmpty) return true;
+                return c.name.toLowerCase().contains(query) ||
+                    (c.lastMessageText).toLowerCase().contains(query);
+              }
+
+              if (query.isNotEmpty) {
+                final results = <_InboxEntry>[
+                  ...conversations.where(convMatches).map(_ConversationEntry.new),
+                  ...clubs.where(clubMatches).map(_ClubEntry.new),
+                ]..sort((a, b) => b.lastMessageAt.compareTo(a.lastMessageAt));
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Search Results', style: AppText.h2.copyWith(fontSize: 16)),
+                  const SizedBox(height: 12),
+                  if (results.isEmpty)
+                    Text('No conversations match "${_query.trim()}".', style: AppText.bodySm)
+                  else
+                    ...results.map((e) => _InboxRow(user: user, entry: e)),
+                ]);
+              }
+
+              if (conversations.isEmpty && clubs.isEmpty) {
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Recent Conversations', style: AppText.h2.copyWith(fontSize: 16)),
+                  const SizedBox(height: 12),
+                  Text('No conversations yet — find someone and send a friend request.', style: AppText.bodySm),
+                ]);
+              }
+              final pinned = conversations.where((c) => c.pinnedBy.contains(user.id))
+                  .map<_InboxEntry>(_ConversationEntry.new).toList();
+              final recent = <_InboxEntry>[
+                ...conversations.where((c) => !c.pinnedBy.contains(user.id)).map(_ConversationEntry.new),
+                ...clubs.map(_ClubEntry.new),
+              ]..sort((a, b) => b.lastMessageAt.compareTo(a.lastMessageAt));
+              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (pinned.isNotEmpty) ...[
+                  Row(children: [
+                    Icon(Icons.push_pin_rounded, size: 14, color: ac.gold),
+                    const SizedBox(width: 6),
+                    Text('Pinned', style: AppText.h2.copyWith(fontSize: 16)),
+                  ]),
+                  const SizedBox(height: 12),
+                  ...pinned.map((e) => _InboxRow(user: user, entry: e)),
+                  const SizedBox(height: 20),
+                ],
+                Text('Recent', style: AppText.h2.copyWith(fontSize: 16)),
+                const SizedBox(height: 12),
+                if (recent.isEmpty)
+                  Text('Nothing else — every conversation is pinned.', style: AppText.bodySm)
+                else
+                  ...recent.map((e) => _InboxRow(user: user, entry: e)),
+              ]);
             },
           );
         },
@@ -370,7 +439,8 @@ class _MessagesHomePageState extends State<MessagesHomePage> {
 
 /// One entry in the merged inbox list — either a 1:1 [Conversation] or a
 /// [Club] (club chat), rendered by the same [_InboxRow]. Only
-/// Conversation supports pin/unread (Club has neither concept yet).
+/// Conversation supports pin/unread/presence (Club has none of those
+/// concepts yet).
 abstract class _InboxEntry {
   DateTime get lastMessageAt;
 }
@@ -384,8 +454,7 @@ class _ConversationEntry extends _InboxEntry {
 
 class _ClubEntry extends _InboxEntry {
   final Club club;
-  final bool unread;
-  _ClubEntry(this.club, {required this.unread});
+  _ClubEntry(this.club);
   @override
   DateTime get lastMessageAt => club.lastMessageAt!; // filtered non-null by the caller
 }
@@ -403,25 +472,18 @@ class _InboxRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final e = entry;
-    if (e is _ClubEntry) return _clubRow(context, e);
+    if (e is _ClubEntry) return _clubRow(context, e.club);
     return _conversationRow(context, (e as _ConversationEntry).conversation);
   }
 
-  Widget _clubRow(BuildContext context, _ClubEntry entry) {
-    final ac = AppColors.of(context);
-    final club = entry.club;
+  Widget _clubRow(BuildContext context, Club club) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: ACard(
         onTap: () => Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => ClubDetailPage(club: club, user: user))),
         child: Row(children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(color: ac.primaryBg, shape: BoxShape.circle),
-            alignment: Alignment.center,
-            child: Text(club.emoji, style: const TextStyle(fontSize: 20)),
-          ),
+          ClubLogo(club: club, size: 44),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -430,15 +492,7 @@ class _InboxRow extends StatelessWidget {
                   style: AppText.bodySm.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
             ]),
           ),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text(_relativeTime(club.lastMessageAt!), style: AppText.caption.copyWith(fontSize: 10.5)),
-            const SizedBox(height: 6),
-            if (entry.unread)
-              Container(
-                width: 10, height: 10,
-                decoration: BoxDecoration(color: ac.primary, shape: BoxShape.circle),
-              ),
-          ]),
+          Text(_relativeTime(club.lastMessageAt!), style: AppText.caption.copyWith(fontSize: 10.5)),
         ]),
       ),
     );
@@ -451,6 +505,7 @@ class _InboxRow extends StatelessWidget {
     final otherPhoto = conversation.participantPhotos[otherId];
     final unread = conversation.unreadCount[user.id] ?? 0;
     final isPinned = conversation.pinnedBy.contains(user.id);
+    final online = conversation.isRecentlyActive(otherId);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: GestureDetector(
@@ -466,7 +521,7 @@ class _InboxRow extends StatelessWidget {
                   otherUserId: otherId, otherUserName: otherName, otherUserPhoto: otherPhoto))),
           child: Row(children: [
             UserAvatar(initials: otherName.isEmpty ? '?' : otherName[0].toUpperCase(),
-                radius: 22, photoUrl: otherPhoto),
+                radius: 22, photoUrl: otherPhoto, showPresenceDot: true, online: online),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -643,13 +643,21 @@ service cloud.firestore {
           allow read: if true;
           allow create: if isSignedIn() && request.resource.data.authorId == request.auth.uid;
           // isBestAnswer is flipped by markBestAnswer() on behalf of the
-          // discussion's author/staff, not by the reply's own author —
-          // everything else about a reply stays author/staff-only.
+          // discussion's author/staff, not by the reply's own author.
+          // likeCount is bumped by ClubRepository.toggleReplyLike() on
+          // behalf of ANY signed-in member (same pattern as posts/{id}
+          // above) — everything else about a reply stays author/staff-only.
           allow update: if isOwner(resource.data.authorId) || canManageSchool() ||
             (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isBestAnswer']) &&
               (get(/databases/$(database)/documents/clubs/$(clubId)/discussions/$(discussionId)).data.authorId == request.auth.uid ||
-               (isClubMember(clubId) && clubMemberRole(clubId) in ['admin', 'moderator'])));
+               (isClubMember(clubId) && clubMemberRole(clubId) in ['admin', 'moderator']))) ||
+            (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount']));
           allow delete: if isOwner(resource.data.authorId) || canManageSchool();
+
+          match /likes/{userId} {
+            allow read: if true;
+            allow write: if isSignedIn() && request.auth.uid == userId;
+          }
         }
       }
 
@@ -678,12 +686,13 @@ service cloud.firestore {
           || (isClubMember(clubId) && clubMemberRole(clubId) == 'moderator'
               && resource.data.role in ['member', 'moderator']
               && request.resource.data.role in ['member', 'moderator'])
-          // Self-service read-receipt (ClubRepository.markClubRead) — any
-          // member, regardless of role, marking their OWN doc's
-          // lastReadAt only. Everything else about this doc (role in
-          // particular) stays gated on the branches above.
+          // Self-service presence heartbeat (ClubRepository.pingClubActive,
+          // the "X members online" hero stat) — any member, regardless of
+          // role, marking their OWN doc's lastActiveAt only. Everything
+          // else about this doc (role in particular) stays gated on the
+          // branches above.
           || (request.auth.uid == memberId &&
-              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastReadAt']))
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastActiveAt']))
         );
         allow delete: if isSignedIn() && (
           request.auth.uid == memberId // leave

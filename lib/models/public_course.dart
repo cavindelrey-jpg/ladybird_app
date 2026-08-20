@@ -86,6 +86,14 @@ class PublicCourse {
       subject.trim().isNotEmpty && level.trim().isNotEmpty && topic.trim().isNotEmpty;
 
   String? coverImageUrl;
+
+  /// Optional video lesson attached to this course — a "Video Course" in
+  /// account/entitlement terms. Gold-only: see AppFeature.coursesVideoLessons
+  /// in core/feature_access.dart, the single place this gate is decided.
+  /// Null/empty means this is a text-only lesson, same as before this field
+  /// existed.
+  String? videoUrl;
+
   bool published;
 
   int enrolledCount;  // "learners" — people who've started this course
@@ -115,6 +123,7 @@ class PublicCourse {
     this.order = 0,
     List<String>? prerequisiteIds,
     this.coverImageUrl,
+    this.videoUrl,
     this.published = true,
     this.enrolledCount = 0,
     this.avgRating = 0,
@@ -148,6 +157,7 @@ class PublicCourse {
       order: (d['order'] ?? 0).toDouble(),
       prerequisiteIds: List<String>.from(d['prerequisiteIds'] ?? const []),
       coverImageUrl: d['coverImageUrl'],
+      videoUrl: d['videoUrl'],
       published: d['published'] ?? true,
       enrolledCount: d['enrolledCount'] ?? 0,
       avgRating: (d['avgRating'] ?? 0).toDouble(),
@@ -176,6 +186,7 @@ class PublicCourse {
         'order': order,
         'prerequisiteIds': prerequisiteIds,
         'coverImageUrl': coverImageUrl,
+        'videoUrl': videoUrl,
         'published': published,
         'enrolledCount': enrolledCount,
         'avgRating': avgRating,

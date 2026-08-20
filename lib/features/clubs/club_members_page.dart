@@ -10,7 +10,7 @@ import '../../models/app_user.dart';
 import '../../models/club.dart';
 import '../../repositories/club_repository.dart';
 import '../../services/analytics_service.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 
@@ -21,13 +21,14 @@ class ClubMembersPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text('${club.name} · Members', style: GoogleFonts.sora(
-            fontSize: 15, fontWeight: FontWeight.w700, color: C.txt)),
+            fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt)),
       ),
       body: AppBackground(child: ClubMembersBody(club: club, currentUser: currentUser)),
     );
@@ -52,12 +53,12 @@ class ClubMembersBody extends StatelessWidget {
     }
   }
 
-  Color _roleColor(ClubRole r) {
+  Color _roleColor(ClubRole r, AppColors ac) {
     switch (r) {
-      case ClubRole.admin:     return C.gold;
-      case ClubRole.moderator: return C.blu;
-      case ClubRole.member:    return C.txt2;
-      case ClubRole.visitor:   return C.muted;
+      case ClubRole.admin:     return ac.gold;
+      case ClubRole.moderator: return ac.blu;
+      case ClubRole.member:    return ac.txt2;
+      case ClubRole.visitor:   return ac.muted;
     }
   }
 
@@ -97,6 +98,7 @@ class ClubMembersBody extends StatelessWidget {
   }
 
   Widget _memberTile(BuildContext context, ClubMember m, ClubRole myRole, int adminCount, List<ClubMember> members) {
+                  final ac = AppColors.of(context);
                   final isSelf = m.userId == currentUser.id;
                   final canManage = _canManage(myRole, m.role);
                   final isOnlyAdmin = m.role == ClubRole.admin && adminCount <= 1;
@@ -115,17 +117,17 @@ class ClubMembersBody extends StatelessWidget {
                             Row(children: [
                               Flexible(
                                 child: Text(m.name + (isSelf ? ' (you)' : ''), style: GoogleFonts.inter(
-                                    fontSize: 13.5, fontWeight: FontWeight.w700, color: C.txt),
+                                    fontSize: 13.5, fontWeight: FontWeight.w700, color: ac.txt),
                                     overflow: TextOverflow.ellipsis),
                               ),
                             ]),
                             const SizedBox(height: 4),
-                            StatusBadge(label: _roleLabel(m.role).toUpperCase(), color: _roleColor(m.role)),
+                            StatusBadge(label: _roleLabel(m.role).toUpperCase(), color: _roleColor(m.role, ac)),
                           ]),
                         ),
                         if (canManage && !isSelf)
                           PopupMenuButton<String>(
-                            icon: const Icon(Icons.more_vert_rounded, color: C.muted),
+                            icon: Icon(Icons.more_vert_rounded, color: ac.muted),
                             onSelected: (choice) => _handleAction(context, m, choice),
                             itemBuilder: (context) => [
                               if (m.role != ClubRole.member)
@@ -135,15 +137,15 @@ class ClubMembersBody extends StatelessWidget {
                               if (myRole == ClubRole.admin && m.role != ClubRole.admin)
                                 const PopupMenuItem(value: 'set_admin', child: Text('Set as Admin')),
                               if (!isOnlyAdmin)
-                                const PopupMenuItem(value: 'remove', child: Text('Remove from Club',
-                                    style: TextStyle(color: C.red))),
+                                PopupMenuItem(value: 'remove', child: Text('Remove from Club',
+                                    style: TextStyle(color: ac.red))),
                             ],
                           )
                         else if (isOnlyAdmin && !isSelf)
-                          const Padding(
-                            padding: EdgeInsets.only(right: 4),
+                          Padding(
+                            padding: const EdgeInsets.only(right: 4),
                             child: Tooltip(message: 'Club needs at least one admin',
-                                child: Icon(Icons.shield_outlined, size: 16, color: C.muted)),
+                                child: Icon(Icons.shield_outlined, size: 16, color: ac.muted)),
                           ),
                       ]),
                     ),
@@ -192,6 +194,7 @@ class _PendingRequestsSection extends StatelessWidget {
     return StreamBuilder<List<ClubJoinRequest>>(
       stream: ClubRepository.instance.watchPendingRequests(club.id),
       builder: (context, snap) {
+        final ac = AppColors.of(context);
         if (snap.hasError) {
           CrashService.instance.recordError(snap.error, snap.stackTrace,
               context: 'ClubMembersPage.watchPendingRequests(${club.id})');
@@ -203,13 +206,13 @@ class _PendingRequestsSection extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Text('Join Requests', style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w800, color: C.txt)),
+              Text('Join Requests', style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w800, color: ac.txt)),
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: C.orgb, borderRadius: BorderRadius.circular(20)),
+                decoration: BoxDecoration(color: ac.orgBg, borderRadius: BorderRadius.circular(20)),
                 child: Text('${requests.length}', style: GoogleFonts.inter(
-                    fontSize: 11, fontWeight: FontWeight.w700, color: C.org)),
+                    fontSize: 11, fontWeight: FontWeight.w700, color: ac.org)),
               ),
             ]),
             const SizedBox(height: 10),
@@ -220,19 +223,19 @@ class _PendingRequestsSection extends StatelessWidget {
                     radius: 18, photoUrl: r.userPhotoUrl),
                 const SizedBox(width: 10),
                 Expanded(child: Text(r.userName, style: GoogleFonts.inter(
-                    fontSize: 13.5, fontWeight: FontWeight.w600, color: C.txt))),
+                    fontSize: 13.5, fontWeight: FontWeight.w600, color: ac.txt))),
                 TextButton(
                   onPressed: () => ClubRepository.instance.declineJoinRequest(r.id),
-                  child: const Text('Decline', style: TextStyle(color: C.muted)),
+                  child: Text('Decline', style: TextStyle(color: ac.muted)),
                 ),
                 ElevatedButton(
                   onPressed: () => ClubRepository.instance.approveJoinRequest(r),
-                  style: ElevatedButton.styleFrom(backgroundColor: C.navy, foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(backgroundColor: ac.navy, foregroundColor: Colors.white),
                   child: const Text('Approve'),
                 ),
               ])),
             )),
-            const Divider(color: C.bdr2, height: 24),
+            Divider(color: ac.bdr2, height: 24),
           ]),
         );
       },

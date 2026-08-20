@@ -9,6 +9,7 @@ import '../../models/models.dart';
 import '../../repositories/club_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 
@@ -61,9 +62,10 @@ class _AskQuestionPageState extends State<AskQuestionPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
-      appBar: AppBar(backgroundColor: C.bg, elevation: 0, iconTheme: const IconThemeData(color: C.txt),
+      backgroundColor: ac.bg,
+      appBar: AppBar(backgroundColor: ac.bg, elevation: 0, iconTheme: IconThemeData(color: ac.txt),
           title: Text('Ask a Question', style: AppText.title)),
       body: AppBackground(child: SafeArea(child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -85,7 +87,7 @@ class _AskQuestionPageState extends State<AskQuestionPage> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _posting ? null : _submit,
-              style: ElevatedButton.styleFrom(backgroundColor: C.navy, foregroundColor: Colors.white,
+              style: ElevatedButton.styleFrom(backgroundColor: ac.navy, foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14)),
               child: _posting
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -144,9 +146,10 @@ class _ClubDiscussionDetailPageState extends State<ClubDiscussionDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
-      appBar: AppBar(backgroundColor: C.bg, elevation: 0, iconTheme: const IconThemeData(color: C.txt),
+      backgroundColor: ac.bg,
+      appBar: AppBar(backgroundColor: ac.bg, elevation: 0, iconTheme: IconThemeData(color: ac.txt),
           title: Text('Discussion', style: AppText.title)),
       body: AppBackground(child: Column(children: [
         Expanded(
@@ -222,6 +225,7 @@ class _ClubDiscussionDetailPageState extends State<ClubDiscussionDetailPage> {
   }
 
   Widget _replyBar() {
+    final ac = AppColors.of(context);
     return SafeArea(
       top: false,
       child: Padding(
@@ -230,7 +234,7 @@ class _ClubDiscussionDetailPageState extends State<ClubDiscussionDetailPage> {
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-              decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(24), border: Border.all(color: C.bdr)),
+              decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(24), border: Border.all(color: ac.bdr)),
               child: TextField(
                 controller: _replyCtrl,
                 minLines: 1, maxLines: 4,
@@ -242,7 +246,7 @@ class _ClubDiscussionDetailPageState extends State<ClubDiscussionDetailPage> {
           IconButton(
             icon: _sending
                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.send_rounded, color: C.primary),
+                : Icon(Icons.send_rounded, color: ac.primary),
             onPressed: _sending ? null : _sendReply,
           ),
         ]),
@@ -257,16 +261,17 @@ class _QuestionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+      decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           UserAvatar(initials: discussion.authorName.isEmpty ? '?' : discussion.authorName[0].toUpperCase(),
               radius: 16, photoUrl: discussion.authorPhotoUrl),
           const SizedBox(width: 10),
           Expanded(child: Text(discussion.authorName, style: AppText.title.copyWith(fontSize: 13))),
-          StatusBadge(label: '+${XpSource.clubQuestion.baseXp} XP', color: C.grn),
+          StatusBadge(label: '+${XpSource.clubQuestion.baseXp} XP', color: ac.grn),
         ]),
         const SizedBox(height: 12),
         Text(discussion.title, style: AppText.h2.copyWith(fontSize: 17)),
@@ -274,7 +279,7 @@ class _QuestionHeader extends StatelessWidget {
         Text(discussion.body, style: AppText.bodySm.copyWith(fontSize: 13.5, height: 1.4)),
         if ((discussion.tag ?? '').isNotEmpty) ...[
           const SizedBox(height: 10),
-          StatusBadge(label: discussion.tag!, color: C.pur),
+          StatusBadge(label: discussion.tag!, color: ac.pur),
         ],
       ]),
     );
@@ -289,22 +294,23 @@ class _ReplyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: reply.isBestAnswer ? C.grnb : C.surf,
+        color: reply.isBestAnswer ? ac.grnBg : ac.surf,
         borderRadius: BorderRadius.circular(Rad.md),
-        border: Border.all(color: reply.isBestAnswer ? C.grn : C.bdr),
+        border: Border.all(color: reply.isBestAnswer ? ac.grn : ac.bdr),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (reply.isBestAnswer)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Row(children: [
-              const Icon(Icons.check_circle_rounded, color: C.grn, size: 16),
+              Icon(Icons.check_circle_rounded, color: ac.grn, size: 16),
               const SizedBox(width: 6),
-              Text('Best Answer', style: AppText.label.copyWith(fontSize: 11, color: C.grn)),
+              Text('Best Answer', style: AppText.label.copyWith(fontSize: 11, color: ac.grn)),
             ]),
           ),
         Row(children: [
@@ -313,7 +319,7 @@ class _ReplyCard extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(child: Text(reply.authorName, style: AppText.title.copyWith(fontSize: 12.5))),
           if (canMarkBest)
-            TextButton(onPressed: onMarkBest, child: Text('Mark Best', style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w700, color: C.primary))),
+            TextButton(onPressed: onMarkBest, child: Text('Mark Best', style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w700, color: ac.primary))),
         ]),
         const SizedBox(height: 8),
         Text(reply.body, style: AppText.bodySm.copyWith(fontSize: 13, height: 1.4)),

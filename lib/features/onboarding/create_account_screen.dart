@@ -11,7 +11,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../models/app_user.dart';
+import '../../models/entitlement.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
@@ -19,8 +21,13 @@ import '../../widgets/premium_unlock_sheet.dart';
 import '../../widgets/google_sign_in_button.dart';
 
 class CreateAccountScreen extends StatefulWidget {
-  final bool isPremium;
-  const CreateAccountScreen({super.key, required this.isPremium});
+  /// EntitlementTier.free = Individual (no payment step). Silver/Gold both
+  /// go straight to the direct-payment sheet after signup, preselected to
+  /// this tier (the user can still switch there).
+  final EntitlementTier tier;
+  const CreateAccountScreen({super.key, required this.tier});
+
+  bool get isPremium => tier != EntitlementTier.free;
 
   @override
   State<CreateAccountScreen> createState() => _CreateAccountScreenState();
@@ -54,13 +61,15 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
       if (widget.isPremium) {
         final uid = AuthService.instance.firebaseUser?.uid ?? '';
+        final ac = AppColors.of(context);
         await showModalBottomSheet(
           context: context,
           isScrollControlled: true,
-          backgroundColor: C.surf,
+          backgroundColor: ac.surf,
           shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.vertical(top: Radius.circular(Rad.xl))),
-          builder: (_) => PremiumUnlockSheet(userId: uid, onUnlockSuccess: () {}),
+          builder: (_) => PremiumUnlockSheet(
+              userId: uid, initialTier: widget.tier, onUnlockSuccess: () {}),
         );
       }
 
@@ -79,13 +88,15 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
   Future<void> _afterGoogleSignIn(AppUser user) async {
     if (widget.isPremium) {
+      final ac = AppColors.of(context);
       await showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        backgroundColor: C.surf,
+        backgroundColor: ac.surf,
         shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(Rad.xl))),
-        builder: (_) => PremiumUnlockSheet(userId: user.id, onUnlockSuccess: () {}),
+        builder: (_) => PremiumUnlockSheet(
+            userId: user.id, initialTier: widget.tier, onUnlockSuccess: () {}),
       );
     }
     if (!mounted) return;
@@ -94,12 +105,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg,
+        backgroundColor: ac.bg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        iconTheme: IconThemeData(color: ac.txt),
       ),
       body: AppBackground(child: SafeArea(
         child: SingleChildScrollView(
@@ -110,26 +122,30 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: widget.isPremium ? C.goldp : C.grnb,
+                  color: widget.isPremium ? ac.goldBg : ac.grnBg,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  widget.isPremium ? 'PREMIUM INDIVIDUAL' : 'NORMAL ACCOUNT',
+                  widget.tier == EntitlementTier.gold
+                      ? 'PREMIUM GOLD'
+                      : widget.tier == EntitlementTier.silver
+                          ? 'PREMIUM SILVER'
+                          : 'INDIVIDUAL',
                   style: GoogleFonts.sora(
                       fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: .6,
-                      color: widget.isPremium ? C.navy : C.grn),
+                      color: widget.isPremium ? ac.navy : ac.grn),
                 ),
               ),
               const SizedBox(height: 16),
               Text(widget.isPremium ? 'Go Premium' : 'Create your account',
-                  style: GoogleFonts.sora(fontSize: 24, fontWeight: FontWeight.w800, color: C.txt)),
+                  style: GoogleFonts.sora(fontSize: 24, fontWeight: FontWeight.w800, color: ac.txt)),
               const SizedBox(height: 6),
               Text(
                 widget.isPremium
                     ? "Create your identity first — you'll pay via MoMo or "
                       'Orange Money on the next step.'
                     : 'Just a name, email, and password. No payment needed.',
-                style: GoogleFonts.inter(fontSize: 13, color: C.txt2),
+                style: GoogleFonts.inter(fontSize: 13, color: ac.txt2),
               ),
               const SizedBox(height: 28),
 
@@ -137,13 +153,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                      color: C.redb, borderRadius: BorderRadius.circular(Rad.sm),
-                      border: Border.all(color: C.red.withValues(alpha: .3))),
+                      color: ac.redBg, borderRadius: BorderRadius.circular(Rad.sm),
+                      border: Border.all(color: ac.red.withValues(alpha: .3))),
                   child: Row(children: [
-                    const Icon(Icons.error_outline, color: C.red, size: 16),
+                    Icon(Icons.error_outline, color: ac.red, size: 16),
                     const SizedBox(width: 8),
                     Expanded(child: Text(_error!,
-                        style: GoogleFonts.inter(color: C.red, fontSize: 13))),
+                        style: GoogleFonts.inter(color: ac.red, fontSize: 13))),
                   ]),
                 ),
                 const SizedBox(height: 16),
@@ -155,12 +171,12 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               ),
               const SizedBox(height: 18),
               Row(children: [
-                const Expanded(child: Divider(color: C.bdr)),
+                Expanded(child: Divider(color: ac.bdr)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Text('or', style: GoogleFonts.inter(fontSize: 12, color: C.muted)),
+                  child: Text('or', style: GoogleFonts.inter(fontSize: 12, color: ac.muted)),
                 ),
-                const Expanded(child: Divider(color: C.bdr)),
+                Expanded(child: Divider(color: ac.bdr)),
               ]),
               const SizedBox(height: 18),
 
@@ -188,7 +204,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 validator: (v) => (v == null || v.length < 6) ? 'At least 6 characters' : null,
                 suffix: IconButton(
                   icon: Icon(_obscure ? Icons.visibility_off_rounded : Icons.visibility_rounded,
-                      color: C.muted, size: 18),
+                      color: ac.muted, size: 18),
                   onPressed: () => setState(() => _obscure = !_obscure),
                 ),
               ),
@@ -202,7 +218,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               const SizedBox(height: 16),
               Center(
                 child: Text('By continuing you agree to Academia\'s guidelines.',
-                    style: GoogleFonts.inter(fontSize: 11, color: C.muted)),
+                    style: GoogleFonts.inter(fontSize: 11, color: ac.muted)),
               ),
             ]),
           ),
@@ -229,29 +245,30 @@ class _Field extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return TextFormField(
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
       onFieldSubmitted: onSubmitted,
       validator: validator,
-      style: GoogleFonts.inter(fontSize: 14, color: C.txt),
+      style: GoogleFonts.inter(fontSize: 14, color: ac.txt),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.inter(fontSize: 14, color: C.muted),
-        prefixIcon: Icon(icon, color: C.muted, size: 20),
+        hintStyle: GoogleFonts.inter(fontSize: 14, color: ac.muted),
+        prefixIcon: Icon(icon, color: ac.muted, size: 20),
         suffixIcon: suffix,
-        filled: true, fillColor: C.surf,
+        filled: true, fillColor: ac.surf,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md),
-            borderSide: const BorderSide(color: C.bdr)),
+            borderSide: BorderSide(color: ac.bdr)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md),
-            borderSide: const BorderSide(color: C.bdr)),
+            borderSide: BorderSide(color: ac.bdr)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md),
-            borderSide: const BorderSide(color: C.primary, width: 2)),
+            borderSide: BorderSide(color: ac.primary, width: 2)),
         errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md),
-            borderSide: const BorderSide(color: C.red)),
+            borderSide: BorderSide(color: ac.red)),
         focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md),
-            borderSide: const BorderSide(color: C.red, width: 2)),
+            borderSide: BorderSide(color: ac.red, width: 2)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
     );

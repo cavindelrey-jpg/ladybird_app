@@ -39,6 +39,10 @@ class CourseComposerPage extends StatefulWidget {
 class _CourseComposerPageState extends State<CourseComposerPage> {
   late final _titleCtrl = TextEditingController(text: widget.existing?.title ?? '');
   late final _descCtrl = TextEditingController(text: widget.existing?.description ?? '');
+  // Optional Video Lesson URL — gated Gold-only for READERS at
+  // course_reader_page.dart's _VideoLessonSection; any signed-in creator
+  // may attach one (see core/feature_access.dart#AppFeature.courseCreation).
+  late final _videoUrlCtrl = TextEditingController(text: widget.existing?.videoUrl ?? '');
   late String _category = widget.existing?.category ?? kCourseCategories.first;
   late List<String> _tags = List<String>.from(widget.existing?.tags ?? const []);
 
@@ -141,6 +145,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     _autoSaveTimer?.cancel();
     _titleCtrl.dispose();
     _descCtrl.dispose();
+    _videoUrlCtrl.dispose();
     _quillCtrl.dispose();
     _editorFocusNode.dispose();
     _editorScrollCtrl.dispose();
@@ -352,6 +357,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     _workingCourse.topic = _topic.trim();
     _workingCourse.difficulty = _difficulty;
     _workingCourse.prerequisiteIds = _prerequisiteIds;
+    _workingCourse.videoUrl = _videoUrlCtrl.text.trim().isEmpty ? null : _videoUrlCtrl.text.trim();
 
     // Compute the hidden sequence position from the Before/Between/After
     // choice — the author never types a number directly (see the
@@ -386,6 +392,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
         topic: _workingCourse.topic, difficulty: _workingCourse.difficulty,
         order: _workingCourse.order, prerequisiteIds: _workingCourse.prerequisiteIds,
         coverImageUrl: _workingCourse.coverImageUrl,
+        videoUrl: _workingCourse.videoUrl,
         published: _workingCourse.published,
       );
     }
@@ -667,6 +674,26 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                 maxLines: 2,
                 decoration: const InputDecoration(
                     hintText: 'Short description (shown on cards)…', border: InputBorder.none),
+              ),
+              const SizedBox(height: 12),
+              Divider(color: ac.bdr2),
+              const SizedBox(height: 12),
+              // Video Lesson — optional. Gated Gold-only for READERS (see
+              // course_reader_page.dart's _VideoLessonSection); attaching
+              // one here doesn't require any particular tier from the
+              // creator.
+              TextField(
+                controller: _videoUrlCtrl,
+                style: AppText.bodySm.copyWith(color: ac.txt),
+                keyboardType: TextInputType.url,
+                decoration: InputDecoration(
+                  hintText: 'Video lesson URL (optional, Premium Gold only)',
+                  prefixIcon: const Icon(Icons.videocam_outlined, size: 18),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm),
+                      borderSide: BorderSide(color: ac.bdr)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm),
+                      borderSide: BorderSide(color: ac.bdr)),
+                ),
               ),
               const SizedBox(height: 12),
               Divider(color: ac.bdr2),

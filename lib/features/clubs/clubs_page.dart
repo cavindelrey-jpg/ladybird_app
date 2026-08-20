@@ -17,6 +17,7 @@ import '../../repositories/recommendation_repository.dart';
 import '../../core/result.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
@@ -58,8 +59,9 @@ class _ClubsPageState extends State<ClubsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: AppBackground(child: SafeArea(
         child: StreamBuilder<List<Club>>(
           stream: _clubsStream,
@@ -112,12 +114,12 @@ class _ClubsPageState extends State<ClubsPage> {
       )),
       floatingActionButton: _canCreate
           ? FloatingActionButton.extended(
-              backgroundColor: C.navy,
+              backgroundColor: ac.navy,
               onPressed: () {
                 HapticFeedback.mediumImpact();
                 Navigator.push(context, MaterialPageRoute(builder: (_) => CreateClubPage(user: widget.user)));
               },
-              icon: const Icon(Icons.add_rounded, color: C.gold),
+              icon: Icon(Icons.add_rounded, color: ac.gold),
               label: Text('Create Club', style: AppText.button.copyWith(fontSize: 13)),
             )
           : null,
@@ -125,6 +127,7 @@ class _ClubsPageState extends State<ClubsPage> {
   }
 
   Widget _header(BuildContext context) {
+    final ac = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
       child: Row(children: [
@@ -135,7 +138,7 @@ class _ClubsPageState extends State<ClubsPage> {
           ]),
         ),
         IconButton(
-          icon: const Icon(Icons.notifications_outlined, color: C.txt2),
+          icon: Icon(Icons.notifications_outlined, color: ac.txt2),
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => NotificationsPage(userId: widget.user.id))),
         ),
@@ -146,21 +149,22 @@ class _ClubsPageState extends State<ClubsPage> {
   }
 
   Widget _searchAndFilter() {
+    final ac = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(children: [
         Expanded(
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(14), border: Border.all(color: C.bdr)),
+            decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(14), border: Border.all(color: ac.bdr)),
             child: TextField(
               controller: _searchCtrl,
               onChanged: (v) => setState(() => _searchQuery = v),
-              style: AppText.bodySm.copyWith(color: C.txt),
+              style: AppText.bodySm.copyWith(color: ac.txt),
               decoration: InputDecoration(
                 hintText: 'Search clubs by name, interest or subject…',
-                hintStyle: AppText.bodySm.copyWith(color: C.muted, fontSize: 12.5),
-                prefixIcon: const Icon(Icons.search_rounded, size: 18, color: C.muted),
+                hintStyle: AppText.bodySm.copyWith(color: ac.muted, fontSize: 12.5),
+                prefixIcon: Icon(Icons.search_rounded, size: 18, color: ac.muted),
                 border: InputBorder.none, isDense: true,
               ),
             ),
@@ -169,9 +173,9 @@ class _ClubsPageState extends State<ClubsPage> {
         const SizedBox(width: 10),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(14), border: Border.all(color: C.bdr)),
+          decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(14), border: Border.all(color: ac.bdr)),
           child: Row(children: [
-            const Icon(Icons.filter_list_rounded, size: 18, color: C.txt2),
+            Icon(Icons.filter_list_rounded, size: 18, color: ac.txt2),
             const SizedBox(width: 6),
             Text('Filter', style: AppText.caption.copyWith(fontSize: 12.5, fontWeight: FontWeight.w700)),
           ]),
@@ -184,6 +188,7 @@ class _ClubsPageState extends State<ClubsPage> {
   /// actual Club.category values (not a hardcoded list) — matches the
   /// mockup's chip row without inventing categories no club actually has.
   Widget _categoryChips(List<String> categories) {
+    final ac = AppColors.of(context);
     final chips = ['All Clubs', ...categories];
     return SizedBox(
       height: 36,
@@ -208,13 +213,13 @@ class _ClubsPageState extends State<ClubsPage> {
                 duration: const Duration(milliseconds: 150),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: active ? C.navy : C.surf,
+                  color: active ? ac.navy : ac.surf,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: active ? C.navy : C.bdr),
+                  border: Border.all(color: active ? ac.navy : ac.bdr),
                 ),
                 child: Text(label, style: AppText.caption.copyWith(
                     fontSize: 12.5, fontWeight: FontWeight.w700,
-                    color: active ? C.gold : C.txt2)),
+                    color: active ? ac.gold : ac.txt2)),
               ),
             ),
           );
@@ -225,19 +230,20 @@ class _ClubsPageState extends State<ClubsPage> {
 
   Widget _myClubsSection(BuildContext context, List<Club> allClubs) {
     if (widget.user.isGuest) return const SizedBox.shrink();
+    final ac = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text('My Clubs', style: AppText.h2.copyWith(fontSize: 16))),
-          Text('View all', style: AppText.subtitle.copyWith(color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+          Text('View all', style: AppText.subtitle.copyWith(color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
         ]),
         const SizedBox(height: 12),
         if (allClubs.isEmpty)
           Text('No clubs yet — discover one below or create your own.', style: AppText.bodySm)
         else
           Container(
-            decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+            decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
             child: Column(children: [
               for (int i = 0; i < allClubs.length; i++)
                 _MyClubTile(
@@ -290,6 +296,7 @@ class _ClubsPageState extends State<ClubsPage> {
   }
 
   Widget _discoverClubsSection(BuildContext context, List<Club> allClubs, List<Club> unfilteredClubs) {
+    final ac = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -304,7 +311,7 @@ class _ClubsPageState extends State<ClubsPage> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                 child: Text('See all', style: AppText.subtitle.copyWith(
-                    color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                    color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
               ),
             ),
           ),
@@ -331,15 +338,16 @@ class _ClubsPageState extends State<ClubsPage> {
   }
 
   Widget _infoCards(BuildContext context) {
+    final ac = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Expanded(
           child: Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+            decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Icon(Icons.groups_rounded, color: C.blu, size: 20),
+              Icon(Icons.groups_rounded, color: ac.blu, size: 20),
               const SizedBox(height: 8),
               Text('Clubs', style: AppText.title.copyWith(fontSize: 13)),
               const SizedBox(height: 4),
@@ -352,9 +360,9 @@ class _ClubsPageState extends State<ClubsPage> {
         Expanded(
           child: Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+            decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Icon(Icons.chat_bubble_rounded, color: C.pur, size: 20),
+              Icon(Icons.chat_bubble_rounded, color: ac.pur, size: 20),
               const SizedBox(height: 8),
               Text('Messages', style: AppText.title.copyWith(fontSize: 13)),
               const SizedBox(height: 4),
@@ -369,7 +377,7 @@ class _ClubsPageState extends State<ClubsPage> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => MessagesHomePage(user: widget.user)));
                   },
                   child: Text('Go to Messages →', style: AppText.caption.copyWith(
-                      fontSize: 10.5, fontWeight: FontWeight.w700, color: C.pur)),
+                      fontSize: 10.5, fontWeight: FontWeight.w700, color: ac.pur)),
                 ),
               ),
             ]),
@@ -413,17 +421,21 @@ class _MyClubTile extends StatelessWidget {
   final VoidCallback onOpen;
   const _MyClubTile({required this.club, required this.user, required this.showDivider, required this.onOpen});
 
-  static const _palette = [C.gold, C.blu, C.grn, C.pur, C.org];
-  Color get _accent => _palette[club.name.hashCode.abs() % _palette.length];
+  List<Color> _palette(AppColors ac) => [ac.gold, ac.blu, ac.grn, ac.pur, ac.org];
+  Color _accent(AppColors ac) {
+    final p = _palette(ac);
+    return p[club.name.hashCode.abs() % p.length];
+  }
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return StreamBuilder<ClubRole>(
       stream: ClubRepository.instance.watchUserRole(club.id, user.id),
       builder: (context, roleSnap) {
         final role = roleSnap.data ?? ClubRole.visitor;
         if (role != ClubRole.visitor) {
-          return _tile(context, statusLabel: 'Joined', statusColor: C.grn, statusBg: C.grnb);
+          return _tile(context, statusLabel: 'Joined', statusColor: ac.grn, statusBg: ac.grnBg);
         }
         return StreamBuilder<ClubJoinRequestStatus?>(
           stream: ClubRepository.instance.watchMyRequestStatus(club.id, user.id),
@@ -439,7 +451,7 @@ class _MyClubTile extends StatelessWidget {
               return const SizedBox.shrink();
             }
             if (reqSnap.data != ClubJoinRequestStatus.pending) return const SizedBox.shrink();
-            return _tile(context, statusLabel: 'Pending', statusColor: C.org, statusBg: C.orgb, disabled: true);
+            return _tile(context, statusLabel: 'Pending', statusColor: ac.org, statusBg: ac.orgBg, disabled: true);
           },
         );
       },
@@ -447,17 +459,19 @@ class _MyClubTile extends StatelessWidget {
   }
 
   Widget _tile(BuildContext context, {required String statusLabel, required Color statusColor, required Color statusBg, bool disabled = false}) {
+    final ac = AppColors.of(context);
+    final accent = _accent(ac);
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: disabled ? null : () { HapticFeedback.selectionClick(); onOpen(); },
         child: Container(
           padding: const EdgeInsets.all(14),
-          decoration: showDivider ? const BoxDecoration(border: Border(bottom: BorderSide(color: C.bdr2))) : null,
+          decoration: showDivider ? BoxDecoration(border: Border(bottom: BorderSide(color: ac.bdr2))) : null,
           child: Row(children: [
             Container(
               width: 44, height: 44,
-              decoration: BoxDecoration(color: _accent.withValues(alpha: .12), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: accent.withValues(alpha: .12), borderRadius: BorderRadius.circular(12)),
               child: Center(child: Text(club.emoji, style: const TextStyle(fontSize: 20))),
             ),
             const SizedBox(width: 12),
@@ -474,13 +488,13 @@ class _MyClubTile extends StatelessWidget {
                 ]),
                 Text(club.description, style: AppText.bodySm.copyWith(fontSize: 11.5), maxLines: 1, overflow: TextOverflow.ellipsis),
                 Row(children: [
-                  const Icon(Icons.people_alt_outlined, size: 12, color: C.muted),
+                  Icon(Icons.people_alt_outlined, size: 12, color: ac.muted),
                   const SizedBox(width: 3),
                   Text('${club.memberCount} members', style: AppText.caption.copyWith(fontSize: 10.5)),
                 ]),
               ]),
             ),
-            if (!disabled) const Icon(Icons.chevron_right_rounded, color: C.muted),
+            if (!disabled) Icon(Icons.chevron_right_rounded, color: ac.muted),
           ]),
         ),
       ),
@@ -498,12 +512,15 @@ class _DiscoverClubCard extends StatelessWidget {
   final bool fullWidth;
   const _DiscoverClubCard({required this.club, required this.user, required this.onOpen, this.fullWidth = false});
 
-  static const _palette = [C.pur, C.org, C.grn, C.blu, C.gold];
-  Color get _accent => _palette[club.name.hashCode.abs() % _palette.length];
+  List<Color> _palette(AppColors ac) => [ac.pur, ac.org, ac.grn, ac.blu, ac.gold];
+  Color _accent(AppColors ac) {
+    final p = _palette(ac);
+    return p[club.name.hashCode.abs() % p.length];
+  }
 
-  Widget _emojiTile() => Container(
+  Widget _emojiTile(AppColors ac) => Container(
         width: 40, height: 40,
-        decoration: BoxDecoration(color: _accent.withValues(alpha: .12), borderRadius: BorderRadius.circular(11)),
+        decoration: BoxDecoration(color: _accent(ac).withValues(alpha: .12), borderRadius: BorderRadius.circular(11)),
         child: Center(child: Text(club.emoji, style: const TextStyle(fontSize: 18))),
       );
 
@@ -537,30 +554,31 @@ class _DiscoverClubCard extends StatelessWidget {
   }
 
   Widget _card(BuildContext context, {required bool joined, required bool pending}) {
+    final ac = AppColors.of(context);
     final hasCover = (club.bannerUrl ?? '').isNotEmpty;
     return Container(
       width: fullWidth ? double.infinity : 200,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+      decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (hasCover)
           ClipRRect(
             borderRadius: BorderRadius.circular(11),
             child: Image.network(club.bannerUrl!, height: 84, width: double.infinity, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _emojiTile()),
+                errorBuilder: (_, __, ___) => _emojiTile(ac)),
           )
         else
-          _emojiTile(),
+          _emojiTile(ac),
         const SizedBox(height: 10),
         Text(club.name, style: AppText.title.copyWith(fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
         const SizedBox(height: 4),
         Row(children: [
           Icon(club.requiresApproval ? Icons.lock_outline_rounded : Icons.public_rounded,
-              size: 12, color: club.requiresApproval ? C.pur : C.grn),
+              size: 12, color: club.requiresApproval ? ac.pur : ac.grn),
           const SizedBox(width: 4),
           Text(club.requiresApproval ? 'Approval required' : 'Open to all',
               style: AppText.caption.copyWith(fontSize: 10.5, fontWeight: FontWeight.w700,
-                  color: club.requiresApproval ? C.pur : C.grn)),
+                  color: club.requiresApproval ? ac.pur : ac.grn)),
         ]),
         const SizedBox(height: 6),
         // Expanded only makes sense inside the horizontal preview's fixed-
@@ -578,7 +596,7 @@ class _DiscoverClubCard extends StatelessWidget {
                 maxLines: 2, overflow: TextOverflow.ellipsis),
           ),
         Row(children: [
-          const Icon(Icons.people_alt_outlined, size: 12, color: C.muted),
+          Icon(Icons.people_alt_outlined, size: 12, color: ac.muted),
           const SizedBox(width: 3),
           Text('${club.memberCount} members', style: AppText.caption.copyWith(fontSize: 10.5)),
         ]),
@@ -588,7 +606,7 @@ class _DiscoverClubCard extends StatelessWidget {
           child: ElevatedButton(
             onPressed: () => _handleJoin(context),
             style: ElevatedButton.styleFrom(
-              backgroundColor: C.navy, foregroundColor: Colors.white,
+              backgroundColor: ac.navy, foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 10),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
@@ -637,11 +655,12 @@ class AllClubsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text('Discover Clubs', style: AppText.title),
       ),
       body: AppBackground(child: clubs.isEmpty
@@ -733,6 +752,7 @@ class _ClubDetailPageState extends State<ClubDetailPage>
     // rendered them -- every club looked identical regardless of what
     // was uploaded. Shows as a tinted header behind the title when set;
     // falls back to the plain AppBar exactly as before when it isn't.
+    final ac = AppColors.of(context);
     final hasBanner = (widget.club.bannerUrl ?? '').isNotEmpty;
     return Scaffold(
       appBar: AppBar(
@@ -740,7 +760,7 @@ class _ClubDetailPageState extends State<ClubDetailPage>
         flexibleSpace: hasBanner
             ? Stack(fit: StackFit.expand, children: [
                 Image.network(widget.club.bannerUrl!, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(color: C.navy)),
+                    errorBuilder: (_, __, ___) => Container(color: ac.navy)),
                 Container(decoration: const BoxDecoration(gradient: LinearGradient(
                     colors: [Color(0xB3000000), Color(0x33000000)],
                     begin: Alignment.bottomCenter, end: Alignment.topCenter))),
@@ -754,7 +774,7 @@ class _ClubDetailPageState extends State<ClubDetailPage>
                 style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700,
                     color: hasBanner ? Colors.white : null)),
             Text('${widget.club.memberCount} members',
-                style: TextStyle(fontSize: 11, color: hasBanner ? Colors.white70 : C.muted)),
+                style: TextStyle(fontSize: 11, color: hasBanner ? Colors.white70 : ac.muted)),
           ]),
         ]),
         iconTheme: hasBanner ? const IconThemeData(color: Colors.white) : null,
@@ -817,6 +837,7 @@ class _ChatTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Column(children: [
       Expanded(
         child: StreamBuilder<List<ClubMessage>>(
@@ -840,10 +861,10 @@ class _ChatTab extends StatelessWidget {
                             width: 28, height: 28,
                             margin: const EdgeInsets.only(right: 6),
                             decoration: BoxDecoration(
-                                color: C.goldp, borderRadius: BorderRadius.circular(8)),
+                                color: ac.goldBg, borderRadius: BorderRadius.circular(8)),
                             child: Center(child: Text(m.senderInitials,
-                                style: const TextStyle(
-                                    fontSize: 10, fontWeight: FontWeight.w700, color: C.gold)))),
+                                style: TextStyle(
+                                    fontSize: 10, fontWeight: FontWeight.w700, color: ac.gold)))),
                       Flexible(child: Column(
                         crossAxisAlignment: isMe
                             ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -851,8 +872,8 @@ class _ChatTab extends StatelessWidget {
                           if (!isMe)
                             Padding(padding: const EdgeInsets.only(left: 2, bottom: 2),
                                 child: Text(m.senderName,
-                                    style: const TextStyle(
-                                        fontSize: 10, fontWeight: FontWeight.w600, color: C.muted))),
+                                    style: TextStyle(
+                                        fontSize: 10, fontWeight: FontWeight.w600, color: ac.muted))),
                           GestureDetector(
                             onLongPress: (isMe && !m.deleted) ? () => _confirmDelete(context, m) : null,
                             child: Container(
@@ -860,21 +881,21 @@ class _ChatTab extends StatelessWidget {
                                 constraints: BoxConstraints(
                                     maxWidth: MediaQuery.of(context).size.width * .65),
                                 decoration: BoxDecoration(
-                                  color: m.deleted ? C.surf3 : (isMe ? C.primary : Colors.white),
+                                  color: m.deleted ? ac.surf3 : (isMe ? ac.primary : Colors.white),
                                   borderRadius: BorderRadius.circular(14),
-                                  border: (isMe && !m.deleted) ? null : Border.all(color: C.bdr),
+                                  border: (isMe && !m.deleted) ? null : Border.all(color: ac.bdr),
                                 ),
                                 child: Text(m.deleted ? 'This message was deleted' : m.text,
                                     style: TextStyle(
                                         fontSize: 13,
                                         fontStyle: m.deleted ? FontStyle.italic : FontStyle.normal,
-                                        color: m.deleted ? C.muted : (isMe ? Colors.white : C.txt)))),
+                                        color: m.deleted ? ac.muted : (isMe ? Colors.white : ac.txt)))),
                           ),
                           Padding(padding: const EdgeInsets.only(top: 3),
                               child: Text(
                                   '${m.time.hour.toString().padLeft(2, '0')}:'
                                       '${m.time.minute.toString().padLeft(2, '0')}',
-                                  style: const TextStyle(fontSize: 9, color: C.muted))),
+                                  style: TextStyle(fontSize: 9, color: ac.muted))),
                         ],
                       )),
                     ],
@@ -888,8 +909,8 @@ class _ChatTab extends StatelessWidget {
       Container(
         padding: EdgeInsets.fromLTRB(
             12, 8, 12, MediaQuery.of(context).padding.bottom + 8),
-        decoration: const BoxDecoration(
-            color: C.surf, border: Border(top: BorderSide(color: C.bdr))),
+        decoration: BoxDecoration(
+            color: ac.surf, border: Border(top: BorderSide(color: ac.bdr))),
         child: Row(children: [
           Expanded(
               child: TextField(
@@ -897,13 +918,13 @@ class _ChatTab extends StatelessWidget {
                   onSubmitted: (_) => onSend(),
                   decoration: InputDecoration(
                       hintText: 'Message ${club.name}…',
-                      filled: true, fillColor: C.bg,
+                      filled: true, fillColor: ac.bg,
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
-                          borderSide: const BorderSide(color: C.bdr)),
+                          borderSide: BorderSide(color: ac.bdr)),
                       enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
-                          borderSide: const BorderSide(color: C.bdr)),
+                          borderSide: BorderSide(color: ac.bdr)),
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 10)))),
           const SizedBox(width: 8),
@@ -918,7 +939,7 @@ class _ChatTab extends StatelessWidget {
               },
               child: Container(
                   width: 42, height: 42,
-                  decoration: const BoxDecoration(color: C.primary, shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: ac.primary, shape: BoxShape.circle),
                   child: const Icon(Icons.send, color: Colors.white, size: 18)),
             ),
           ),
@@ -928,6 +949,7 @@ class _ChatTab extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context, ClubMessage m) async {
+    final ac = AppColors.of(context);
     HapticFeedback.mediumImpact();
     final confirmed = await showDialog<bool>(
       context: context,
@@ -938,7 +960,7 @@ class _ChatTab extends StatelessWidget {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete', style: TextStyle(color: C.red)),
+            child: Text('Delete', style: TextStyle(color: ac.red)),
           ),
         ],
       ),
@@ -966,8 +988,9 @@ class _FeedTab extends StatefulWidget {
 class _FeedTabState extends State<_FeedTab> {
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: StreamBuilder<List<ClubPost>>(
         stream: ClubRepository.instance.watchPosts(widget.club.id),
         builder: (context, snap) {
@@ -989,9 +1012,9 @@ class _FeedTabState extends State<_FeedTab> {
         },
       ),
       floatingActionButton: widget.user.isGuest ? null : FloatingActionButton(
-        backgroundColor: C.navy,
+        backgroundColor: ac.navy,
         onPressed: () => _composePost(context),
-        child: const Icon(Icons.edit_rounded, color: C.gold, size: 20),
+        child: Icon(Icons.edit_rounded, color: ac.gold, size: 20),
       ),
     );
   }
@@ -1052,6 +1075,7 @@ class _ComposePostSheetState extends State<_ComposePostSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return StreamBuilder<ClubRole>(
       stream: ClubRepository.instance.watchUserRole(widget.club.id, widget.user.id),
       builder: (context, roleSnap) {
@@ -1078,7 +1102,7 @@ class _ComposePostSheetState extends State<_ComposePostSheet> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _posting ? null : _submit,
-                  style: ElevatedButton.styleFrom(backgroundColor: C.navy, foregroundColor: Colors.white,
+                  style: ElevatedButton.styleFrom(backgroundColor: ac.navy, foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12)),
                   child: _posting
                       ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -1101,9 +1125,10 @@ class _PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+      decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           UserAvatar(initials: post.authorName.isEmpty ? '?' : post.authorName[0].toUpperCase(),
@@ -1116,7 +1141,7 @@ class _PostCard extends StatelessWidget {
             ]),
           ),
           if (post.isAnnouncement)
-            const StatusBadge(label: 'ANNOUNCEMENT', color: C.gold),
+            StatusBadge(label: 'ANNOUNCEMENT', color: ac.gold),
         ]),
         const SizedBox(height: 10),
         Text(post.title, style: AppText.title.copyWith(fontSize: 15)),
@@ -1126,7 +1151,7 @@ class _PostCard extends StatelessWidget {
         Row(children: [
           _LikeChip(club: club, post: post, user: user),
           const SizedBox(width: 16),
-          const Icon(Icons.mode_comment_outlined, size: 16, color: C.muted),
+          Icon(Icons.mode_comment_outlined, size: 16, color: ac.muted),
           const SizedBox(width: 4),
           Text('${post.commentCount}', style: AppText.caption.copyWith(fontSize: 11.5)),
         ]),
@@ -1150,9 +1175,10 @@ class _LikeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     if (user.isGuest) {
       return Row(children: [
-        const Icon(Icons.favorite_border_rounded, size: 16, color: C.muted),
+        Icon(Icons.favorite_border_rounded, size: 16, color: ac.muted),
         const SizedBox(width: 4),
         Text('${post.likeCount}', style: AppText.caption.copyWith(fontSize: 11.5)),
       ]);
@@ -1171,7 +1197,7 @@ class _LikeChip extends StatelessWidget {
             },
             child: Row(children: [
               Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                  size: 16, color: liked ? C.red : C.muted),
+                  size: 16, color: liked ? ac.red : ac.muted),
               const SizedBox(width: 4),
               Text('${post.likeCount}', style: AppText.caption.copyWith(fontSize: 11.5)),
             ]),
@@ -1191,8 +1217,9 @@ class _DiscussionsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: StreamBuilder<List<ClubDiscussion>>(
         stream: ClubRepository.instance.watchDiscussions(club.id),
         builder: (context, snap) {
@@ -1221,8 +1248,8 @@ class _DiscussionsTab extends StatelessWidget {
         },
       ),
       floatingActionButton: user.isGuest ? null : FloatingActionButton.extended(
-        backgroundColor: C.navy,
-        icon: const Icon(Icons.add_rounded, color: C.gold),
+        backgroundColor: ac.navy,
+        icon: Icon(Icons.add_rounded, color: ac.gold),
         label: Text('Ask', style: AppText.button.copyWith(fontSize: 13)),
         onPressed: () => Navigator.push(context, MaterialPageRoute(
             builder: (_) => AskQuestionPage(club: club, user: user))),
@@ -1238,15 +1265,16 @@ class _DiscussionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Material(
-      color: C.surf,
+      color: ac.surf,
       borderRadius: BorderRadius.circular(Rad.md),
       child: InkWell(
         borderRadius: BorderRadius.circular(Rad.md),
         onTap: onOpen,
         child: Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               UserAvatar(initials: discussion.authorName.isEmpty ? '?' : discussion.authorName[0].toUpperCase(),
@@ -1254,21 +1282,21 @@ class _DiscussionCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(child: Text(discussion.authorName, style: AppText.bodySm.copyWith(fontSize: 12))),
               if (discussion.bestAnswerReplyId != null)
-                const Icon(Icons.check_circle_rounded, color: C.grn, size: 16),
+                Icon(Icons.check_circle_rounded, color: ac.grn, size: 16),
             ]),
             const SizedBox(height: 8),
             Text(discussion.title, style: AppText.title.copyWith(fontSize: 14.5)),
             if ((discussion.tag ?? '').isNotEmpty) ...[
               const SizedBox(height: 6),
-              StatusBadge(label: discussion.tag!, color: C.pur),
+              StatusBadge(label: discussion.tag!, color: ac.pur),
             ],
             const SizedBox(height: 8),
             Row(children: [
-              const Icon(Icons.mode_comment_outlined, size: 14, color: C.muted),
+              Icon(Icons.mode_comment_outlined, size: 14, color: ac.muted),
               const SizedBox(width: 4),
               Text('${discussion.replyCount}', style: AppText.caption.copyWith(fontSize: 11)),
               const SizedBox(width: 12),
-              const Icon(Icons.visibility_outlined, size: 14, color: C.muted),
+              Icon(Icons.visibility_outlined, size: 14, color: ac.muted),
               const SizedBox(width: 4),
               Text('${discussion.viewCount}', style: AppText.caption.copyWith(fontSize: 11)),
             ]),
@@ -1288,8 +1316,9 @@ class _ResourcesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: StreamBuilder<List<ClubResource>>(
         stream: ClubRepository.instance.watchResources(club.id),
         builder: (context, snap) {
@@ -1317,8 +1346,8 @@ class _ResourcesTab extends StatelessWidget {
                 child: Row(children: [
                   Container(
                     width: 40, height: 40,
-                    decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(10)),
-                    child: Icon(r.isFile ? Icons.insert_drive_file_outlined : Icons.link_rounded, color: C.primary, size: 18),
+                    decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(10)),
+                    child: Icon(r.isFile ? Icons.insert_drive_file_outlined : Icons.link_rounded, color: ac.primary, size: 18),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1329,7 +1358,7 @@ class _ResourcesTab extends StatelessWidget {
                   ),
                   if (canRemove)
                     IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded, size: 18, color: C.muted),
+                      icon: Icon(Icons.delete_outline_rounded, size: 18, color: ac.muted),
                       onPressed: () => ClubRepository.instance.deleteResource(club.id, r.id),
                     ),
                 ]),
@@ -1339,13 +1368,13 @@ class _ResourcesTab extends StatelessWidget {
         },
       ),
       floatingActionButton: user.isGuest ? null : FloatingActionButton(
-        backgroundColor: C.navy,
+        backgroundColor: ac.navy,
         onPressed: () => showModalBottomSheet(
           context: context, isScrollControlled: true,
           shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
           builder: (_) => _AddResourceSheet(club: club, user: user),
         ),
-        child: const Icon(Icons.add_rounded, color: C.gold),
+        child: Icon(Icons.add_rounded, color: ac.gold),
       ),
     );
   }
@@ -1396,6 +1425,7 @@ class _AddResourceSheetState extends State<_AddResourceSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
       child: SafeArea(
@@ -1410,7 +1440,7 @@ class _AddResourceSheetState extends State<_AddResourceSheet> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _saving ? null : _submit,
-              style: ElevatedButton.styleFrom(backgroundColor: C.navy, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: ac.navy, foregroundColor: Colors.white),
               child: _saving
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Text('Share'),
@@ -1431,8 +1461,9 @@ class _EventsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: StreamBuilder<List<ClubEvent>>(
         stream: ClubRepository.instance.watchEvents(club.id),
         builder: (context, snap) {
@@ -1455,13 +1486,13 @@ class _EventsTab extends StatelessWidget {
         },
       ),
       floatingActionButton: user.isGuest ? null : FloatingActionButton(
-        backgroundColor: C.navy,
+        backgroundColor: ac.navy,
         onPressed: () => showModalBottomSheet(
           context: context, isScrollControlled: true,
           shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
           builder: (_) => _AddEventSheet(club: club, user: user),
         ),
-        child: const Icon(Icons.add_rounded, color: C.gold),
+        child: Icon(Icons.add_rounded, color: ac.gold),
       ),
     );
   }
@@ -1482,17 +1513,18 @@ class _EventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+      decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(event.title, style: AppText.title.copyWith(fontSize: 14.5)),
         const SizedBox(height: 4),
-        Text(_fmt(event.startAt), style: AppText.bodySm.copyWith(fontSize: 12, color: C.primary)),
+        Text(_fmt(event.startAt), style: AppText.bodySm.copyWith(fontSize: 12, color: ac.primary)),
         if ((event.location ?? '').isNotEmpty) ...[
           const SizedBox(height: 2),
           Row(children: [
-            const Icon(Icons.place_outlined, size: 13, color: C.muted),
+            Icon(Icons.place_outlined, size: 13, color: ac.muted),
             const SizedBox(width: 3),
             Text(event.location!, style: AppText.caption.copyWith(fontSize: 11)),
           ]),
@@ -1516,11 +1548,11 @@ class _EventCard extends StatelessWidget {
                     ClubRepository.instance.toggleEventRsvp(club.id, event.id, user.id, !going);
                   },
                   style: OutlinedButton.styleFrom(
-                    backgroundColor: going ? C.grnb : null,
-                    side: BorderSide(color: going ? C.grn : C.bdr),
+                    backgroundColor: going ? ac.grnBg : null,
+                    side: BorderSide(color: going ? ac.grn : ac.bdr),
                   ),
                   child: Text(going ? 'Going ✓' : 'RSVP', style: AppText.caption.copyWith(
-                      fontSize: 11.5, fontWeight: FontWeight.w700, color: going ? C.grn : C.txt2)),
+                      fontSize: 11.5, fontWeight: FontWeight.w700, color: going ? ac.grn : ac.txt2)),
                 );
               },
             ),
@@ -1579,6 +1611,7 @@ class _AddEventSheetState extends State<_AddEventSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
       child: SafeArea(
@@ -1620,7 +1653,7 @@ class _AddEventSheetState extends State<_AddEventSheet> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _saving ? null : _submit,
-              style: ElevatedButton.styleFrom(backgroundColor: C.navy, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: ac.navy, foregroundColor: Colors.white),
               child: _saving
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Text('Create Event'),

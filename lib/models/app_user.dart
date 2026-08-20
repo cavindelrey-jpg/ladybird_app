@@ -55,7 +55,7 @@ class AppUser {
   ///
   /// This REPLACES the old flat `isPremium` bool as the source of truth.
   /// `isPremium` still exists below as a derived getter, so every existing
-  /// caller (LibraryPage's premium-resource gate, XpRepository's
+  /// caller (AcademicContentPage's premium-resource gate, XpRepository's
   /// unlock checks) keeps working unchanged — the flat bool was never the
   /// concept, just the cheapest possible encoding of it.
   final Entitlement entitlement;
@@ -104,7 +104,7 @@ class AppUser {
   /// drives the real M/T/W/T/F/S/S dots on Home.
   final List<String> weekActivityDates;
 
-  // ── Continue Reading (real, minimal — see LibraryReaderPage) ───────────
+  // ── Continue Reading (real, minimal — see content_viewer_page.dart) ────
   final String? continueReadingItemId;
   final String? continueReadingTitle;
   final int continueReadingPage;
@@ -148,7 +148,7 @@ class AppUser {
   ///
   /// Derived, not stored — this is the compatibility shim that let §8 land
   /// without touching the call sites that gate premium content
-  /// (`library_page.dart`, `xp_repository.dart`). Self-purchased, gifted,
+  /// (`academic_content_page.dart`, `xp_repository.dart`). Self-purchased, gifted,
   /// sponsored and admin-granted premium all read `true` here, which is
   /// correct: consumers of this getter care about ACCESS, not about which
   /// of §9's funding paths paid for it. Code that needs to distinguish
@@ -161,6 +161,16 @@ class AppUser {
   /// True only for §9's Gifted Premium — premium paid for by someone else.
   bool get isGiftedPremium =>
       entitlement.isActive && entitlement.source == EntitlementSource.gift;
+
+  /// Premium Silver: every premium feature except Video Courses.
+  bool get isSilver => entitlement.isSilver && entitlement.isActive;
+
+  /// Premium Gold: full access, including Video Courses.
+  bool get isGold => entitlement.isGold && entitlement.isActive;
+
+  /// The single authoritative check for Video Course access — see
+  /// core/feature_access.dart#AppFeature.coursesVideoLessons.
+  bool get hasVideoCourseAccess => entitlement.includesVideoCourses;
 
   /// 'Free' / 'Premium' / 'Gifted Premium' — the three states §8 names.
   String get entitlementLabel =>
@@ -240,7 +250,7 @@ class AppUser {
 
   // ── Firestore ──────────────────────────────────────────────────────────────
   /// Lightweight placeholder passed to pages that require a non-null
-  /// AppUser (e.g. LibraryPage) when a guest is browsing read-only content.
+  /// AppUser (e.g. AcademicContentPage) when a guest is browsing read-only content.
   /// Never written to Firestore, never treated as a real account — id
   /// stays empty so any accidental write attempt is a visible no-op
   /// (AuthService methods already early-return on empty id).

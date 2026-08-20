@@ -10,6 +10,7 @@ import '../models/xp_transaction.dart';
 import '../repositories/xp_repository.dart';
 import '../core/result.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import 'widgets.dart';
 
 /// Returns true if the paper ended up unlocked just now via XP —
@@ -61,16 +62,17 @@ class _PaperUnlockSheetContentState extends State<_PaperUnlockSheetContent> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 40, height: 4, decoration: BoxDecoration(color: C.bdr, borderRadius: BorderRadius.circular(2))),
+          Container(width: 40, height: 4, decoration: BoxDecoration(color: ac.bdr, borderRadius: BorderRadius.circular(2))),
           const SizedBox(height: 20),
           Container(
             width: 56, height: 56,
-            decoration: const BoxDecoration(color: C.goldp, shape: BoxShape.circle),
-            child: const Icon(Icons.lock_outline_rounded, color: C.gold, size: 26),
+            decoration: BoxDecoration(color: ac.goldBg, shape: BoxShape.circle),
+            child: Icon(Icons.lock_outline_rounded, color: ac.gold, size: 26),
           ),
           const SizedBox(height: 14),
           Text('Unlock this paper', style: AppText.h2.copyWith(fontSize: 17)),
@@ -86,25 +88,25 @@ class _PaperUnlockSheetContentState extends State<_PaperUnlockSheetContent> {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(color: C.surf2, borderRadius: BorderRadius.circular(Rad.md)),
+                  decoration: BoxDecoration(color: ac.surf2, borderRadius: BorderRadius.circular(Rad.md)),
                   child: Row(children: [
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text('Cost', style: AppText.caption),
                         Row(children: [
-                          const Icon(Icons.bolt_rounded, size: 16, color: C.gold),
+                          Icon(Icons.bolt_rounded, size: 16, color: ac.gold),
                           Text('${widget.cost} XP', style: AppText.title.copyWith(fontSize: 15)),
                         ]),
                       ]),
                     ),
-                    Container(width: 1, height: 32, color: C.bdr),
+                    Container(width: 1, height: 32, color: ac.bdr),
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Padding(padding: const EdgeInsets.only(left: 12), child: Text('Your balance', style: AppText.caption)),
                         Padding(
                           padding: const EdgeInsets.only(left: 12),
                           child: Text('$balance XP', style: AppText.title.copyWith(
-                              fontSize: 15, color: canAfford ? C.grn : C.red)),
+                              fontSize: 15, color: canAfford ? ac.grn : ac.red)),
                         ),
                       ]),
                     ),
@@ -116,12 +118,12 @@ class _PaperUnlockSheetContentState extends State<_PaperUnlockSheetContent> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text('Not enough XP yet — need ${widget.cost - balance} more. '
                         'Or unlock everything instantly with Premium.',
-                        style: AppText.caption.copyWith(color: C.red), textAlign: TextAlign.center),
+                        style: AppText.caption.copyWith(color: ac.red), textAlign: TextAlign.center),
                   ),
                 if (_error != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(_error!, style: AppText.caption.copyWith(color: C.red)),
+                    child: Text(_error!, style: AppText.caption.copyWith(color: ac.red)),
                   ),
                 SizedBox(
                   width: double.infinity,
@@ -134,7 +136,7 @@ class _PaperUnlockSheetContentState extends State<_PaperUnlockSheetContent> {
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: () => Navigator.pop(context, false),
-                  child: Text('Not now', style: AppText.bodySm.copyWith(color: C.muted)),
+                  child: Text('Not now', style: AppText.bodySm.copyWith(color: ac.muted)),
                 ),
               ]);
             },

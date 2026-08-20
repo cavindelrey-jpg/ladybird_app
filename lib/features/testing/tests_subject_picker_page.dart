@@ -1,24 +1,32 @@
 // lib/features/testing/tests_subject_picker_page.dart
-// Entry point for the Testing & Quiz system — a subject grid, each tile
+// Second tier of the Testing & Quiz browse tree (Category > Subject >
+// Topic > Test) — a subject grid scoped to one QuizCategory, each tile
 // showing the REAL number of published tests for that subject (computed
-// from actual `tests` documents, never a placeholder count). Wired from
-// Home's "Quizzes" Quick Access tile, which used to open a ComingSoonPage.
+// from actual `tests` documents, never a placeholder count) and, once
+// set, a real photo instead of the generated letter-avatar (see
+// HierarchyAvatar). Reached from QuizCategoriesPage; that page in turn is
+// wired from Home's "Quizzes" Quick Access tile, which used to open a
+// ComingSoonPage.
 
 import 'package:flutter/material.dart';
+import '../../core/result.dart';
 import '../../models/app_user.dart';
+import '../../models/public_course.dart' show CurriculumIcon;
 import '../../models/test.dart';
 import '../../repositories/test_repository.dart';
 import '../../repositories/recommendation_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
+import 'quiz_icon_editor.dart';
 import 'test_taking_page.dart';
-import 'tests_list_page.dart';
+import 'tests_topic_picker_page.dart';
 import 'xp_dashboard_page.dart';
 
 class TestsSubjectPickerPage extends StatefulWidget {
   final AppUser user;
-  const TestsSubjectPickerPage({super.key, required this.user});
+  final String category;
+  const TestsSubjectPickerPage({super.key, required this.user, required this.category});
 
   @override
   State<TestsSubjectPickerPage> createState() => _TestsSubjectPickerPageState();
@@ -27,7 +35,10 @@ class TestsSubjectPickerPage extends StatefulWidget {
 class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
   AppColors get ac => AppColors.of(context);
 
+  bool get _canManage => widget.user.canUploadContent;
+
   Future<Map<String, int>>? _counts;
+  Map<String, CurriculumIcon> _icons = {};
 
   /// production_plan.md §5/§7B — "Quizzes → recommends relevant Quizzes",
   /// the one recommendation surface RecommendationRepository didn't cover
@@ -47,9 +58,35 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
 
   void _load() {
     setState(() {
-      _counts = TestRepository.instance.subjectTestCountsOnce();
+      _counts = TestRepository.instance.subjectTestCountsOnce(category: widget.category);
       _recommended = _showRecommended ? _loadRecommended() : null;
     });
+    TestRepository.instance.quizNodeIconsOnce().then((icons) {
+      if (mounted) setState(() => _icons = icons);
+    });
+  }
+
+  CurriculumIcon _iconFor(String subject) =>
+      _icons[TestRepository.quizSubjectIconKey(widget.category, subject)] ?? CurriculumIcon.none;
+
+  Future<void> _editSubjectLook(String subject) async {
+    final current = _iconFor(subject);
+    final key = TestRepository.quizSubjectIconKey(widget.category, subject);
+    await showQuizIconEditor(
+      context,
+      label: subject,
+      currentEmoji: current.emoji,
+      currentImageUrl: current.imageUrl,
+      onSave: (emoji, image) async {
+        String imageUrl = '';
+        if (image != null) {
+          final upload = await TestRepository.instance.uploadQuizNodeImage(key: key, imageFile: image);
+          if (upload is Success<String>) imageUrl = upload.value;
+        }
+        await TestRepository.instance.setQuizNodeIcon(key, emoji: emoji, imageUrl: imageUrl);
+      },
+    );
+    _load();
   }
 
   Future<List<Test>> _loadRecommended() async {
@@ -68,7 +105,7 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
     return Scaffold(
       backgroundColor: ac.bg,
       appBar: AppBar(
-        title: Text('Tests & Quizzes', style: AppText.h2),
+        title: Text(widget.category, style: AppText.h2),
         actions: [
           if (!isGuest)
             IconButton(
@@ -168,16 +205,13 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
   }
 
   Widget _subjectCard(BuildContext context, String subject, int count) {
+    final icon = _iconFor(subject);
     return ACard(
       onTap: () => Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => TestsListPage(user: widget.user, subject: subject),
+        builder: (_) => TestsTopicPickerPage(user: widget.user, category: widget.category, subject: subject),
       )),
       child: Row(children: [
-        Container(
-          width: 44, height: 44,
-          decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
-          child: Icon(Icons.menu_book_rounded, color: ac.primary, size: 22),
-        ),
+        HierarchyAvatar(label: subject, icon: icon.emoji, imageUrl: icon.imageUrl, size: 44),
         const SizedBox(width: 14),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -186,6 +220,12 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
             Text('$count test${count == 1 ? '' : 's'} available', style: AppText.caption),
           ]),
         ),
+        if (_canManage)
+          IconButton(
+            icon: Icon(Icons.edit_rounded, size: 16, color: ac.txt2),
+            tooltip: 'Change look',
+            onPressed: () => _editSubjectLook(subject),
+          ),
         Icon(Icons.chevron_right_rounded, color: ac.muted),
       ]),
     );

@@ -94,6 +94,7 @@ class EntitlementRepository {
         code: code,
         purchaseId: purchaseRef.id,
         durationDays: package.durationDays,
+        tier: package.tier,
         packageLabel: package.label,
         createdAt: now,
         createdByUid: agent.id,
@@ -254,8 +255,17 @@ class EntitlementRepository {
         final base = wasExtension ? current.expiresAt! : now;
         final expiresAt = base.add(Duration(days: voucher.durationDays));
 
+        // Tier never downgrades: a Gold account redeeming a Silver
+        // voucher stays Gold (just extends its expiry) — the account
+        // keeps the higher of its current active tier and the voucher's
+        // tier, so redeeming a lower-tier voucher can only ever add time,
+        // never take away Video Course access someone already has.
+        final grantedTier = (current.isActive && current.tier.index > voucher.tier.index)
+            ? current.tier
+            : voucher.tier;
+
         final granted = Entitlement(
-          tier: EntitlementTier.premium,
+          tier: grantedTier,
           source: EntitlementSource.gift,
           startAt: current.isActive ? (current.startAt ?? now) : now,
           expiresAt: expiresAt,

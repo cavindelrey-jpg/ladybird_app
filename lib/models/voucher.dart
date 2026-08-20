@@ -9,6 +9,7 @@
 // exactly as §9 requires.
 
 import 'dart:math';
+import 'entitlement.dart';
 
 /// §9's voucher lifecycle: Unused -> Redeemed -> Active -> Expired/Revoked.
 ///
@@ -71,6 +72,12 @@ class Voucher {
   /// vouchers already sold.
   final int durationDays;
 
+  /// WHAT tier this voucher grants — Silver or Gold. Copied from the
+  /// package at issuance for the same reason [durationDays] is: a later
+  /// change to a package's tier definition must never alter a voucher
+  /// already printed and sold.
+  final EntitlementTier tier;
+
   /// The package label at time of sale, for display/audit.
   final String packageLabel;
 
@@ -100,6 +107,7 @@ class Voucher {
     required this.code,
     required this.purchaseId,
     required this.durationDays,
+    this.tier = EntitlementTier.silver,
     this.packageLabel = '',
     this.status = VoucherStatus.unused,
     this.recipientUserId,
@@ -199,6 +207,9 @@ class Voucher {
         code: d['code']?.toString() ?? formatCode(id),
         purchaseId: d['purchaseId']?.toString() ?? '',
         durationDays: (d['durationDays'] as num?)?.toInt() ?? 0,
+        tier: EntitlementTier.values.firstWhere(
+            (t) => t.name == d['tier']?.toString(),
+            orElse: () => EntitlementTier.silver),
         packageLabel: d['packageLabel']?.toString() ?? '',
         status: VoucherStatus.values.firstWhere(
             (s) => s.name == d['status']?.toString(),
@@ -217,6 +228,7 @@ class Voucher {
         'code': code,
         'purchaseId': purchaseId,
         'durationDays': durationDays,
+        'tier': tier.name,
         'packageLabel': packageLabel,
         'status': status.name,
         'recipientUserId': recipientUserId,

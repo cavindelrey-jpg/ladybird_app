@@ -55,18 +55,18 @@ import '../../repositories/notification_repository.dart';
 
 enum _FeedTab { forYou, trending, following, local, global }
 
-const _kCategoryColors = CategoryColorMap({
-  'Essay':            C.pur,
-  'Opinion':          C.blu,
-  'Story':            C.grn,
-  'Creative Writing': C.gold,
-  'News':             C.org,
-  'Guide':            C.primary,
-  'Interview':        C.red,
-  'Review':           C.navy,
+CategoryColorMap _kCategoryColorMap(AppColors ac) => CategoryColorMap({
+  'Essay':            ac.pur,
+  'Opinion':          ac.blu,
+  'Story':            ac.grn,
+  'Creative Writing': ac.gold,
+  'News':             ac.org,
+  'Guide':            ac.primary,
+  'Interview':        ac.red,
+  'Review':           ac.navy,
 });
 
-Color _categoryColor(String cat) => _kCategoryColors.of(cat);
+Color _categoryColor(String cat, AppColors ac) => _kCategoryColorMap(ac).of(cat);
 
 class MagazineFeedPage extends StatefulWidget {
   final AppUser? user;
@@ -668,7 +668,7 @@ class _ArticleListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final color = _categoryColor(article.category);
+    final color = _categoryColor(article.category, ac);
     return ACard(
       onTap: onOpen,
       padding: const EdgeInsets.all(12),

@@ -113,7 +113,7 @@ service cloud.firestore {
     // redeeming normally. Closing it fully needs a Cloud Function
     // (the same server-authoritative work production_plan.md §4.9 defers).
     function isValidGiftRedemption() {
-      return request.resource.data.get('entitlementTier', '') == 'premium'
+      return request.resource.data.get('entitlementTier', '') in ['silver', 'gold']
         && request.resource.data.get('entitlementSource', '') == 'gift'
         // Non-empty, not merely "is a string" — an ABSENT field also
         // reads as a string via get()'s '' default, and the path
@@ -122,7 +122,20 @@ service cloud.firestore {
         && request.resource.data.get('entitlementSourceRef', '') != ''
         && exists(/databases/$(database)/documents/vouchers/$(request.resource.data.entitlementSourceRef))
         && get(/databases/$(database)/documents/vouchers/$(request.resource.data.entitlementSourceRef))
-             .data.status == 'unused';
+             .data.status == 'unused'
+        // The written tier must be EITHER exactly what the voucher itself
+        // grants, OR the account's own already-stored tier left unchanged
+        // (EntitlementRepository.redeemVoucher never downgrades: someone
+        // who's already Gold redeeming a Silver voucher stays Gold, only
+        // extending the expiry). Without this a Silver-voucher holder
+        // could write 'gold' and claim Video Course access they never
+        // paid for — this is the actual entitlement-bypass check, not
+        // just a shape check.
+        && (
+          request.resource.data.get('entitlementTier', '') ==
+            get(/databases/$(database)/documents/vouchers/$(request.resource.data.entitlementSourceRef)).data.tier
+          || request.resource.data.get('entitlementTier', '') == resource.data.get('entitlementTier', '')
+        );
     }
 
     // Club-scoped role helpers (used by the clubs/{clubId} rules below).
@@ -977,6 +990,24 @@ service cloud.firestore {
       allow update, delete: if false; // append-only
     }
 
+    // ── payments/{id} ──────────────────────────────────────────────────
+    // widgets/premium_unlock_sheet.dart's direct MoMo/Orange Money path —
+    // the app's OWN in-app funding route (the other is a vendor voucher,
+    // see vouchers/{voucherId} below). This write only ever records that a
+    // payment was INITIATED (`status: 'pending'`) — it never grants
+    // access itself. A Cloud Function (Admin SDK, bypasses these rules)
+    // must confirm the provider's callback and then write the account's
+    // entitlement fields server-side, the same "no client self-grant"
+    // posture as subscriptions/{id} right below.
+    match /payments/{id} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.tier in ['silver', 'gold'];
+      allow update, delete: if false;
+    }
+
     // ── subscriptions/{id} ────────────────────────────────────────────
     match /subscriptions/{id} {
       allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || canManageSchool());
@@ -1012,6 +1043,19 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['responses', 'status', 'gradedAt', 'totalXpAwarded']);
       allow delete: if false;
+    }
+
+    // ── quiz_categories/{id} ─────────────────────────────────────────
+    // The Quiz page's top-level "section" tier (Primary School / JSS /
+    // SSS / High School / Undergraduate, plus any admin-added one).
+    // Same "any signed-in author manages it" model as curriculum_icons
+    // below (which Subject/Topic tiles in this same tree reuse, keyed by
+    // a `quizSubject::`/`quizTopic::` prefix) — the UI itself only shows
+    // the add/edit affordances to canUploadContent (lecturer+) users,
+    // matching the honest gap already noted on the `tests` match above.
+    match /quiz_categories/{id} {
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     // ── purchases/{id} ────────────────────────────────────────────────

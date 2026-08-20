@@ -1,14 +1,7 @@
 // lib/widgets/app_drawer.dart
 // Global navigation drawer — Courses, Past Questions, Clubs, Magazine,
 // Messages, Profile, Settings, Notifications, Help, plus (lecturer+) the
-// Grading Queue and (schoolAdmin+) the single School Management door.
-// Shared by the universal dashboard for every account type.
-//
-// production_plan.md §7A: this drawer is "ordinary navigation", so it
-// carries no school-management destinations of its own — no Attendance,
-// Marks, Timetable, Assignments or institution admin. All of that lives
-// behind the one role-gated School Management entry at the bottom (see
-// features/school_management/school_management_page.dart).
+// Grading Queue. Shared by the universal dashboard for every account type.
 //
 // Guest (user == null) can open every destination to browse, but write
 // actions inside those destinations should independently refuse Guests —
@@ -18,14 +11,11 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 import '../models/app_user.dart';
-import '../models/institution.dart';
 import '../services/auth_service.dart';
 import '../pages/profile_page.dart';
 import '../pages/settings_page.dart';
-import '../features/school_management/school_management_page.dart';
 import '../features/onboarding/account_choice_screen.dart';
 import '../screens/login_screen.dart';
-import '../models/school_config.dart';
 import '../features/courses_marketplace/courses_marketplace_page.dart';
 import '../features/courses_marketplace/course_navigation_page.dart';
 import '../features/clubs/clubs_page.dart';
@@ -41,8 +31,7 @@ import '../features/testing/test_composer_page.dart';
 
 class AppDrawer extends StatelessWidget {
   final AppUser? user;
-  final Institution? institution;
-  const AppDrawer({super.key, this.user, this.institution});
+  const AppDrawer({super.key, this.user});
 
   bool get _isGuest => user == null;
 
@@ -115,7 +104,7 @@ class AppDrawer extends StatelessWidget {
                     _goSignIn(context);
                   } else {
                     Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => ProfilePage(user: user!, institution: institution)));
+                        builder: (_) => ProfilePage(user: user!)));
                   }
                 }),
                 _item(context, ac, Icons.settings_outlined, 'Settings', () {
@@ -151,25 +140,6 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => GradingPage(grader: user!)));
                   }),
                 ],
-                // production_plan.md §7A/§7C — school management is no
-                // longer scattered through ordinary navigation; it has
-                // exactly one door, and that door only renders for a
-                // school admin. Rendering is convenience only: the
-                // destination re-checks the role itself and the data is
-                // role-gated in firestore.rules (see
-                // school_management_page.dart's security-model header).
-                //
-                // This replaces the old 'Admin Panel' entry, which was
-                // gated on canManagePlatform (superAdmin only) and so
-                // left an actual schoolAdmin with no way in at all.
-                // AdminPanelPage still exists, unchanged, as one tile
-                // inside the hub. superAdmin keeps access because
-                // canManageSchool is a hasMinRole(schoolAdmin) check.
-                if (!_isGuest && user!.canManageSchool) ...[
-                  Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: ac.bdr2),
-                  _item(context, ac, Icons.admin_panel_settings_rounded, 'School Management',
-                      () => SchoolManagementPage.open(context, user!), color: ac.gold),
-                ],
               ],
             ),
           ),
@@ -196,7 +166,7 @@ class AppDrawer extends StatelessWidget {
                 onTap: () {
                   Navigator.of(context).pop(); // close the drawer first
                   Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => ProfilePage(user: user!, institution: institution)));
+                      builder: (_) => ProfilePage(user: user!)));
                 },
                 child: _avatar(ac),
               ),
@@ -290,10 +260,7 @@ class AppDrawer extends StatelessWidget {
 
   void _goSignIn(BuildContext context) {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => const LoginScreen(school: SchoolConfig(
-        id: 'independent', name: 'Academia',
-        motto: 'Sign in to your account', academicYear: '',
-      )),
+      builder: (_) => const LoginScreen(),
     ));
   }
 }

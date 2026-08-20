@@ -14,6 +14,7 @@ import '../../models/club.dart';
 import '../../repositories/club_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'clubs_page.dart';
@@ -119,13 +120,14 @@ class _CreateClubPageState extends State<CreateClubPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text('Create a Club', style: GoogleFonts.sora(
-            fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
+            fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
       ),
       body: AppBackground(child: Form(
         key: _formKey,
@@ -144,7 +146,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
                 child: Container(
                 height: 120, width: double.infinity,
                 decoration: BoxDecoration(
-                  color: C.navy, borderRadius: BorderRadius.circular(Rad.md),
+                  color: ac.navy, borderRadius: BorderRadius.circular(Rad.md),
                   image: _bannerFile != null
                       ? DecorationImage(image: FileImage(_bannerFile!), fit: BoxFit.cover)
                       : null,
@@ -158,10 +160,10 @@ class _CreateClubPageState extends State<CreateClubPage> {
             ),
             const SizedBox(height: 8),
             Center(
-              child: Text('Banner (optional)', style: GoogleFonts.inter(fontSize: 11.5, color: C.muted)),
+              child: Text('Banner (optional)', style: GoogleFonts.inter(fontSize: 11.5, color: ac.muted)),
             ),
             const SizedBox(height: 20),
-            Text('Emoji', style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: C.txt)),
+            Text('Emoji', style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8, runSpacing: 8,
@@ -179,9 +181,9 @@ class _CreateClubPageState extends State<CreateClubPage> {
                     child: Container(
                       width: 44, height: 44,
                       decoration: BoxDecoration(
-                        color: selected ? C.goldp : C.surf3,
+                        color: selected ? ac.goldBg : ac.surf3,
                         borderRadius: BorderRadius.circular(Rad.sm),
-                        border: Border.all(color: selected ? C.gold : C.bdr),
+                        border: Border.all(color: selected ? ac.gold : ac.bdr),
                       ),
                       child: Center(child: Text(e, style: const TextStyle(fontSize: 20))),
                     ),
@@ -192,11 +194,11 @@ class _CreateClubPageState extends State<CreateClubPage> {
             const SizedBox(height: 20),
             TextFormField(
               controller: _nameCtrl,
-              style: GoogleFonts.inter(fontSize: 14, color: C.txt),
+              style: GoogleFonts.inter(fontSize: 14, color: ac.txt),
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Club name is required' : null,
               decoration: InputDecoration(
                 labelText: 'Club Name',
-                filled: true, fillColor: C.surf3,
+                filled: true, fillColor: ac.surf3,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
               ),
             ),
@@ -204,11 +206,11 @@ class _CreateClubPageState extends State<CreateClubPage> {
             TextFormField(
               controller: _descCtrl,
               maxLines: 3,
-              style: GoogleFonts.inter(fontSize: 14, color: C.txt),
+              style: GoogleFonts.inter(fontSize: 14, color: ac.txt),
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Add a short description' : null,
               decoration: InputDecoration(
                 labelText: 'Description',
-                filled: true, fillColor: C.surf3,
+                filled: true, fillColor: ac.surf3,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
               ),
             ),
@@ -217,7 +219,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
               initialValue: _category,
               decoration: InputDecoration(
                 labelText: 'Category',
-                filled: true, fillColor: C.surf3,
+                filled: true, fillColor: ac.surf3,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
               ),
               items: _kClubCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
@@ -228,18 +230,18 @@ class _CreateClubPageState extends State<CreateClubPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                    color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+                    color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
                 child: SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text('Restrict to my school', style: GoogleFonts.inter(
-                      fontSize: 13.5, fontWeight: FontWeight.w600, color: C.txt)),
+                      fontSize: 13.5, fontWeight: FontWeight.w600, color: ac.txt)),
                   subtitle: Text(
                       _restrictToSchool
                           ? 'Only people at your school will see this club.'
                           : 'Open to everyone on Academia.',
-                      style: GoogleFonts.inter(fontSize: 11.5, color: C.txt2)),
+                      style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
                   value: _restrictToSchool,
-                  activeThumbColor: C.gold,
+                  activeThumbColor: ac.gold,
                   onChanged: (v) => setState(() => _restrictToSchool = v),
                 ),
               ),
@@ -248,18 +250,18 @@ class _CreateClubPageState extends State<CreateClubPage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                  color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+                  color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
               child: SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text('Require approval to join', style: GoogleFonts.inter(
-                    fontSize: 13.5, fontWeight: FontWeight.w600, color: C.txt)),
+                    fontSize: 13.5, fontWeight: FontWeight.w600, color: ac.txt)),
                 subtitle: Text(
                     _requiresApproval
                         ? 'People must request to join — you approve each one.'
                         : 'Anyone can join instantly.',
-                    style: GoogleFonts.inter(fontSize: 11.5, color: C.txt2)),
+                    style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
                 value: _requiresApproval,
-                activeThumbColor: C.gold,
+                activeThumbColor: ac.gold,
                 onChanged: (v) => setState(() => _requiresApproval = v),
               ),
             ),
@@ -267,20 +269,20 @@ class _CreateClubPageState extends State<CreateClubPage> {
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(Rad.sm)),
-                child: Text(_error!, style: GoogleFonts.inter(fontSize: 12, color: C.red)),
+                decoration: BoxDecoration(color: ac.redBg, borderRadius: BorderRadius.circular(Rad.sm)),
+                child: Text(_error!, style: GoogleFonts.inter(fontSize: 12, color: ac.red)),
               ),
             ],
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
+              decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
               child: Row(children: [
-                const Icon(Icons.info_outline_rounded, size: 16, color: C.primary),
+                Icon(Icons.info_outline_rounded, size: 16, color: ac.primary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text("You'll be the club's admin — you can add moderators later from Members.",
-                      style: GoogleFonts.inter(fontSize: 11.5, color: C.primary)),
+                      style: GoogleFonts.inter(fontSize: 11.5, color: ac.primary)),
                 ),
               ]),
             ),

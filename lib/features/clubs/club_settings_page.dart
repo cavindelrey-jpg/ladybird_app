@@ -13,6 +13,7 @@ import '../../models/club.dart';
 import '../../repositories/club_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 
@@ -94,6 +95,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
   }
 
   Future<void> _confirmDelete() async {
+    final ac = AppColors.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -104,7 +106,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete', style: TextStyle(color: C.red)),
+            child: Text('Delete', style: TextStyle(color: ac.red)),
           ),
         ],
       ),
@@ -126,13 +128,14 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text('Club Settings', style: GoogleFonts.sora(
-            fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
+            fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
       ),
       body: AppBackground(child: ListView(
         padding: const EdgeInsets.all(20),
@@ -146,7 +149,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
               child: Container(
                 height: 120, width: double.infinity,
                 decoration: BoxDecoration(
-                  color: C.navy, borderRadius: BorderRadius.circular(Rad.md),
+                  color: ac.navy, borderRadius: BorderRadius.circular(Rad.md),
                   image: _newBannerFile != null
                       ? DecorationImage(image: FileImage(_newBannerFile!), fit: BoxFit.cover)
                       : (widget.club.bannerUrl != null && widget.club.bannerUrl!.isNotEmpty)
@@ -171,7 +174,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
             ),
           ),
           const SizedBox(height: 20),
-          Text('Emoji', style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: C.txt)),
+          Text('Emoji', style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8, runSpacing: 8,
@@ -186,9 +189,9 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
                   child: Container(
                     width: 44, height: 44,
                     decoration: BoxDecoration(
-                      color: selected ? C.goldp : C.surf3,
+                      color: selected ? ac.goldBg : ac.surf3,
                       borderRadius: BorderRadius.circular(Rad.sm),
-                      border: Border.all(color: selected ? C.gold : C.bdr),
+                      border: Border.all(color: selected ? ac.gold : ac.bdr),
                     ),
                     child: Center(child: Text(e, style: const TextStyle(fontSize: 20))),
                   ),
@@ -199,10 +202,10 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
           const SizedBox(height: 20),
           TextFormField(
             controller: _nameCtrl,
-            style: GoogleFonts.inter(fontSize: 14, color: C.txt),
+            style: GoogleFonts.inter(fontSize: 14, color: ac.txt),
             decoration: InputDecoration(
               labelText: 'Club Name',
-              filled: true, fillColor: C.surf3,
+              filled: true, fillColor: ac.surf3,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
             ),
           ),
@@ -210,10 +213,10 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
           TextFormField(
             controller: _descCtrl,
             maxLines: 3,
-            style: GoogleFonts.inter(fontSize: 14, color: C.txt),
+            style: GoogleFonts.inter(fontSize: 14, color: ac.txt),
             decoration: InputDecoration(
               labelText: 'Description',
-              filled: true, fillColor: C.surf3,
+              filled: true, fillColor: ac.surf3,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
             ),
           ),
@@ -222,7 +225,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
             initialValue: _category,
             decoration: InputDecoration(
               labelText: 'Category',
-              filled: true, fillColor: C.surf3,
+              filled: true, fillColor: ac.surf3,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
             ),
             items: _kClubCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
@@ -232,13 +235,13 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-                color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+                color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
             child: SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text('Require approval to join', style: GoogleFonts.inter(
-                  fontSize: 13.5, fontWeight: FontWeight.w600, color: C.txt)),
+                  fontSize: 13.5, fontWeight: FontWeight.w600, color: ac.txt)),
               value: _requiresApproval,
-              activeThumbColor: C.gold,
+              activeThumbColor: ac.gold,
               onChanged: (v) => setState(() => _requiresApproval = v),
             ),
           ),
@@ -246,20 +249,20 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
           PrimaryBtn(label: 'Save Changes', onTap: _save, loading: _saving),
           if (_isFounder) ...[
             const SizedBox(height: 28),
-            const Divider(color: C.bdr2),
+            Divider(color: ac.bdr2),
             const SizedBox(height: 12),
             Text('Danger Zone', style: GoogleFonts.sora(
-                fontSize: 13, fontWeight: FontWeight.w800, color: C.red)),
+                fontSize: 13, fontWeight: FontWeight.w800, color: ac.red)),
             const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: _deleting ? null : _confirmDelete,
                 style: OutlinedButton.styleFrom(
-                    foregroundColor: C.red, side: const BorderSide(color: C.red)),
+                    foregroundColor: ac.red, side: BorderSide(color: ac.red)),
                 icon: _deleting
-                    ? const SizedBox(width: 16, height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: C.red))
+                    ? SizedBox(width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: ac.red))
                     : const Icon(Icons.delete_outline_rounded),
                 label: Text(_deleting ? 'Deleting…' : 'Delete Club'),
               ),

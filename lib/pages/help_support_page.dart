@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 
 import '../widgets/app_background.dart';
 class _Faq {
@@ -42,32 +43,33 @@ class HelpSupportPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text('Help & Support', style: GoogleFonts.sora(
-            fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
+            fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
       ),
       body: AppBackground(child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           Text('Frequently Asked Questions', style: GoogleFonts.sora(
-              fontSize: 14, fontWeight: FontWeight.w800, color: C.txt)),
+              fontSize: 14, fontWeight: FontWeight.w800, color: ac.txt)),
           const SizedBox(height: 12),
           ..._faqs.map((f) => _FaqTile(faq: f)),
           const SizedBox(height: 24),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-                color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+                color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Still need help?', style: GoogleFonts.sora(
-                  fontSize: 14, fontWeight: FontWeight.w700, color: C.txt)),
+                  fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
               const SizedBox(height: 6),
               Text('Reach the Academia team directly and we\'ll get back to you.',
-                  style: GoogleFonts.inter(fontSize: 12, color: C.txt2)),
+                  style: GoogleFonts.inter(fontSize: 12, color: ac.txt2)),
               const SizedBox(height: 14),
               SizedBox(
                 width: double.infinity,
@@ -99,16 +101,17 @@ class _FaqTileState extends State<_FaqTile> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-          color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+          color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
       child: Column(children: [
         ListTile(
           title: Text(widget.faq.q, style: GoogleFonts.inter(
-              fontSize: 13.5, fontWeight: FontWeight.w600, color: C.txt)),
+              fontSize: 13.5, fontWeight: FontWeight.w600, color: ac.txt)),
           trailing: Icon(_open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-              color: C.muted),
+              color: ac.muted),
           onTap: () => setState(() => _open = !_open),
         ),
         if (_open)
@@ -117,7 +120,7 @@ class _FaqTileState extends State<_FaqTile> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(widget.faq.a,
-                  style: GoogleFonts.inter(fontSize: 12.5, color: C.txt2, height: 1.5)),
+                  style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2, height: 1.5)),
             ),
           ),
       ]),

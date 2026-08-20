@@ -25,7 +25,9 @@
 // of an existing test, and no draft autosave — a test is built, saved,
 // and can be reopened to edit. Those are real omissions, not hidden ones.
 
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/result.dart';
 import '../../models/app_user.dart';
 import '../../models/test.dart';
@@ -33,6 +35,7 @@ import '../../repositories/test_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import 'quiz_icon_editor.dart';
 
 /// Mutable working copy of one question while it's being edited. The
 /// immutable TestQuestion is only built at save time.
@@ -170,11 +173,17 @@ class _TestComposerPageState extends State<TestComposerPage> {
 
   final _title = TextEditingController();
   final _subject = TextEditingController();
+  final _topic = TextEditingController();
   final _description = TextEditingController();
   TestDifficulty _difficulty = TestDifficulty.medium;
   bool _published = true;
   bool _restrictToSchool = false;
   bool _saving = false;
+
+  List<QuizCategory> _categories = [];
+  String _category = '';
+  File? _pickedThumbnail;
+  String? _existingThumbnailUrl;
 
   final List<_QuestionDraft> _questions = [];
   var _idSeed = 0;
@@ -191,20 +200,60 @@ class _TestComposerPageState extends State<TestComposerPage> {
     if (existing != null) {
       _title.text = existing.title;
       _subject.text = existing.subject;
+      _topic.text = existing.topic;
       _description.text = existing.description;
       _difficulty = existing.difficulty;
       _published = existing.published;
       _restrictToSchool = existing.institutionId != null;
+      _category = existing.category;
+      _existingThumbnailUrl = existing.thumbnailUrl;
       for (final q in existing.questions) {
         _questions.add(_QuestionDraft.fromQuestion(q));
       }
     }
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    final categories = await TestRepository.instance.quizCategoriesOnce();
+    if (!mounted) return;
+    setState(() {
+      _categories = categories;
+      // A brand-new test with nothing picked yet defaults to the first
+      // category rather than staying blank — every quiz needs a place in
+      // the tree the moment it's created, and the author can still
+      // change it before saving.
+      if (_category.isEmpty && categories.isNotEmpty) _category = categories.first.name;
+    });
+  }
+
+  Future<void> _addCategory() async {
+    final name = await showAddQuizCategoryDialog(context);
+    if (name == null || name.trim().isEmpty) return;
+    final order = _categories.isEmpty
+        ? 0.0
+        : (_categories.map((c) => c.order).reduce((a, b) => a > b ? a : b) + 100);
+    final result = await TestRepository.instance.addQuizCategory(name: name, order: order);
+    if (!mounted) return;
+    if (result case Failure(:final message)) {
+      showToast(context, message, isError: true);
+      return;
+    }
+    setState(() => _category = name);
+    _loadCategories();
+  }
+
+  Future<void> _pickThumbnail() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null) return;
+    setState(() => _pickedThumbnail = File(picked.path));
   }
 
   @override
   void dispose() {
     _title.dispose();
     _subject.dispose();
+    _topic.dispose();
     _description.dispose();
     for (final q in _questions) {
       q.dispose();
@@ -246,7 +295,9 @@ class _TestComposerPageState extends State<TestComposerPage> {
   /// then mis-matched at grading time.
   String? _validate() {
     if (_title.text.trim().isEmpty) return 'Give the test a title.';
+    if (_category.trim().isEmpty) return 'Pick a section (e.g. Senior Secondary School).';
     if (_subject.text.trim().isEmpty) return 'Enter the subject.';
+    if (_topic.text.trim().isEmpty) return 'Enter the topic this quiz belongs to.';
     if (_questions.isEmpty) return 'Add at least one question.';
 
     for (var i = 0; i < _questions.length; i++) {
@@ -330,23 +381,49 @@ class _TestComposerPageState extends State<TestComposerPage> {
       );
     }).toList();
 
-    final test = Test(
-      id: widget.existing?.id ?? '',
-      subject: _subject.text.trim(),
-      title: _title.text.trim(),
-      description: _description.text.trim(),
-      difficulty: _difficulty,
-      questions: questions,
-      createdBy: widget.existing?.createdBy ?? widget.author.id,
-      createdByName: widget.existing?.createdByName ?? widget.author.name,
-      institutionId: _restrictToSchool ? widget.author.schoolId : null,
-      published: _published,
-      createdAt: widget.existing?.createdAt ?? DateTime.now(),
-    );
+    Test buildTest({required String id, String? thumbnailUrl}) => Test(
+          id: id,
+          subject: _subject.text.trim(),
+          title: _title.text.trim(),
+          description: _description.text.trim(),
+          difficulty: _difficulty,
+          questions: questions,
+          createdBy: widget.existing?.createdBy ?? widget.author.id,
+          createdByName: widget.existing?.createdByName ?? widget.author.name,
+          institutionId: _restrictToSchool ? widget.author.schoolId : null,
+          published: _published,
+          createdAt: widget.existing?.createdAt ?? DateTime.now(),
+          category: _category.trim(),
+          topic: _topic.text.trim(),
+          thumbnailUrl: thumbnailUrl,
+        );
 
-    final Result result = widget.existing == null
-        ? await TestRepository.instance.createTest(test)
-        : await TestRepository.instance.updateTest(widget.existing!.id, test);
+    // A brand-new test needs an id before a thumbnail can be uploaded to
+    // it (the storage path is `test_thumbnails/{testId}.jpg`) — same
+    // create-then-attach-media order PublicCourseRepository's composer
+    // uses for a course's cover photo.
+    var testId = widget.existing?.id ?? '';
+    if (testId.isEmpty) {
+      final createResult =
+          await TestRepository.instance.createTest(buildTest(id: '', thumbnailUrl: _existingThumbnailUrl));
+      if (!mounted) return;
+      if (createResult case Failure(:final message)) {
+        setState(() => _saving = false);
+        showToast(context, message, isError: true);
+        return;
+      }
+      testId = (createResult as Success<String>).value;
+    }
+
+    var thumbnailUrl = _existingThumbnailUrl;
+    if (_pickedThumbnail != null) {
+      final upload =
+          await TestRepository.instance.uploadTestThumbnail(testId: testId, imageFile: _pickedThumbnail!);
+      if (upload is Success<String>) thumbnailUrl = upload.value;
+    }
+
+    final result =
+        await TestRepository.instance.updateTest(testId, buildTest(id: testId, thumbnailUrl: thumbnailUrl));
 
     if (!mounted) return;
     setState(() => _saving = false);
@@ -413,6 +490,28 @@ class _TestComposerPageState extends State<TestComposerPage> {
     );
   }
 
+  Widget _chip(String label, bool active, VoidCallback onTap, {bool outline = false}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: active ? ac.primary : (outline ? Colors.transparent : ac.surf2),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: active ? ac.primary : ac.bdr),
+          ),
+          child: Text(label, style: AppText.caption.copyWith(
+              fontSize: 12, fontWeight: FontWeight.w700,
+              color: active ? Colors.white : (outline ? ac.primary : ac.txt2))),
+        ),
+      ),
+    );
+  }
+
   Widget _addBtn(String label, IconData icon, VoidCallback onTap) {
     return Material(
       color: Colors.transparent,
@@ -439,16 +538,51 @@ class _TestComposerPageState extends State<TestComposerPage> {
   Widget _detailsCard() {
     return ACard(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Center(
+          child: GestureDetector(
+            onTap: _pickThumbnail,
+            child: HierarchyAvatar(
+              label: _title.text.isEmpty ? 'Quiz' : _title.text,
+              imageUrl: _pickedThumbnail == null ? (_existingThumbnailUrl ?? '') : '',
+              localImage: _pickedThumbnail,
+              size: 72,
+            ),
+          ),
+        ),
+        Center(
+          child: TextButton(
+            onPressed: _pickThumbnail,
+            child: Text('Set thumbnail', style: AppText.caption.copyWith(color: ac.primary)),
+          ),
+        ),
+        const SizedBox(height: 8),
         TextField(
           controller: _title,
+          onChanged: (_) => setState(() {}), // keeps the thumbnail letter-fallback in sync while typing
           decoration: const InputDecoration(labelText: 'Test title'),
         ),
+        const SizedBox(height: 14),
+        Text('Section', style: AppText.subtitle),
+        const SizedBox(height: 8),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final c in _categories)
+            _chip(c.name, c.name == _category, () => setState(() => _category = c.name)),
+          _chip('+ New section', false, _addCategory, outline: true),
+        ]),
         const SizedBox(height: 12),
         TextField(
           controller: _subject,
           decoration: const InputDecoration(
             labelText: 'Subject',
             hintText: 'e.g. Biology',
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _topic,
+          decoration: const InputDecoration(
+            labelText: 'Topic',
+            hintText: 'e.g. The French Revolution',
           ),
         ),
         const SizedBox(height: 12),

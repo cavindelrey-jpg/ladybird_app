@@ -1,19 +1,23 @@
 // lib/features/onboarding/account_choice_screen.dart
 // Reached from the Home dashboard's "Join Free" / "Create Free Account" CTAs.
-// Three paths:
-//   1. Normal   — free identity, no payment, no school.
-//   2. Premium  — 5,000 FCFA via MoMo/Orange Money, unlocks all past
-//                 questions across every school, independent of any
-//                 institution.
-//   3. Student  — enters a school code; the app re-skins to that
-//                 institution's branding and pulls its data.
+// The account/entitlement system's three tiers (core/feature_access.dart):
+//   1. Individual     — free identity, no payment.
+//   2. Premium Silver — direct payment (MoMo/Orange Money) or an Academia
+//                       vendor voucher. Every premium feature except Video
+//                       Courses.
+//   3. Premium Gold   — same two funding paths, full access including
+//                       Video Courses.
+// A voucher received from a vendor is redeemed from Profile after signing
+// in (features/entitlements/redeem_voucher_page.dart) — it needs an
+// existing account, so it isn't offered as a fourth choice here.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
+import '../../models/entitlement.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
-import '../institution/serial_join_page.dart';
 import 'create_account_screen.dart';
 
 class AccountChoiceScreen extends StatelessWidget {
@@ -21,12 +25,13 @@ class AccountChoiceScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg,
+        backgroundColor: ac.bg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        iconTheme: IconThemeData(color: ac.txt),
       ),
       body: AppBackground(child: SafeArea(
         child: SingleChildScrollView(
@@ -35,56 +40,54 @@ class AccountChoiceScreen extends StatelessWidget {
             const AcademiaLogo(size: 52),
             const SizedBox(height: 20),
             Text('Create your account',
-                style: GoogleFonts.sora(fontSize: 24, fontWeight: FontWeight.w800, color: C.txt)),
+                style: GoogleFonts.sora(fontSize: 24, fontWeight: FontWeight.w800, color: ac.txt)),
             const SizedBox(height: 6),
             Text('Choose how you want to join Academia.',
-                style: GoogleFonts.inter(fontSize: 14, color: C.txt2)),
+                style: GoogleFonts.inter(fontSize: 14, color: ac.txt2)),
             const SizedBox(height: 28),
 
             _ChoiceCard(
               icon: Icons.person_outline_rounded,
-              iconColor: C.primary,
-              iconBg: C.primaryBg,
-              title: 'Normal Account',
+              iconColor: ac.primary,
+              iconBg: ac.primaryBg,
+              title: 'Individual',
               subtitle: 'Free. Get an identity to post, comment, and '
                   'message under your own name instead of anonymously.',
               badge: 'FREE',
-              badgeColor: C.grn,
-              badgeBg: C.grnb,
+              badgeColor: ac.grn,
+              badgeBg: ac.grnBg,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const CreateAccountScreen(isPremium: false))),
+                  builder: (_) => const CreateAccountScreen(tier: EntitlementTier.free))),
+            ),
+            const SizedBox(height: 16),
+
+            _ChoiceCard(
+              icon: Icons.workspace_premium_outlined,
+              iconColor: ac.txt2,
+              iconBg: ac.surf3,
+              title: 'Premium Silver',
+              subtitle: 'Direct payment or an Academia vendor voucher. '
+                  'Every premium feature — except Video Courses.',
+              badge: 'PREMIUM',
+              badgeColor: ac.navy,
+              badgeBg: ac.surf3,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const CreateAccountScreen(tier: EntitlementTier.silver))),
             ),
             const SizedBox(height: 16),
 
             _ChoiceCard(
               icon: Icons.workspace_premium_rounded,
-              iconColor: C.gold,
-              iconBg: C.goldp,
-              title: 'Premium Individual',
-              subtitle: 'One-time 5,000 FCFA via MTN or Orange Money. '
-                  'Unlocks every past question across all schools and boards.',
-              badge: '5,000 FCFA',
-              badgeColor: C.navy,
-              badgeBg: C.goldp,
+              iconColor: ac.gold,
+              iconBg: ac.goldBg,
+              title: 'Premium Gold',
+              subtitle: 'Direct payment or an Academia vendor voucher. '
+                  'Full access, including Video Courses.',
+              badge: 'PREMIUM',
+              badgeColor: ac.navy,
+              badgeBg: ac.goldBg,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const CreateAccountScreen(isPremium: true))),
-            ),
-            const SizedBox(height: 16),
-
-            _ChoiceCard(
-              icon: Icons.school_rounded,
-              iconColor: Colors.white,
-              iconBg: C.navy,
-              iconOnDark: true,
-              title: 'Student — My School',
-              subtitle: "Enter your personal serial number, issued when you "
-                  'paid your fees. The app becomes your school — its own '
-                  'name, logo, colors, courses, timetable, and announcements.',
-              badge: 'SERIAL NUMBER',
-              badgeColor: C.navy,
-              badgeBg: C.surf3,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const SerialJoinPage())),
+                  builder: (_) => const CreateAccountScreen(tier: EntitlementTier.gold))),
             ),
 
             const SizedBox(height: 28),
@@ -93,7 +96,7 @@ class AccountChoiceScreen extends StatelessWidget {
                 onPressed: () => Navigator.of(context).pop(),
                 child: Text('Continue browsing as Guest',
                     style: GoogleFonts.inter(
-                        fontSize: 13, fontWeight: FontWeight.w600, color: C.txt2)),
+                        fontSize: 13, fontWeight: FontWeight.w600, color: ac.txt2)),
               ),
             ),
           ]),
@@ -125,6 +128,7 @@ class _ChoiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return ACard(
       onTap: onTap,
       padding: const EdgeInsets.all(18),
@@ -139,7 +143,7 @@ class _ChoiceCard extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Expanded(child: Text(title,
-                  style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700, color: C.txt))),
+                  style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt))),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(20)),
@@ -150,11 +154,11 @@ class _ChoiceCard extends StatelessWidget {
             ]),
             const SizedBox(height: 6),
             Text(subtitle,
-                style: GoogleFonts.inter(fontSize: 12.5, color: C.txt2, height: 1.45)),
+                style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2, height: 1.45)),
           ]),
         ),
         const SizedBox(width: 4),
-        const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: C.muted),
+        Icon(Icons.arrow_forward_ios_rounded, size: 14, color: ac.muted),
       ]),
     );
   }

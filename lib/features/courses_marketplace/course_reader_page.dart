@@ -8,7 +8,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import 'dart:convert';
+import '../../core/feature_access.dart';
 import '../../models/app_user.dart';
+import '../../models/entitlement.dart';
 import '../../models/public_course.dart';
 import '../../repositories/public_course_repository.dart';
 import '../../theme/app_theme.dart';
@@ -16,6 +18,8 @@ import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import '../../widgets/formula_embed_builder.dart';
+import '../../widgets/media_players.dart';
+import '../../widgets/premium_unlock_sheet.dart';
 import 'course_creator_profile_page.dart';
 import 'course_composer_page.dart';
 import 'course_browse_page.dart';
@@ -149,6 +153,10 @@ class _CourseReaderPageState extends State<CourseReaderPage> {
                   const SizedBox(height: 20),
                   Divider(color: ac.bdr2),
                   const SizedBox(height: 20),
+                  if ((course.videoUrl ?? '').isNotEmpty) ...[
+                    _VideoLessonSection(course: course, currentUser: widget.currentUser),
+                    const SizedBox(height: 20),
+                  ],
                   _CourseBody(course: course),
                   const SizedBox(height: 24),
                   _CourseActionRow(course: course, currentUser: widget.currentUser),
@@ -282,6 +290,70 @@ class _RatingRow extends StatelessWidget {
           ]),
         );
       }),
+    );
+  }
+}
+
+/// The Video Course itself — locked behind Premium Gold (see
+/// core/feature_access.dart#AppFeature.coursesVideoLessons, the single
+/// place this gate is decided). Silver and Free/Guest both see the same
+/// locked card; only the CTA copy differs (upgrade vs. sign in first).
+class _VideoLessonSection extends StatelessWidget {
+  final PublicCourse course;
+  final AppUser? currentUser;
+  const _VideoLessonSection({required this.course, this.currentUser});
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final url = course.videoUrl!;
+    if (FeatureAccess.canAccess(currentUser, AppFeature.coursesVideoLessons)) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(Rad.md),
+        child: ArticleVideoPlayer(url: url),
+      );
+    }
+    final signedIn = currentUser != null && !currentUser!.isGuest;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: ac.goldBg,
+        borderRadius: BorderRadius.circular(Rad.md),
+        border: Border.all(color: ac.gold.withValues(alpha: .25)),
+      ),
+      child: Row(children: [
+        Icon(Icons.lock_rounded, color: ac.gold, size: 22),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Video Lesson — Premium Gold', style: AppText.title.copyWith(fontSize: 13)),
+          const SizedBox(height: 2),
+          Text(FeatureAccess.reasonBlocked(currentUser, AppFeature.coursesVideoLessons),
+              style: AppText.caption.copyWith(fontSize: 11.5)),
+        ])),
+        const SizedBox(width: 8),
+        TextButton(
+          onPressed: () {
+            if (!signedIn) {
+              Navigator.of(context).pop();
+              return;
+            }
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: ac.surf,
+              shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(Rad.xl))),
+              builder: (_) => PremiumUnlockSheet(
+                userId: currentUser!.id,
+                initialTier: EntitlementTier.gold,
+                onUnlockSuccess: () {},
+              ),
+            );
+          },
+          child: Text(signedIn ? 'Upgrade' : 'Sign in',
+              style: AppText.subtitle.copyWith(fontSize: 12, color: ac.navy, fontWeight: FontWeight.w700)),
+        ),
+      ]),
     );
   }
 }

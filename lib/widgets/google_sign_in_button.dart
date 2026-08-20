@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
 
@@ -40,6 +41,7 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return SizedBox(
       width: double.infinity,
       height: 50,
@@ -47,7 +49,7 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
         onPressed: _loading ? null : _handleTap,
         style: OutlinedButton.styleFrom(
           backgroundColor: Colors.white,
-          side: const BorderSide(color: C.bdr),
+          side: BorderSide(color: ac.bdr),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.md)),
         ),
         child: _loading
@@ -56,11 +58,11 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton> {
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.g_mobiledata_rounded, size: 26, color: C.navy),
+                  Icon(Icons.g_mobiledata_rounded, size: 26, color: ac.navy),
                   const SizedBox(width: 6),
                   Text('Continue with Google',
                       style: GoogleFonts.inter(
-                          fontSize: 14, fontWeight: FontWeight.w600, color: C.navy)),
+                          fontSize: 14, fontWeight: FontWeight.w600, color: ac.navy)),
                 ],
               ),
       ),

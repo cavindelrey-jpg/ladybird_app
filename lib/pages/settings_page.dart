@@ -10,7 +10,6 @@ import '../theme/app_colors.dart';
 import '../providers/theme_provider.dart';
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
-import '../providers/institution_provider.dart';
 import 'profile_edit_page.dart';
 import 'change_password_page.dart';
 import 'notification_preferences_page.dart';
@@ -49,9 +48,6 @@ class SettingsPage extends StatelessWidget {
               'Update your sign-in password',
               () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => const ChangePasswordPage()))),
-          if (user.accountType == AccountType.linked)
-            _tile(context, Icons.swap_horiz_rounded, 'Switch School', 'Leave this institution',
-                () => context.read<InstitutionProvider>().clear()),
 
           const SizedBox(height: 24),
           _sectionLabel(context, 'Notifications'),
@@ -70,10 +66,8 @@ class SettingsPage extends StatelessWidget {
                   builder: (_) => const AboutAcademiaPage()))),
 
           const SizedBox(height: 24),
-          _tile(context, Icons.logout_rounded, 'Sign Out', null, () async {
-            await AuthService.instance.signOut();
-            if (context.mounted) context.read<InstitutionProvider>().clear();
-          }, color: ac.red),
+          _tile(context, Icons.logout_rounded, 'Sign Out', null,
+              () => AuthService.instance.signOut(), color: ac.red),
         ],
       )),
     );

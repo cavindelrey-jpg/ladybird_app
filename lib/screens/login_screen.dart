@@ -5,13 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
-import '../models/models.dart';
 import '../services/auth_service.dart';
 import '../widgets/widgets.dart';
 
 class LoginScreen extends StatefulWidget {
-  final SchoolConfig school;
-  const LoginScreen({super.key, required this.school});
+  const LoginScreen({super.key});
   @override State<LoginScreen> createState() => _LoginScreenState();
 }
 
@@ -198,11 +196,11 @@ class _LoginScreenState extends State<LoginScreen>
                     const AcademiaLogo(size: 52),
                     const SizedBox(height: 28),
 
-                    // School name + motto
-                    Text(widget.school.name,
+                    // Brand name + subline
+                    Text('Academia',
                         style: AppText.display.copyWith(fontSize: 26, color: Colors.white)),
                     const SizedBox(height: 6),
-                    Text(widget.school.motto,
+                    Text('Sign in to your account',
                         style: AppText.bodySm.copyWith(
                             color: Colors.white.withValues(alpha: .55))),
                     const SizedBox(height: 48),

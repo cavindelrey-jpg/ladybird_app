@@ -8,7 +8,6 @@ import '../core/constants.dart';
 import '../core/xp_rules.dart';
 import '../core/result.dart';
 import '../repositories/xp_repository.dart';
-import '../repositories/serial_repository.dart';
 
 class AuthService {
   AuthService._();
@@ -92,111 +91,6 @@ class AuthService {
     return user;
   }
 
-  Future<AppUser> claimLinkedSeat({
-    required String schoolCode, required String seatId,
-    required String tempPassword, required String newEmail,
-    required String newPassword, required String studentName,
-  }) async {
-    final seatRef = _db.collection(AppConstants.colSchools).doc(schoolCode)
-        .collection(AppConstants.colSeats).doc(seatId);
-    final seatDoc = await seatRef.get();
-    if (!seatDoc.exists) throw Exception('Seat not found.');
-    final data = seatDoc.data()!;
-    if (data['claimed'] == true) throw Exception('Account already activated.');
-    if (data['tempPassword'] != tempPassword) throw Exception('Incorrect temporary password.');
-    final cred = await _auth.createUserWithEmailAndPassword(email: newEmail, password: newPassword);
-    final uid  = cred.user!.uid;
-    final user = AppUser(
-      id: uid, name: studentName, email: newEmail,
-      role: UserRole.student, roleName: 'School Student',
-      accountType: AccountType.linked, status: AccountStatus.active,
-      schoolId: schoolCode, classLevel: data['classLevel'] ?? '',
-      isFirstLogin: true, adminAccessRevoked: true,
-    );
-    await _db.collection(AppConstants.colUsers).doc(uid).set(user.toFirestore());
-    await seatRef.update({'claimed': true, 'claimedByUid': uid, 'tempPassword': '••••••••'});
-    return user;
-  }
-
-  /// Creates a brand-new account that's pre-enrolled at an institution via
-  /// a one-time serial number. This is the real join flow — replacing the
-  /// old "anyone with the shared code can join" school-code entry:
-  ///
-  ///   1. Create the Firebase Auth user.
-  ///   2. Atomically claim the serial (fails clean if someone else claimed
-  ///      it a moment earlier — no two accounts can ever share one serial).
-  ///   3. Write the AppUser doc, scoped to that institution.
-  ///
-  /// If step 2 or 3 fails, the just-created Auth user is torn back down
-  /// and (if it got that far) the serial claim is released, so a failed
-  /// signup never leaves an orphaned account or a permanently-burned seat.
-  Future<AppUser> claimSerialAndCreateAccount({
-    required String serialCode,
-    required String institutionId,
-    required String name,
-    required String email,
-    required String password,
-  }) async {
-    final normalizedSerial = serialCode.trim().toUpperCase();
-
-    final cred = await _auth.createUserWithEmailAndPassword(
-        email: email, password: password);
-    final uid = cred.user!.uid;
-
-    // Force-refresh the ID token before the very next Firestore write.
-    // Without this, there's a known race: createUserWithEmailAndPassword
-    // signs the user in locally right away, but the fresh ID token can
-    // take a moment to propagate to the Firestore SDK's request layer.
-    // If the serial-claim transaction (or the user-doc write right after
-    // it) fires before that propagation finishes, security rules see
-    // request.auth as null for that one request and deny it with
-    // "permission-denied" — even though the account was just created
-    // successfully a moment earlier. Awaiting a forced refresh here
-    // closes that window.
-    await cred.user!.getIdToken(true);
-
-    final claimResult =
-        await SerialRepository.instance.claim(code: normalizedSerial, uid: uid);
-    if (claimResult is Failure) {
-      await _safeDeleteAuthUser(cred.user!);
-      throw Exception((claimResult as Failure).message);
-    }
-
-    final user = AppUser(
-      id: uid,
-      name: name,
-      email: email,
-      role: UserRole.student,
-      roleName: 'School Student',
-      accountType: AccountType.linked,
-      status: AccountStatus.active,
-      schoolId: institutionId,
-      serialNumber: normalizedSerial,
-      isFirstLogin: true,
-    );
-
-    try {
-      await _db.collection(AppConstants.colUsers).doc(uid).set(user.toFirestore());
-    } catch (e) {
-      await SerialRepository.instance.release(normalizedSerial);
-      await _safeDeleteAuthUser(cred.user!);
-      rethrow;
-    }
-
-    return user;
-  }
-
-  Future<void> _safeDeleteAuthUser(fb.User user) async {
-    try {
-      await user.delete();
-    } catch (_) {
-      // Best-effort — if this fails (e.g. requires-recent-login edge case)
-      // the account is at least left unclaimed on the serial, so it won't
-      // block anyone else; a stray unclaimed Auth user with no Firestore
-      // doc is otherwise harmless and AppRouter treats it as "not found".
-    }
-  }
-
   // ── Admin operations ───────────────────────────────────────────────────────
   Future<void> changeUserRole(String userId, UserRole newRole) =>
       _db.collection(AppConstants.colUsers).doc(userId).update({'role': newRole.name});
@@ -208,12 +102,6 @@ class AuthService {
   Future<void> reactivateUser(String userId) =>
       _db.collection(AppConstants.colUsers).doc(userId)
           .update({'status': AccountStatus.active.name});
-
-  Stream<List<AppUser>> watchSchoolUsers(String schoolId) =>
-      _db.collection(AppConstants.colUsers)
-          .where('schoolId', isEqualTo: schoolId)
-          .snapshots()
-          .map((s) => s.docs.map((d) => AppUser.fromFirestore(d.id, d.data())).toList());
 
   Future<void> signOut() async {
     await _google.signOut();

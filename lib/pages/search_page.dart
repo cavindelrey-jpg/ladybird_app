@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../models/models.dart';
 import '../models/public_course.dart';
 import '../repositories/academic_content_repository.dart';
@@ -87,10 +87,11 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.surf,
+        backgroundColor: ac.surf,
         title: TextField(
           controller: _ctrl,
           autofocus: true,
@@ -109,7 +110,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
             : TabBarView(
           controller: _tabController,
           children: [
-            _buildLibraryList(),
+            _buildLibraryList(ac),
             _buildClubList(),
             _buildUserList(),
             _buildCourseList(),
@@ -119,7 +120,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
     );
   }
 
-  Widget _buildLibraryList() {
+  Widget _buildLibraryList(AppColors ac) {
     if (_contentFailed) return ErrorView(message: "Couldn't search the Library — check your connection.", onRetry: () => _performSearch(_ctrl.text));
     if (_content.isEmpty) return const EmptyState(icon: Icons.search, title: 'No content found');
     return ListView.builder(
@@ -127,7 +128,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
       itemBuilder: (context, i) => ListTile(
         title: Text(_content[i].title),
         subtitle: Text(_content[i].subject),
-        leading: const Icon(Icons.description, color: C.primary),
+        leading: Icon(Icons.description, color: ac.primary),
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ContentDetailsPage(user: widget.user, contentId: _content[i].id))),
       ),
     );

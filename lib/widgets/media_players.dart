@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 
 class ArticleVideoPlayer extends StatefulWidget {
   final String url;
@@ -130,11 +131,12 @@ class _ArticleAudioPlayerState extends State<ArticleAudioPlayer> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     if (_error != null) {
       return Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(Rad.md)),
-        child: Text(_error!, style: AppText.bodySm.copyWith(color: C.red)),
+        decoration: BoxDecoration(color: ac.redBg, borderRadius: BorderRadius.circular(Rad.md)),
+        child: Text(_error!, style: AppText.bodySm.copyWith(color: ac.red)),
       );
     }
 
@@ -146,8 +148,8 @@ class _ArticleAudioPlayerState extends State<ArticleAudioPlayer> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-            colors: [C.navy2, C.navy], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: LinearGradient(
+            colors: [ac.navy2, ac.navy], begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(Rad.md),
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
@@ -175,7 +177,7 @@ class _ArticleAudioPlayerState extends State<ArticleAudioPlayer> {
                 child: Slider(
                   value: position.inMilliseconds.clamp(0, durationMs).toDouble(),
                   max: durationMs.toDouble(),
-                  activeColor: C.gold,
+                  activeColor: ac.gold,
                   inactiveColor: Colors.white24,
                   onChanged: duration.inMilliseconds == 0
                       ? null
@@ -190,7 +192,7 @@ class _ArticleAudioPlayerState extends State<ArticleAudioPlayer> {
         ),
         const SizedBox(width: 8),
         Material(
-          color: C.gold,
+          color: ac.gold,
           shape: const CircleBorder(),
           child: InkWell(
             customBorder: const CircleBorder(),
@@ -198,7 +200,7 @@ class _ArticleAudioPlayerState extends State<ArticleAudioPlayer> {
             child: Padding(
               padding: const EdgeInsets.all(10),
               child: Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  color: C.navy, size: 22),
+                  color: ac.navy, size: 22),
             ),
           ),
         ),

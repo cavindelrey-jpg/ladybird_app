@@ -11,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../models/app_user.dart';
 import '../models/academic_content.dart' show kAcademicSubjects;
 import '../services/auth_service.dart';
@@ -117,13 +118,14 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text('Edit Profile',
-            style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
+            style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
         actions: [
           TextButton(
             onPressed: _saving ? null : _save,
@@ -131,7 +133,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 ? const SizedBox(width: 16, height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : Text('Save', style: GoogleFonts.sora(
-                    fontSize: 14, fontWeight: FontWeight.w700, color: C.primary)),
+                    fontSize: 14, fontWeight: FontWeight.w700, color: ac.primary)),
           ),
         ],
       ),
@@ -145,19 +147,19 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 _photoUrl != null && _photoUrl!.isNotEmpty
                     ? CircleAvatar(radius: 48, backgroundImage: NetworkImage(_photoUrl!))
                     : CircleAvatar(
-                        radius: 48, backgroundColor: C.primaryBg,
+                        radius: 48, backgroundColor: ac.primaryBg,
                         child: Text(widget.user.initials, style: GoogleFonts.sora(
-                            fontSize: 30, fontWeight: FontWeight.w700, color: C.primary)),
+                            fontSize: 30, fontWeight: FontWeight.w700, color: ac.primary)),
                       ),
                 Positioned(
                   bottom: 0, right: 0,
                   child: Container(
                     padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(color: C.gold, shape: BoxShape.circle),
+                    decoration: BoxDecoration(color: ac.gold, shape: BoxShape.circle),
                     child: _uploadingPhoto
-                        ? const SizedBox(width: 14, height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: C.navy))
-                        : const Icon(Icons.camera_alt_rounded, size: 14, color: C.navy),
+                        ? SizedBox(width: 14, height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: ac.navy))
+                        : Icon(Icons.camera_alt_rounded, size: 14, color: ac.navy),
                   ),
                 ),
               ]),
@@ -166,30 +168,30 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           const SizedBox(height: 8),
           Center(
             child: Text('Tap to change photo',
-                style: GoogleFonts.inter(fontSize: 12, color: C.txt2)),
+                style: GoogleFonts.inter(fontSize: 12, color: ac.txt2)),
           ),
           const SizedBox(height: 28),
 
-          _label('Full Name'),
+          _label('Full Name', ac),
           TextField(
             controller: _nameCtrl,
             style: GoogleFonts.inter(fontSize: 14),
-            decoration: _fieldDecoration(hint: 'Your name'),
+            decoration: _fieldDecoration(ac, hint: 'Your name'),
           ),
           const SizedBox(height: 20),
 
-          _label('Education Level'),
+          _label('Education Level', ac),
           Container(
             decoration: BoxDecoration(
-                color: C.surf, borderRadius: BorderRadius.circular(Rad.md),
-                border: Border.all(color: C.bdr)),
+                color: ac.surf, borderRadius: BorderRadius.circular(Rad.md),
+                border: Border.all(color: ac.bdr)),
             padding: const EdgeInsets.symmetric(horizontal: 14),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: _educationLevel,
                 isExpanded: true,
-                icon: const Icon(Icons.expand_more_rounded, color: C.muted),
-                style: GoogleFonts.inter(fontSize: 14, color: C.txt),
+                icon: Icon(Icons.expand_more_rounded, color: ac.muted),
+                style: GoogleFonts.inter(fontSize: 14, color: ac.txt),
                 items: EducationLevels.all
                     .map((lvl) => DropdownMenuItem(value: lvl, child: Text(lvl)))
                     .toList(),
@@ -199,9 +201,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           ),
           const SizedBox(height: 20),
 
-          _label('Favorite Subjects'),
+          _label('Favorite Subjects', ac),
           Text('Used to personalize what Library, Courses, Magazine, and Quizzes recommend to you.',
-              style: GoogleFonts.inter(fontSize: 11.5, color: C.txt2)),
+              style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
           const SizedBox(height: 10),
           Wrap(
             spacing: 8, runSpacing: 8,
@@ -213,56 +215,56 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                 onSelected: (_) => setState(() => selected
                     ? _favoriteSubjects.remove(s)
                     : _favoriteSubjects.add(s)),
-                selectedColor: C.primary,
+                selectedColor: ac.primary,
                 labelStyle: GoogleFonts.inter(
                     fontSize: 12.5,
-                    color: selected ? Colors.white : C.txt,
+                    color: selected ? Colors.white : ac.txt,
                     fontWeight: selected ? FontWeight.w600 : FontWeight.w400),
-                backgroundColor: C.surf,
+                backgroundColor: ac.surf,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
-                    side: BorderSide(color: selected ? C.primary : C.bdr)),
+                    side: BorderSide(color: selected ? ac.primary : ac.bdr)),
               );
             }).toList(),
           ),
           const SizedBox(height: 20),
 
           Row(children: [
-            _label('Bio'),
+            _label('Bio', ac),
             const Spacer(),
             Text('$_wordCount / $kBioMaxWords words',
                 style: GoogleFonts.inter(
                     fontSize: 11,
-                    color: _wordCount > kBioMaxWords ? C.red : C.muted)),
+                    color: _wordCount > kBioMaxWords ? ac.red : ac.muted)),
           ]),
           TextField(
             controller: _bioCtrl,
             maxLines: 5,
             style: GoogleFonts.inter(fontSize: 14),
-            decoration: _fieldDecoration(hint: 'Tell people a bit about yourself…'),
+            decoration: _fieldDecoration(ac, hint: 'Tell people a bit about yourself…'),
           ),
         ]),
       )),
     );
   }
 
-  Widget _label(String text) => Padding(
+  Widget _label(String text, AppColors ac) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(text, style: GoogleFonts.sora(
-            fontSize: 12.5, fontWeight: FontWeight.w700, color: C.txt2)),
+            fontSize: 12.5, fontWeight: FontWeight.w700, color: ac.txt2)),
       );
 
-  InputDecoration _fieldDecoration({required String hint}) => InputDecoration(
+  InputDecoration _fieldDecoration(AppColors ac, {required String hint}) => InputDecoration(
         hintText: hint,
-        hintStyle: GoogleFonts.inter(fontSize: 14, color: C.muted),
+        hintStyle: GoogleFonts.inter(fontSize: 14, color: ac.muted),
         filled: true,
-        fillColor: C.surf,
+        fillColor: ac.surf,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(Rad.md), borderSide: const BorderSide(color: C.bdr)),
+            borderRadius: BorderRadius.circular(Rad.md), borderSide: BorderSide(color: ac.bdr)),
         enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(Rad.md), borderSide: const BorderSide(color: C.bdr)),
+            borderRadius: BorderRadius.circular(Rad.md), borderSide: BorderSide(color: ac.bdr)),
         focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(Rad.md), borderSide: const BorderSide(color: C.primary)),
+            borderRadius: BorderRadius.circular(Rad.md), borderSide: BorderSide(color: ac.primary)),
       );
 }

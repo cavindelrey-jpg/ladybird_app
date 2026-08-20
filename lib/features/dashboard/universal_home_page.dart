@@ -53,7 +53,7 @@ import '../../pages/profile_page.dart';
 import '../academic_content/content_viewer_page.dart';
 import '../academic_content/content_details_page.dart';
 import '../testing/xp_dashboard_page.dart';
-import '../testing/tests_subject_picker_page.dart';
+import '../testing/quiz_categories_page.dart';
 import '../academic_content/academic_content_page.dart';
 import '../clubs/clubs_page.dart';
 import '../magazine/magazine_feed_page.dart';
@@ -226,19 +226,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     if (instProv.isLoaded) {
       return const InstitutionHeader(compact: true);
     }
-    return Row(children: [
-      const BrandLogo(size: 34),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(Branding.current.appName, style: GoogleFonts.sora(
-              fontSize: 17, fontWeight: FontWeight.w800, color: ac.txt)),
-          Text(Branding.current.tagline,
-              style: GoogleFonts.inter(fontSize: 10, color: ac.txt2),
-              overflow: TextOverflow.ellipsis),
-        ]),
-      ),
-    ]);
+    return Text(Branding.current.appName, style: GoogleFonts.sora(
+        fontSize: 19, fontWeight: FontWeight.w800, color: ac.txt));
   }
 
   // -- Greeting + Stats + Week dots ------------------------------------
@@ -505,7 +494,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             user: user, initialTypeFilter: ContentType.pastPaper));
         break;
       case 'Quizzes':
-        _open(context, TestsSubjectPickerPage(user: user));
+        _open(context, QuizCategoriesPage(user: user));
         break;
     }
   }

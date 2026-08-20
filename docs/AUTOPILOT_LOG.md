@@ -3660,3 +3660,57 @@ deployed), `test/club_unread_test.dart` (new),
 `lib/features/magazine/{article_composer_page,article_reader_page,
 author_profile_page,gallery_composer_page,video_composer_page,
 top_writers_page,magazine_feed_page}.dart`.
+
+## Session (2026-08-20): "logo not fixed" + redundant home-page branding text
+
+User's ask was ambiguous ("logo is not fixed, resize it, look at the
+folder screenshot vs. the image in the logo file") with no live device to
+inspect. Root-caused rather than guessing blind: `home_page_reference_mockup.png`
+at the app root is Gamma's original design mockup (per
+`universal_home_page.dart`'s own header comment, "UI layer is Gamma's
+mockup") — a design reference, not a live screenshot — and its logo mark
+(a circular navy/gold badge with a graduation cap) doesn't match the real
+asset (`assets/logos/academia_logo_square.png`, a navy rounded-square "A"
+torch mark) at all. Concluded the mockup comparison was a red herring and
+looked for an actual, objective defect instead.
+
+- **Found the real bug**: `web/icons/*.png`, `web/favicon.png`, and
+  `macos/Runner/Assets.xcassets/AppIcon.appiconset/*.png` were all still
+  Flutter's unmodified template icon (the blue Flutter "F" mark) —
+  confirmed by opening the files directly, not inferred. `web/manifest.json`
+  and `web/index.html` were likewise untouched Flutter boilerplate (`name:
+  "academia_app"`, `theme_color: "#0175C2"` Flutter-blue,
+  `description: "A new Flutter project."`). This matches "app logo is not
+  fixed" literally: on web/macOS the real Academia mark was never applied
+  at all. (`android`/`ios` platform folders don't exist in this checkout
+  despite `pubspec.yaml`'s `flutter_launcher_icons` config listing both —
+  out of scope here since there's no folder to regenerate into; flagging
+  in case a future session runs `flutter create` and expects those icons
+  to already be right.)
+  - Fix: wrote a one-off Pillow script (deleted after running, output is
+    what's committed) that resizes `academia_logo_square.png` into
+    `web/icons/Icon-{192,512}.png` (full-bleed, matches the existing
+    non-maskable convention), `web/icons/Icon-maskable-{192,512}.png`
+    (this is the "resize" part — padded to a 72% safe zone on a solid
+    navy `#0B1B33` canvas so a PWA's own circular/rounded OS mask doesn't
+    clip the mark, since the source art is edge-to-edge with zero
+    margin), `web/favicon.png` (32px), and all 7 macOS
+    `AppIcon.appiconset` sizes (16 through 1024). Updated
+    `web/manifest.json` (name/short_name "Academia", real description,
+    navy theme/background color) and `web/index.html` (title, meta
+    description, apple-mobile-web-app-title) to match.
+- **Home page top bar + duplicated tagline text (explicit user ask)**:
+  removed the small `BrandLogo` icon from `universal_home_page.dart`'s
+  `_brandingBlock` (the Home top bar) — now renders as just the bold
+  "Academia" app-name text, no icon, no subtitle. Also dropped the
+  `brand.tagline` ("Your Complete Smart School Platform") line from
+  `school_home_page.dart`'s `_HeroBanner` (the school-mode Home's welcome
+  card), keeping just "Welcome to {appName}" — this was the only other
+  place in the app where that exact bold-name + tagline-subtitle pattern
+  appears (checked every `AcademiaLogo`/`BrandLogo` call site —
+  login/first-login/account-choice/about screens each pair the logo with
+  page-specific copy, e.g. "Create your account", not the generic
+  Academia tagline, so left those alone). `flutter analyze` on the two
+  touched files: 0 errors (only pre-existing `prefer_const_constructors`
+  infos). Full-project `flutter analyze` kicked off to confirm no
+  collateral breakage before committing.

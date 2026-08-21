@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Academia Android Release
+    name: Green Hill Android Release
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
@@ -20,11 +20,11 @@ workflows:
       # keystore is uploaded there, the app keeps building signed with
       # the debug keystore (see android/app/build.gradle.kts's release
       # signingConfig) — fine for internal testing, not for Play Store.
-      # Once a keystore is uploaded (name it `academia_release`), add:
+      # Once a keystore is uploaded (name it `greenhill_release`), add:
       #   android_signing:
-      #     - academia_release
+      #     - greenhill_release
       vars:
-        BRAND_ID: academia
+        BRAND_ID: green_hill
     scripts:
       - name: Get Flutter packages
         script: flutter pub get
@@ -37,7 +37,7 @@ workflows:
         script: flutter analyze --no-fatal-infos
       - name: Run tests
         script: flutter test
-      - name: Build Academia APK
+      - name: Build Green Hill APK
         # --target-platform=android-arm64: without this Flutter builds a
         # "fat" universal APK bundling native libs for every ABI (arm64,
         # armv7, x86_64), which is why the artifact ballooned to ~83MB.
@@ -45,14 +45,14 @@ workflows:
         # sold since ~2018 is) is what produced the ~40MB build before.
         script: |
           flutter build apk --release \
-            --flavor academia \
-            --dart-define=BRAND_ID=academia \
+            --flavor greenhill \
+            --dart-define=BRAND_ID=green_hill \
+            --dart-define=APP_MODE=school \
             --target-platform=android-arm64
     artifacts:
-      # Only the exact Academia release output -- not the recursive
-      # `outputs/**/*.apk` glob this had before, which matched the SAME
-      # apk twice (Gradle writes it to both outputs/flutter-apk/ and
-      # outputs/apk/academia/release/) and, before Green Hill was
-      # dropped above, matched that flavor's two copies too -- 4 files
-      # for what was really one built APK.
-      - build/app/outputs/flutter-apk/app-academia-release.apk
+      # Only the exact Green Hill release output -- not a recursive
+      # `outputs/**/*.apk` glob, which would match the SAME apk twice
+      # (Gradle writes it to both outputs/flutter-apk/ and
+      # outputs/apk/greenhill/release/) and would match Academia's
+      # flavor output too if that ever gets built alongside this.
+      - build/app/outputs/flutter-apk/app-greenhill-release.apk

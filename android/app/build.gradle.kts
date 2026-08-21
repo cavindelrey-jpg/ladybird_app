@@ -46,17 +46,17 @@ android {
         }
     }
 
-    // Same codebase, two distinct products (see lib/config/app_config.dart
-    // and lib/config/branding.dart for the Dart-side half of this split).
-    // Build with e.g.:
-    //   flutter build apk --flavor academia --dart-define=BRAND_ID=academia --dart-define=APP_MODE=platform
-    //   flutter build apk --flavor greenhill --dart-define=BRAND_ID=green_hill --dart-define=APP_MODE=school
+    // Same codebase, two distinct products (see lib/config/branding.dart
+    // for the Dart-side half of this split -- BRAND_ID picks the
+    // name/colors/logo). Build with e.g.:
+    //   flutter build apk --flavor academia --dart-define=BRAND_ID=academia
+    //   flutter build apk --flavor greenhill --dart-define=BRAND_ID=green_hill
     // --flavor and --dart-define are independent flags and must both be
     // passed together to get a consistent build -- the flavor picks the
-    // Android applicationId/launcher label, the dart-defines pick the
-    // in-app branding/nav gating. Mismatching them (e.g. --flavor
-    // greenhill with BRAND_ID=academia) produces a build that looks like
-    // one product and installs as the other's package -- always pass both.
+    // Android applicationId/launcher label, the dart-define picks the
+    // in-app branding. Mismatching them (e.g. --flavor greenhill with
+    // BRAND_ID=academia) produces a build that looks like one product
+    // and installs as the other's package -- always pass both.
     flavorDimensions += "brand"
     productFlavors {
         create("academia") {

@@ -37,16 +37,22 @@ workflows:
         script: flutter analyze --no-fatal-infos
       - name: Run tests
         script: flutter test
-      - name: Build Academia flavor APK
+      - name: Build Academia APK
+        # --target-platform=android-arm64: without this Flutter builds a
+        # "fat" universal APK bundling native libs for every ABI (arm64,
+        # armv7, x86_64), which is why the artifact ballooned to ~83MB.
+        # Restricting to arm64 (what virtually every real Android device
+        # sold since ~2018 is) is what produced the ~40MB build before.
         script: |
           flutter build apk --release \
             --flavor academia \
-            --dart-define=BRAND_ID=academia
-      - name: Build Green Hill flavor APK
-        script: |
-          flutter build apk --release \
-            --flavor greenhill \
-            --dart-define=BRAND_ID=green_hill
+            --dart-define=BRAND_ID=academia \
+            --target-platform=android-arm64
     artifacts:
-      - build/app/outputs/**/*.apk
-      - build/app/outputs/**/mapping.txt
+      # Only the exact Academia release output -- not the recursive
+      # `outputs/**/*.apk` glob this had before, which matched the SAME
+      # apk twice (Gradle writes it to both outputs/flutter-apk/ and
+      # outputs/apk/academia/release/) and, before Green Hill was
+      # dropped above, matched that flavor's two copies too -- 4 files
+      # for what was really one built APK.
+      - build/app/outputs/flutter-apk/app-academia-release.apk

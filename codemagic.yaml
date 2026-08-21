@@ -5,14 +5,16 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       flutter: stable
-      android_signing:
-        # Optional — only takes effect once a keystore reference with this
-        # exact name is uploaded under Codemagic's Code signing identities
-        # (Settings > Code signing identities > Android keystores). Until
-        # then this line is a no-op and the app keeps building signed with
-        # the debug keystore (see android/app/build.gradle.kts's release
-        # signingConfig) — fine for internal testing, not for Play Store.
-        - academia_release
+      # No android_signing block yet — Codemagic validates that any
+      # referenced keystore actually exists under Code signing identities
+      # (Settings > Code signing identities > Android keystores), it does
+      # NOT silently no-op for a missing one. Until a real release
+      # keystore is uploaded there, the app keeps building signed with
+      # the debug keystore (see android/app/build.gradle.kts's release
+      # signingConfig) — fine for internal testing, not for Play Store.
+      # Once a keystore is uploaded (name it `academia_release`), add:
+      #   android_signing:
+      #     - academia_release
       vars:
         BRAND_ID: academia
     scripts:

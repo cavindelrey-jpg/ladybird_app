@@ -110,7 +110,6 @@ class _ChoiceCard extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final Color iconBg;
-  final bool iconOnDark;
   final String title;
   final String subtitle;
   final String badge;
@@ -120,7 +119,6 @@ class _ChoiceCard extends StatelessWidget {
 
   const _ChoiceCard({
     required this.icon, required this.iconColor, required this.iconBg,
-    this.iconOnDark = false,
     required this.title, required this.subtitle,
     required this.badge, required this.badgeColor, required this.badgeBg,
     required this.onTap,

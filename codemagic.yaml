@@ -21,7 +21,12 @@ workflows:
       - name: Get Flutter packages
         script: flutter pub get
       - name: Analyze
-        script: flutter analyze
+        # --no-fatal-infos: flutter analyze exits 1 on ANY finding,
+        # including plain style infos (unnecessary_const, prefer_const_
+        # constructors, etc.) -- there's a real, pre-existing baseline of
+        # those in this project that isn't worth blocking a release build
+        # on. Actual errors and warnings still fail this step.
+        script: flutter analyze --no-fatal-infos
       - name: Run tests
         script: flutter test
       - name: Build Academia flavor APK

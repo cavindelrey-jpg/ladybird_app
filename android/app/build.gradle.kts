@@ -16,7 +16,12 @@ android {
     compileSdk = 36
 
     // Change this line from: ndkVersion = flutter.ndkVersion
-    ndkVersion = "27.0.12077973"
+    // Bumped 27 -> 28.2.13676358: the `jni` plugin (a transitive Flutter
+    // plugin dependency) requires that version specifically; NDK is
+    // backward-compatible so building everything against the higher
+    // version is Flutter's own recommended fix rather than pinning per
+    // plugin.
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

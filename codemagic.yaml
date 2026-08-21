@@ -1,0 +1,40 @@
+workflows:
+  android-release:
+    name: Academia Android Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      android_signing:
+        # Optional — only takes effect once a keystore reference with this
+        # exact name is uploaded under Codemagic's Code signing identities
+        # (Settings > Code signing identities > Android keystores). Until
+        # then this line is a no-op and the app keeps building signed with
+        # the debug keystore (see android/app/build.gradle.kts's release
+        # signingConfig) — fine for internal testing, not for Play Store.
+        - academia_release
+      vars:
+        BRAND_ID: academia
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+      - name: Analyze
+        script: flutter analyze
+      - name: Run tests
+        script: flutter test
+      - name: Build Academia flavor APK
+        script: |
+          flutter build apk --release \
+            --flavor academia \
+            --dart-define=BRAND_ID=academia
+      - name: Build Green Hill flavor APK
+        script: |
+          flutter build apk --release \
+            --flavor greenhill \
+            --dart-define=BRAND_ID=green_hill
+    artifacts:
+      - build/app/outputs/**/*.apk
+      - build/app/outputs/**/mapping.txt
+    publishing:
+      email:
+        recipients: []

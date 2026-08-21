@@ -2,7 +2,7 @@
 //
 // UI layer is Gamma's mockup, kept as close to verbatim as possible:
 //   - avatar/name/role + 3 stat pills (streak/XP/courses) + week dots
-//   - single big-image "Library" banner with gradient + CTA + dot indicator
+//   - single big-image "Academia Library" banner with gradient + CTA + dot indicator
 //   - Quick Access: 5 fixed icons (Magazine/Clubs/Library/Past Qs/Quizzes)
 //   - Today's Progress + Daily Challenge, side by side
 //   - Top Writers + Recent Announcements, side by side
@@ -19,29 +19,23 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../config/branding.dart';
-import '../../providers/institution_provider.dart';
-import '../institution/institution_header_widget.dart';
 import '../../models/app_user.dart';
 import '../../models/hero_slide.dart';
 import '../../models/announcement.dart';
 import '../../models/magazine_article.dart';
 import '../../models/daily_challenge.dart';
 import '../../models/academic_content.dart';
-import '../../models/course.dart';
 import '../../models/personal_study_slot.dart';
-import '../../models/timetable_slot.dart';
+import '../../models/course.dart';
 import '../../repositories/personal_study_repository.dart';
-import '../../repositories/timetable_repository.dart';
 import '../../repositories/announcement_repository.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../repositories/daily_challenge_repository.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../repositories/test_repository.dart';
-import '../../repositories/course_repository.dart';
 import '../../services/auth_service.dart';
 import '../../repositories/xp_repository.dart';
 import '../../widgets/widgets.dart';
@@ -53,13 +47,12 @@ import '../../pages/profile_page.dart';
 import '../academic_content/content_viewer_page.dart';
 import '../academic_content/content_details_page.dart';
 import '../testing/xp_dashboard_page.dart';
-import '../testing/tests_subject_picker_page.dart';
+import '../testing/quiz_categories_page.dart';
 import '../academic_content/academic_content_page.dart';
 import '../clubs/clubs_page.dart';
 import '../magazine/magazine_feed_page.dart';
 import '../magazine/top_writers_page.dart';
 import '../announcements/announcements_page.dart';
-import '../courses/course_detail_page.dart';
 
 /// Local, slightly stronger "glow" shadow for this page's cards -- Gamma's
 /// own render used a near-invisible shadow (alpha .02-.03); the mockup
@@ -99,22 +92,20 @@ List<String> rankHomeSubjectsByUsage(
   return indexed.map((e) => e.value).toList();
 }
 
-/// Stable partition of [courses] into ones the student is enrolled in
-/// ([enrolledCourseIds]) first, then the rest -- the real "Courses
-/// accessed" signal. Both halves keep their original relative order (a
-/// partition, not a sort), so this doesn't disturb whatever order the
-/// caller's query already returned (typically alphabetical by name, from
-/// CourseRepository.watchAll).
+/// Stable partition, not a re-sort: enrolled courses first, then the rest —
+/// each half keeps its original relative order. An id in
+/// [enrolledCourseIds] with no matching course (already dropped/renamed)
+/// is silently ignored.
 List<Course> rankHomeCoursesByEnrollment(
   List<Course> courses,
   Set<String> enrolledCourseIds,
 ) {
   final enrolled = <Course>[];
-  final other = <Course>[];
+  final rest = <Course>[];
   for (final c in courses) {
-    (enrolledCourseIds.contains(c.id) ? enrolled : other).add(c);
+    (enrolledCourseIds.contains(c.id) ? enrolled : rest).add(c);
   }
-  return [...enrolled, ...other];
+  return [...enrolled, ...rest];
 }
 
 class UniversalHomePage extends StatefulWidget {
@@ -213,32 +204,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     );
   }
 
-  // -- Branding: this is THE spot that makes the app "become" a school's
-  // own app. Previously this row hardcoded the Academia name + logo no
-  // matter who was signed in — so a St. Michael student and a guest saw
-  // literally the same header. Now it watches InstitutionProvider: once an
-  // institution is actively loaded (i.e. the signed-in account is linked
-  // to a school via a claimed serial number), the school's own logo, name,
-  // and "Powered by Academia" subline render here instead. Independent /
-  // guest accounts keep the plain Academia identity.
   Widget _brandingBlock(BuildContext context) {
-    final instProv = context.watch<InstitutionProvider>();
-    if (instProv.isLoaded) {
-      return const InstitutionHeader(compact: true);
-    }
-    return Row(children: [
-      const BrandLogo(size: 34),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(Branding.current.appName, style: GoogleFonts.sora(
-              fontSize: 17, fontWeight: FontWeight.w800, color: ac.txt)),
-          Text(Branding.current.tagline,
-              style: GoogleFonts.inter(fontSize: 10, color: ac.txt2),
-              overflow: TextOverflow.ellipsis),
-        ]),
-      ),
-    ]);
+    return Text(Branding.current.appName, style: GoogleFonts.sora(
+        fontSize: 19, fontWeight: FontWeight.w800, color: ac.txt));
   }
 
   // -- Greeting + Stats + Week dots ------------------------------------
@@ -447,7 +415,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     final items = <(String, IconData, Color)>[
       ('Magazine', Icons.menu_book_rounded, ac.pur),
       ('Clubs', Icons.groups_rounded, ac.gold),
-      ('Library', Icons.import_contacts_rounded, ac.primary),
+      ('Academia Library', Icons.import_contacts_rounded, ac.primary),
       ('Past Questions', Icons.description_rounded, ac.grn),
       ('Quizzes', Icons.assignment_rounded, ac.org),
     ];
@@ -497,7 +465,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       case 'Clubs':
         _open(context, ClubsPage(user: user));
         break;
-      case 'Library':
+      case 'Academia Library':
         _open(context, AcademicContentPage(user: user));
         break;
       case 'Past Questions':
@@ -505,7 +473,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             user: user, initialTypeFilter: ContentType.pastPaper));
         break;
       case 'Quizzes':
-        _open(context, TestsSubjectPickerPage(user: user));
+        _open(context, QuizCategoriesPage(user: user));
         break;
     }
   }
@@ -908,87 +876,46 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   // -- Today's Study Program (production_plan.md §5) ----------------------
-  // The spec's own worked example ("Today's Study Program: Mathematics —
-  // 30 min, Physics Quiz — 15 min, Read: Mechanics — 20 min") merges BOTH
-  // timetable concepts §5 defines -- the School Timetable (admin-authored,
-  // e.g. "Monday: Mathematics -> Physics -> English") and the Personal
-  // Study Timetable (self-authored revision sessions) -- into one ordered
-  // list for today. This used to show only Personal Study slots; now
-  // merges in today's School Timetable slot too, for students who have
-  // one (independent/no-school users still see their personal slots only,
-  // same as before). No push/local notification here (no such package is
-  // wired into this app yet) -- an honest in-app reminder, not a fake
-  // "we'll notify you" promise, matching this section's own prior note.
-  Stream<List<TimetableSlot>> _todaysSchoolTimetableStream() {
-    final schoolId = _u?.schoolId;
-    if (schoolId == null || schoolId.isEmpty) return Stream.value(const []);
-    final u = _u!;
-    final base = u.isLecturer
-        ? TimetableRepository.instance.watchForLecturer(schoolId, u.id)
-        : u.classLevel.isNotEmpty
-            ? TimetableRepository.instance.watchForClass(schoolId, u.classLevel)
-            : TimetableRepository.instance.watchAll(schoolId);
-    final today = DateTime.now().weekday;
-    return base.map((slots) => slots.where((s) => s.dayOfWeek == today).toList());
-  }
-
+  // The Personal Study Timetable (self-authored revision sessions) shown
+  // as an ordered list for today. No push/local notification here (no such
+  // package is wired into this app yet) -- an honest in-app reminder, not
+  // a fake "we'll notify you" promise.
   Widget _todaysStudyProgram(BuildContext context) {
     return StreamBuilder<List<PersonalStudySlot>>(
       stream: PersonalStudyRepository.instance.watchToday(_u!.id),
       builder: (context, personalSnap) {
-        return StreamBuilder<List<TimetableSlot>>(
-          stream: _todaysSchoolTimetableStream(),
-          builder: (context, schoolSnap) {
-            final waiting = personalSnap.connectionState == ConnectionState.waiting ||
-                schoolSnap.connectionState == ConnectionState.waiting;
-            final personal = personalSnap.data ?? const <PersonalStudySlot>[];
-            final school = schoolSnap.data ?? const <TimetableSlot>[];
-            if (waiting || (personal.isEmpty && school.isEmpty)) {
-              return const SizedBox.shrink();
-            }
-            // Merge both real sources into one ordered-by-start-time list,
-            // each entry tagged with WHERE it came from so a school class
-            // and a self-planned revision session read as visibly
-            // different things, not one conflated list.
-            final entries = <_TodayEntry>[
-              ...school.map((s) => _TodayEntry(
-                  startTime: s.startTime, endTime: s.endTime,
-                  label: s.courseName, isSchool: true)),
-              ...personal.map((s) => _TodayEntry(
-                  startTime: s.startTime, endTime: s.endTime,
-                  label: s.activity, isSchool: false)),
-            ]..sort((a, b) => a.startTime.compareTo(b.startTime));
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.lg), border: Border.all(color: ac.bdr)),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Icon(Icons.event_available_rounded, size: 18, color: ac.gold),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text("Today's Study Program", style: AppText.h2.copyWith(fontSize: 15))),
-                  ]),
-                  const SizedBox(height: 12),
-                  ...entries.map((e) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(children: [
-                      Container(
-                        width: 6, height: 6,
-                        decoration: BoxDecoration(
-                            color: e.isSchool ? ac.primary : ac.gold, shape: BoxShape.circle)),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text(e.label, style: AppText.bodySm.copyWith(fontSize: 13))),
-                      if (e.isSchool) ...[
-                        Text('Class · ', style: AppText.caption.copyWith(fontSize: 10, color: ac.primary)),
-                      ],
-                      Text('${e.startTime}–${e.endTime}', style: AppText.caption.copyWith(fontSize: 11)),
-                    ]),
-                  )),
+        final waiting = personalSnap.connectionState == ConnectionState.waiting;
+        final personal = personalSnap.data ?? const <PersonalStudySlot>[];
+        if (waiting || personal.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final entries = [...personal]
+          ..sort((a, b) => a.startTime.compareTo(b.startTime));
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.lg), border: Border.all(color: ac.bdr)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.event_available_rounded, size: 18, color: ac.gold),
+                const SizedBox(width: 8),
+                Expanded(child: Text("Today's Study Program", style: AppText.h2.copyWith(fontSize: 15))),
+              ]),
+              const SizedBox(height: 12),
+              ...entries.map((e) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(children: [
+                  Container(
+                    width: 6, height: 6,
+                    decoration: BoxDecoration(color: ac.gold, shape: BoxShape.circle)),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(e.activity, style: AppText.bodySm.copyWith(fontSize: 13))),
+                  Text('${e.startTime}–${e.endTime}', style: AppText.caption.copyWith(fontSize: 11)),
                 ]),
-              ),
-            );
-          },
+              )),
+            ]),
+          ),
         );
       },
     );
@@ -1043,7 +970,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       future: _recommendedFuture,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const SizedBox(height: 140,
+          return const SizedBox(height: 168,
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
         }
         if (snap.hasError) {
@@ -1062,7 +989,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           );
         }
         return SizedBox(
-          height: 140,
+          height: 168,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1071,7 +998,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             itemBuilder: (_, i) {
               final it = items[i];
               if (it is AcademicContent) return _recommendedLibraryCard(context, it);
-              if (it is Course) return _recommendedCourseCard(context, it);
               return const SizedBox.shrink();
             },
           ),
@@ -1133,19 +1059,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       libraryItems = fallback.take(4).toList();
     }
 
-    var courses = <Course>[];
-    if (!_isGuest && schoolId != null) {
-      try {
-        final all = await CourseRepository.instance.watchAll(schoolId).first
-            .timeout(const Duration(seconds: 3));
-        // Real "Courses accessed" signal: a course the student is actually
-        // enrolled in surfaces before ones they aren't.
-        courses = rankHomeCoursesByEnrollment(all, _u!.courseIds.toSet()).take(4).toList();
-      } catch (_) {
-        courses = [];
-      }
-    }
-    return [...libraryItems, ...courses];
+    return libraryItems;
   }
 
   String _formatContentSize(int? bytes) {
@@ -1155,89 +1069,64 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return '$bytes B';
   }
 
+  // Real thumbnail when the content has one (item.thumbnailUrl, same field
+  // AcademicContentPage's own cards read), falling back to a type-emoji
+  // tile instead of a generic document icon only when no image exists.
+  Widget _recommendedThumb(AppColors ac, {String? url, required Widget fallback}) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(Rad.md)),
+      child: SizedBox(
+        height: 64,
+        width: double.infinity,
+        child: (url ?? '').isNotEmpty
+            ? Image.network(url!, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(color: ac.surf3, child: fallback))
+            : Container(color: ac.surf3, child: fallback),
+      ),
+    );
+  }
+
   Widget _recommendedLibraryCard(BuildContext context, AcademicContent item) {
     final radius = BorderRadius.circular(Rad.md);
     return Material(
       color: ac.purBg,
       borderRadius: radius,
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         borderRadius: radius,
         onTap: () {
           HapticFeedback.selectionClick();
           _open(context, ContentDetailsPage(contentId: item.id, user: _u ?? AppUser.guest()));
         },
-        child: Container(
+        child: SizedBox(
           width: 150,
-          padding: const EdgeInsets.all(12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Icon(Icons.description_rounded, size: 12, color: ac.pur),
-              const SizedBox(width: 4),
-              Text(item.contentType.label, style: GoogleFonts.inter(
-                  fontSize: 10, fontWeight: FontWeight.w600, color: ac.pur)),
-            ]),
-            const SizedBox(height: 8),
-            Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, height: 1.2)),
-            const Spacer(),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Expanded(child: Text(_formatContentSize(item.fileSizeBytes),
-                  style: GoogleFonts.inter(fontSize: 10, color: ac.txt2))),
-              Icon(Icons.bookmark_outline_rounded, size: 16, color: ac.pur),
-            ]),
+            _recommendedThumb(ac, url: item.thumbnailUrl,
+                fallback: Center(child: Text(item.contentType.emoji, style: const TextStyle(fontSize: 22)))),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(Icons.description_rounded, size: 12, color: ac.pur),
+                  const SizedBox(width: 4),
+                  Expanded(child: Text(item.contentType.label, overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: ac.pur))),
+                ]),
+                const SizedBox(height: 6),
+                Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, height: 1.2)),
+                const SizedBox(height: 6),
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  Expanded(child: Text(_formatContentSize(item.fileSizeBytes),
+                      style: GoogleFonts.inter(fontSize: 10, color: ac.txt2))),
+                  Icon(Icons.bookmark_outline_rounded, size: 16, color: ac.pur),
+                ]),
+              ]),
+            ),
           ]),
         ),
       ),
     );
   }
 
-  Widget _recommendedCourseCard(BuildContext context, Course course) {
-    final radius = BorderRadius.circular(Rad.md);
-    return Material(
-      color: ac.bluBg,
-      borderRadius: radius,
-      child: InkWell(
-        borderRadius: radius,
-        onTap: () {
-          HapticFeedback.selectionClick();
-          _open(context, CourseDetailPage(course: course, user: _u ?? AppUser.guest()));
-        },
-        child: Container(
-          width: 150,
-          padding: const EdgeInsets.all(12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Icon(Icons.school_rounded, size: 12, color: ac.blu),
-              const SizedBox(width: 4),
-              Text('Course', style: GoogleFonts.inter(
-                  fontSize: 10, fontWeight: FontWeight.w600, color: ac.blu)),
-            ]),
-            const SizedBox(height: 8),
-            Text(course.name, maxLines: 2, overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, height: 1.2)),
-            const Spacer(),
-            Text(course.code, style: GoogleFonts.inter(fontSize: 10, color: ac.txt2)),
-          ]),
-        ),
-      ),
-    );
-  }
 }
-
-/// One row in the merged "Today's Study Program" list -- either a School
-/// Timetable class or a Personal Study Timetable session, tagged so the
-/// UI can label which is which rather than presenting both as the same
-/// kind of thing. See _UniversalHomePageState._todaysStudyProgram.
-class _TodayEntry {
-  final String startTime;
-  final String endTime;
-  final String label;
-  final bool isSchool;
-  const _TodayEntry({
-    required this.startTime,
-    required this.endTime,
-    required this.label,
-    required this.isSchool,
-  });
-}
-

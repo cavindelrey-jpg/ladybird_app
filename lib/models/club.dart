@@ -1,18 +1,57 @@
 // lib/models/club.dart
+//
+// ── Clubs remake changes ────────────────────────────────────────────────
+// ClubDiscussionReply gained an optional attached-resource trio (see its
+// doc comment) for the reply composer's "Resource" action.
+//
+// Club gained `thumbnailUrl` — a real, admin-uploaded square logo photo,
+// separate from the existing wide `bannerUrl` cover photo. `emoji` is
+// now ONLY an invisible fallback (a category-derived icon key, shown
+// only for clubs that haven't uploaded a thumbnail yet) — there is no
+// picker UI for it anymore; see theme/club_visuals.dart's `ClubLogo`
+// widget for how the two combine, and create_club_page.dart /
+// club_settings_page.dart for the actual photo-upload flow.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+/// True when there's chat activity the caller hasn't seen yet — no
+/// activity ever (`lastMessageAt` null) is never unread; activity with no
+/// read record at all (`lastReadAt` null) is always unread; otherwise it's
+/// a strict after-comparison, so an exactly-equal timestamp counts as read.
+bool clubHasUnreadMessages({
+  required DateTime? lastMessageAt,
+  required DateTime? lastReadAt,
+}) {
+  if (lastMessageAt == null) return false;
+  if (lastReadAt == null) return true;
+  return lastMessageAt.isAfter(lastReadAt);
+}
 
 enum ClubRole { visitor, member, moderator, admin }
 
 class Club {
   final String id;
   final String name;
+
+  /// Fallback-only from here on — see file header. Never user-facing as
+  /// a picker; auto-derived from [category] when a club has no
+  /// [thumbnailUrl] of its own.
   final String emoji;
   final String description;
   final String moderatorName;
   final String moderatorId;
   final String category;
+
+  /// Wide cover photo shown behind the club name on the detail hero.
   final String? bannerUrl;
+
+  /// A real photo the club's admin uploaded as its logo/badge — shown
+  /// wherever the club's identity needs to be compact and recognizable
+  /// (card badges, the hero's circular logo, the Messages inbox row).
+  /// Null until an admin uploads one, in which case [emoji]'s
+  /// category-derived icon is shown instead (see ClubLogo).
+  final String? thumbnailUrl;
+
   final int memberCount;
   final String? schoolId;
   final bool requiresApproval;
@@ -34,6 +73,7 @@ class Club {
     required this.moderatorId,
     this.category = 'General',
     this.bannerUrl,
+    this.thumbnailUrl,
     this.memberCount = 0,
     this.schoolId,
     this.requiresApproval = false,
@@ -53,6 +93,7 @@ class Club {
       moderatorId: d['moderatorId'] ?? '',
       category: d['category'] ?? 'General',
       bannerUrl: d['bannerUrl'],
+      thumbnailUrl: d['thumbnailUrl'],
       memberCount: (d['memberCount'] as num?)?.toInt() ?? 0,
       schoolId: d['schoolId'],
       requiresApproval: d['requiresApproval'] ?? false,
@@ -81,6 +122,7 @@ class Club {
     'moderatorId': moderatorId,
     'category': category,
     'bannerUrl': bannerUrl,
+    'thumbnailUrl': thumbnailUrl,
     'memberCount': memberCount,
     'schoolId': schoolId,
     'requiresApproval': requiresApproval,
@@ -366,6 +408,15 @@ class ClubDiscussionReply {
   final int likeCount;
   final bool isBestAnswer;
 
+  /// Optional attached resource — the reply-composer's "Resource" action
+  /// (see club_discussion_page.dart) lets you point a reply at an
+  /// existing ClubResource instead of only free text, denormalized the
+  /// same way ChatMessage's sharedTitle/sharedThumbnailUrl already are
+  /// for Messages. All three are set together or not at all.
+  final String? attachedResourceId;
+  final String? attachedResourceTitle;
+  final String? attachedResourceUrl;
+
   const ClubDiscussionReply({
     required this.id,
     required this.authorId,
@@ -376,6 +427,9 @@ class ClubDiscussionReply {
     required this.createdAt,
     this.likeCount = 0,
     this.isBestAnswer = false,
+    this.attachedResourceId,
+    this.attachedResourceTitle,
+    this.attachedResourceUrl,
   });
 
   factory ClubDiscussionReply.fromFirestore(DocumentSnapshot doc) {
@@ -390,6 +444,9 @@ class ClubDiscussionReply {
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       likeCount: (d['likeCount'] as num?)?.toInt() ?? 0,
       isBestAnswer: d['isBestAnswer'] ?? false,
+      attachedResourceId: d['attachedResourceId'],
+      attachedResourceTitle: d['attachedResourceTitle'],
+      attachedResourceUrl: d['attachedResourceUrl'],
     );
   }
 
@@ -402,6 +459,9 @@ class ClubDiscussionReply {
     'createdAt': FieldValue.serverTimestamp(),
     'likeCount': 0,
     'isBestAnswer': false,
+    'attachedResourceId': attachedResourceId,
+    'attachedResourceTitle': attachedResourceTitle,
+    'attachedResourceUrl': attachedResourceUrl,
   };
 }
 
@@ -523,23 +583,12 @@ class ClubMember {
   final ClubRole role;
   final DateTime joinedAt;
 
-  /// Last time this member opened the club Chat tab (ClubRepository
-  /// .markClubRead) — lives here, per-member, rather than as a
-  /// `Map<userId, Timestamp>` field on the Club doc itself, because a club
-  /// can have arbitrarily many members and a map keyed by every member's
-  /// id would grow unboundedly on one shared, contended document (see
-  /// ClubRepository.watchMyClubReadState's doc comment for the full
-  /// reasoning). Null means "never opened Chat here" — compared against
-  /// Club.lastMessageAt to decide whether the club shows as unread.
-  final DateTime? lastReadAt;
-
   const ClubMember({
     required this.userId,
     required this.name,
     this.photoUrl,
     required this.role,
     required this.joinedAt,
-    this.lastReadAt,
   });
 
   factory ClubMember.fromFirestore(DocumentSnapshot doc) {
@@ -551,20 +600,6 @@ class ClubMember {
       role: ClubRole.values.firstWhere(
           (r) => r.name == d['role'], orElse: () => ClubRole.member),
       joinedAt: (d['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      lastReadAt: (d['lastReadAt'] as Timestamp?)?.toDate(),
     );
   }
-}
-
-/// True when [lastMessageAt] is strictly after [lastReadAt] — the actual
-/// comparison behind the Club chat unread indicator, factored out as a
-/// pure function (no Firestore, no BuildContext) so it's unit-testable
-/// without an emulator. Mirrors Conversation.unreadCount's per-user
-/// concept but as a timestamp comparison rather than a maintained counter
-/// — see ClubMember.lastReadAt's doc comment for why a counter doesn't
-/// fit a club's potentially-large membership.
-bool clubHasUnreadMessages({required DateTime? lastMessageAt, required DateTime? lastReadAt}) {
-  if (lastMessageAt == null) return false; // no chat activity at all yet
-  if (lastReadAt == null) return true; // has activity, never opened Chat
-  return lastMessageAt.isAfter(lastReadAt);
 }

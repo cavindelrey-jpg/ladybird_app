@@ -16,7 +16,12 @@ android {
     compileSdk = 36
 
     // Change this line from: ndkVersion = flutter.ndkVersion
-    ndkVersion = "27.0.12077973"
+    // Bumped 27.0.12077973 -> 28.2.13676358: a plugin (jni-backed,
+    // transitively pulled in by one of the Firebase/file/video plugins)
+    // requires 28.2.13676358 specifically; Gradle warned on every build
+    // even though it's backward compatible, so pin to what's actually
+    // needed instead of the older default.
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -38,6 +43,15 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
+            // Was unset -- release builds were shipping completely
+            // unshrunk (no R8, no unused-resource removal), which is
+            // most of why app-*-release.apk was ~80MB.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 

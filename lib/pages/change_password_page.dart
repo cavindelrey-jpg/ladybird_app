@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../services/auth_service.dart';
 import '../widgets/widgets.dart';
 
@@ -73,13 +74,14 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text('Change Password', style: GoogleFonts.sora(
-            fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
+            fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
       ),
       body: AppBackground(child: Form(
         key: _formKey,
@@ -87,12 +89,13 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           padding: const EdgeInsets.all(20),
           children: [
             Text('Update your sign-in password', style: GoogleFonts.sora(
-                fontSize: 15, fontWeight: FontWeight.w700, color: C.txt)),
+                fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt)),
             const SizedBox(height: 6),
             Text("You'll need to confirm your current password first.",
-                style: GoogleFonts.inter(fontSize: 13, color: C.txt2)),
+                style: GoogleFonts.inter(fontSize: 13, color: ac.txt2)),
             const SizedBox(height: 24),
             _field(
+              ac: ac,
               controller: _currentCtrl,
               label: 'Current Password',
               obscure: _obscureCurrent,
@@ -101,6 +104,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             ),
             const SizedBox(height: 14),
             _field(
+              ac: ac,
               controller: _newCtrl,
               label: 'New Password',
               obscure: _obscureNew,
@@ -112,6 +116,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             ),
             const SizedBox(height: 14),
             _field(
+              ac: ac,
               controller: _confirmCtrl,
               label: 'Confirm New Password',
               obscure: _obscureConfirm,
@@ -126,8 +131,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                    color: C.redb, borderRadius: BorderRadius.circular(Rad.sm)),
-                child: Text(_error!, style: GoogleFonts.inter(fontSize: 12, color: C.red)),
+                    color: ac.redBg, borderRadius: BorderRadius.circular(Rad.sm)),
+                child: Text(_error!, style: GoogleFonts.inter(fontSize: 12, color: ac.red)),
               ),
             ],
             const SizedBox(height: 28),
@@ -139,6 +144,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   }
 
   Widget _field({
+    required AppColors ac,
     required TextEditingController controller,
     required String label,
     required bool obscure,
@@ -149,16 +155,16 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       controller: controller,
       obscureText: obscure,
       validator: validator,
-      style: GoogleFonts.inter(fontSize: 14, color: C.txt),
+      style: GoogleFonts.inter(fontSize: 14, color: ac.txt),
       decoration: InputDecoration(
         labelText: label,
         filled: true,
-        fillColor: C.surf3,
+        fillColor: ac.surf3,
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
         suffixIcon: IconButton(
           icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-              size: 20, color: C.muted),
+              size: 20, color: ac.muted),
           onPressed: onToggleObscure,
         ),
       ),

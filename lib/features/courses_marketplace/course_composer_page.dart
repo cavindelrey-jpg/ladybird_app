@@ -14,7 +14,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import '../../models/app_user.dart';
+import '../../models/academic_section.dart';
 import '../../models/public_course.dart';
+import '../../repositories/academic_section_repository.dart';
 import '../../repositories/public_course_repository.dart';
 import '../../core/docx_parser.dart';
 import '../../core/result.dart';
@@ -22,6 +24,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/formula_embed_builder.dart';
+import '../testing/quiz_icon_editor.dart' show showAddQuizCategoryDialog;
 
 import '../../widgets/app_background.dart';
 class CourseComposerPage extends StatefulWidget {
@@ -36,30 +39,38 @@ class CourseComposerPage extends StatefulWidget {
 class _CourseComposerPageState extends State<CourseComposerPage> {
   late final _titleCtrl = TextEditingController(text: widget.existing?.title ?? '');
   late final _descCtrl = TextEditingController(text: widget.existing?.description ?? '');
+  // Optional Video Lesson URL — gated Gold-only for READERS at
+  // course_reader_page.dart's _VideoLessonSection; any signed-in creator
+  // may attach one (see core/feature_access.dart#AppFeature.courseCreation).
+  late final _videoUrlCtrl = TextEditingController(text: widget.existing?.videoUrl ?? '');
   late String _category = widget.existing?.category ?? kCourseCategories.first;
   late List<String> _tags = List<String>.from(widget.existing?.tags ?? const []);
 
   // ── Curriculum placement ──────────────────────────────────────────
-  // Subject/Level/Topic are free text with autocomplete against what
-  // already exists (see HierarchyPicker); Difficulty is a fixed picker.
-  // None of this is required — an author can skip it and the course
-  // just won't appear in the hierarchy browser, only the flat feed.
+  // Academic Section > Subject > Topic — Section is a real, admin-
+  // managed AcademicSection (the same list Course Navigation and Quizzes
+  // show, see academic_section_repository.dart), picked from a fixed
+  // list rather than typed; Subject/Topic stay free text with
+  // autocomplete against what already exists within that section (see
+  // HierarchyPicker). Difficulty is a fixed picker. None of this is
+  // required — an author can skip it and the course just won't appear
+  // in the hierarchy browser, only the flat feed.
+  List<AcademicSection> _sections = [];
   late String _subject = widget.existing?.subject ?? '';
   late String _level = widget.existing?.level ?? '';
   late String _topic = widget.existing?.topic ?? '';
   late String _difficulty = widget.existing?.difficulty ?? '';
   late List<String> _prerequisiteIds = List<String>.from(widget.existing?.prerequisiteIds ?? const []);
 
-  /// Icons picked while creating a brand-new Subject/Level/Topic this
-  /// session — empty means "don't touch the existing assignment".
+  /// Icons picked while creating a brand-new Subject/Topic this session —
+  /// empty means "don't touch the existing assignment". A Section's look
+  /// is managed centrally on CourseNavigationPage, not per-lesson here.
   String _newSubjectIcon = '';
-  String _newLevelIcon = '';
   String _newTopicIcon = '';
 
-  /// Photos picked while creating a brand-new Subject/Level/Topic this
-  /// session — uploaded on save, mutually exclusive with the emoji above.
+  /// Photos picked while creating a brand-new Subject/Topic this session
+  /// — uploaded on save, mutually exclusive with the emoji above.
   File? _newSubjectImage;
-  File? _newLevelImage;
   File? _newTopicImage;
 
   /// All existing node->look assignments, loaded once; chip display
@@ -67,7 +78,6 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
   Map<String, CurriculumIcon> _iconMap = {};
 
   List<String> _subjectSuggestions = [];
-  List<String> _levelSuggestions = [];
   List<String> _topicSuggestions = [];
 
   /// The existing lesson sequence for the current Subject/Level/Topic —
@@ -124,10 +134,9 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
   void initState() {
     super.initState();
     _autoSaveTimer = Timer.periodic(const Duration(seconds: 45), (_) => _autoSaveDraft());
-    _loadSubjectSuggestions();
+    _loadSections(); // also loads subject suggestions once the section is known
     _loadIconMap();
-    if (_subject.isNotEmpty) _loadLevelSuggestions();
-    if (_level.isNotEmpty) _loadTopicSuggestions();
+    if (_subject.isNotEmpty) _loadTopicSuggestions();
     if (widget.existing?.hasCurriculumPlacement ?? false) _loadTopicSequence();
   }
 
@@ -136,6 +145,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     _autoSaveTimer?.cancel();
     _titleCtrl.dispose();
     _descCtrl.dispose();
+    _videoUrlCtrl.dispose();
     _quillCtrl.dispose();
     _editorFocusNode.dispose();
     _editorScrollCtrl.dispose();
@@ -147,59 +157,79 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     if (mounted) setState(() => _iconMap = icons);
   }
 
-  /// Subject label -> look, scoped to the current category.
+  /// The admin-managed Section list — same one Course Navigation and
+  /// Quizzes show. A brand-new lesson with nothing picked yet defaults
+  /// to the first section rather than staying blank, mirroring
+  /// TestComposerPage's identical default-to-first-category behavior;
+  /// the author can still change it before saving.
+  Future<void> _loadSections() async {
+    final sections = await AcademicSectionRepository.instance.sectionsOnce();
+    if (!mounted) return;
+    setState(() {
+      _sections = sections;
+      if (_level.isEmpty && sections.isNotEmpty) _level = sections.first.name;
+    });
+    if (_level.isNotEmpty) _loadSubjectSuggestions();
+  }
+
+  Future<void> _addSection() async {
+    final name = await showAddQuizCategoryDialog(context);
+    if (name == null || name.trim().isEmpty) return;
+    final order = _sections.isEmpty
+        ? 0.0
+        : (_sections.map((s) => s.order).reduce((a, b) => a > b ? a : b) + 100);
+    final result = await AcademicSectionRepository.instance.addSection(name: name, order: order);
+    if (!mounted) return;
+    if (result case Failure(:final message)) {
+      showToast(context, message, isError: true);
+      return;
+    }
+    _onSectionChanged(name);
+    _loadSections();
+  }
+
+  /// Subject label -> look, scoped to the current section.
   Map<String, CurriculumIcon> get _subjectIcons => {
         for (final s in _subjectSuggestions)
-          s: _iconMap[PublicCourseRepository.subjectIconKey(_category, s)] ?? CurriculumIcon.none,
+          s: _iconMap[PublicCourseRepository.navSubjectIconKey(_level, s)] ?? CurriculumIcon.none,
       };
 
-  /// Level label -> look, scoped to the current category+subject.
-  Map<String, CurriculumIcon> get _levelIcons => {
-        for (final l in _levelSuggestions)
-          l: _iconMap[PublicCourseRepository.levelIconKey(_category, _subject, l)] ?? CurriculumIcon.none,
-      };
-
-  /// Topic label -> look, scoped to the current category+subject+level.
+  /// Topic label -> look, scoped to the current section+subject.
   Map<String, CurriculumIcon> get _topicIcons => {
         for (final t in _topicSuggestions)
-          t: _iconMap[PublicCourseRepository.topicIconKey(_category, _subject, _level, t)] ?? CurriculumIcon.none,
+          t: _iconMap[PublicCourseRepository.navTopicIconKey(_level, _subject, t)] ?? CurriculumIcon.none,
       };
 
   Future<void> _loadSubjectSuggestions() async {
-    final subjects = await PublicCourseRepository.instance.subjectsIn(_category);
+    if (_level.trim().isEmpty) {
+      setState(() => _subjectSuggestions = []);
+      return;
+    }
+    final subjects = await PublicCourseRepository.instance.subjectsInSection(_level.trim());
     if (mounted) setState(() => _subjectSuggestions = subjects);
   }
 
-  Future<void> _loadLevelSuggestions() async {
-    if (_subject.trim().isEmpty) {
-      setState(() => _levelSuggestions = []);
-      return;
-    }
-    final levels = await PublicCourseRepository.instance.levelsIn(_category, _subject.trim());
-    if (mounted) setState(() => _levelSuggestions = levels);
-  }
-
   Future<void> _loadTopicSuggestions() async {
-    if (_subject.trim().isEmpty || _level.trim().isEmpty) {
+    if (_level.trim().isEmpty || _subject.trim().isEmpty) {
       setState(() => _topicSuggestions = []);
       return;
     }
     final topics = await PublicCourseRepository.instance
-        .topicsIn(_category, _subject.trim(), _level.trim());
+        .topicsInSection(_level.trim(), _subject.trim());
     if (mounted) setState(() => _topicSuggestions = topics);
   }
 
   /// Loads the sibling lessons already in this topic — the source of
   /// truth for both the placement picker and the prerequisites list.
-  /// Re-run whenever Subject/Level/Topic changes.
+  /// Re-run whenever Section/Subject/Topic changes.
   Future<void> _loadTopicSequence() async {
-    if (_subject.trim().isEmpty || _level.trim().isEmpty || _topic.trim().isEmpty) {
+    if (_level.trim().isEmpty || _subject.trim().isEmpty || _topic.trim().isEmpty) {
       setState(() { _topicSequence = []; _placementAfterIndex = null; });
       return;
     }
     setState(() => _loadingSequence = true);
-    final sequence = await PublicCourseRepository.instance.topicSequence(
-        _category, _subject.trim(), _level.trim(), _topic.trim());
+    final sequence = await PublicCourseRepository.instance.topicSequenceInSection(
+        _level.trim(), _subject.trim(), _topic.trim());
     sequence.removeWhere((c) => c.id == _workingCourse.id && c.id.isNotEmpty);
     if (!mounted) return;
     setState(() {
@@ -213,15 +243,15 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     });
   }
 
-  void _onSubjectChanged(String v) {
-    setState(() { _subject = v; _level = ''; _topic = ''; _newLevelIcon = ''; _newTopicIcon = ''; _newLevelImage = null; _newTopicImage = null; });
-    _loadLevelSuggestions();
-    _loadTopicSuggestions();
+  void _onSectionChanged(String v) {
+    setState(() { _level = v; _subject = ''; _topic = ''; _newSubjectIcon = ''; _newTopicIcon = ''; _newSubjectImage = null; _newTopicImage = null; });
+    _loadSubjectSuggestions();
+    setState(() => _topicSuggestions = []);
     _loadTopicSequence();
   }
 
-  void _onLevelChanged(String v) {
-    setState(() { _level = v; _topic = ''; _newTopicIcon = ''; _newTopicImage = null; });
+  void _onSubjectChanged(String v) {
+    setState(() { _subject = v; _topic = ''; _newTopicIcon = ''; _newTopicImage = null; });
     _loadTopicSuggestions();
     _loadTopicSequence();
   }
@@ -327,6 +357,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
     _workingCourse.topic = _topic.trim();
     _workingCourse.difficulty = _difficulty;
     _workingCourse.prerequisiteIds = _prerequisiteIds;
+    _workingCourse.videoUrl = _videoUrlCtrl.text.trim().isEmpty ? null : _videoUrlCtrl.text.trim();
 
     // Compute the hidden sequence position from the Before/Between/After
     // choice — the author never types a number directly (see the
@@ -361,6 +392,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
         topic: _workingCourse.topic, difficulty: _workingCourse.difficulty,
         order: _workingCourse.order, prerequisiteIds: _workingCourse.prerequisiteIds,
         coverImageUrl: _workingCourse.coverImageUrl,
+        videoUrl: _workingCourse.videoUrl,
         published: _workingCourse.published,
       );
     }
@@ -384,22 +416,18 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
   }
 
   /// Save whatever look (emoji or photo) was picked while creating a
-  /// new Subject/Level/Topic this session. Doesn't touch nodes the
-  /// author didn't change anything for.
+  /// new Subject/Topic this session. Doesn't touch nodes the author
+  /// didn't change anything for. A Section's own look is managed
+  /// centrally on CourseNavigationPage, not from here.
   Future<void> _persistNewIcons(PublicCourseRepository repo) async {
-    if (_subject.isNotEmpty) {
+    if (_level.isNotEmpty && _subject.isNotEmpty) {
       await _persistOneIcon(repo,
-          key: PublicCourseRepository.subjectIconKey(_category, _subject),
+          key: PublicCourseRepository.navSubjectIconKey(_level, _subject),
           emoji: _newSubjectIcon, image: _newSubjectImage);
     }
-    if (_subject.isNotEmpty && _level.isNotEmpty) {
+    if (_level.isNotEmpty && _subject.isNotEmpty && _topic.isNotEmpty) {
       await _persistOneIcon(repo,
-          key: PublicCourseRepository.levelIconKey(_category, _subject, _level),
-          emoji: _newLevelIcon, image: _newLevelImage);
-    }
-    if (_subject.isNotEmpty && _level.isNotEmpty && _topic.isNotEmpty) {
-      await _persistOneIcon(repo,
-          key: PublicCourseRepository.topicIconKey(_category, _subject, _level, _topic),
+          key: PublicCourseRepository.navTopicIconKey(_level, _subject, _topic),
           emoji: _newTopicIcon, image: _newTopicImage);
     }
   }
@@ -558,6 +586,33 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                       'even if they never search for it.',
                       style: AppText.caption.copyWith(fontSize: 11, color: ac.txt2)),
                   const SizedBox(height: 12),
+                  Text('Academic Section', style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: ac.txt2)),
+                  const SizedBox(height: 6),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    for (final s in _sections)
+                      _sectionChip(ac, label: s.name, active: s.name == _level, onTap: () => _onSectionChanged(s.name)),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: _addSection,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: ac.primary, style: BorderStyle.solid),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.add_rounded, size: 14, color: ac.primary),
+                            const SizedBox(width: 3),
+                            Text('New section', style: AppText.caption.copyWith(
+                                fontSize: 11.5, fontWeight: FontWeight.w700, color: ac.primary)),
+                          ]),
+                        ),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 12),
                   HierarchyPicker(
                     label: 'Subject',
                     value: _subject, options: _subjectSuggestions,
@@ -566,16 +621,6 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                     onImagePicked: (file) => setState(() => _newSubjectImage = file),
                     pickedImage: _newSubjectImage,
                     onChanged: _onSubjectChanged,
-                  ),
-                  const SizedBox(height: 10),
-                  HierarchyPicker(
-                    label: 'Curriculum / Level',
-                    value: _level, options: _levelSuggestions,
-                    icons: _levelIcons,
-                    onIconPicked: (icon) => setState(() => _newLevelIcon = icon),
-                    onImagePicked: (file) => setState(() => _newLevelImage = file),
-                    pickedImage: _newLevelImage,
-                    onChanged: _onLevelChanged,
                   ),
                   const SizedBox(height: 10),
                   HierarchyPicker(
@@ -629,6 +674,26 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
                 maxLines: 2,
                 decoration: const InputDecoration(
                     hintText: 'Short description (shown on cards)…', border: InputBorder.none),
+              ),
+              const SizedBox(height: 12),
+              Divider(color: ac.bdr2),
+              const SizedBox(height: 12),
+              // Video Lesson — optional. Gated Gold-only for READERS (see
+              // course_reader_page.dart's _VideoLessonSection); attaching
+              // one here doesn't require any particular tier from the
+              // creator.
+              TextField(
+                controller: _videoUrlCtrl,
+                style: AppText.bodySm.copyWith(color: ac.txt),
+                keyboardType: TextInputType.url,
+                decoration: InputDecoration(
+                  hintText: 'Video lesson URL (optional, Premium Gold only)',
+                  prefixIcon: const Icon(Icons.videocam_outlined, size: 18),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm),
+                      borderSide: BorderSide(color: ac.bdr)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm),
+                      borderSide: BorderSide(color: ac.bdr)),
+                ),
               ),
               const SizedBox(height: 12),
               Divider(color: ac.bdr2),
@@ -730,6 +795,31 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
           ),
         ),
       ])),
+    );
+  }
+
+  Widget _sectionChip(AppColors ac, {required String label, required bool active, required VoidCallback onTap}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: active ? ac.primary : ac.surf2,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: active ? ac.primary : ac.bdr),
+          ),
+          child: Text(label, style: AppText.caption.copyWith(
+              fontSize: 11.5, fontWeight: FontWeight.w700,
+              color: active ? Colors.white : ac.txt2)),
+        ),
+      ),
     );
   }
 }

@@ -26,12 +26,15 @@
 
 /// WHAT access an account currently has.
 ///
-/// Intentionally only two values today. New *reasons* for premium access
-/// belong in [EntitlementSource], not here — adding tiers is what would
-/// force the redesign §8 is trying to avoid. A genuinely different
-/// capability level (e.g. a future "pro") is the only thing that should
-/// ever be added here.
-enum EntitlementTier { free, premium }
+/// Three values, in ascending order of capability (the declaration order
+/// matters — `tier.index` comparisons decide upgrade/stack behavior in
+/// EntitlementRepository.redeemVoucher). `silver` and `gold` replace the
+/// old single `premium` tier: both get every ordinary premium feature,
+/// only `gold` includes Video Courses (see
+/// core/feature_access.dart#AppFeature.coursesVideoLessons, the one place
+/// that gate is decided). New *reasons* for premium access still belong in
+/// [EntitlementSource], not here.
+enum EntitlementTier { free, silver, gold }
 
 /// WHY an account has its current tier.
 ///
@@ -99,7 +102,7 @@ class Entitlement {
   /// Function (production_plan.md §4.9's deferred work) — flagging
   /// rather than pretending this is airtight.
   bool get isActive {
-    if (tier != EntitlementTier.premium) return false;
+    if (tier == EntitlementTier.free) return false;
     final exp = expiresAt;
     if (exp != null && !exp.isAfter(DateTime.now())) return false;
     return true;
@@ -110,10 +113,17 @@ class Entitlement {
   /// can say "expired" instead of "free" when that's what happened.
   bool get isExpired {
     final exp = expiresAt;
-    return tier == EntitlementTier.premium &&
+    return tier != EntitlementTier.free &&
         exp != null &&
         !exp.isAfter(DateTime.now());
   }
+
+  bool get isSilver => tier == EntitlementTier.silver;
+  bool get isGold => tier == EntitlementTier.gold;
+
+  /// The single authoritative check for whether this entitlement unlocks
+  /// Video Courses. Gold only — Silver gets every other premium feature.
+  bool get includesVideoCourses => isActive && tier == EntitlementTier.gold;
 
   /// Whole days of access left, or null when perpetual/inactive.
   int? get daysRemaining {
@@ -122,18 +132,29 @@ class Entitlement {
     return exp.difference(DateTime.now()).inDays;
   }
 
-  /// The three user-facing states §8 names: Free, Premium, Gifted Premium.
-  /// Gifted Premium is derived, not stored — see the file header.
+  /// Individual / Premium Silver / Premium Gold, the account/entitlement
+  /// system's three user-facing tier names — plus a source prefix for the
+  /// premium tiers (Gifted/Sponsored/School/Promotional) the same way the
+  /// old single "Premium" label did.
   String get label {
-    if (!isActive) return isExpired ? 'Premium (expired)' : 'Free';
+    if (!isActive) return isExpired ? '${_tierLabel(tier)} (expired)' : 'Individual';
+    final tierName = _tierLabel(tier);
     switch (source) {
-      case EntitlementSource.gift:        return 'Gifted Premium';
-      case EntitlementSource.sponsor:     return 'Sponsored Premium';
-      case EntitlementSource.school:      return 'School Premium';
-      case EntitlementSource.promotional: return 'Promotional Premium';
+      case EntitlementSource.gift:        return 'Gifted $tierName';
+      case EntitlementSource.sponsor:     return 'Sponsored $tierName';
+      case EntitlementSource.school:      return 'Partner $tierName';
+      case EntitlementSource.promotional: return 'Promotional $tierName';
       case EntitlementSource.selfPurchase:
       case EntitlementSource.adminGrant:
-      case EntitlementSource.none:        return 'Premium';
+      case EntitlementSource.none:        return tierName;
+    }
+  }
+
+  static String _tierLabel(EntitlementTier t) {
+    switch (t) {
+      case EntitlementTier.free:   return 'Individual';
+      case EntitlementTier.silver: return 'Premium Silver';
+      case EntitlementTier.gold:   return 'Premium Gold';
     }
   }
 
@@ -147,7 +168,7 @@ class Entitlement {
       case EntitlementSource.selfPurchase:return 'Purchased';
       case EntitlementSource.gift:        return 'Gifted to you';
       case EntitlementSource.sponsor:     return 'Sponsored';
-      case EntitlementSource.school:      return 'Provided by your school';
+      case EntitlementSource.school:      return 'Provided by a partner organization';
       case EntitlementSource.promotional: return 'Promotional access';
       case EntitlementSource.adminGrant:  return 'Granted by Academia';
     }
@@ -166,19 +187,36 @@ class Entitlement {
   /// this model existed have `isPremium: true` and no entitlement keys at
   /// all; without this fallback every currently-premium user would
   /// silently drop to Free on their next app open. Such an account is
-  /// read as perpetual premium of unknown origin (adminGrant) — the
-  /// honest reading, since the old schema recorded no source and no
-  /// expiry to recover.
+  /// read as perpetual Gold of unknown origin (adminGrant) — the old flat
+  /// bool predates the Silver/Gold split and meant full access, so Gold
+  /// (not Silver) is the honest reading; there's no source/expiry to
+  /// recover either way.
+  ///
+  /// Also handles a stored `tier: 'premium'` — the single-tier value this
+  /// field held before the Silver/Gold split — the same way, mapped to
+  /// Gold so no already-premium account silently loses Video Course
+  /// access on this migration.
   factory Entitlement.fromUserMap(Map<String, dynamic> d,
       {bool legacyIsPremium = false}) {
     final rawTier = d[kTier]?.toString();
     if (rawTier == null || rawTier.isEmpty) {
       return legacyIsPremium
           ? const Entitlement(
-              tier: EntitlementTier.premium,
+              tier: EntitlementTier.gold,
               source: EntitlementSource.adminGrant,
             )
           : const Entitlement.free();
+    }
+    if (rawTier == 'premium') {
+      return Entitlement(
+        tier: EntitlementTier.gold,
+        source: EntitlementSource.values.firstWhere(
+            (s) => s.name == d[kSource]?.toString(),
+            orElse: () => EntitlementSource.adminGrant),
+        startAt: _dt(d[kStartAt]),
+        expiresAt: _dt(d[kExpiresAt]),
+        sourceRef: d[kSourceRef]?.toString(),
+      );
     }
     return Entitlement(
       tier: EntitlementTier.values.firstWhere((t) => t.name == rawTier,

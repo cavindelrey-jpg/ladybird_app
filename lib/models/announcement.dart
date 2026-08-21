@@ -1,4 +1,7 @@
 // lib/models/announcement.dart
+// General-purpose notice board — NOT school-management. `schoolId` is an
+// optional scope (kept for a future institution/org context), the default
+// unscoped collection is what independent/guest accounts read from.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 

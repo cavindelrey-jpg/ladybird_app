@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../models/app_notification.dart';
 import '../repositories/notification_repository.dart';
 import '../widgets/widgets.dart';
@@ -37,18 +38,19 @@ class NotificationsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text('Notifications', style: GoogleFonts.sora(
-            fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
+            fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
         actions: [
           TextButton(
             onPressed: () => NotificationRepository.instance.markAllRead(userId),
             child: Text('Mark all read', style: GoogleFonts.inter(
-                fontSize: 12, fontWeight: FontWeight.w600, color: C.primary)),
+                fontSize: 12, fontWeight: FontWeight.w600, color: ac.primary)),
           ),
         ],
       ),
@@ -79,16 +81,16 @@ class NotificationsPage extends StatelessWidget {
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(Rad.md)),
-                  child: const Icon(Icons.delete_outline_rounded, color: C.red),
+                  decoration: BoxDecoration(color: ac.redBg, borderRadius: BorderRadius.circular(Rad.md)),
+                  child: Icon(Icons.delete_outline_rounded, color: ac.red),
                 ),
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: n.read ? C.surf : C.primaryBg,
+                    color: n.read ? ac.surf : ac.primaryBg,
                     borderRadius: BorderRadius.circular(Rad.md),
-                    border: Border.all(color: C.bdr),
+                    border: Border.all(color: ac.bdr),
                   ),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(Rad.md),
@@ -96,25 +98,25 @@ class NotificationsPage extends StatelessWidget {
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Container(
                         width: 36, height: 36,
-                        decoration: const BoxDecoration(color: C.surf3, shape: BoxShape.circle),
-                        child: Icon(_iconFor(n.type), size: 18, color: C.primary),
+                        decoration: BoxDecoration(color: ac.surf3, shape: BoxShape.circle),
+                        child: Icon(_iconFor(n.type), size: 18, color: ac.primary),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text(n.title, style: GoogleFonts.inter(
-                              fontSize: 13.5, fontWeight: FontWeight.w700, color: C.txt)),
+                              fontSize: 13.5, fontWeight: FontWeight.w700, color: ac.txt)),
                           const SizedBox(height: 3),
-                          Text(n.body, style: GoogleFonts.inter(fontSize: 12.5, color: C.txt2, height: 1.4)),
+                          Text(n.body, style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2, height: 1.4)),
                           const SizedBox(height: 6),
                           Text(_formatTimestamp(n.createdAt),
-                              style: GoogleFonts.inter(fontSize: 10.5, color: C.muted)),
+                              style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted)),
                         ]),
                       ),
                       if (!n.read)
                         Container(width: 8, height: 8,
                             margin: const EdgeInsets.only(top: 4),
-                            decoration: const BoxDecoration(color: C.gold, shape: BoxShape.circle)),
+                            decoration: BoxDecoration(color: ac.gold, shape: BoxShape.circle)),
                     ]),
                   ),
                 ),

@@ -4,6 +4,13 @@
 // upload, and the engagement -> formula-based, 24h-delayed, one-time XP
 // settlement pipeline (production_plan.md §4.5) — see
 // settleMagazineXpIfDue().
+//
+// ── Magazine remake addition ─────────────────────────────────────────────
+// searchArticles() — the feed header's search icon previously only
+// showed an honest "coming soon" toast. This is a real (if bounded)
+// search: same "fetch a window, filter client-side" pattern
+// ClubRepository.searchClubs already uses, not a fake full-text index
+// this project has no infrastructure for.
 
 import 'dart:async';
 import 'dart:io';
@@ -213,6 +220,32 @@ class MagazineRepository {
   Future<MagazineArticle?> getById(String id) async {
     final doc = await _articles.doc(id).get();
     return doc.exists ? MagazineArticle.fromFirestore(doc) : null;
+  }
+
+  /// Real search, bounded on purpose: fetches the [sampleSize] most
+  /// recent published articles once and filters client-side by title,
+  /// description, category, and tags. This project has no full-text
+  /// search index (Algolia, etc.), so this is deliberately the same
+  /// "fetch a window, filter client-side" shape as
+  /// ClubRepository.searchClubs — real results over recent content, not
+  /// a fabricated claim of searching everything ever published.
+  Future<List<MagazineArticle>> searchArticles(String query, {int sampleSize = 200}) async {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return const [];
+    final snap = await _articles
+        .where('published', isEqualTo: true)
+        .orderBy('createdAt', descending: true)
+        .limit(sampleSize)
+        .get();
+    return snap.docs
+        .map(MagazineArticle.fromFirestore)
+        .where((a) =>
+            a.title.toLowerCase().contains(q) ||
+            a.description.toLowerCase().contains(q) ||
+            a.category.toLowerCase().contains(q) ||
+            a.tags.any((t) => t.toLowerCase().contains(q)) ||
+            a.authorName.toLowerCase().contains(q))
+        .toList();
   }
 
   // ── Publish / edit / delete ─────────────────────────────────────────────

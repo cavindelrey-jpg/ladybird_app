@@ -1,4 +1,6 @@
 // lib/models/purchase.dart
+import 'entitlement.dart';
+
 // production_plan.md §9 — Gifted Premium / Physical Sales, "Purchase".
 //
 // IMPORTANT — what this is NOT: this is not a payment integration, and
@@ -31,47 +33,90 @@ enum PurchaseStatus {
   cancelled, // recorded in error / sale fell through
 }
 
-/// What was bought — the access period a redeemed voucher grants.
+/// What was bought — the tier and access period a redeemed voucher grants.
 ///
 /// Duration is a product definition, not fabricated data: it's the same
 /// kind of constant as the XP costs in core/xp_rules.dart. The PRICE is
-/// deliberately NOT encoded here — the sales agent types the actual
-/// amount collected, because real physical sales involve negotiated,
-/// promotional and regional pricing, and a hardcoded price shown as if
-/// it were the real one is exactly the fabricated-data pattern this
-/// project bans.
+/// deliberately NOT encoded here for the sales-agent flow — the agent
+/// types the actual amount collected, because real physical sales involve
+/// negotiated, promotional and regional pricing, and a hardcoded price
+/// shown as if it were the real one is exactly the fabricated-data
+/// pattern this project bans. [suggestedPriceFcfa] is the one exception —
+/// it backs the app's OWN direct-payment sheet (premium_unlock_sheet.dart),
+/// which genuinely does need to display a sticker price up front.
 enum EntitlementPackage {
-  premium1Month,
-  premium3Months,
-  premium6Months,
-  premium1Year,
+  silver1Month, silver3Months, silver6Months, silver1Year,
+  gold1Month, gold3Months, gold6Months, gold1Year,
 }
 
 extension EntitlementPackageX on EntitlementPackage {
+  /// WHAT tier this package grants — Silver (no Video Courses) or Gold
+  /// (full access). The single source of truth Voucher/Purchase read to
+  /// stamp their own `tier` field at issuance time.
+  EntitlementTier get tier {
+    switch (this) {
+      case EntitlementPackage.silver1Month:
+      case EntitlementPackage.silver3Months:
+      case EntitlementPackage.silver6Months:
+      case EntitlementPackage.silver1Year:
+        return EntitlementTier.silver;
+      case EntitlementPackage.gold1Month:
+      case EntitlementPackage.gold3Months:
+      case EntitlementPackage.gold6Months:
+      case EntitlementPackage.gold1Year:
+        return EntitlementTier.gold;
+    }
+  }
+
   /// Access period granted, in days, measured from redemption.
   /// 30/90/180/365 — calendar-month drift is acceptable here and keeps
   /// the arithmetic auditable (a "1 year" voucher is exactly 365 days).
   int get durationDays {
     switch (this) {
-      case EntitlementPackage.premium1Month:  return 30;
-      case EntitlementPackage.premium3Months: return 90;
-      case EntitlementPackage.premium6Months: return 180;
-      case EntitlementPackage.premium1Year:   return 365;
+      case EntitlementPackage.silver1Month:
+      case EntitlementPackage.gold1Month:   return 30;
+      case EntitlementPackage.silver3Months:
+      case EntitlementPackage.gold3Months:  return 90;
+      case EntitlementPackage.silver6Months:
+      case EntitlementPackage.gold6Months:  return 180;
+      case EntitlementPackage.silver1Year:
+      case EntitlementPackage.gold1Year:    return 365;
     }
   }
 
   String get label {
     switch (this) {
-      case EntitlementPackage.premium1Month:  return 'Premium — 1 month';
-      case EntitlementPackage.premium3Months: return 'Premium — 3 months';
-      case EntitlementPackage.premium6Months: return 'Premium — 6 months';
-      case EntitlementPackage.premium1Year:   return 'Premium — 1 year';
+      case EntitlementPackage.silver1Month:  return 'Premium Silver — 1 month';
+      case EntitlementPackage.silver3Months: return 'Premium Silver — 3 months';
+      case EntitlementPackage.silver6Months: return 'Premium Silver — 6 months';
+      case EntitlementPackage.silver1Year:   return 'Premium Silver — 1 year';
+      case EntitlementPackage.gold1Month:    return 'Premium Gold — 1 month';
+      case EntitlementPackage.gold3Months:   return 'Premium Gold — 3 months';
+      case EntitlementPackage.gold6Months:   return 'Premium Gold — 6 months';
+      case EntitlementPackage.gold1Year:     return 'Premium Gold — 1 year';
+    }
+  }
+
+  /// Sticker price for the app's own direct-payment flow (MoMo/Orange
+  /// Money) — NOT used by the sales-agent/voucher flow, which always
+  /// types the real amount collected instead (see file header). A
+  /// reasonable default price ladder; not a live pricing feed.
+  int get suggestedPriceFcfa {
+    switch (this) {
+      case EntitlementPackage.silver1Month:  return 1500;
+      case EntitlementPackage.silver3Months: return 4000;
+      case EntitlementPackage.silver6Months: return 7500;
+      case EntitlementPackage.silver1Year:   return 13000;
+      case EntitlementPackage.gold1Month:    return 2500;
+      case EntitlementPackage.gold3Months:   return 6500;
+      case EntitlementPackage.gold6Months:   return 12000;
+      case EntitlementPackage.gold1Year:     return 21000;
     }
   }
 
   static EntitlementPackage parse(dynamic raw) =>
       EntitlementPackage.values.firstWhere((p) => p.name == raw?.toString(),
-          orElse: () => EntitlementPackage.premium1Year);
+          orElse: () => EntitlementPackage.silver1Month);
 }
 
 extension PaymentMethodX on PaymentMethod {

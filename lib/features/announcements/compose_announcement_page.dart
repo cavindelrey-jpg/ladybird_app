@@ -7,7 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../models/models.dart';
 import '../../repositories/announcement_repository.dart';
 import '../../core/result.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 
@@ -71,8 +71,9 @@ class _ComposeAnnouncementPageState extends State<ComposeAnnouncementPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
         title: Text('New Announcement',
           style: GoogleFonts.sora(fontSize: 17, fontWeight: FontWeight.w700)),
@@ -88,7 +89,7 @@ class _ComposeAnnouncementPageState extends State<ComposeAnnouncementPage> {
               onPressed: _publish,
               child: Text('Publish',
                 style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700,
-                  color: C.primary)),
+                  color: ac.primary)),
             ),
         ],
       ),
@@ -99,25 +100,25 @@ class _ComposeAnnouncementPageState extends State<ComposeAnnouncementPage> {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: _urgent ? C.redb : C.surf,
+              color: _urgent ? ac.redBg : ac.surf,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _urgent ? C.red.withValues(alpha: 0.4) : C.bdr),
+              border: Border.all(color: _urgent ? ac.red.withValues(alpha: 0.4) : ac.bdr),
             ),
             child: Row(children: [
               Icon(_urgent ? Icons.warning_amber_rounded : Icons.campaign_outlined,
-                color: _urgent ? C.red : C.muted, size: 22),
+                color: _urgent ? ac.red : ac.muted, size: 22),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Mark as Urgent',
                   style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700,
-                    color: _urgent ? C.red : C.txt)),
+                    color: _urgent ? ac.red : ac.txt)),
                 Text('Urgent notices appear highlighted for all users.',
-                  style: GoogleFonts.inter(fontSize: 11, color: C.muted)),
+                  style: GoogleFonts.inter(fontSize: 11, color: ac.muted)),
               ])),
               Switch(
                 value: _urgent,
                 onChanged: (v) => setState(() => _urgent = v),
-                activeThumbColor: C.red,
+                activeThumbColor: ac.red,
               ),
             ]),
           ),
@@ -141,13 +142,13 @@ class _ComposeAnnouncementPageState extends State<ComposeAnnouncementPage> {
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                       decoration: BoxDecoration(
-                        color: sel ? C.primary : C.surf,
+                        color: sel ? ac.primary : ac.surf,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: sel ? C.primary : C.bdr),
+                        border: Border.all(color: sel ? ac.primary : ac.bdr),
                       ),
                       child: Text(_categories[i],
                         style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600,
-                          color: sel ? Colors.white : C.txt2)),
+                          color: sel ? Colors.white : ac.txt2)),
                     ),
                   );
                 },

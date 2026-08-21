@@ -1,5 +1,20 @@
 // lib/repositories/club_repository.dart
+//
+// ── Clubs remake changes ────────────────────────────────────────────────
+// - pingClubActive()/watchOnlineCount(): a real (not faked) "X members
+//   online" figure for the club hero, built the exact same way
+//   MessagingRepository.pingActive()/Conversation.activeAt already do it
+//   for 1:1 chat presence — a cheap merged field write on the existing
+//   member doc, no new collection, no realtime-presence infrastructure.
+// - toggleReplyLike()/watchIsReplyLiked(): ClubDiscussionReply.likeCount
+//   was declared on the model and rendered nowhere, with NO write path
+//   anywhere in this file — every reply's toFirestore() hardcodes
+//   likeCount: 0 and nothing ever incremented it. This mirrors the
+//   already-working toggleDiscussionLike()/watchIsDiscussionLiked() a
+//   few methods below, giving the field the same real function a
+//   discussion's own like count already has.
 
+import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -51,6 +66,92 @@ class ClubRepository {
       return ClubRole.values.firstWhere(
         (r) => r.name == roleStr, orElse: () => ClubRole.member);
     });
+  }
+
+  /// Records that [userId] currently has [clubId]'s detail screen open —
+  /// a merge-write onto their own member doc, same mechanism/cadence as
+  /// MessagingRepository.pingActive() (call on open, then on a slow
+  /// interval, e.g. every 45-60s, while the screen stays mounted).
+  ///
+  /// Uses `.update()`, not `.set(merge: true)` — deliberately, so this
+  /// can NEVER create a member doc. `.set(merge: true)` on a
+  /// non-existent doc creates a new one with just `lastActiveAt` set,
+  /// which would silently inject a ghost "Member" (defaulted name/role)
+  /// into watchMembers() for someone who never actually joined. `.update()`
+  /// throws on a missing doc instead, which the catch below swallows —
+  /// exactly the "silently does nothing for a non-member" behavior this
+  /// method is supposed to have. Call sites should still only bother
+  /// calling this once they know the user has actually joined (see
+  /// ClubDetailPage), but this is the real backstop.
+  Future<void> pingClubActive(String clubId, String userId) async {
+    try {
+      await _db
+          .collection(AppConstants.colClubs)
+          .doc(clubId)
+          .collection(AppConstants.colMembers)
+          .doc(userId)
+          .update({'lastActiveAt': FieldValue.serverTimestamp()})
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // best-effort, see doc comment
+    }
+  }
+
+  /// Live count of members with a [pingClubActive] heartbeat inside the
+  /// last two minutes — the real number behind the hero's "X online"
+  /// stat.
+  ///
+  /// Deliberately NOT a plain `.where('lastActiveAt', isGreaterThan:
+  /// cutoff).snapshots().length` query: Firestore listeners only
+  /// re-evaluate a snapshot when a matching document actually changes,
+  /// not just because real time has passed — so a member who goes idle
+  /// would stay counted as "online" forever until some OTHER member's
+  /// doc happened to change. Instead this holds the raw timestamps
+  /// client-side and recomputes the count both on every live update AND
+  /// on a 30s ticker, so idle members actually drop out of the count.
+  ///
+  /// Fetches every member doc (same as [watchMembers] already does for
+  /// the Members tab) rather than a narrower projection — fine at normal
+  /// club sizes; revisit with a denormalized counter if a club's
+  /// membership grows very large.
+  Stream<int> watchOnlineCount(String clubId) {
+    late final StreamController<int> controller;
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? sub;
+    Timer? ticker;
+    List<Timestamp?> lastActive = const [];
+
+    void recompute() {
+      if (controller.isClosed) return;
+      final cutoff = DateTime.now().subtract(const Duration(minutes: 2));
+      final count = lastActive.where((ts) => ts != null && ts.toDate().isAfter(cutoff)).length;
+      controller.add(count);
+    }
+
+    controller = StreamController<int>(
+      onListen: () {
+        sub = _db
+            .collection(AppConstants.colClubs)
+            .doc(clubId)
+            .collection(AppConstants.colMembers)
+            .snapshots()
+            .listen(
+              (snap) {
+                lastActive = snap.docs.map((d) => d.data()['lastActiveAt'] as Timestamp?).toList();
+                recompute();
+              },
+              onError: (Object e, StackTrace st) {
+                if (!controller.isClosed) controller.addError(e, st);
+              },
+            );
+        ticker = Timer.periodic(const Duration(seconds: 30), (_) => recompute());
+      },
+      onCancel: () async {
+        await sub?.cancel();
+        ticker?.cancel();
+        if (!controller.isClosed) await controller.close();
+      },
+    );
+    return controller.stream;
   }
 
   Future<Result<void>> joinClub(
@@ -126,6 +227,19 @@ class ClubRepository {
       .limit(1)
       .snapshots()
       .map((s) => s.docs.isEmpty ? null : ClubJoinRequest.fromFirestore(s.docs.first).status);
+
+  /// IDs of every club [userId] currently has a PENDING join request for
+  /// — the bulk, user-scoped counterpart to [watchMyRequestStatus] (which
+  /// only checks one club at a time). Added so My Clubs can pre-filter to
+  /// "joined OR pending" clubs up front instead of rendering a card per
+  /// club in the whole pool and relying on each card to silently
+  /// self-hide once it resolves — see clubs_page.dart's _myClubsSection
+  /// for why that pattern is worth avoiding.
+  Stream<List<String>> watchMyPendingRequestClubIds(String userId) => _joinRequests
+      .where('userId', isEqualTo: userId)
+      .where('status', isEqualTo: 'pending')
+      .snapshots()
+      .map((s) => s.docs.map((d) => d.data()['clubId'] as String).toList());
 
   /// Pending requests for a club — for its admins/moderators to review.
   Stream<List<ClubJoinRequest>> watchPendingRequests(String clubId) => _joinRequests
@@ -220,50 +334,20 @@ class ClubRepository {
   // ── Merged-inbox support (Messaging mockup: club threads alongside
   // 1:1 conversations in one Messages list) ─────────────────────────
 
-  /// Shared source for [watchMyClubIds] and [watchMyClubReadState] -- one
-  /// underlying collectionGroup query on `members` filtered by the
-  /// `userId` FIELD (not doc id -- Firestore collection-group queries
-  /// can't filter by document id across different parents), so both
-  /// derived streams don't each pay for their own listener. Needs a
-  /// matching collection-group index on `members.userId` -- see
-  /// firestore.indexes.json (local file only, same deploy caveat as
-  /// firestore.rules).
-  Stream<List<QueryDocumentSnapshot<Map<String, dynamic>>>> _watchMyMemberships(String userId) => _db
+  /// IDs of every club [userId] belongs to, via a collectionGroup query
+  /// on `members` filtered by the `userId` FIELD (not doc id -- Firestore
+  /// collection-group queries can't filter by document id across
+  /// different parents). Needs a matching collection-group index on
+  /// `members.userId` -- see firestore.indexes.json (local file only,
+  /// same deploy caveat as firestore.rules).
+  Stream<List<String>> watchMyClubIds(String userId) => _db
       .collectionGroup(AppConstants.colMembers)
       .where('userId', isEqualTo: userId)
       .snapshots()
-      .map((s) => s.docs);
-
-  Stream<List<String>> watchMyClubIds(String userId) => _watchMyMemberships(userId)
-      .map((docs) => docs
+      .map((s) => s.docs
           .map((d) => d.reference.parent.parent?.id)
           .whereType<String>()
           .toList());
-
-  /// clubId -> this user's `lastReadAt` in that club's Chat tab (null =
-  /// never opened it). Powers the Club unread indicator in the merged
-  /// Messages inbox (see MessagesHomePage) via [clubHasUnreadMessages],
-  /// comparing this against each Club's own `lastMessageAt`.
-  Stream<Map<String, DateTime?>> watchMyClubReadState(String userId) => _watchMyMemberships(userId)
-      .map((docs) => {
-            for (final d in docs)
-              if (d.reference.parent.parent?.id != null)
-                d.reference.parent.parent!.id: (d.data()['lastReadAt'] as Timestamp?)?.toDate(),
-          });
-
-  /// Records that [userId] has opened [clubId]'s Chat tab just now --
-  /// call sites should call this when the Chat tab actually becomes
-  /// visible (see ClubDetailPage), mirroring MessagingRepository
-  /// .markConversationRead's best-effort, fire-and-forget shape.
-  Future<void> markClubRead(String clubId, String userId) async {
-    try {
-      await _db.collection(AppConstants.colClubs).doc(clubId)
-          .collection(AppConstants.colMembers).doc(userId)
-          .update({'lastReadAt': FieldValue.serverTimestamp()});
-    } catch (_) {
-      // best-effort -- a missed read-receipt update shouldn't block the UI
-    }
-  }
 
   /// Full Club docs for [watchMyClubIds] — the actual data the merged
   /// inbox renders (name, emoji, lastMessage*).
@@ -335,6 +419,19 @@ class ClubRepository {
   // remove other moderators/admins. Enforced both here (defense in
   // depth for the UI) and in firestore.rules (the real gate).
 
+  /// A small, bounded preview of a club's members — powers the little
+  /// overlapping-avatar stack on club cards (My Clubs, Discover) and the
+  /// detail hero's Admins row, without the unlimited full-collection read
+  /// [watchMembers] does for the actual Members tab.
+  Stream<List<ClubMember>> watchMemberPreview(String clubId, {int limit = 3}) => _db
+      .collection(AppConstants.colClubs)
+      .doc(clubId)
+      .collection(AppConstants.colMembers)
+      .orderBy('joinedAt')
+      .limit(limit)
+      .snapshots()
+      .map((s) => s.docs.map(ClubMember.fromFirestore).toList());
+
   Stream<List<ClubMember>> watchMembers(String clubId) => _db
       .collection(AppConstants.colClubs)
       .doc(clubId)
@@ -377,7 +474,7 @@ class ClubRepository {
     }
   }
 
-  // ── Banner image ─────────────────────────────────────────
+  // ── Banner + thumbnail images ─────────────────────────────
 
   Future<Result<String>> uploadBanner({
     required String clubId,
@@ -390,6 +487,24 @@ class ClubRepository {
       return Success(url);
     } catch (e) {
       return Failure('Failed to upload club banner', e);
+    }
+  }
+
+  /// The club's own logo/badge photo — a real picture the admin picks,
+  /// distinct from [uploadBanner]'s wide cover photo. Stored under a
+  /// separate Storage path (own filename, own overwrite lifecycle) so
+  /// updating one never touches the other.
+  Future<Result<String>> uploadThumbnail({
+    required String clubId,
+    required File imageFile,
+  }) async {
+    try {
+      final ref = FirebaseStorage.instance.ref('club_thumbnails/$clubId.jpg');
+      await ref.putFile(imageFile);
+      final url = await ref.getDownloadURL();
+      return Success(url);
+    } catch (e) {
+      return Failure('Failed to upload club thumbnail', e);
     }
   }
 
@@ -589,6 +704,39 @@ class ClubRepository {
   Stream<bool> watchIsDiscussionLiked(String clubId, String discussionId, String userId) {
     if (userId.isEmpty) return Stream.value(false);
     return _discussions(clubId).doc(discussionId).collection('likes').doc(userId).snapshots().map((d) => d.exists);
+  }
+
+  /// Mirrors [toggleDiscussionLike] one level down — likes on an
+  /// individual REPLY rather than the question itself.
+  /// ClubDiscussionReply.likeCount was declared on the model and shown
+  /// nowhere, with no write path anywhere in this repository (every
+  /// reply's toFirestore() hardcodes likeCount: 0); this gives it the
+  /// same real function toggleDiscussionLike already gives a question's
+  /// like count.
+  Future<Result<void>> toggleReplyLike(
+      String clubId, String discussionId, String replyId, String userId) async {
+    if (userId.isEmpty) return const Failure('Sign in to like replies.', null);
+    try {
+      final replyRef = _discussions(clubId).doc(discussionId).collection('replies').doc(replyId);
+      final likeRef = replyRef.collection('likes').doc(userId);
+      final exists = (await likeRef.get()).exists;
+      if (exists) {
+        await likeRef.delete();
+        await replyRef.update({'likeCount': FieldValue.increment(-1)});
+      } else {
+        await likeRef.set({'likedAt': FieldValue.serverTimestamp()});
+        await replyRef.update({'likeCount': FieldValue.increment(1)});
+      }
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to update like', e);
+    }
+  }
+
+  Stream<bool> watchIsReplyLiked(String clubId, String discussionId, String replyId, String userId) {
+    if (userId.isEmpty) return Stream.value(false);
+    return _discussions(clubId).doc(discussionId).collection('replies').doc(replyId)
+        .collection('likes').doc(userId).snapshots().map((d) => d.exists);
   }
 
   // ── Resources ────────────────────────────────────────────

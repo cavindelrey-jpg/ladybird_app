@@ -16,11 +16,11 @@ android {
     compileSdk = 36
 
     // Change this line from: ndkVersion = flutter.ndkVersion
-    // Bumped 27.0.12077973 -> 28.2.13676358: a plugin (jni-backed,
-    // transitively pulled in by one of the Firebase/file/video plugins)
-    // requires 28.2.13676358 specifically; Gradle warned on every build
-    // even though it's backward compatible, so pin to what's actually
-    // needed instead of the older default.
+    // Bumped 27 -> 28.2.13676358: the `jni` plugin (a transitive Flutter
+    // plugin dependency) requires that version specifically; NDK is
+    // backward-compatible so building everything against the higher
+    // version is Flutter's own recommended fix rather than pinning per
+    // plugin.
     ndkVersion = "28.2.13676358"
 
     compileOptions {
@@ -55,17 +55,17 @@ android {
         }
     }
 
-    // Same codebase, two distinct products (see lib/config/app_config.dart
-    // and lib/config/branding.dart for the Dart-side half of this split).
-    // Build with e.g.:
-    //   flutter build apk --flavor academia --dart-define=BRAND_ID=academia --dart-define=APP_MODE=platform
-    //   flutter build apk --flavor greenhill --dart-define=BRAND_ID=green_hill --dart-define=APP_MODE=school
+    // Same codebase, two distinct products (see lib/config/branding.dart
+    // for the Dart-side half of this split -- BRAND_ID picks the
+    // name/colors/logo). Build with e.g.:
+    //   flutter build apk --flavor academia --dart-define=BRAND_ID=academia
+    //   flutter build apk --flavor greenhill --dart-define=BRAND_ID=green_hill
     // --flavor and --dart-define are independent flags and must both be
     // passed together to get a consistent build -- the flavor picks the
-    // Android applicationId/launcher label, the dart-defines pick the
-    // in-app branding/nav gating. Mismatching them (e.g. --flavor
-    // greenhill with BRAND_ID=academia) produces a build that looks like
-    // one product and installs as the other's package -- always pass both.
+    // Android applicationId/launcher label, the dart-define picks the
+    // in-app branding. Mismatching them (e.g. --flavor greenhill with
+    // BRAND_ID=academia) produces a build that looks like one product
+    // and installs as the other's package -- always pass both.
     flavorDimensions += "brand"
     productFlavors {
         create("academia") {

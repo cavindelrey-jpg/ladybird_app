@@ -24,6 +24,9 @@
 // one test's own questions further.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'academic_section.dart';
+
+export 'academic_section.dart' show AcademicSection, kDefaultAcademicSections;
 
 enum QuestionType { mcq, structured, longForm }
 
@@ -228,6 +231,31 @@ class Test {
   final bool published;
   final DateTime createdAt;
 
+  // ── Browse hierarchy (Category > Subject > Topic > this Test) ────────
+  // Mirrors PublicCourse's Category/Subject/Level/Topic tree (see
+  // public_course.dart) one tier shallower — Quizzes don't have a
+  // separate "Level" tier because [category] already IS the education
+  // level (Primary School / JSS / SSS / High School / Undergraduate /
+  // any admin-added one — see QuizCategory). Both free-text, same
+  // "blank = not placed in the tree yet, still reachable other ways"
+  // honesty as PublicCourse.hasCurriculumPlacement.
+
+  /// Name of a QuizCategory doc (education level) — e.g. "Senior
+  /// Secondary School". Free text so it survives a category being
+  /// renamed without a foreign-key migration; TestsQuizCategoriesPage
+  /// is the source of truth for which names currently exist.
+  final String category;
+
+  /// The unit within [subject] this quiz belongs to — e.g. "The French
+  /// Revolution". Siblings sharing (category, subject, topic) group
+  /// into one tile in TestsTopicPickerPage.
+  final String topic;
+
+  /// Optional uploaded photo for this quiz's own tile/card (see
+  /// HierarchyAvatar's letter-avatar fallback in widgets.dart — an
+  /// image always takes priority over the generated letter when set).
+  final String? thumbnailUrl;
+
   const Test({
     required this.id,
     required this.subject,
@@ -240,6 +268,9 @@ class Test {
     this.institutionId,
     this.published = true,
     required this.createdAt,
+    this.category = '',
+    this.topic = '',
+    this.thumbnailUrl,
   });
 
   int get questionCount => questions.length;
@@ -297,6 +328,9 @@ class Test {
       institutionId: d['institutionId'],
       published: d['published'] ?? true,
       createdAt: ts is Timestamp ? ts.toDate() : DateTime.now(),
+      category: d['category'] ?? '',
+      topic: d['topic'] ?? '',
+      thumbnailUrl: d['thumbnailUrl'],
     );
   }
 
@@ -311,5 +345,37 @@ class Test {
         'institutionId': institutionId,
         'published': published,
         'createdAt': Timestamp.fromDate(createdAt),
+        'category': category,
+        'topic': topic,
+        'thumbnailUrl': thumbnailUrl,
       };
 }
+
+/// The Quiz page's top-level tier — an education level like "Senior
+/// Secondary School". Unlike Subject/Topic (free text derived from
+/// whatever's on existing Test docs, see PublicCourse's identical
+/// choice for its own tree), a category is a real Firestore doc: the
+/// user asked to be able to add whole new sections (e.g. "Nursery",
+/// "Master's") from the Quiz page itself, independent of whether any
+/// quiz has been placed under it yet — a derived-string tier can't
+/// exist before its first quiz does, a real doc can.
+///
+/// [QuizCategory] is now just this Quiz feature's name for the shared
+/// [AcademicSection] model (see models/academic_section.dart) — the same
+/// admin-managed section list also drives Course Navigation and the
+/// Library, rather than each feature growing its own separate tree of
+/// near-identical "Primary School/JSS/SSS/..." docs. Kept as a type
+/// alias (not a straight rename) so every existing Quiz call site
+/// (QuizCategoriesPage, TestComposerPage, TestRepository, ...) keeps
+/// compiling unchanged.
+typedef QuizCategory = AcademicSection;
+
+/// Same list as [kDefaultAcademicSections] under this feature's original
+/// name — see that constant's doc for what it means.
+const kDefaultQuizCategories = kDefaultAcademicSections;
+
+/// Synthetic bucket label for a quiz/topic saved before this hierarchy
+/// existed (blank [Test.category]/[Test.topic]) — keeps old content
+/// reachable instead of silently vanishing from the new browse tree.
+const kUncategorizedQuizBucket = 'Uncategorized';
+const kGeneralQuizTopicBucket = 'General';

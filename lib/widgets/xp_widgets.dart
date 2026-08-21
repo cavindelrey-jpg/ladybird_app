@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../models/xp_transaction.dart';
 import '../repositories/xp_repository.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 
 /// Small persistent XP balance pill — drop into any header's action row
 /// alongside the existing notification bell / avatar pattern.
@@ -19,6 +20,7 @@ class XpBalanceBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return StreamBuilder<(int, int)>(
       stream: XpRepository.instance.watchBalance(userId),
       builder: (context, snap) {
@@ -31,20 +33,20 @@ class XpBalanceBadge extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
+                gradient: LinearGradient(
                   begin: Alignment.topLeft, end: Alignment.bottomRight,
-                  colors: [C.goldp, Color(0xFFF5E5B8)],
+                  colors: [ac.goldBg, Color(0xFFF5E5B8)],
                 ),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: C.gold.withValues(alpha: .35), width: 1),
-                boxShadow: [BoxShadow(color: C.gold.withValues(alpha: .18),
+                border: Border.all(color: ac.gold.withValues(alpha: .35), width: 1),
+                boxShadow: [BoxShadow(color: ac.gold.withValues(alpha: .18),
                     blurRadius: 10, offset: const Offset(0, 3))],
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.bolt_rounded, size: 14, color: C.gold),
+                Icon(Icons.bolt_rounded, size: 14, color: ac.gold),
                 const SizedBox(width: 3),
                 Text('$balance', style: AppText.label.copyWith(
-                    fontSize: 11.5, fontWeight: FontWeight.w800, color: C.gold, letterSpacing: 0)),
+                    fontSize: 11.5, fontWeight: FontWeight.w800, color: ac.gold, letterSpacing: 0)),
               ]),
             ),
           ),
@@ -61,6 +63,7 @@ class XpCapProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return StreamBuilder<int>(
       stream: XpRepository.instance.watchXpEarnedToday(userId),
       builder: (context, snap) {
@@ -71,7 +74,7 @@ class XpCapProgressBar extends StatelessWidget {
             Text('Daily XP', style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w700)),
             const Spacer(),
             Text('$earned / $kDailyXpCap', style: AppText.caption.copyWith(
-                fontSize: 11, color: capped ? C.org : C.muted)),
+                fontSize: 11, color: capped ? ac.org : ac.muted)),
           ]),
           const SizedBox(height: 6),
           ClipRRect(
@@ -79,13 +82,13 @@ class XpCapProgressBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: earned / kDailyXpCap,
               minHeight: 6,
-              backgroundColor: C.bdr,
-              color: capped ? C.org : C.gold,
+              backgroundColor: ac.bdr,
+              color: capped ? ac.org : ac.gold,
             ),
           ),
           if (capped) ...[
             const SizedBox(height: 4),
-            Text('Daily cap reached — more XP tomorrow.', style: AppText.caption.copyWith(fontSize: 10.5, color: C.org)),
+            Text('Daily cap reached — more XP tomorrow.', style: AppText.caption.copyWith(fontSize: 10.5, color: ac.org)),
           ],
         ]);
       },
@@ -96,10 +99,11 @@ class XpCapProgressBar extends StatelessWidget {
 /// Call this right after awardXp() succeeds, from wherever a quiz answer
 /// eventually gets graded, to show a brief "+10 XP" confirmation.
 void showXpEarnedToast(BuildContext context, {required int amount, required XpSource source}) {
+  final ac = AppColors.of(context);
   if (amount <= 0) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       behavior: SnackBarBehavior.floating,
-      backgroundColor: C.org,
+      backgroundColor: ac.org,
       content: Text('Daily XP cap reached — no XP awarded this time.',
           style: AppText.bodySm.copyWith(color: Colors.white)),
     ));
@@ -107,9 +111,9 @@ void showXpEarnedToast(BuildContext context, {required int amount, required XpSo
   }
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
     behavior: SnackBarBehavior.floating,
-    backgroundColor: C.navy,
+    backgroundColor: ac.navy,
     content: Row(children: [
-      const Icon(Icons.bolt_rounded, color: C.gold, size: 18),
+      Icon(Icons.bolt_rounded, color: ac.gold, size: 18),
       const SizedBox(width: 8),
       Text('+$amount XP · ${source.label}', style: AppText.bodySm.copyWith(
           color: Colors.white, fontWeight: FontWeight.w700)),

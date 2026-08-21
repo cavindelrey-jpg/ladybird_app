@@ -7,6 +7,7 @@ import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../core/result.dart';
+import '../../theme/app_colors.dart';
 
 class ContentDeleteDialog extends StatefulWidget {
   final AcademicContent content;
@@ -47,10 +48,11 @@ class _ContentDeleteDialogState extends State<ContentDeleteDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Row(children: [
-        const Icon(Icons.delete_outline, color: C.red, size: 22),
+        Icon(Icons.delete_outline, color: ac.red, size: 22),
         const SizedBox(width: 8),
         Text('Delete Content', style: AppText.title.copyWith(fontSize: 17)),
       ]),
@@ -67,8 +69,8 @@ class _ContentDeleteDialogState extends State<ContentDeleteDialog> {
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(8)),
-              child: Text(_error!, style: AppText.bodySm.copyWith(color: C.red, fontSize: 12)),
+              decoration: BoxDecoration(color: ac.redBg, borderRadius: BorderRadius.circular(8)),
+              child: Text(_error!, style: AppText.bodySm.copyWith(color: ac.red, fontSize: 12)),
             ),
           ],
         ],
@@ -81,7 +83,7 @@ class _ContentDeleteDialogState extends State<ContentDeleteDialog> {
         ElevatedButton(
           onPressed: _deleting ? null : _delete,
           style: ElevatedButton.styleFrom(
-            backgroundColor: C.red,
+            backgroundColor: ac.red,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),

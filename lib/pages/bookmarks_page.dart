@@ -11,6 +11,7 @@ import '../models/public_course.dart';
 import '../repositories/public_course_repository.dart';
 import '../repositories/magazine_repository.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../features/courses_marketplace/course_reader_page.dart';
 import '../features/magazine/article_reader_page.dart';
 
@@ -29,14 +30,15 @@ class _BookmarksPageState extends State<BookmarksPage> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        title: Text('My Bookmarks', style: GoogleFonts.sora(fontWeight: FontWeight.w700, color: C.txt)),
-        iconTheme: const IconThemeData(color: C.txt),
-        bottom: TabBar(controller: _tc, labelColor: C.primary, unselectedLabelColor: C.txt2,
-            indicatorColor: C.primary, tabs: const [Tab(text: 'Courses'), Tab(text: 'Magazine')]),
+        backgroundColor: ac.bg, elevation: 0,
+        title: Text('My Bookmarks', style: GoogleFonts.sora(fontWeight: FontWeight.w700, color: ac.txt)),
+        iconTheme: IconThemeData(color: ac.txt),
+        bottom: TabBar(controller: _tc, labelColor: ac.primary, unselectedLabelColor: ac.txt2,
+            indicatorColor: ac.primary, tabs: const [Tab(text: 'Courses'), Tab(text: 'Magazine')]),
       ),
       body: AppBackground(child: TabBarView(controller: _tc, children: [
         StreamBuilder<List<PublicCourse>>(
@@ -98,8 +100,9 @@ class _BookmarkTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Material(
-      color: C.surf, borderRadius: BorderRadius.circular(Rad.md),
+      color: ac.surf, borderRadius: BorderRadius.circular(Rad.md),
       child: InkWell(
         borderRadius: BorderRadius.circular(Rad.md),
         onTap: onTap,
@@ -110,18 +113,18 @@ class _BookmarkTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               child: (imageUrl ?? '').isNotEmpty
                   ? Image.network(imageUrl!, width: 56, height: 56, fit: BoxFit.cover)
-                  : Container(width: 56, height: 56, color: C.surf3,
-                      child: const Icon(Icons.menu_book_outlined, color: C.muted)),
+                  : Container(width: 56, height: 56, color: ac.surf3,
+                      child: Icon(Icons.menu_book_outlined, color: ac.muted)),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(title, style: AppText.subtitle.copyWith(color: C.txt), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(title, style: AppText.subtitle.copyWith(color: ac.txt), maxLines: 1, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 2),
                 Text(subtitle, style: AppText.caption, maxLines: 1, overflow: TextOverflow.ellipsis),
               ]),
             ),
-            const Icon(Icons.chevron_right_rounded, color: C.muted),
+            Icon(Icons.chevron_right_rounded, color: ac.muted),
           ]),
         ),
       ),
@@ -135,11 +138,12 @@ class _Empty extends StatelessWidget {
   const _Empty({required this.icon, required this.text});
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Center(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 40, color: C.muted),
+        Icon(icon, size: 40, color: ac.muted),
         const SizedBox(height: 10),
-        Text(text, style: AppText.bodySm.copyWith(color: C.txt2)),
+        Text(text, style: AppText.bodySm.copyWith(color: ac.txt2)),
       ]),
     );
   }

@@ -14,6 +14,7 @@ import '../../core/result.dart';
 import '../../models/app_user.dart';
 import '../../repositories/entitlement_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 
@@ -66,13 +67,14 @@ class _RedeemVoucherPageState extends State<RedeemVoucherPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final ent = widget.user.entitlement;
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg,
+        backgroundColor: ac.bg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text('Redeem a Voucher', style: AppText.title),
       ),
       body: AppBackground(
@@ -83,14 +85,14 @@ class _RedeemVoucherPageState extends State<RedeemVoucherPage> {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                  color: C.surf2, borderRadius: BorderRadius.circular(Rad.sm)),
+                  color: ac.surf2, borderRadius: BorderRadius.circular(Rad.sm)),
               child: Row(children: [
                 Icon(
                   widget.user.isPremium
                       ? Icons.workspace_premium_rounded
                       : Icons.lock_open_rounded,
                   size: 18,
-                  color: widget.user.isPremium ? C.gold : C.muted,
+                  color: widget.user.isPremium ? ac.gold : ac.muted,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -125,9 +127,9 @@ class _RedeemVoucherPageState extends State<RedeemVoucherPage> {
               decoration: InputDecoration(
                 hintText: 'XXXX-XXXX-XXXX',
                 hintStyle: AppText.body.copyWith(
-                    fontSize: 20, letterSpacing: 3, color: C.muted),
+                    fontSize: 20, letterSpacing: 3, color: ac.muted),
                 filled: true,
-                fillColor: C.surf3,
+                fillColor: ac.surf3,
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(Rad.sm),
                     borderSide: BorderSide.none),
@@ -147,9 +149,9 @@ class _RedeemVoucherPageState extends State<RedeemVoucherPage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                    color: C.redb, borderRadius: BorderRadius.circular(Rad.sm)),
+                    color: ac.redBg, borderRadius: BorderRadius.circular(Rad.sm)),
                 child:
-                    Text(_error!, style: AppText.bodySm.copyWith(color: C.red)),
+                    Text(_error!, style: AppText.bodySm.copyWith(color: ac.red)),
               ),
             ],
 
@@ -193,21 +195,22 @@ class _SuccessCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final ent = outcome.entitlement;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: C.grnb,
+        color: ac.grnBg,
         borderRadius: BorderRadius.circular(Rad.md),
-        border: Border.all(color: C.grn.withValues(alpha: .4)),
+        border: Border.all(color: ac.grn.withValues(alpha: .4)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.check_circle_rounded, size: 20, color: C.grn),
+          Icon(Icons.check_circle_rounded, size: 20, color: ac.grn),
           const SizedBox(width: 8),
           Text(
             outcome.wasExtension ? 'Premium extended' : 'Premium unlocked',
-            style: AppText.title.copyWith(fontSize: 15, color: C.grn),
+            style: AppText.title.copyWith(fontSize: 15, color: ac.grn),
           ),
         ]),
         const SizedBox(height: 10),

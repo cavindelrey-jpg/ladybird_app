@@ -5,10 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/models.dart';
 import '../../repositories/announcement_repository.dart';
-import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'compose_announcement_page.dart';
+import '../../theme/app_colors.dart';
 
 class AnnouncementsPage extends StatelessWidget {
   final AppUser user;
@@ -17,8 +17,9 @@ class AnnouncementsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
         title: Text('Announcements',
           style: GoogleFonts.sora(fontSize: 17, fontWeight: FontWeight.w700)),
@@ -35,14 +36,14 @@ class AnnouncementsPage extends StatelessWidget {
           if (list.isEmpty) {
             return Center(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.campaign_outlined, size: 48, color: C.muted),
+                Icon(Icons.campaign_outlined, size: 48, color: ac.muted),
                 const SizedBox(height: 12),
                 Text('No announcements yet',
-                  style: GoogleFonts.inter(color: C.muted, fontSize: 15)),
+                  style: GoogleFonts.inter(color: ac.muted, fontSize: 15)),
                 if (canPost) ...[
                   const SizedBox(height: 8),
                   Text('Tap + to post the first announcement.',
-                    style: GoogleFonts.inter(color: C.muted, fontSize: 13)),
+                    style: GoogleFonts.inter(color: ac.muted, fontSize: 13)),
                 ],
               ]),
             );
@@ -60,7 +61,7 @@ class AnnouncementsPage extends StatelessWidget {
                   : '${diff.inDays}d ago';
               return AnnCard(
                 tag: a.tag, title: a.title, body: a.body,
-                date: dateStr, accent: a.urgent ? C.red : C.navy3,
+                date: dateStr, accent: a.urgent ? ac.red : ac.navy2,
                 urgent: a.urgent,
               );
             },
@@ -71,8 +72,8 @@ class AnnouncementsPage extends StatelessWidget {
           ? FloatingActionButton.extended(
               onPressed: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => ComposeAnnouncementPage(user: user))),
-              backgroundColor: C.gold,
-              foregroundColor: C.primary,
+              backgroundColor: ac.gold,
+              foregroundColor: ac.primary,
               icon: const Icon(Icons.add),
               label: Text('Post Announcement',
                 style: GoogleFonts.inter(fontWeight: FontWeight.w700)),

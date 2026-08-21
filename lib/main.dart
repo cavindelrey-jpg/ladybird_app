@@ -12,7 +12,6 @@ import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations
 import 'package:provider/provider.dart';
 import 'theme/app_theme.dart';
 import 'theme/app_colors.dart';
-import 'providers/institution_provider.dart';
 import 'providers/theme_provider.dart';
 import 'screens/app_router.dart';
 import 'services/analytics_service.dart';
@@ -81,7 +80,6 @@ class AcademiaApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => InstitutionProvider()..restoreFromPrefs()),
         // Was scaffolded (state, prefs persistence, toggle()/setMode()) but
         // never actually registered in the widget tree, and MaterialApp
         // below had no darkTheme/themeMode — so toggling it did nothing.
@@ -120,7 +118,23 @@ class AcademiaApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: const [Locale('en')],
+          // Was pinned to a single supported locale, which made following
+          // the device's system language structurally impossible — with
+          // only one entry in supportedLocales, Flutter's default
+          // resolution always resolves to it regardless of what the OS
+          // reports. English + French (Cameroon's two official languages)
+          // lets Flutter's own built-in widgets (Material/Cupertino date
+          // pickers, text-selection toolbar, dialog OK/Cancel, the Quill
+          // editor toolbar) actually switch with the system language.
+          // App-authored screen text is still hardcoded English throughout
+          // — real localization of that copy (arb files + wrapping every
+          // string site) is a separate, much larger pass, not attempted
+          // here. No locale: override and no localeResolutionCallback
+          // override means MaterialApp's default resolution (best match
+          // against the device's locale list, falling back to the first
+          // supported locale) is what actually does the "follow system
+          // language" work.
+          supportedLocales: const [Locale('en'), Locale('fr')],
           builder: (ctx, child) => child ?? const SizedBox.shrink(),
         ),
       ),

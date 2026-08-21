@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 
 class ComingSoonPage extends StatelessWidget {
   final String title;
@@ -20,13 +21,14 @@ class ComingSoonPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text(title, style: GoogleFonts.sora(
-            fontSize: 16, fontWeight: FontWeight.w700, color: C.txt)),
+            fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
       ),
       body: Center(
         child: Padding(
@@ -34,17 +36,17 @@ class ComingSoonPage extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Container(
               width: 84, height: 84,
-              decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(Rad.xl)),
-              child: Icon(icon, size: 40, color: C.primary),
+              decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(Rad.xl)),
+              child: Icon(icon, size: 40, color: ac.primary),
             ),
             const SizedBox(height: 20),
             Text(subtitle == null ? 'Coming Soon' : title,
-                style: GoogleFonts.sora(fontSize: 18, fontWeight: FontWeight.w800, color: C.txt)),
+                style: GoogleFonts.sora(fontSize: 18, fontWeight: FontWeight.w800, color: ac.txt)),
             const SizedBox(height: 8),
             Text(
               subtitle ?? "$title isn't built yet — it's on the roadmap.",
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 13, color: C.txt2, height: 1.5),
+              style: GoogleFonts.inter(fontSize: 13, color: ac.txt2, height: 1.5),
             ),
           ]),
         ),

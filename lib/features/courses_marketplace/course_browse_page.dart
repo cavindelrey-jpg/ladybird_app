@@ -1,12 +1,17 @@
 // lib/features/courses_marketplace/course_browse_page.dart
-// The "table of contents" view for marketplace Courses — lets students
-// navigate Category → Subject → Curriculum/Level → Topic → ordered
-// Lessons, instead of only finding a lesson via search. Complements
-// (doesn't replace) the flat feed in courses_marketplace_page.dart;
-// courses without full curriculum placement simply don't appear here.
+// The "table of contents" view for marketplace Courses, scoped to one
+// Academic Section — lets students navigate Subject > Topic > ordered
+// Lessons within that section, instead of only finding a lesson via
+// search. Reached from CourseNavigationPage (the section grid); courses
+// without full curriculum placement simply don't appear here. Mirrors
+// the Quiz system's TestsSubjectPickerPage + TestsTopicPickerPage
+// (combined into one file here, same as before this page was rescoped
+// to a section) so the two browse experiences feel like one consistent
+// pattern rather than two different ones.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/result.dart';
 import '../../models/app_user.dart';
 import '../../models/public_course.dart';
 import '../../repositories/public_course_repository.dart';
@@ -15,20 +20,19 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
+import '../testing/quiz_icon_editor.dart';
 import 'course_reader_page.dart';
 
 class CourseBrowsePage extends StatefulWidget {
+  final String section;
   final AppUser? currentUser;
-  final String? initialCategory;
   final String? initialSubject;
-  final String? initialLevel;
   final String? initialTopic;
   const CourseBrowsePage({
     super.key,
+    required this.section,
     this.currentUser,
-    this.initialCategory,
     this.initialSubject,
-    this.initialLevel,
     this.initialTopic,
   });
 
@@ -36,26 +40,23 @@ class CourseBrowsePage extends StatefulWidget {
   State<CourseBrowsePage> createState() => _CourseBrowsePageState();
 }
 
-/// One tree level for the drill-down: category → subject → level → topic.
-enum _BrowseLevel { category, subject, level, topic }
+/// One tree level for the drill-down: subject → topic → lesson list.
+enum _BrowseLevel { subject, topic }
 
 class _CourseBrowsePageState extends State<CourseBrowsePage> {
-  // Full tree: category -> subject -> level -> topic -> ordered lessons.
-  Map<String, Map<String, Map<String, Map<String, List<PublicCourse>>>>> _tree = {};
+  Map<String, Map<String, List<PublicCourse>>> _tree = {};
   Map<String, CurriculumIcon> _icons = {};
   bool _loading = true;
 
-  String? _category;
   String? _subject;
-  String? _level;
   String? _topic;
+
+  bool get _canManage => widget.currentUser?.canUploadContent ?? false;
 
   @override
   void initState() {
     super.initState();
-    _category = widget.initialCategory;
     _subject = widget.initialSubject;
-    _level = widget.initialLevel;
     _topic = widget.initialTopic;
     _load();
   }
@@ -63,11 +64,21 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
   Future<void> _load() async {
     final repo = PublicCourseRepository.instance;
     try {
-      final results = await Future.wait([repo.curriculumTreeOnce(), repo.curriculumIconsOnce()]);
+      final subjects = await repo.subjectsInSection(widget.section);
+      final tree = <String, Map<String, List<PublicCourse>>>{};
+      for (final subject in subjects) {
+        final topics = await repo.topicsInSection(widget.section, subject);
+        final byTopic = <String, List<PublicCourse>>{};
+        for (final topic in topics) {
+          byTopic[topic] = await repo.topicSequenceInSection(widget.section, subject, topic);
+        }
+        tree[subject] = byTopic;
+      }
+      final icons = await repo.curriculumIconsOnce();
       if (!mounted) return;
       setState(() {
-        _tree = results[0] as Map<String, Map<String, Map<String, Map<String, List<PublicCourse>>>>>;
-        _icons = results[1] as Map<String, CurriculumIcon>;
+        _tree = tree;
+        _icons = icons;
         _loading = false;
       });
     } catch (e, st) {
@@ -81,29 +92,20 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
     }
   }
 
-  _BrowseLevel get _currentLevel {
-    if (_category == null) return _BrowseLevel.category;
-    if (_subject == null) return _BrowseLevel.subject;
-    if (_level == null) return _BrowseLevel.level;
-    return _BrowseLevel.topic;
-  }
+  _BrowseLevel get _currentLevel => _subject == null ? _BrowseLevel.subject : _BrowseLevel.topic;
 
   void _goBack() {
     HapticFeedback.selectionClick();
     setState(() {
       if (_topic != null) { _topic = null; return; }
-      if (_level != null) { _level = null; return; }
-      if (_subject != null) { _subject = null; return; }
-      _category = null;
+      _subject = null;
     });
   }
 
   String get _title {
     switch (_currentLevel) {
-      case _BrowseLevel.category: return 'Browse Courses';
-      case _BrowseLevel.subject: return _category!;
-      case _BrowseLevel.level: return _subject!;
-      case _BrowseLevel.topic: return _level!;
+      case _BrowseLevel.subject: return widget.section;
+      case _BrowseLevel.topic: return _subject!;
     }
   }
 
@@ -115,7 +117,7 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
       appBar: AppBar(
         backgroundColor: ac.bg, elevation: 0,
         iconTheme: IconThemeData(color: ac.txt),
-        leading: (_category != null)
+        leading: (_subject != null)
             ? IconButton(icon: const Icon(Icons.arrow_back_rounded), onPressed: _goBack)
             : null,
         title: Text(_title, style: AppText.title),
@@ -123,19 +125,19 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
       body: AppBackground(
         child: _loading
             ? const Center(child: CircularProgressIndicator())
-            : _buildBody(ac),
+            : _buildBody(context, ac),
       ),
     );
   }
 
-  Widget _buildBody(AppColors ac) {
+  Widget _buildBody(BuildContext context, AppColors ac) {
     if (_tree.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            'No courses have been placed in the curriculum tree yet. '
-            'Give a course a Subject, Level and Topic when creating it to see it here.',
+            'No courses have been placed under "${widget.section}" yet. '
+            'Give a course this Section, a Subject and a Topic when creating it to see it here.',
             textAlign: TextAlign.center,
             style: AppText.bodySm.copyWith(color: ac.txt2),
           ),
@@ -143,47 +145,54 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
       );
     }
 
-    if (_breadcrumbTopic != null) {
-      return _buildLessonList(_breadcrumbTopic!, ac);
+    if (_topic != null) {
+      return _buildLessonList(context, _topic!, ac);
     }
 
     switch (_currentLevel) {
-      case _BrowseLevel.category:
-        return _buildList(_tree.keys.toList()..sort(), (v) => setState(() => _category = v), ac);
       case _BrowseLevel.subject:
-        final subjects = (_tree[_category!] ?? {}).keys.toList()..sort();
-        return _buildList(subjects, (v) => setState(() => _subject = v), ac);
-      case _BrowseLevel.level:
-        final levels = (_tree[_category!]?[_subject!] ?? {}).keys.toList()..sort();
-        return _buildList(levels, (v) => setState(() => _level = v), ac);
+        return _buildList(context, _tree.keys.toList()..sort(), (v) => setState(() => _subject = v), ac);
       case _BrowseLevel.topic:
-        final topics = (_tree[_category!]?[_subject!]?[_level!] ?? {}).keys.toList()..sort();
-        return _buildList(topics, (v) => setState(() => _topic = v), ac, isTopic: true);
+        final topics = (_tree[_subject!] ?? {}).keys.toList()..sort();
+        return _buildList(context, topics, (v) => setState(() => _topic = v), ac, isTopic: true);
     }
   }
 
-  /// Once a topic is picked we go straight to the lesson list rather
-  /// than tracking a 5th enum level — `_topic` doubles as "show lessons".
-  String? get _breadcrumbTopic => _topic;
-
-  /// Icon lookup for the level currently being browsed — categories
-  /// fall back to a letter-avatar (they already have their own iconography
-  /// elsewhere in the app); subject/level/topic use whatever was assigned
-  /// via the composer, same fallback otherwise.
+  /// Icon lookup for the level currently being browsed — falls back to a
+  /// letter-avatar wherever nothing was set.
   CurriculumIcon _iconFor(String label) {
     switch (_currentLevel) {
-      case _BrowseLevel.category:
-        return CurriculumIcon.none;
       case _BrowseLevel.subject:
-        return _icons[PublicCourseRepository.subjectIconKey(_category!, label)] ?? CurriculumIcon.none;
-      case _BrowseLevel.level:
-        return _icons[PublicCourseRepository.levelIconKey(_category!, _subject!, label)] ?? CurriculumIcon.none;
+        return _icons[PublicCourseRepository.navSubjectIconKey(widget.section, label)] ?? CurriculumIcon.none;
       case _BrowseLevel.topic:
-        return _icons[PublicCourseRepository.topicIconKey(_category!, _subject!, _level!, label)] ?? CurriculumIcon.none;
+        return _icons[PublicCourseRepository.navTopicIconKey(widget.section, _subject!, label)] ?? CurriculumIcon.none;
     }
   }
 
-  Widget _buildList(List<String> items, ValueChanged<String> onTap, AppColors ac, {bool isTopic = false}) {
+  Future<void> _editLook(String label) async {
+    final key = _currentLevel == _BrowseLevel.subject
+        ? PublicCourseRepository.navSubjectIconKey(widget.section, label)
+        : PublicCourseRepository.navTopicIconKey(widget.section, _subject!, label);
+    final current = _iconFor(label);
+    final repo = PublicCourseRepository.instance;
+    await showQuizIconEditor(
+      context,
+      label: label,
+      currentEmoji: current.emoji,
+      currentImageUrl: current.imageUrl,
+      onSave: (emoji, image) async {
+        String imageUrl = '';
+        if (image != null) {
+          final upload = await repo.uploadCurriculumNodeImage(key: key, imageFile: image);
+          if (upload is Success<String>) imageUrl = upload.value;
+        }
+        await repo.setCurriculumIcon(key, emoji: emoji, imageUrl: imageUrl);
+      },
+    );
+    _load();
+  }
+
+  Widget _buildList(BuildContext context, List<String> items, ValueChanged<String> onTap, AppColors ac, {bool isTopic = false}) {
     if (items.isEmpty) {
       return Center(child: Text('Nothing here yet.', style: AppText.bodySm.copyWith(color: ac.txt2)));
     }
@@ -198,7 +207,8 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
       ),
       itemBuilder: (context, i) {
         final label = items[i];
-        final count = isTopic ? (_tree[_category!]?[_subject!]?[_level!]?[label]?.length ?? 0) : null;
+        final count = isTopic ? (_tree[_subject!]?[label]?.length ?? 0) : null;
+        final icon = _iconFor(label);
         return Material(
           color: ac.surf,
           borderRadius: BorderRadius.circular(Rad.md),
@@ -211,15 +221,30 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
             child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                HierarchyAvatar(label: label, icon: _iconFor(label).emoji, imageUrl: _iconFor(label).imageUrl, size: 48),
-                const Spacer(),
-                Text(label, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700),
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
-                if (count != null) ...[
-                  const SizedBox(height: 2),
-                  Text('$count lesson${count == 1 ? '' : 's'}', style: AppText.caption.copyWith(color: ac.txt2)),
-                ],
+              child: Stack(children: [
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  HierarchyAvatar(label: label, icon: icon.emoji, imageUrl: icon.imageUrl, size: 48),
+                  const Spacer(),
+                  Text(label, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                  if (count != null) ...[
+                    const SizedBox(height: 2),
+                    Text('$count lesson${count == 1 ? '' : 's'}', style: AppText.caption.copyWith(color: ac.txt2)),
+                  ],
+                ]),
+                if (_canManage)
+                  Positioned(
+                    top: 0, right: 0,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => _editLook(label),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(color: ac.surf2, shape: BoxShape.circle, border: Border.all(color: ac.bdr2)),
+                        child: Icon(Icons.edit_rounded, size: 14, color: ac.txt2),
+                      ),
+                    ),
+                  ),
               ]),
             ),
           ),
@@ -228,8 +253,8 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
     );
   }
 
-  Widget _buildLessonList(String topic, AppColors ac) {
-    final lessons = _tree[_category!]?[_subject!]?[_level!]?[topic] ?? [];
+  Widget _buildLessonList(BuildContext context, String topic, AppColors ac) {
+    final lessons = _tree[_subject!]?[topic] ?? [];
     if (lessons.isEmpty) {
       return Center(child: Text('No lessons in this topic yet.', style: AppText.bodySm.copyWith(color: ac.txt2)));
     }
@@ -262,11 +287,16 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
                   child: Row(children: [
-                    Container(
-                      width: 26, height: 26,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(8)),
-                      child: Text('${i + 1}', style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: ac.primary)),
+                    // The lesson's own thumbnail is its primary visual
+                    // identity (coverImageUrl, set on the composer) — the
+                    // numbered chip is just sequence order, not a
+                    // replacement for a real thumbnail.
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: (lesson.coverImageUrl ?? '').isNotEmpty
+                          ? Image.network(lesson.coverImageUrl!, width: 40, height: 40, fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _lessonNumberChip(ac, i))
+                          : _lessonNumberChip(ac, i),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -286,4 +316,11 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
       ),
     ]);
   }
+
+  Widget _lessonNumberChip(AppColors ac, int i) => Container(
+        width: 40, height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(8)),
+        child: Text('${i + 1}', style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: ac.primary)),
+      );
 }

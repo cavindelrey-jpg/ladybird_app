@@ -1,19 +1,10 @@
 // lib/pages/profile_page.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
 import '../theme/app_colors.dart';
-import '../config/app_config.dart';
 import '../models/models.dart';
 import '../services/auth_service.dart';
-import '../providers/institution_provider.dart';
-import '../features/announcements/announcements_page.dart';
-import '../features/calendar/calendar_page.dart';
-import '../features/timetable/timetable_page.dart';
 import '../features/timetable/personal_study_page.dart';
-import '../features/assignments/assignments_page.dart';
-import '../features/attendance/attendance_page.dart';
-import '../pages/marks_page.dart';
 import '../features/entitlements/entitlements.dart';
 import 'profile_edit_page.dart';
 import 'bookmarks_page.dart';
@@ -22,8 +13,7 @@ import 'settings_page.dart';
 import '../widgets/app_background.dart';
 class ProfilePage extends StatelessWidget {
   final AppUser user;
-  final Institution? institution;
-  const ProfilePage({super.key, required this.user, this.institution});
+  const ProfilePage({super.key, required this.user});
 
   /// Entitlement label plus its real remaining days, e.g.
   /// "Gifted Premium · 118 days left". Falls back to the bare label for a
@@ -48,7 +38,6 @@ class ProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final inst = institution;
     final rc   = _roleColor(ac, user.role);
     return Scaffold(
       backgroundColor: ac.bg,
@@ -64,10 +53,7 @@ class ProfilePage extends StatelessWidget {
             tooltip: 'Settings',
           ),
           TextButton.icon(
-            onPressed: () async {
-              await AuthService.instance.signOut();
-              if (context.mounted) context.read<InstitutionProvider>().clear();
-            },
+            onPressed: () => AuthService.instance.signOut(),
             icon: Icon(Icons.logout_rounded, size: 18, color: ac.red),
             label: Text('Sign Out',
                 style: GoogleFonts.inter(fontSize: 13, color: ac.red, fontWeight: FontWeight.w600)),
@@ -77,34 +63,6 @@ class ProfilePage extends StatelessWidget {
       body: AppBackground(child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(children: [
-          // Institution banner
-          if (inst != null) ...[
-            Container(
-              width: double.infinity, padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [inst.primary, inst.secondary]),
-                  borderRadius: BorderRadius.circular(16)),
-              child: Row(children: [
-                Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: .2),
-                      borderRadius: BorderRadius.circular(10)),
-                  child: Center(child: Text(
-                    inst.schoolName.isNotEmpty ? inst.schoolName[0].toUpperCase() : 'A',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)))),
-                const SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(inst.schoolName, style: GoogleFonts.sora(
-                      fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
-                  if (inst.tagline != null)
-                    Text(inst.tagline!, style: GoogleFonts.inter(fontSize: 11, color: Colors.white70)),
-                ])),
-              ]),
-            ),
-            const SizedBox(height: 20),
-          ],
-
           // Avatar
           user.photoUrl != null && user.photoUrl!.isNotEmpty
               ? CircleAvatar(radius: 40, backgroundImage: NetworkImage(user.photoUrl!))
@@ -201,70 +159,6 @@ class ProfilePage extends StatelessWidget {
               _InfoRow(Icons.point_of_sale_outlined, 'Sales Desk', '',
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => SalesDeskPage(user: user)))),
-          ],
-
-          // School-administrative nav (Notices/Calendar/Timetable/
-          // Assignments/Grades/Attendance) is reserved for school-branded
-          // builds (APP_MODE=school, i.e. Green Hill) even when the
-          // signed-in user is genuinely linked to an institution with
-          // these features enabled -- the Academia *platform* build's own
-          // identity isn't "a school administration app", so it never
-          // surfaces this block regardless of who's signed in.
-          if (inst != null && AppConfig.isSchoolMode) ...[
-            const SizedBox(height: 24),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text('School', style: GoogleFonts.sora(
-                  fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt2)),
-            ),
-            const SizedBox(height: 10),
-            // These used to each be their own bottom-nav tab — a school
-            // with every feature enabled ended up with 8-10 crowded tabs.
-            // Same features, same role/feature gating, just reachable
-            // from Profile now instead of the nav bar.
-            if (inst.hasFeature(InstitutionFeature.announcements))
-              _InfoRow(Icons.campaign_outlined, 'Notices', '',
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => AnnouncementsPage(
-                          user: user, canPost: user.canPostAnnouncement)))),
-            if (inst.hasFeature(InstitutionFeature.events))
-              _InfoRow(Icons.calendar_month_outlined, 'Calendar', '',
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => CalendarPage(user: user)))),
-            if (inst.hasFeature(InstitutionFeature.timetable))
-              _InfoRow(Icons.schedule_outlined, 'Timetable', '',
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => TimetablePage(user: user)))),
-            if (inst.hasFeature(InstitutionFeature.assignments))
-              _InfoRow(Icons.assignment_outlined, 'Assignments', '',
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => AssignmentsPage(user: user)))),
-            if (inst.hasFeature(InstitutionFeature.marks))
-              _InfoRow(Icons.grade_outlined, 'Grades', '',
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => MarksPage(user: user)))),
-            if (inst.hasFeature(InstitutionFeature.attendance) &&
-                (user.isLecturer || user.isStudent || user.isAdmin))
-              _InfoRow(Icons.fact_check_outlined, 'Attendance', '',
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => AttendancePage(user: user)))),
-          ],
-
-          // production_plan.md §7A lists "School login/interface" among the
-          // things the ordinary app should not surface. "Switch School"
-          // is school-login navigation, and for an independent learner it
-          // was doing nothing meaningful anyway — ProfilePage is handed
-          // Institution.independentDefault (never null) for independent
-          // accounts, so an `inst != null` check would not have hidden it.
-          // Gate on the two cases where it's genuinely actionable: the
-          // School Edition build, or an account actually linked to a
-          // school (who must keep a way to detach).
-          if (AppConfig.isSchoolMode || user.accountType == AccountType.linked) ...[
-            const SizedBox(height: 24),
-            OutlinedButton.icon(
-              onPressed: () => context.read<InstitutionProvider>().clear(),
-              icon: const Icon(Icons.swap_horiz_rounded),
-              label: const Text('Switch School')),
           ],
         ]),
       )),

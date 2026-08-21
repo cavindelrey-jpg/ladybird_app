@@ -5,10 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../core/constants.dart';
 import '../../models/app_user.dart';
-import '../../models/institution.dart';
 import '../../models/public_course.dart';
 import '../../repositories/follow_repository.dart';
-import '../../repositories/institution_repository.dart';
 import '../../repositories/public_course_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
@@ -98,31 +96,12 @@ class CourseCreatorProfilePage extends StatelessWidget {
                 stream: _watchCreatorUser(creatorId),
                 builder: (context, s) {
                   final u = s.data;
-                  if (u == null || (u.bio.isEmpty && u.schoolId == null)) {
+                  if (u == null || u.bio.isEmpty) {
                     return const SizedBox(height: 20);
                   }
                   return Padding(
                     padding: const EdgeInsets.only(top: 10, bottom: 20),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      if (u.bio.isNotEmpty)
-                        Text(u.bio, style: AppText.bodySm.copyWith(height: 1.4)),
-                      if (u.schoolId != null)
-                        Padding(
-                          padding: EdgeInsets.only(top: u.bio.isNotEmpty ? 8 : 0),
-                          child: StreamBuilder<Institution?>(
-                            stream: InstitutionRepository.instance.watch(u.schoolId!),
-                            builder: (context, inst) {
-                              final name = inst.data?.schoolName;
-                              if (name == null || name.isEmpty) return const SizedBox.shrink();
-                              return Row(children: [
-                                Icon(Icons.school_outlined, size: 14, color: ac.muted),
-                                const SizedBox(width: 4),
-                                Text(name, style: AppText.caption.copyWith(fontSize: 12)),
-                              ]);
-                            },
-                          ),
-                        ),
-                    ]),
+                    child: Text(u.bio, style: AppText.bodySm.copyWith(height: 1.4)),
                   );
                 },
               ),

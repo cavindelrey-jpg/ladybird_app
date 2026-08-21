@@ -1,7 +1,15 @@
 // lib/features/testing/tests_list_page.dart
-// Live list of published tests for one subject. Each card shows the
-// test's real question count, difficulty, and total points — no
-// fabricated "estimated time" or fake completion stats.
+// Bottom tier of the browse tree — the live list of published quizzes
+// inside one Category > Subject > Topic. Each card shows the quiz's own
+// thumbnail (a real photo if set, otherwise a generated letter-avatar —
+// see HierarchyAvatar) plus its real question count, difficulty, and
+// total points — no fabricated "estimated time" or fake completion
+// stats. [category]/[topic] are optional so this page still works for
+// callers that reach it without going through the tree tiers (e.g. chat's
+// "share a quiz" picker reuses TestRepository.watchTestsBySubject
+// directly, not this page — but keeping the filters optional here too
+// means this page isn't hard-locked to always being opened from
+// TestsTopicPickerPage).
 
 import 'package:flutter/material.dart';
 import '../../models/app_user.dart';
@@ -15,7 +23,11 @@ import 'test_taking_page.dart';
 class TestsListPage extends StatelessWidget {
   final AppUser user;
   final String subject;
-  const TestsListPage({super.key, required this.user, required this.subject});
+  final String? category;
+  final String? topic;
+  const TestsListPage({
+    super.key, required this.user, required this.subject, this.category, this.topic,
+  });
 
   Color _difficultyColor(AppColors ac, TestDifficulty d) {
     switch (d) {
@@ -30,9 +42,10 @@ class TestsListPage extends StatelessWidget {
     final ac = AppColors.of(context);
     return Scaffold(
       backgroundColor: ac.bg,
-      appBar: AppBar(title: Text(subject, style: AppText.h2)),
+      appBar: AppBar(title: Text(topic ?? subject, style: AppText.h2)),
       body: StreamBuilder<List<Test>>(
-        stream: TestRepository.instance.watchTestsBySubject(subject, institutionId: user.schoolId),
+        stream: TestRepository.instance.watchTestsBySubject(
+            subject, institutionId: user.schoolId, category: category, topic: topic),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return ListView(padding: const EdgeInsets.all(16), children: const [
@@ -64,6 +77,8 @@ class TestsListPage extends StatelessWidget {
                         builder: (_) => TestTakingPage(user: user, test: test))),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
+                    HierarchyAvatar(label: test.title, imageUrl: test.thumbnailUrl ?? '', size: 40),
+                    const SizedBox(width: 12),
                     Expanded(child: Text(test.title, style: AppText.title)),
                     StatusBadge(label: test.difficulty.label, color: color),
                   ]),

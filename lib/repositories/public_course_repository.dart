@@ -273,6 +273,110 @@ class PublicCourseRepository {
     return tree;
   }
 
+  // ── Course Navigation tree (Academic Section > Subject > Topic) ──────
+  // The redesigned top-level browse tree: Academic Section (a real,
+  // admin-managed, image-bearing AcademicSectionRepository doc — Primary
+  // School/JSS/SSS/High School/Undergraduate plus anything an admin has
+  // added, the SAME list Quizzes use) > Subject > Topic > ordered
+  // lessons. `category` (the Mathematics/Science/... domain tag) stays
+  // exactly as-is for the flat marketplace feed/chips above — it's just
+  // no longer a hierarchy tier here. A course's existing `level` field is
+  // reused, unchanged, as the section name: no schema migration, no
+  // duplicated data, and a course authored before this redesign (a free-
+  // text `level` like "GCE Advanced Level" that isn't one of the managed
+  // section names) still shows up, grouped under its own tree branch,
+  // rather than vanishing — same "grows from real data, blank field just
+  // means unplaced" honesty as [hasCurriculumPlacement] elsewhere in this
+  // file.
+
+  static String navSubjectIconKey(String section, String subject) => 'navSubject::$section::$subject';
+  static String navTopicIconKey(String section, String subject, String topic) =>
+      'navTopic::$section::$subject::$topic';
+
+  /// Distinct subjects that already exist under [section].
+  Future<List<String>> subjectsInSection(String section) async {
+    final snap = await _courses
+        .where('published', isEqualTo: true)
+        .where('level', isEqualTo: section)
+        .limit(500)
+        .get();
+    return _distinctNonEmpty(snap.docs.map((d) => d.data()['subject'] as String?));
+  }
+
+  /// Distinct topics that already exist under [section] + [subject].
+  Future<List<String>> topicsInSection(String section, String subject) async {
+    final snap = await _courses
+        .where('published', isEqualTo: true)
+        .where('level', isEqualTo: section)
+        .where('subject', isEqualTo: subject)
+        .limit(500)
+        .get();
+    return _distinctNonEmpty(snap.docs.map((d) => d.data()['topic'] as String?));
+  }
+
+  /// The full, in-order lesson sequence for one topic within [section] —
+  /// same shape as [topicSequence], scoped by section instead of
+  /// category+level.
+  Future<List<PublicCourse>> topicSequenceInSection(String section, String subject, String topic) async {
+    final snap = await _courses
+        .where('published', isEqualTo: true)
+        .where('level', isEqualTo: section)
+        .where('subject', isEqualTo: subject)
+        .where('topic', isEqualTo: topic)
+        .orderBy('order')
+        .get();
+    return snap.docs.map(PublicCourse.fromFirestore).toList();
+  }
+
+  /// Real per-section course counts — powers the Course Navigation top
+  /// grid's "N courses" line, computed client-side from a bounded sample
+  /// (same pattern as [categoryCountsOnce]).
+  Future<Map<String, int>> courseCountsBySection() async {
+    final snap = await _courses.where('published', isEqualTo: true).limit(1000).get();
+    final counts = <String, int>{};
+    for (final doc in snap.docs) {
+      final section = doc.data()['level'] as String? ?? '';
+      if (section.isEmpty) continue;
+      counts[section] = (counts[section] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  /// Real per-subject course counts within [section] — powers the
+  /// Subject picker tier.
+  Future<Map<String, int>> subjectCountsInSection(String section) async {
+    final snap = await _courses
+        .where('published', isEqualTo: true)
+        .where('level', isEqualTo: section)
+        .limit(500)
+        .get();
+    final counts = <String, int>{};
+    for (final doc in snap.docs) {
+      final subject = doc.data()['subject'] as String? ?? '';
+      if (subject.isEmpty) continue;
+      counts[subject] = (counts[subject] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  /// Real per-topic course counts within [section] + [subject] — powers
+  /// the Topic picker tier.
+  Future<Map<String, int>> topicCountsInSection(String section, String subject) async {
+    final snap = await _courses
+        .where('published', isEqualTo: true)
+        .where('level', isEqualTo: section)
+        .where('subject', isEqualTo: subject)
+        .limit(500)
+        .get();
+    final counts = <String, int>{};
+    for (final doc in snap.docs) {
+      final topic = doc.data()['topic'] as String? ?? '';
+      if (topic.isEmpty) continue;
+      counts[topic] = (counts[topic] ?? 0) + 1;
+    }
+    return counts;
+  }
+
   // ── Sequence placement — "where does this lesson belong?" ────────
   // Large gaps between positions (100, 200, 300…) so a new lesson can
   // be slotted in anywhere later without renumbering existing ones.

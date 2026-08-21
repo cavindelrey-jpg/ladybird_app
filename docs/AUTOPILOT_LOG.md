@@ -3488,6 +3488,135 @@ session's own standing advice to verify branch state first.
     needed here -- `conversations/{id}`'s update rule is already
     `request.auth.uid in resource.data.participantIds` with no field
     restriction, so this was already covered.
+
+## Session (2026-08-20 cont'd): Course Navigation redesign
+
+User asked to redesign Course Navigation into a proper academic hierarchy:
+Academic Section (Primary/JSS/SSS/High School/Undergraduate, extensible,
+admin-manageable, each with its own image) > Subject > Topic/Course, with
+every node (section/subject/course/topic/quiz/subsection) getting a real
+thumbnail instead of a letter-avatar, integrated into the EXISTING Library
+rather than a new parallel system.
+
+**Key discovery before writing any code**: `models/test.dart` already had
+almost exactly this — `QuizCategory` (id/name/emoji/imageUrl/order, a real
+Firestore doc, not free text) seeded with `kDefaultQuizCategories =
+['Primary School', 'Junior Secondary School', 'Senior Secondary School',
+'High School', 'Undergraduate']` — the exact 5 names asked for — plus a
+full working UI (`quiz_categories_page.dart` ->
+`tests_subject_picker_page.dart` -> `tests_topic_picker_page.dart` ->
+`tests_list_page.dart`), all with HierarchyAvatar image tiles and an
+edit-look bottom sheet (`quiz_icon_editor.dart`). It only drove Quizzes.
+Meanwhile marketplace Courses (`PublicCourse`) had a SEPARATE, adjacent
+system: category(domain)/subject/level(free text)/topic/lesson, browsable
+via the old `course_browse_page.dart`, with its own `CurriculumIcon`/
+`curriculum_icons` lookup collection. Building a THIRD near-identical
+category system for Course Navigation would have been exactly the
+"unnecessarily duplicating data" the user explicitly said not to do.
+
+**Decision: unify, don't triplicate.** Extracted the quiz-category CRUD
+out of `TestRepository` into a new standalone
+`repositories/academic_section_repository.dart` (model:
+`models/academic_section.dart`, `AcademicSection` +
+`kDefaultAcademicSections`), still backed by the SAME Firestore collection
+name (`quiz_categories` — kept as-is to avoid a data migration; nothing
+about it is quiz-specific anymore, documented in both new files' headers).
+`models/test.dart`'s `QuizCategory`/`kDefaultQuizCategories` are now a
+`typedef`/const-alias onto the shared model so every existing Quiz call
+site (`TestRepository.quizCategoriesOnce()` etc., now thin delegating
+wrappers) kept compiling unchanged. Course Navigation's new top tier
+(`course_navigation_page.dart`, mirrors `quiz_categories_page.dart`'s
+tile-grid pattern almost exactly on purpose — same interaction pattern for
+both browsers, not two different ones) reads/writes the exact same
+section list/images Quizzes use, so an admin manages ONE set of sections
+and one set of photos, not two.
+
+**Mapping onto the existing `PublicCourse` schema (no schema migration,
+no new required fields)**: repurposed the already-existing free-text
+`level` field as the section name (was previously typed free text like
+"GCE Advanced Level"; now picked from the managed section list via a chip
+picker in `course_composer_page.dart`, defaulting to the first section for
+a brand-new lesson, same UX `test_composer_page.dart` already used for its
+category picker). The old domain `category` field (Mathematics/Science/...)
+stays exactly as-is for the flat marketplace feed/chips — it's just no
+longer a hierarchy tier in the NEW browse tree, since the user's own
+hierarchy example (Senior Secondary -> History -> French Revolution ->
+Fall of the Bastille) never mentioned a domain-category layer at all.
+`course_browse_page.dart` was rewritten in place (not duplicated) from a
+4-tier category>subject>level>topic tree into a 2-tier subject>topic tree
+scoped to one section (`CourseBrowsePage(section: ...)`), reusing
+`PublicCourseRepository`'s existing `curriculum_icons`
+lookup/upload/HierarchyAvatar machinery with new `navSubjectIconKey`/
+`navTopicIconKey` key prefixes (parallel to Quiz's own `quizSubject::`/
+`quizTopic::` prefixes already sharing that same collection) so old
+category-scoped icon assignments don't collide with the new section-scoped
+ones — old ones become harmless orphans, not deleted, not migrated (an
+honest "grows from real data" tradeoff, same as this codebase's existing
+`kUncategorizedQuizBucket`-style fallbacks elsewhere). Old 4-tier methods
+(`subjectsIn`/`topicsIn`/`curriculumTreeOnce`/`subjectIconKey`/etc.) were
+left in `public_course_repository.dart` unused rather than deleted —
+`topicSequence()` is still called by `continueReadingFor()` (prev/next
+lesson), a genuinely separate feature untouched by this redesign.
+`course_reader_page.dart`'s breadcrumb (was category>subject>level>topic)
+updated to section>subject>topic and its "tap to browse siblings" link
+updated to the new `CourseBrowsePage(section:...)` constructor — this was
+the one real call-site break the rewrite caused, found by grep-auditing
+every `CourseBrowsePage(` call site after the rewrite, not assumed safe.
+
+Existing per-course thumbnails (`PublicCourse.coverImageUrl`,
+`AcademicContent.thumbnailUrl`, `Test.thumbnailUrl`) were already real,
+already wired, already admin-uploadable before this session — confirmed
+by reading each model/composer rather than assumed, so none were touched
+or overwritten. `CourseBrowsePage`'s lesson-list tiles were changed to
+show the lesson's own `coverImageUrl` (was previously always a numbered
+chip, no thumbnail at all) as its primary visual identity, falling back to
+the numbered chip only when no cover is set — closing the one real
+"missing thumbnail surface" gap found in the existing Course browse UI.
+
+**NOT done this session, flagged not hidden**: deep Library
+(`AcademicContent`) integration into the same Section>Subject>Topic tree —
+`AcademicContent` has no `topic` field at all (it's institution-scoped
+uploaded documents: notes/PDFs/past papers, not authored lesson sequences
+like `PublicCourse`), and its `level` values (`kAcademicLevels`: Form 1-5,
+Lower/Upper Sixth, ...) don't line up 1:1 with the new section names.
+Forcing Library items into the exact same 4th-tier would have meant adding
+a topic-granularity field to a live content model with unclear author-side
+semantics — bigger than this session's scope and not something to guess
+silently. Cross-linking Library content into Course Navigation by subject
+(a "resources for this subject" rail on the Subject tier) is the natural
+next step but wasn't built here.
+
+**Environment note, not caused by this work**: `flutter analyze` on the
+full project currently reports ~165 errors, ALL of them missing-file /
+undefined-symbol errors from ~42 Institution/School-management files
+(`models/institution.dart`, `features/school_management/`,
+`repositories/institution_repository.dart`, `providers/institution_
+provider.dart`, etc.) that are deleted in the working tree but not
+committed, not stashed, not touched by this session. `git stash list`
+shows two "external WIP" stashes from a concurrent session, and none of
+these 42 deletions are in either stash — strong signal another
+process/session is actively mid-edit on this same working tree right now.
+Deliberately did not touch, restore, or stage any of those files — out of
+scope, high blast radius, and someone else's in-progress work. Verified
+every file this session created/edited individually appears with zero
+errors in that same analyze run (course_navigation_page.dart and
+course_browse_page.dart don't appear in the error output at all; the only
+two hits under `course_composer_page.dart`/`courses_marketplace_page.dart`
+are pre-existing `deprecated_member_use` infos on lines this session never
+touched). Committed only the exact files this session created/modified by
+name, never `git add -A`, so as not to sweep the other session's WIP into
+this commit.
+
+Files created: `lib/models/academic_section.dart`,
+`lib/repositories/academic_section_repository.dart`,
+`lib/features/courses_marketplace/course_navigation_page.dart`.
+Files modified: `lib/models/test.dart`, `lib/repositories/test_repository.dart`,
+`lib/repositories/public_course_repository.dart`,
+`lib/features/courses_marketplace/course_browse_page.dart`,
+`lib/features/courses_marketplace/course_composer_page.dart`,
+`lib/features/courses_marketplace/courses_marketplace_page.dart`,
+`lib/features/courses_marketplace/course_reader_page.dart`,
+`lib/widgets/app_drawer.dart`.
   - **Per-message read receipts (the double-check icon) were ALREADY
     real** -- `readBy` array per message, `markConversationRead()`
     batch-updates it on open, `_MessageBubble` reads
@@ -3660,3 +3789,249 @@ deployed), `test/club_unread_test.dart` (new),
 `lib/features/magazine/{article_composer_page,article_reader_page,
 author_profile_page,gallery_composer_page,video_composer_page,
 top_writers_page,magazine_feed_page}.dart`.
+
+## Session (2026-08-20): "logo not fixed" + redundant home-page branding text
+
+User's ask was ambiguous ("logo is not fixed, resize it, look at the
+folder screenshot vs. the image in the logo file") with no live device to
+inspect. Root-caused rather than guessing blind: `home_page_reference_mockup.png`
+at the app root is Gamma's original design mockup (per
+`universal_home_page.dart`'s own header comment, "UI layer is Gamma's
+mockup") — a design reference, not a live screenshot — and its logo mark
+(a circular navy/gold badge with a graduation cap) doesn't match the real
+asset (`assets/logos/academia_logo_square.png`, a navy rounded-square "A"
+torch mark) at all. Concluded the mockup comparison was a red herring and
+looked for an actual, objective defect instead.
+
+- **Found the real bug**: `web/icons/*.png`, `web/favicon.png`, and
+  `macos/Runner/Assets.xcassets/AppIcon.appiconset/*.png` were all still
+  Flutter's unmodified template icon (the blue Flutter "F" mark) —
+  confirmed by opening the files directly, not inferred. `web/manifest.json`
+  and `web/index.html` were likewise untouched Flutter boilerplate (`name:
+  "academia_app"`, `theme_color: "#0175C2"` Flutter-blue,
+  `description: "A new Flutter project."`). This matches "app logo is not
+  fixed" literally: on web/macOS the real Academia mark was never applied
+  at all. (`android`/`ios` platform folders don't exist in this checkout
+  despite `pubspec.yaml`'s `flutter_launcher_icons` config listing both —
+  out of scope here since there's no folder to regenerate into; flagging
+  in case a future session runs `flutter create` and expects those icons
+  to already be right.)
+  - Fix: wrote a one-off Pillow script (deleted after running, output is
+    what's committed) that resizes `academia_logo_square.png` into
+    `web/icons/Icon-{192,512}.png` (full-bleed, matches the existing
+    non-maskable convention), `web/icons/Icon-maskable-{192,512}.png`
+    (this is the "resize" part — padded to a 72% safe zone on a solid
+    navy `#0B1B33` canvas so a PWA's own circular/rounded OS mask doesn't
+    clip the mark, since the source art is edge-to-edge with zero
+    margin), `web/favicon.png` (32px), and all 7 macOS
+    `AppIcon.appiconset` sizes (16 through 1024). Updated
+    `web/manifest.json` (name/short_name "Academia", real description,
+    navy theme/background color) and `web/index.html` (title, meta
+    description, apple-mobile-web-app-title) to match.
+- **Home page top bar + duplicated tagline text (explicit user ask)**:
+  removed the small `BrandLogo` icon from `universal_home_page.dart`'s
+  `_brandingBlock` (the Home top bar) — now renders as just the bold
+  "Academia" app-name text, no icon, no subtitle. Also dropped the
+  `brand.tagline` ("Your Complete Smart School Platform") line from
+  `school_home_page.dart`'s `_HeroBanner` (the school-mode Home's welcome
+  card), keeping just "Welcome to {appName}" — this was the only other
+  place in the app where that exact bold-name + tagline-subtitle pattern
+  appears (checked every `AcademiaLogo`/`BrandLogo` call site —
+  login/first-login/account-choice/about screens each pair the logo with
+  page-specific copy, e.g. "Create your account", not the generic
+  Academia tagline, so left those alone). `flutter analyze` on the two
+  touched files: 0 errors (only pre-existing `prefer_const_constructors`
+  infos). Full-project `flutter analyze` kicked off to confirm no
+  collateral breakage before committing.
+
+## Session (2026-08-20): finish school-management removal + Individual/Silver/Gold entitlement system
+
+User's ask: cross-check the whole `lib/` system, finish removing school-
+management while preserving custom work, then implement a real
+Individual/Premium-Silver/Premium-Gold account/entitlement system (Silver =
+every premium feature except Video Courses, Gold = everything; funded by
+direct payment or an Academia vendor voucher), with one authoritative
+feature-classification registry applied everywhere, then re-verify the
+whole system compiles and tests pass.
+
+**Found on arrival**: a prior session (uncommitted, working-tree only) had
+already deleted ~45 school-management files (institution linking, school
+admin, timetable/attendance/assignments/marks, serial-number seat claiming)
+but never updated the ~15 files that still imported them — the app did not
+compile. `lib/screens/app_router.dart` in particular was untouched despite
+depending entirely on `InstitutionProvider`/`InstitutionThemeEngine`/
+`InstitutionSplashScreen`/`SchoolConfig`/`SchoolHomePage`, all deleted.
+
+**Assumptions/defaults, logged per the "never idle" rule**:
+- `lib/models/announcement.dart` was among the deleted files but is NOT
+  school-management (no `Institution` dependency, `schoolId` already
+  optional, still consumed by the kept Announcements feature) — restored
+  it verbatim from `git show HEAD:lib/models/announcement.dart` rather
+  than leaving Announcements broken.
+- `lib/models/course.dart`/`repositories/course_repository.dart`/
+  `features/courses/` (the school-scoped Course catalog, `schoolId`
+  required) is a school-management artifact whose only real consumers
+  (Attendance/Assignments) were already deleted — it was unreachable in
+  practice (every account now has an empty `schoolId`) but still
+  compiled and was still wired into Home's "Recommended for You" rail.
+  Deleted it fully rather than leave dead-but-reachable code, including
+  trimming `test/home_recommendation_ranking_test.dart`'s
+  `rankHomeCoursesByEnrollment` cases (that helper went with it) and the
+  "Today's Study Program" section's School Timetable half (kept the
+  Personal Study Timetable half, which is real and unrelated).
+- `lib/academia.dart`, `theme/theme.dart`, `features/features.dart`,
+  `providers/providers.dart` were dead barrel-of-barrels files (only
+  self-referencing, nothing in the live app imports them) that exported a
+  mix of deleted and live files — deleted rather than half-repaired.
+- `AppConfig`/`isSchoolMode` (the school-vs-platform white-label build
+  flag) is itself a school-management concept — removed
+  `config/app_config.dart` and the two `if (AppConfig.isSchoolMode)`
+  branches in `profile_page.dart` (the whole "School" nav section +
+  "Switch School" button) it gated.
+- `LoginScreen` no longer takes a `SchoolConfig school` param (there's no
+  institution to brand it with) — hardcoded "Academia" / "Sign in to your
+  account" in its place; its only remaining call site is
+  `app_drawer.dart`'s guest sign-in entry.
+- `AuthService.claimLinkedSeat`/`claimSerialAndCreateAccount`/
+  `watchSchoolUsers` (school-seat/serial enrollment) removed along with
+  `SerialRepository` — no remaining caller since the onboarding screens
+  that used them are gone.
+
+**Entitlement system implementation** (`models/entitlement.dart` is the
+architecture's own file header: "adding tiers is what would force the
+redesign this is trying to avoid... a genuinely different capability
+level is the only thing that should ever be added here" — Video Courses
+being Gold-only is exactly that trigger):
+- `EntitlementTier`: `free` → `free, silver, gold` (enum declaration
+  order matters — `tier.index` comparisons decide redemption
+  upgrade/stack behavior). A stored legacy `tier: 'premium'` (pre-split)
+  or legacy flat `isPremium: true` both migrate to `gold` on read — the
+  honest reading, since the old single tier meant full access.
+- `EntitlementPackage` (`purchase.dart`): 4 durations × 2 tiers = 8
+  values; added `.tier` and a NEW `.suggestedPriceFcfa` getter — the
+  latter is a real exception to this file's own "no hardcoded price"
+  rule, since it backs the app's OWN direct-payment sheet (which
+  genuinely needs a sticker price), not the sales-agent flow (which
+  still always types the real amount collected). Default price ladder
+  (1500–21000 FCFA depending on tier/duration) is a placeholder,
+  logged rather than silently invented — no real pricing feed exists.
+- `Voucher`/redemption: added a stored `tier` field, copied from the
+  package at issuance (never retroactive). Redemption grants
+  `max(currentActiveTier, voucherTier)` — redeeming a Silver voucher
+  while already Gold extends the expiry without downgrading.
+- `core/feature_access.dart` (NEW): the single authoritative
+  Free/Authenticated/Silver/Gold/Unavailable registry —
+  `FeatureAccess.canAccess(user, AppFeature.x)` is meant to be the only
+  place any UI/route/action decides tier access from here on. Role-gated
+  staff features (sales desk, grading, test composer) are deliberately
+  classified `unavailable` here and still gate via `AppUser.hasMinRole`
+  directly — this file doesn't duplicate that, to avoid two sources of
+  truth for the same check.
+- Video Courses (the concrete Gold-only feature the task named): added
+  `PublicCourse.videoUrl` (optional — any signed-in creator can attach
+  one) and a locked/unlocked `_VideoLessonSection` in
+  `course_reader_page.dart` gated by `FeatureAccess`. No such feature
+  existed before this session (grepped "Video Course" — zero hits) so
+  this is new, not a re-gate of something existing.
+- `firestore.rules`: `isValidGiftRedemption()` still checked
+  `entitlementTier == 'premium'` — a real bug that would have silently
+  rejected every voucher redemption if deployed. Fixed AND hardened: the
+  written tier must now equal either the voucher's own `tier` field or
+  the account's already-stored tier (closing the actual bypass — a
+  Silver-voucher holder writing `entitlementTier: 'gold'` directly).
+  Also added a `payments/{id}` rule — `premium_unlock_sheet.dart` writes
+  there and no rule existed at all (default-deny), so the direct-payment
+  path would have failed on every attempt; the rule only permits
+  recording `status: 'pending'`, matching this codebase's existing
+  "client never self-grants paid access" posture (`subscriptions/{id}`,
+  `serials/{code}`).
+- Redesigned `account_choice_screen.dart` (Individual/Silver/Gold, third
+  card no longer "Student — My School") and `premium_unlock_sheet.dart`
+  (tier + duration picker feeding the price/package, replacing the old
+  flat "5,000 FCFA one-time" sheet).
+
+**Verification**: `flutter analyze` 0 errors (26 pre-existing style
+infos/warnings, same baseline class as prior sessions noted, e.g. the
+`withOpacity`/`groupValue` deprecations). `flutter test`: 48/48 passing
+across all 7 suites, including the trimmed home-recommendation test.
+Committed as one changeset (115 files) — `git add -u` scoped to
+`lib/ test/ firestore.rules storage.rules` plus the one new file, so the
+unrelated pre-existing untracked clutter (zip/jpg/Screenshot/scripts/
+flutter_*.log at the repo root, and three untouched/unverified
+`features/testing/*.dart` files from separate WIP) was deliberately left
+out of the commit rather than swept in.
+
+**Deliberately not done, flagged not hidden**: `firestore.rules`' many
+now-dead school-management collection rules (`schools/{id}/timetable`,
+`/attendance`, `/assignments`, top-level `marks/{id}`, `serials/{code}`,
+`institutions/{id}`, etc.) were left in place — nothing in `lib/` writes
+to those paths anymore so they're inert, not a security bypass, and a
+full rules rewrite was judged lower priority than shipping a compiling,
+tested app this session. Revisit if a future pass wants the rules file
+itself fully clean. `AccountType.linked`/`AccountType.guest` enum values
+were left as-is (harmless unused-in-practice values) rather than
+collapsing to just `independent`, since removing them would cascade into
+`accountTypeLabel`/model-equality call sites for no functional gain.
+
+## Session (2026-08-20, same day continued): integrated a large uncommitted Clubs/Messages/Magazine remake
+
+After the entitlement-system commit above, `flutter analyze` picked up a
+SEPARATE, large, uncommitted change set already sitting in the working
+tree (not authored by this session — dropped in as new files: a Clubs/
+Messages/Magazine remake covering real presence, a local disk cache for
+the inbox, media-viewer widgets, club logo photos, and magazine search).
+User confirmed: integrate it, analyze, commit, push.
+
+- Applied `patches/UserAvatar_patch.md` (a hand-off note left for exactly
+  this) to `widgets/widgets.dart` — `UserAvatar` now renders photos
+  through `Image.network`'s `loadingBuilder`/`errorBuilder` instead of
+  `CircleAvatar.backgroundImage` (which silently paints a blank circle on
+  a slow/404 load, with no way to show a fallback), plus optional
+  `showPresenceDot`/`online`/`presenceBorderColor` params. Fixed one bug
+  IN the patch itself while applying it: it declared
+  `presenceBorderColor` but the sample code never read it (hardcoded
+  `ac.bg` instead) — wired it through for real. Deleted the patch file
+  after applying it (a consumed hand-off note, not a permanent doc).
+- `test/club_unread_test.dart` no longer compiled — `clubHasUnreadMessages`
+  and `ClubMember.lastReadAt` (a previous session's unread-badge feature)
+  were removed by this remake, replaced by a real "members online"
+  presence stat (`ClubRepository.pingClubActive`/`watchOnlineCount`).
+  `messages_home_page.dart` states this explicitly ("Club has none of
+  those concepts yet"), confirming it's a deliberate design change, not
+  an oversight — deleted the orphaned test rather than reinventing a
+  feature the current design intentionally dropped.
+- `firestore.rules`: found and fixed two real gaps this remake would have
+  hit in production. (1) The `clubs/{id}/members/{id}` self-service
+  branch still named the now-unused `lastReadAt` field, not the new
+  presence write's `lastActiveAt` — `pingClubActive()` would have failed
+  permission-denied for every ordinary member. (2) `toggleReplyLike()`/
+  `watchIsReplyLiked()` are new repository methods with NO matching rule
+  at all — added a `likeCount`-only self-service branch (mirroring the
+  existing `posts/{id}` pattern) plus a nested `replies/{id}/likes/{userId}`
+  rule. `messaging_repository.dart`'s presence/cache/unread-count changes
+  needed no rule changes — all covered by the existing broad
+  participant-scoped `conversations/{id}` update rule.
+- Verified `magazine_repository.dart`'s new `searchArticles()` is
+  read-only against `articles/{id}` (already publicly readable when
+  published) — no rule gap there.
+
+**Verification**: `flutter analyze` 0 errors (39 pre-existing style
+infos/warnings — same baseline class, a few new ones from the new files
+themselves). `flutter test`: 43/43 passing (one earlier run showed a
+"Connection closed before test suite loaded" on one suite — traced to a
+stale background `flutter test` process from earlier in this same
+session still holding a VM-service port; killed it via `TaskStop` and the
+retry was clean). Committed (19 files, scoped the same way as the prior
+commit — `git add -u` plus the specific new files, still excluding the
+same unrelated root-level clutter and the untouched `features/testing/*`
+WIP) and **pushed** to `origin/demo-prep` on explicit user request
+(`ecd02d7..a3c8860`).
+
+**Environment note for future sessions**: `git` and `flutter` commands
+issued through the Bash tool intermittently hung indefinitely in this
+sandbox this session (fork/spawn errors, or silent hangs on `git status`/
+`git diff`/`git commit` with a heredoc body) — PowerShell was reliable
+for the same commands throughout. `git commit -m` with a multi-line
+PowerShell here-string also failed ("not a git command", an argument-
+passing issue); `git commit -F <file>` worked. If Bash git commands start
+hanging again, switch to PowerShell rather than retrying Bash repeatedly.

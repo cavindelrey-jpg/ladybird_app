@@ -1,82 +1,42 @@
 // lib/screens/app_router.dart
-// Root navigator with 6-role permission system and feature-flag gated HomeShell.
+// Root navigator — single account model (Guest / Individual / Premium
+// Silver / Premium Gold), no institution/school-linking. 6-role permission
+// system retained for content moderation (student/lecturer/admin roles),
+// independent of any school.
 
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../providers/institution_provider.dart';
 import '../models/models.dart';
-import '../theme/institution_theme_engine.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
-import '../features/institution/institution_splash_screen.dart';
 import '../services/auth_service.dart';
 import '../repositories/magazine_repository.dart';
-import 'login_screen.dart';
 import 'first_login_screen.dart';
 // pages
 import '../features/academic_content/academic_content_page.dart';
 import '../features/courses_marketplace/courses_marketplace_page.dart';
 import '../pages/profile_page.dart';
 import '../features/dashboard/universal_home_page.dart';
-import '../features/dashboard/school_home_page.dart';
 import '../features/magazine/magazine_feed_page.dart';
 import '../widgets/app_drawer.dart';
 import '../features/onboarding/account_choice_screen.dart';
-import '../config/app_config.dart';
 
 // ────────────────────────────────────────────────────────────────────────────
-// AppRouter — watches InstitutionProvider + Firebase auth
+// AppRouter — watches Firebase auth state only.
 //
 // Entry logic:
-//  1. If an institution is actively loading/loaded (Student/school-linked
-//     path — either mid school-code-entry, or restored from a previous
-//     session via SharedPreferences) → the existing splash + auth + role
-//     flow takes over, unchanged.
-//  2. Otherwise the app has no institution context. If nobody is signed in,
-//     Guest is the true front door — full read access to the feed, notes,
-//     past questions, magazine, etc. with no login wall.
-//  3. If somebody IS signed in but there's no institution (Normal or
-//     Premium independent account), they go straight into HomeShell under
-//     the generic Academia brand (Institution.fallback).
+//  1. Nobody signed in → Guest is the true front door — full read access to
+//     the feed, notes, past questions, magazine, etc. with no login wall.
+//  2. Somebody IS signed in → HomeShell under the single Academia brand.
 // ────────────────────────────────────────────────────────────────────────────
 
-class AppRouter extends StatefulWidget {
+class AppRouter extends StatelessWidget {
   const AppRouter({super.key});
-  @override State<AppRouter> createState() => _AppRouterState();
-}
-
-class _AppRouterState extends State<AppRouter> {
-  bool _splashDone = false;
-  Institution? _splashInst;
 
   @override
   Widget build(BuildContext context) {
-    final instProv = context.watch<InstitutionProvider>();
-
-    // ── Student / school-linked path ──────────────────────────────────────
-    if (instProv.isValidating) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    if (instProv.isLoaded) {
-      final inst = instProv.effectiveInstitution;
-
-      if (!_splashDone || _splashInst?.institutionId != inst.institutionId) {
-        return InstitutionSplashScreen(
-          institution: inst,
-          onContinue: () => setState(() { _splashDone = true; _splashInst = inst; }),
-        );
-      }
-
-      return Theme(data: InstitutionThemeEngine.build(inst), child: _AuthGate(institution: inst));
-    }
-
-    _splashDone = false; _splashInst = null;
-
-    // ── No institution loaded — Guest / independent path ───────────────────
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (ctx, snap) {
@@ -87,7 +47,7 @@ class _AppRouterState extends State<AppRouter> {
           // Guest: no login wall, browse everything read-only.
           return const _GuestShell();
         }
-        return const _IndependentUserGate();
+        return const _AppUserGate();
       },
     );
   }
@@ -201,81 +161,10 @@ class _GuestGateTab extends StatelessWidget {
   }
 }
 
-/// Gate for signed-in users with no institution loaded yet — covers both
-/// independent (Normal / Premium) accounts, and the brief moment right
-/// after a linked-student sign-in before their institution has resolved.
-class _IndependentUserGate extends StatelessWidget {
-  const _IndependentUserGate();
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<AppUser?>(
-      stream: AuthService.instance.currentAppUserStream(),
-      builder: (ctx, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
-        final user = snap.data;
-        if (user == null) {
-          FirebaseAuth.instance.signOut();
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
-        if (user.status == AccountStatus.suspended) return _SuspendedScreen(user: user);
-
-        // Linked student whose institution hasn't resolved on this session
-        // yet — kick off a load and wait; AppRouter above will pick it up
-        // and swap to the institution flow once it lands.
-        if (user.accountType == AccountType.linked && (user.schoolId ?? '').isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            final prov = context.read<InstitutionProvider>();
-            if (!prov.isLoaded && !prov.isValidating) {
-              prov.loadById(user.schoolId!);
-            }
-          });
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
-
-        // Independent (Normal or Premium) account — generic Academia brand,
-        // curated feature set (no school-scoped tabs like Timetable/Marks).
-        if (user.isFirstLogin) return FirstLoginScreen(user: user);
-        return Theme(
-          data: InstitutionThemeEngine.build(Institution.independentDefault),
-          child: HomeShell(user: user, institution: Institution.independentDefault),
-        );
-      },
-    );
-  }
-}
-
-class _AuthGate extends StatelessWidget {
-  final Institution institution;
-  const _AuthGate({required this.institution});
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (ctx, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
-        if (snap.data == null) {
-          return LoginScreen(school: SchoolConfig(
-            id: institution.institutionId,
-            name: institution.schoolName,
-            motto: institution.tagline ?? 'Powered by Academia',
-            academicYear: '', logoUrl: institution.logoUrl,
-          ));
-        }
-        return _AppUserGate(institution: institution);
-      },
-    );
-  }
-}
-
+/// Gate for signed-in users — resolves the account (suspended / first-login
+/// / normal) and lands on HomeShell.
 class _AppUserGate extends StatelessWidget {
-  final Institution institution;
-  const _AppUserGate({required this.institution});
+  const _AppUserGate();
 
   @override
   Widget build(BuildContext context) {
@@ -288,11 +177,11 @@ class _AppUserGate extends StatelessWidget {
         final user = snap.data;
         if (user == null) {
           FirebaseAuth.instance.signOut();
-          return const Scaffold(body: Center(child: Text('Account not found.')));
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
         if (user.status == AccountStatus.suspended) return _SuspendedScreen(user: user);
         if (user.isFirstLogin) return FirstLoginScreen(user: user);
-        return HomeShell(user: user, institution: institution);
+        return HomeShell(user: user);
       },
     );
   }
@@ -314,7 +203,7 @@ class _SuspendedScreen extends StatelessWidget {
           Text('Account Suspended',
               style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.w700, color: ac.txt)),
           const SizedBox(height: 8),
-          Text('Please contact your school administration.',
+          Text('Please contact Academia support.',
               style: GoogleFonts.inter(color: ac.txt2), textAlign: TextAlign.center),
           const SizedBox(height: 24),
           OutlinedButton(
@@ -332,8 +221,7 @@ class _SuspendedScreen extends StatelessWidget {
 
 class HomeShell extends StatefulWidget {
   final AppUser user;
-  final Institution institution;
-  const HomeShell({super.key, required this.user, required this.institution});
+  const HomeShell({super.key, required this.user});
   @override State<HomeShell> createState() => _HomeShellState();
 }
 
@@ -351,22 +239,13 @@ class _HomeShellState extends State<HomeShell> {
     unawaited(MagazineRepository.instance.settlePendingXp(widget.user.id));
   }
 
-  // The bottom nav used to add one tab per enabled institution feature
-  // (Notices, Calendar, Timetable, Assignments, Grades, Attendance, ...),
-  // so a school with everything switched on ended up with 8-10 crowded
-  // tabs. Now the bar stays fixed — Home, Courses, Library, Messages,
-  // Profile — the same shape for every account, guest or school-linked.
-  // Everything institution-specific (Notices, Calendar, Timetable,
-  // Assignments, Grades, Attendance) moved into Profile's "School"
-  // section (see ProfilePage), reachable in one tap from the avatar,
-  // plus optional Quick Access shortcuts on Home.
+  // The bottom nav stays fixed — Home, Library, Magazine, Courses, Profile
+  // — the same shape for every account, guest or signed-in.
   List<_NavDef> _buildNav() {
     final u = widget.user;
-    final i = widget.institution;
     final nav = <_NavDef>[
       const _NavDef('Home', Icons.home_rounded, Icons.home_outlined, UserRole.guest),
-      if (i.hasFeature(InstitutionFeature.library))
-        const _NavDef('Library', Icons.menu_book_rounded, Icons.menu_book_outlined, UserRole.student),
+      const _NavDef('Library', Icons.menu_book_rounded, Icons.menu_book_outlined, UserRole.guest),
       const _NavDef('Magazine', Icons.auto_stories_rounded, Icons.auto_stories_outlined, UserRole.guest),
       const _NavDef('Courses', Icons.school_rounded, Icons.school_outlined, UserRole.guest),
       const _NavDef('Profile', Icons.person_rounded, Icons.person_outlined, UserRole.guest),
@@ -389,22 +268,19 @@ class _HomeShellState extends State<HomeShell> {
           ])));
     }
     switch (def.label) {
-      case 'Home':     return AppConfig.isSchoolMode ? SchoolHomePage(user: u) : UniversalHomePage(user: u);
+      case 'Home':     return UniversalHomePage(user: u);
       case 'Library':  return AcademicContentPage(user: u);
       case 'Magazine': return MagazineFeedPage(user: u);
       case 'Courses':  return CoursesMarketplacePage(user: u);
-      case 'Profile':  return ProfilePage(user: u, institution: widget.institution);
+      case 'Profile':  return ProfilePage(user: u);
       default:         return const SizedBox.shrink();
     }
   }
 
   // Lazy tab loading: IndexedStack previously built every single nav
-  // page eagerly on shell mount (nav.map(_buildPage).toList()) — meaning
-  // Attendance, Grades, Timetable, Assignments, etc. all started their
-  // own Firestore streams immediately regardless of whether Home was the
-  // only tab ever opened. Beyond the wasted reads, if any one of those
-  // untouched tabs has a build-time bug, only building it lazily (on
-  // first visit) keeps that from being able to affect Home at all.
+  // page eagerly on shell mount (nav.map(_buildPage).toList()) — only
+  // building it lazily (on first visit) keeps an untouched tab's own
+  // Firestore streams from starting until it's actually opened.
   final Set<int> _visitedTabs = {0};
 
   @override
@@ -415,7 +291,7 @@ class _HomeShellState extends State<HomeShell> {
     _visitedTabs.add(safeTab);
 
     return Scaffold(
-      drawer: AppDrawer(user: widget.user, institution: widget.institution),
+      drawer: AppDrawer(user: widget.user),
       body: SafeArea(
         child: IndexedStack(
           index: safeTab,

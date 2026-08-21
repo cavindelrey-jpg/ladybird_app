@@ -1,23 +1,36 @@
 // lib/widgets/premium_unlock_sheet.dart
-// MoMo / Orange Money unlock sheet for the 5,000 FCFA individual premium
-// tier. Writes a pending payment record to Firestore; a Cloud Function
-// (not part of this client) should listen on `payments/{id}` and, once the
-// provider confirms the transaction, flip `users/{userId}.isPremium` to
-// true server-side. This sheet does not set isPremium itself.
+// MoMo / Orange Money direct-payment sheet — the app's own in-app funding
+// path for Premium Silver/Gold (the other path is an Academia vendor
+// voucher, see features/entitlements/redeem_voucher_page.dart). Writes a
+// pending payment record to Firestore; a Cloud Function (not part of this
+// client) should listen on `payments/{id}` and, once the provider
+// confirms the transaction, grant the entitlement server-side via
+// EntitlementRepository-equivalent logic. This sheet does not grant
+// premium access itself — see the file's own `status: 'pending'` write.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
+import '../models/entitlement.dart';
+import '../models/purchase.dart';
 
 class PremiumUnlockSheet extends StatefulWidget {
   final String userId;
   final VoidCallback onUnlockSuccess;
 
+  /// Which tier this sheet opens on — callers that know exactly why the
+  /// user is here (e.g. a locked Video Course) should preselect Gold;
+  /// general "Go Premium" entry points default to Silver, the cheaper
+  /// first step. Either way the user can switch tiers before paying.
+  final EntitlementTier initialTier;
+
   const PremiumUnlockSheet({
     super.key,
     required this.userId,
     required this.onUnlockSuccess,
+    this.initialTier = EntitlementTier.silver,
   });
 
   @override
@@ -29,8 +42,26 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
   final _formKey = GlobalKey<FormState>();
 
   String _selectedProvider = 'mtn'; // default
+  late EntitlementTier _tier = widget.initialTier == EntitlementTier.free
+      ? EntitlementTier.silver
+      : widget.initialTier;
+  int _months = 1; // 1 / 3 / 6 / 12
   bool _isLoading = false;
   String? _errorMessage;
+
+  EntitlementPackage get _package {
+    switch ((_tier, _months)) {
+      case (EntitlementTier.silver, 1):  return EntitlementPackage.silver1Month;
+      case (EntitlementTier.silver, 3):  return EntitlementPackage.silver3Months;
+      case (EntitlementTier.silver, 6):  return EntitlementPackage.silver6Months;
+      case (EntitlementTier.silver, 12): return EntitlementPackage.silver1Year;
+      case (EntitlementTier.gold, 1):    return EntitlementPackage.gold1Month;
+      case (EntitlementTier.gold, 3):    return EntitlementPackage.gold3Months;
+      case (EntitlementTier.gold, 6):    return EntitlementPackage.gold6Months;
+      case (EntitlementTier.gold, 12):   return EntitlementPackage.gold1Year;
+      default:                           return EntitlementPackage.silver1Month;
+    }
+  }
 
   @override
   void dispose() {
@@ -49,15 +80,20 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
     try {
       // No cloud_functions dependency here — a pending payment record is
       // written to Firestore, which a backend trigger picks up to launch
-      // the actual MoMo/Orange Money USSD prompt and confirm the result.
+      // the actual MoMo/Orange Money USSD prompt, confirm the result, and
+      // grant the entitlement server-side.
       final paymentRef = FirebaseFirestore.instance.collection('payments').doc();
+      final package = _package;
 
       await paymentRef.set({
         'id': paymentRef.id,
         'phoneNumber': _phoneController.text.trim(),
         'provider': _selectedProvider,
         'userId': widget.userId,
-        'amount': 5000,
+        'tier': package.tier.name,
+        'package': package.name,
+        'durationDays': package.durationDays,
+        'amount': package.suggestedPriceFcfa,
         'currency': 'XAF',
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
@@ -66,7 +102,7 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
       if (!mounted) return;
       showDialog(
         context: context,
-        builder: (_) => _PendingDialog(provider: _selectedProvider),
+        builder: (_) => _PendingDialog(provider: _selectedProvider, tier: package.tier),
       );
       widget.onUnlockSuccess();
     } catch (e) {
@@ -78,6 +114,8 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final package = _package;
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -92,41 +130,79 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
             Center(
               child: Container(
                 width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(color: C.bdr, borderRadius: BorderRadius.circular(4)),
+                decoration: BoxDecoration(color: ac.bdr, borderRadius: BorderRadius.circular(4)),
               ),
             ),
             Row(children: [
               Container(
                 width: 44, height: 44,
                 alignment: Alignment.center,
-                decoration: BoxDecoration(color: C.goldp, borderRadius: BorderRadius.circular(Rad.sm)),
-                child: const Icon(Icons.workspace_premium_rounded, color: C.gold, size: 22),
+                decoration: BoxDecoration(color: ac.goldBg, borderRadius: BorderRadius.circular(Rad.sm)),
+                child: Icon(Icons.workspace_premium_rounded, color: ac.gold, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Unlock Premium', style: AppText.h2.copyWith(fontSize: 17)),
-                  Text('Every past question, every school, every board.',
-                      style: AppText.bodySm),
+                  Text('Choose Silver or Gold, and how long.', style: AppText.bodySm),
                 ]),
               ),
               IconButton(
-                icon: const Icon(Icons.close_rounded, color: C.muted),
+                icon: Icon(Icons.close_rounded, color: ac.muted),
                 onPressed: () => Navigator.of(context).pop(),
               ),
             ]),
             const SizedBox(height: 20),
 
+            Text('PLAN', style: AppText.label.copyWith(letterSpacing: 1)),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(
+                child: _TierCard(
+                  label: 'Silver',
+                  sub: 'No Video Courses',
+                  isSelected: _tier == EntitlementTier.silver,
+                  onTap: () => setState(() => _tier = EntitlementTier.silver),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _TierCard(
+                  label: 'Gold',
+                  sub: 'Everything, incl. Video',
+                  isSelected: _tier == EntitlementTier.gold,
+                  onTap: () => setState(() => _tier = EntitlementTier.gold),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 16),
+
+            Text('DURATION', style: AppText.label.copyWith(letterSpacing: 1)),
+            const SizedBox(height: 10),
+            Wrap(spacing: 8, runSpacing: 8, children: [1, 3, 6, 12].map((m) {
+              final selected = _months == m;
+              return ChoiceChip(
+                label: Text(m == 1 ? '1 month' : '$m months'),
+                selected: selected,
+                onSelected: (_) => setState(() => _months = m),
+                selectedColor: ac.primaryBg,
+                labelStyle: AppText.subtitle.copyWith(
+                    fontSize: 12, color: selected ? ac.primary : ac.txt2),
+                side: BorderSide(color: selected ? ac.primary : ac.bdr),
+              );
+            }).toList()),
+            const SizedBox(height: 16),
+
             Container(
               padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
-                color: C.goldp,
+                color: ac.goldBg,
                 borderRadius: BorderRadius.circular(Rad.md),
-                border: Border.all(color: C.gold.withValues(alpha: .18)),
+                border: Border.all(color: ac.gold.withValues(alpha: .18)),
               ),
-              child: Text('5,000 FCFA — one time',
+              child: Text('${package.suggestedPriceFcfa} FCFA — ${package.label}',
                   textAlign: TextAlign.center,
-                  style: AppText.display.copyWith(fontSize: 18, color: C.navy)),
+                  style: AppText.display.copyWith(fontSize: 16, color: ac.navy)),
             ),
             const SizedBox(height: 20),
 
@@ -159,10 +235,10 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
               style: AppText.body.copyWith(fontSize: 14),
               decoration: InputDecoration(
                 hintText: '6XX XXX XXX',
-                hintStyle: AppText.body.copyWith(fontSize: 14, color: C.muted),
+                hintStyle: AppText.body.copyWith(fontSize: 14, color: ac.muted),
                 prefixText: '+237 ',
                 prefixStyle: AppText.body.copyWith(fontSize: 14),
-                filled: true, fillColor: C.surf3,
+                filled: true, fillColor: ac.surf3,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md),
                     borderSide: BorderSide.none),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -177,7 +253,7 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
 
             if (_errorMessage != null) ...[
               Text(_errorMessage!,
-                  style: AppText.bodySm.copyWith(color: C.red), textAlign: TextAlign.center),
+                  style: AppText.bodySm.copyWith(color: ac.red), textAlign: TextAlign.center),
               const SizedBox(height: 12),
             ],
 
@@ -186,7 +262,7 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _handlePayment,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: C.navy, foregroundColor: Colors.white,
+                  backgroundColor: ac.navy, foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.md)),
                   elevation: 0,
                   overlayColor: Colors.white.withValues(alpha: .1),
@@ -214,23 +290,25 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
 
 class _PendingDialog extends StatelessWidget {
   final String provider;
-  const _PendingDialog({required this.provider});
+  final EntitlementTier tier;
+  const _PendingDialog({required this.provider, required this.tier});
 
   @override
   Widget build(BuildContext context) {
-    final label = provider == 'mtn' ? 'MTN MoMo' : 'Orange Money';
+    final ac = AppColors.of(context);
+    final providerLabel = provider == 'mtn' ? 'MTN MoMo' : 'Orange Money';
+    final tierLabel = tier == EntitlementTier.gold ? 'Premium Gold' : 'Premium Silver';
     return AlertDialog(
-      backgroundColor: C.surf,
+      backgroundColor: ac.surf,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.lg)),
       title: Row(children: [
-        const Icon(Icons.check_circle_outline_rounded, color: C.grn),
+        Icon(Icons.check_circle_outline_rounded, color: ac.grn),
         const SizedBox(width: 8),
         Expanded(child: Text('Prompt sent', style: AppText.h2.copyWith(fontSize: 16))),
       ]),
       content: Text(
-        'Check your phone for the $label PIN prompt to approve the '
-        '5,000 FCFA payment. Premium access unlocks automatically once '
-        'it\'s confirmed.',
+        'Check your phone for the $providerLabel PIN prompt to approve the '
+        'payment. $tierLabel access unlocks automatically once it\'s confirmed.',
         style: AppText.bodySm.copyWith(height: 1.5),
       ),
       actions: [
@@ -239,9 +317,47 @@ class _PendingDialog extends StatelessWidget {
             Navigator.of(context).pop(); // dialog
             Navigator.of(context).pop(); // sheet
           },
-          child: Text('Got it', style: AppText.subtitle.copyWith(color: C.primary)),
+          child: Text('Got it', style: AppText.subtitle.copyWith(color: ac.primary)),
         ),
       ],
+    );
+  }
+}
+
+class _TierCard extends StatelessWidget {
+  final String label;
+  final String sub;
+  final bool isSelected;
+  final VoidCallback onTap;
+  const _TierCard({
+    required this.label, required this.sub,
+    required this.isSelected, required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final radius = BorderRadius.circular(Rad.md);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: radius,
+      child: InkWell(
+        borderRadius: radius,
+        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? ac.goldBg : ac.surf3,
+            border: Border.all(color: isSelected ? ac.gold : ac.bdr, width: isSelected ? 1.6 : 1),
+            borderRadius: radius,
+          ),
+          child: Column(children: [
+            Text(label, style: AppText.title.copyWith(fontSize: 14)),
+            const SizedBox(height: 2),
+            Text(sub, style: AppText.caption.copyWith(fontSize: 10.5), textAlign: TextAlign.center),
+          ]),
+        ),
+      ),
     );
   }
 }
@@ -261,6 +377,7 @@ class _ProviderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final radius = BorderRadius.circular(Rad.md);
     return Material(
       color: Colors.transparent,
@@ -274,8 +391,8 @@ class _ProviderCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: isSelected ? color.withValues(alpha: .12) : C.surf3,
-            border: Border.all(color: isSelected ? color : C.bdr, width: isSelected ? 1.6 : 1),
+            color: isSelected ? color.withValues(alpha: .12) : ac.surf3,
+            border: Border.all(color: isSelected ? color : ac.bdr, width: isSelected ? 1.6 : 1),
             borderRadius: radius,
           ),
           child: Column(children: [

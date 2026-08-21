@@ -2,7 +2,7 @@
 //
 // UI layer is Gamma's mockup, kept as close to verbatim as possible:
 //   - avatar/name/role + 3 stat pills (streak/XP/courses) + week dots
-//   - single big-image "Academia Library" banner with gradient + CTA + dot indicator
+//   - single big-image "Library" banner with gradient + CTA + dot indicator
 //   - Quick Access: 5 fixed icons (Magazine/Clubs/Library/Past Qs/Quizzes)
 //   - Today's Progress + Daily Challenge, side by side
 //   - Top Writers + Recent Announcements, side by side
@@ -29,7 +29,6 @@ import '../../models/magazine_article.dart';
 import '../../models/daily_challenge.dart';
 import '../../models/academic_content.dart';
 import '../../models/personal_study_slot.dart';
-import '../../models/course.dart';
 import '../../repositories/personal_study_repository.dart';
 import '../../repositories/announcement_repository.dart';
 import '../../repositories/magazine_repository.dart';
@@ -90,22 +89,6 @@ List<String> rankHomeSubjectsByUsage(
       return a.key.compareTo(b.key);
     });
   return indexed.map((e) => e.value).toList();
-}
-
-/// Stable partition, not a re-sort: enrolled courses first, then the rest —
-/// each half keeps its original relative order. An id in
-/// [enrolledCourseIds] with no matching course (already dropped/renamed)
-/// is silently ignored.
-List<Course> rankHomeCoursesByEnrollment(
-  List<Course> courses,
-  Set<String> enrolledCourseIds,
-) {
-  final enrolled = <Course>[];
-  final rest = <Course>[];
-  for (final c in courses) {
-    (enrolledCourseIds.contains(c.id) ? enrolled : rest).add(c);
-  }
-  return [...enrolled, ...rest];
 }
 
 class UniversalHomePage extends StatefulWidget {
@@ -415,7 +398,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     final items = <(String, IconData, Color)>[
       ('Magazine', Icons.menu_book_rounded, ac.pur),
       ('Clubs', Icons.groups_rounded, ac.gold),
-      ('Academia Library', Icons.import_contacts_rounded, ac.primary),
+      ('Library', Icons.import_contacts_rounded, ac.primary),
       ('Past Questions', Icons.description_rounded, ac.grn),
       ('Quizzes', Icons.assignment_rounded, ac.org),
     ];
@@ -465,7 +448,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       case 'Clubs':
         _open(context, ClubsPage(user: user));
         break;
-      case 'Academia Library':
+      case 'Library':
         _open(context, AcademicContentPage(user: user));
         break;
       case 'Past Questions':
@@ -1130,3 +1113,4 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
 }
+

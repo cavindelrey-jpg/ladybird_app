@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import '../../models/app_user.dart';
 import '../../models/magazine_gallery_post.dart';
 import '../../repositories/magazine_repository.dart';
-import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
+import '../../theme/app_colors.dart';
 
 class GalleryViewerPage extends StatefulWidget {
   final MagazineGalleryPost post;
@@ -22,6 +22,7 @@ class _GalleryViewerPageState extends State<GalleryViewerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final u = widget.currentUser;
     return Scaffold(
       backgroundColor: Colors.black,
@@ -57,7 +58,7 @@ class _GalleryViewerPageState extends State<GalleryViewerPage> {
                     final liked = snap.data ?? false;
                     return IconButton(
                       icon: Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                          color: liked ? C.red : Colors.white, size: 20),
+                          color: liked ? ac.red : Colors.white, size: 20),
                       onPressed: () => MagazineRepository.instance.toggleGalleryLike(widget.post.id, u.id),
                     );
                   },

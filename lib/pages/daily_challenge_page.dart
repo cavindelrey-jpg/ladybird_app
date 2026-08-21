@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 import '../models/app_user.dart';
 import '../models/daily_challenge.dart';
 import '../models/xp_transaction.dart';
@@ -40,13 +41,14 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
     if (result case Success(:final value)) {
       final awarded = await AuthService.instance.addXp(widget.user.id, value, XpSource.mcq);
       if (!mounted) return;
+      final ac = AppColors.of(context);
       Navigator.of(context).pop(true);
       final message = awarded < value
           ? 'Challenge complete — +$awarded XP (daily cap reached)'
           : 'Challenge complete — +$awarded XP!';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(message),
-          backgroundColor: C.grn));
+          backgroundColor: ac.grn));
     } else if (result case Failure(:final message)) {
       setState(() => _submitting = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
@@ -57,23 +59,24 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
   Widget build(BuildContext context) {
     final q = widget.challenge.questions[_step];
     final isLast = _step == widget.challenge.questions.length - 1;
+    final ac = AppColors.of(context);
 
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text(widget.challenge.title, style: GoogleFonts.sora(
-            fontSize: 15, fontWeight: FontWeight.w700, color: C.txt)),
+            fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt)),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Question ${_step + 1} of ${widget.challenge.questions.length}',
-              style: GoogleFonts.inter(fontSize: 12, color: C.txt2)),
+              style: GoogleFonts.inter(fontSize: 12, color: ac.txt2)),
           const SizedBox(height: 12),
           Text(q.prompt, style: GoogleFonts.sora(
-              fontSize: 17, fontWeight: FontWeight.w700, color: C.txt)),
+              fontSize: 17, fontWeight: FontWeight.w700, color: ac.txt)),
           const SizedBox(height: 20),
           ...List.generate(q.options.length, (i) {
             final selected = _answers[_step] == i;
@@ -84,16 +87,16 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: selected ? C.primaryBg : C.surf,
+                    color: selected ? ac.primaryBg : ac.surf,
                     borderRadius: BorderRadius.circular(Rad.md),
-                    border: Border.all(color: selected ? C.primary : C.bdr),
+                    border: Border.all(color: selected ? ac.primary : ac.bdr),
                   ),
                   child: Row(children: [
                     Icon(selected ? Icons.radio_button_checked : Icons.radio_button_off,
-                        size: 18, color: selected ? C.primary : C.muted),
+                        size: 18, color: selected ? ac.primary : ac.muted),
                     const SizedBox(width: 10),
                     Expanded(child: Text(q.options[i],
-                        style: GoogleFonts.inter(fontSize: 13.5, color: C.txt))),
+                        style: GoogleFonts.inter(fontSize: 13.5, color: ac.txt))),
                   ]),
                 ),
               ),
@@ -113,7 +116,7 @@ class _DailyChallengePageState extends State<DailyChallengePage> {
                       }
                     },
               style: ElevatedButton.styleFrom(
-                backgroundColor: C.pur, foregroundColor: Colors.white,
+                backgroundColor: ac.pur, foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.md)),
               ),
               child: _submitting

@@ -37,14 +37,18 @@
 // hasMinRole(lecturer) as a first line of defense, matching how
 // AcademicContentRepository's upload flow already works.
 
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../core/constants.dart';
 import '../core/essay_matching.dart';
 import '../core/result.dart';
 import '../core/xp_rules.dart';
+import '../models/public_course.dart' show CurriculumIcon;
 import '../models/test.dart';
 import '../models/test_attempt.dart';
 import '../models/xp_transaction.dart';
+import 'academic_section_repository.dart';
 import 'xp_repository.dart';
 
 class TestRepository {
@@ -57,6 +61,15 @@ class TestRepository {
       _db.collection(AppConstants.colTests);
   CollectionReference<Map<String, dynamic>> get _attempts =>
       _db.collection(AppConstants.colTestAttempts);
+  // Reuses the SAME lookup collection PublicCourseRepository writes
+  // Subject/Level/Topic looks into (see that file's "Curriculum node
+  // icons" section) — it's a generic key->{icon,imageUrl} store, not
+  // Course-specific, and firestore.rules already opens it to any
+  // signed-in user. The `quizSubject::`/`quizTopic::` key prefixes below
+  // keep this feature's entries from ever colliding with a Course's
+  // `subject::`/`level::`/`topic::` ones in the same collection.
+  CollectionReference<Map<String, dynamic>> get _nodeIcons =>
+      _db.collection('curriculum_icons');
 
   // ── Reading tests ────────────────────────────────────────────────────
 
@@ -67,7 +80,15 @@ class TestRepository {
   /// different fields in one query without a composite index per
   /// combination — acceptable at this scale; revisit if a subject
   /// regularly has hundreds of tests).
-  Stream<List<Test>> watchTestsBySubject(String subject, {String? institutionId}) {
+  /// [category]/[topic] are optional extra filters on top of [subject] —
+  /// callers that pre-date the Category/Topic tiers (e.g. the chat
+  /// "share a quiz" picker) simply don't pass them and see every test in
+  /// the subject, unfiltered, exactly as before. Passing
+  /// [kUncategorizedQuizBucket]/[kGeneralQuizTopicBucket] matches tests
+  /// saved before this hierarchy existed (blank category/topic), same
+  /// bucketing as [topicTestCountsOnce]/[categoryTestCountsOnce].
+  Stream<List<Test>> watchTestsBySubject(String subject,
+      {String? institutionId, String? category, String? topic}) {
     return _tests
         .where('subject', isEqualTo: subject)
         .where('published', isEqualTo: true)
@@ -75,9 +96,18 @@ class TestRepository {
         .snapshots()
         .map((s) {
       final all = s.docs.map(Test.fromFirestore).toList();
-      return all
-          .where((t) => t.institutionId == null || t.institutionId == institutionId)
-          .toList();
+      return all.where((t) {
+        if (t.institutionId != null && t.institutionId != institutionId) return false;
+        if (category != null && category.isNotEmpty) {
+          final tCat = t.category.isEmpty ? kUncategorizedQuizBucket : t.category;
+          if (tCat != category) return false;
+        }
+        if (topic != null && topic.isNotEmpty) {
+          final tTopic = t.topic.isEmpty ? kGeneralQuizTopicBucket : t.topic;
+          if (tTopic != topic) return false;
+        }
+        return true;
+      }).toList();
     });
   }
 
@@ -89,10 +119,16 @@ class TestRepository {
   /// Distinct subjects that currently have at least one published test —
   /// drives the subject picker. Computed from real documents, same
   /// pattern as AcademicContentRepository.subjectsOnce(); no fixed
-  /// hardcoded subject list.
-  Future<List<String>> distinctSubjectsOnce() async {
+  /// hardcoded subject list. [category] optionally scopes this to one
+  /// education level; omitted keeps the old whole-catalogue behavior
+  /// (used by chat's "share a quiz" picker, which has no category tier).
+  Future<List<String>> distinctSubjectsOnce({String? category}) async {
     final snap = await _tests.where('published', isEqualTo: true).get();
     final subjects = snap.docs
+        .where((d) => category == null || category.isEmpty ||
+            ((d.data()['category'] as String? ?? '').isEmpty
+                ? kUncategorizedQuizBucket
+                : d.data()['category']) == category)
         .map((d) => (d.data()['subject'] as String?) ?? '')
         .where((s) => s.isNotEmpty)
         .toSet()
@@ -103,15 +139,162 @@ class TestRepository {
 
   /// Real per-subject test counts — for a subject-picker grid that shows
   /// "12 tests" instead of a bare list, without fabricating a number.
-  Future<Map<String, int>> subjectTestCountsOnce() async {
+  /// [category] optionally scopes this to one education level (see
+  /// [distinctSubjectsOnce]).
+  Future<Map<String, int>> subjectTestCountsOnce({String? category}) async {
     final snap = await _tests.where('published', isEqualTo: true).get();
     final counts = <String, int>{};
     for (final doc in snap.docs) {
-      final subject = (doc.data()['subject'] as String?) ?? '';
+      final d = doc.data();
+      if (category != null && category.isNotEmpty) {
+        final docCategory = (d['category'] as String? ?? '').isEmpty
+            ? kUncategorizedQuizBucket
+            : d['category'] as String;
+        if (docCategory != category) continue;
+      }
+      final subject = (d['subject'] as String?) ?? '';
       if (subject.isEmpty) continue;
       counts[subject] = (counts[subject] ?? 0) + 1;
     }
     return counts;
+  }
+
+  /// Real per-category test counts — drives the top-level Quiz page's
+  /// category grid ("42 quizzes" per tile). Tests saved before the
+  /// Category tier existed (blank [Test.category]) are bucketed under
+  /// [kUncategorizedQuizBucket] rather than dropped, same honesty as
+  /// [subjectTestCountsOnce].
+  Future<Map<String, int>> categoryTestCountsOnce() async {
+    final snap = await _tests.where('published', isEqualTo: true).get();
+    final counts = <String, int>{};
+    for (final doc in snap.docs) {
+      final raw = (doc.data()['category'] as String?) ?? '';
+      final category = raw.isEmpty ? kUncategorizedQuizBucket : raw;
+      counts[category] = (counts[category] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  /// Real per-topic test counts within one category+subject — drives
+  /// TestsTopicPickerPage. Blank [Test.topic] is bucketed under
+  /// [kGeneralQuizTopicBucket], same honesty as [categoryTestCountsOnce].
+  Future<Map<String, int>> topicTestCountsOnce({
+    required String category,
+    required String subject,
+  }) async {
+    final snap = await _tests
+        .where('subject', isEqualTo: subject)
+        .where('published', isEqualTo: true)
+        .get();
+    final counts = <String, int>{};
+    for (final doc in snap.docs) {
+      final d = doc.data();
+      final docCategory = (d['category'] as String? ?? '').isEmpty
+          ? kUncategorizedQuizBucket
+          : d['category'] as String;
+      if (docCategory != category) continue;
+      final raw = (d['topic'] as String?) ?? '';
+      final topic = raw.isEmpty ? kGeneralQuizTopicBucket : raw;
+      counts[topic] = (counts[topic] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  // ── Quiz categories (education-level tree top tier) ─────────────────
+  // As of the Course Navigation unification, this section is a thin
+  // Quiz-flavored wrapper around AcademicSectionRepository — the same
+  // section list (and the same Firestore docs) now also drives Course
+  // Navigation and the Library. Kept as delegating methods, not removed,
+  // so every existing Quiz call site (QuizCategoriesPage,
+  // TestComposerPage, ...) keeps working unchanged.
+
+  Future<List<QuizCategory>> quizCategoriesOnce() =>
+      AcademicSectionRepository.instance.sectionsOnce();
+
+  /// Adds a brand-new category (the Quiz page's "+ New section", e.g.
+  /// "Nursery"/"Master's"). Sorts to the end by passing the current
+  /// list's length * 100 as [order] — the same large-gap spacing the
+  /// seeded defaults use, so a later reorder feature has room to slot
+  /// values between existing ones without renumbering everything.
+  Future<Result<String>> addQuizCategory({
+    required String name,
+    required double order,
+    String emoji = '',
+    String imageUrl = '',
+  }) =>
+      AcademicSectionRepository.instance.addSection(name: name, order: order, emoji: emoji, imageUrl: imageUrl);
+
+  /// Changes an existing category's look. Passing both empty clears it
+  /// back to the letter-avatar fallback.
+  Future<Result<void>> updateQuizCategoryIcon(String id, {String emoji = '', String imageUrl = ''}) =>
+      AcademicSectionRepository.instance.updateSectionIcon(id, emoji: emoji, imageUrl: imageUrl);
+
+  Future<Result<String>> uploadQuizCategoryImage({required String categoryId, required File imageFile}) =>
+      AcademicSectionRepository.instance.uploadSectionImage(sectionId: categoryId, imageFile: imageFile);
+
+  // ── Subject/Topic node icons ─────────────────────────────────────────
+  // Subject/Topic aren't documents of their own — same reasoning as
+  // PublicCourseRepository's identical section: they're free-text values
+  // on Test docs, so a picked look lives in the shared `curriculum_icons`
+  // lookup instead, keyed by its place in THIS tree (category-scoped, so
+  // "History" under Senior Secondary and "History" under Undergraduate
+  // can have different looks).
+
+  static String quizSubjectIconKey(String category, String subject) =>
+      'quizSubject::$category::$subject';
+  static String quizTopicIconKey(String category, String subject, String topic) =>
+      'quizTopic::$category::$subject::$topic';
+
+  Future<Map<String, CurriculumIcon>> quizNodeIconsOnce() async {
+    final snap = await _nodeIcons.limit(2000).get();
+    return {
+      for (final d in snap.docs)
+        d.id: CurriculumIcon(
+          emoji: d.data()['icon'] as String? ?? '',
+          imageUrl: d.data()['imageUrl'] as String? ?? '',
+        ),
+    };
+  }
+
+  Future<void> setQuizNodeIcon(String key, {String emoji = '', String imageUrl = ''}) async {
+    final docId = key.replaceAll('/', '-');
+    if (emoji.isEmpty && imageUrl.isEmpty) {
+      await _nodeIcons.doc(docId).delete().catchError((_) {});
+    } else {
+      await _nodeIcons.doc(docId).set({'icon': emoji, 'imageUrl': imageUrl, 'key': key});
+    }
+  }
+
+  Future<Result<String>> uploadQuizNodeImage({
+    required String key,
+    required File imageFile,
+  }) async {
+    try {
+      final docId = key.replaceAll('/', '-');
+      final ref = FirebaseStorage.instance.ref('curriculum_icons/$docId.jpg');
+      await ref.putFile(imageFile).timeout(const Duration(seconds: 60),
+          onTimeout: () => throw Exception(
+              'Image upload is taking too long. Check your connection and try again.'));
+      return Success(await ref.getDownloadURL());
+    } catch (e) {
+      return Failure('Failed to upload image', e);
+    }
+  }
+
+  /// Uploads a photo for one quiz's own tile/card (see [Test.thumbnailUrl]).
+  Future<Result<String>> uploadTestThumbnail({
+    required String testId,
+    required File imageFile,
+  }) async {
+    try {
+      final ref = FirebaseStorage.instance.ref('test_thumbnails/$testId.jpg');
+      await ref.putFile(imageFile).timeout(const Duration(seconds: 60),
+          onTimeout: () => throw Exception(
+              'Image upload is taking too long. Check your connection and try again.'));
+      return Success(await ref.getDownloadURL());
+    } catch (e) {
+      return Failure('Failed to upload thumbnail', e);
+    }
   }
 
   /// Bounded recent-tests fetch across every subject — the fallback/pool

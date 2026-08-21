@@ -93,6 +93,26 @@ service firebase.storage {
       allow write: if isSignedIn();
     }
 
+    // ── quiz_categories/{categoryId}.jpg ──────────────────────────────
+    // The Quiz page's top-level section tiles (Primary School/JSS/SSS/
+    // High School/Undergraduate/admin-added) — same open-to-any-signed-in
+    // -author model as curriculum_icons above, matching the UI's own
+    // canUploadContent gate on the edit affordance.
+    match /quiz_categories/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // ── test_thumbnails/{testId}.jpg ──────────────────────────────────
+    // A single quiz's own tile/card photo — matches the `tests/{id}`
+    // Firestore rule's own write gate (lecturer+, own test or school
+    // admin) rather than "any signed-in user", since a quiz already has
+    // a real owner unlike the free-text Subject/Topic tree nodes above.
+    match /test_thumbnails/{fileName} {
+      allow read: if true;
+      allow write: if canUploadContent();
+    }
+
     // ── public_courses/inline/... ─────────────────────────────────────
     // Inline lesson images uploaded by the compiler pipeline (see
     // academia_compiler/compile-course.js) — writes there go through the

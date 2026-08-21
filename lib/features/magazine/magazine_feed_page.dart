@@ -1,5 +1,5 @@
 // lib/features/magazine/magazine_feed_page.dart
-// Full Magazine home: header with tagline, 4-tab feed switcher, a
+// Full Magazine home: header with tagline, 5-tab feed switcher, a
 // computed Featured carousel, category-tagged article cards with real
 // like/comment counts, and a Write a Post CTA. Navy/gold throughout —
 // matches Academia's system rather than a one-off accent for this screen.
@@ -22,6 +22,39 @@
 // "Featured" is computed (most-read in the last 14 days), not manually
 // curated — labeling it that way without a human editor picking it would
 // be dishonest the same way a fake stat card would be.
+//
+// ── Magazine remake changes ──────────────────────────────────────────────
+// - The sort control (Newest / Most liked / Most discussed) silently did
+//   nothing on the Trending tab — that tab's data was always shown in its
+//   pre-computed engagement order regardless of what the person picked in
+//   the sort sheet. _applySort now runs on every tab; "Newest" no longer
+//   means "re-sort by createdAt" (which would have clobbered Trending's
+//   real ranking the moment sort ran unconditionally) — it means "leave
+//   the tab's natural order alone," which already IS newest-first for
+//   every other tab's query.
+// - Every section's "See all" was either missing or, on the main list,
+//   present but wired to nothing (plain Text, no tap handler). Added
+//   real destinations: the main list gets _AllArticlesPage, Student
+//   Gallery gets _AllGalleryPage, Latest Videos gets _AllVideosPage, and
+//   Recommended Clubs reuses the AllClubsPage already built for Clubs'
+//   own Discover section.
+// - _FollowingAuthorsSection's "Following" pill was a plain Container —
+//   no InkWell, no onTap, couldn't actually unfollow from the list. Now
+//   a real toggle mirroring author_profile_page.dart's _FollowButton
+//   (which already did this correctly — the working pattern just hadn't
+//   made it to this second, later-added surface).
+// - _RecommendedClubsSection rendered `club.emoji` as a raw character —
+//   the exact "random emoji instead of a real club logo" issue already
+//   fixed everywhere else in Clubs; this surface just predated/missed
+//   that fix. Now uses ClubLogo. It also didn't scope to the viewer's
+//   school or exclude clubs they'd already joined — the same
+//   "recommends things you can't act on" bug already fixed twice this
+//   session in Clubs' own recommendation rails, now fixed a third time
+//   here.
+// - The header's search icon showed an honest "coming soon" toast. Real,
+//   bounded search now backs it (MagazineRepository.searchArticles) —
+//   see that method's doc comment for the honest scope of what it
+//   actually searches.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -37,8 +70,8 @@ import '../../repositories/follow_repository.dart';
 import '../../repositories/recommendation_repository.dart';
 import '../../repositories/club_repository.dart';
 import '../../theme/app_theme.dart';
-import '../../theme/app_colors.dart';
 import '../../theme/category_colors.dart';
+import '../../theme/club_visuals.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'article_reader_page.dart';
@@ -52,6 +85,7 @@ import 'magazine_video_player_page.dart';
 import '../clubs/clubs_page.dart';
 import '../../pages/notifications_page.dart';
 import '../../repositories/notification_repository.dart';
+import 'magazine_search_page.dart';
 
 enum _FeedTab { forYou, trending, following, local, global }
 
@@ -118,24 +152,32 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
     }
   }
 
+  /// "Newest" deliberately does NOT re-sort by createdAt — every tab's
+  /// underlying query is already in its own correct natural order
+  /// (createdAt-descending for every feed except Trending, which is in
+  /// real engagement order), so "Newest" means "leave that order alone."
+  /// Re-sorting unconditionally here previously meant this control did
+  /// nothing at all on the Trending tab (the caller special-cased that
+  /// tab to skip this method entirely) — now it runs on every tab, and
+  /// picking "Most liked"/"Most discussed" actually re-ranks Trending's
+  /// results too instead of being silently ignored there.
   List<MagazineArticle> _applySort(List<MagazineArticle> items) {
-    final sorted = List<MagazineArticle>.from(items);
     switch (_sort) {
       case 'Most liked':
+        final sorted = List<MagazineArticle>.from(items);
         sorted.sort((a, b) => b.likeCount.compareTo(a.likeCount));
-        break;
+        return sorted;
       case 'Most discussed':
+        final sorted = List<MagazineArticle>.from(items);
         sorted.sort((a, b) => b.commentCount.compareTo(a.commentCount));
-        break;
+        return sorted;
       default:
-        sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return items;
     }
-    return sorted;
   }
 
   void _showSortSheet() {
     HapticFeedback.selectionClick();
-    final ac = AppColors.of(context);
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -147,8 +189,8 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
           const SizedBox(height: 8),
           for (final opt in ['Newest', 'Most liked', 'Most discussed'])
             ListTile(
-              title: Text(opt, style: AppText.bodySm.copyWith(color: ac.txt)),
-              trailing: _sort == opt ? Icon(Icons.check_rounded, color: ac.gold) : null,
+              title: Text(opt, style: AppText.bodySm.copyWith(color: C.txt)),
+              trailing: _sort == opt ? const Icon(Icons.check_rounded, color: C.gold) : null,
               onTap: () {
                 setState(() => _sort = opt);
                 Navigator.pop(context);
@@ -162,9 +204,8 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: ac.bg,
+      backgroundColor: C.bg,
       body: AppBackground(child: SafeArea(
         child: Column(children: [
           _header(context),
@@ -184,9 +225,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                 if (snap.hasError) {
                   return ErrorView(message: snap.error.toString());
                 }
-                final articles = _tab == _FeedTab.trending
-                    ? (snap.data ?? const <MagazineArticle>[]) // already engagement-sorted server-repo-side
-                    : _applySort(snap.data ?? const <MagazineArticle>[]);
+                final articles = _applySort(snap.data ?? const <MagazineArticle>[]);
                 if (articles.isEmpty) return _emptyState();
 
                 return ListView(
@@ -213,14 +252,29 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(children: [
                         Expanded(child: Text(_sectionTitle, style: AppText.h2.copyWith(fontSize: 16))),
-                        Text('See all', style: AppText.subtitle.copyWith(
-                            color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(Rad.xs),
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => _AllArticlesPage(
+                                      title: _sectionTitle, stream: _streamForTab(), user: widget.user)));
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                              child: Text('See all', style: AppText.subtitle.copyWith(
+                                  color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                            ),
+                          ),
+                        ),
                       ]),
                     ),
                     const SizedBox(height: 12),
                     ...articles.map((a) => Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                      child: _ArticleListCard(
+                      child: ArticleListCard(
                         article: a,
                         currentUser: widget.user,
                         onOpen: () => Navigator.of(context).push(MaterialPageRoute(
@@ -244,14 +298,13 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
   }
 
   Widget _header(BuildContext context) {
-    final ac = AppColors.of(context);
     final canPop = Navigator.of(context).canPop();
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 14, 16, 8),
       child: Row(children: [
         if (canPop)
           IconButton(
-            icon: Icon(Icons.arrow_back_rounded, color: ac.txt),
+            icon: const Icon(Icons.arrow_back_rounded, color: C.txt),
             onPressed: () => Navigator.of(context).pop(),
           )
         else
@@ -263,19 +316,20 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
           ]),
         ),
         IconButton(
-          icon: Icon(Icons.search_rounded, color: ac.txt2),
-          onPressed: () => showToast(context, 'Search is coming soon.'),
+          icon: const Icon(Icons.search_rounded, color: C.txt2),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => MagazineSearchPage(user: widget.user))),
         ),
         if (_canCompose)
           IconButton(
-            icon: Icon(Icons.leaderboard_outlined, color: ac.txt2),
+            icon: const Icon(Icons.leaderboard_outlined, color: C.txt2),
             tooltip: 'Top Writers',
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => const TopWritersPage())),
           ),
         widget.user == null || widget.user!.isGuest
             ? IconButton(
-                icon: Icon(Icons.notifications_outlined, color: ac.txt2),
+                icon: const Icon(Icons.notifications_outlined, color: C.txt2),
                 onPressed: () => showToast(context, 'Sign in to see notifications'),
               )
             : StreamBuilder<int>(
@@ -284,7 +338,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                   final count = snap.data ?? 0;
                   return Stack(clipBehavior: Clip.none, children: [
                     IconButton(
-                      icon: Icon(Icons.notifications_outlined, color: ac.txt2),
+                      icon: const Icon(Icons.notifications_outlined, color: C.txt2),
                       onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                           builder: (_) => NotificationsPage(userId: widget.user!.id))),
                     ),
@@ -294,7 +348,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                           constraints: const BoxConstraints(minWidth: 16),
-                          decoration: BoxDecoration(color: ac.red, borderRadius: BorderRadius.circular(8)),
+                          decoration: BoxDecoration(color: C.red, borderRadius: BorderRadius.circular(8)),
                           child: Text(count > 9 ? '9+' : '$count', textAlign: TextAlign.center,
                               style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
                         ),
@@ -322,7 +376,6 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
   }
 
   Widget _tabRow() {
-    final ac = AppColors.of(context);
     final tabs = [
       (_FeedTab.forYou, 'For You'),
       (_FeedTab.trending, 'Trending'),
@@ -360,13 +413,13 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                       duration: const Duration(milliseconds: 150),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: active ? ac.navy : ac.surf2,
+                        color: active ? C.navy : C.surf2,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: active ? ac.navy : ac.bdr),
+                        border: Border.all(color: active ? C.navy : C.bdr),
                       ),
                       child: Text(label, style: AppText.caption.copyWith(
                           fontSize: 12.5, fontWeight: FontWeight.w700,
-                          color: active ? ac.gold : ac.txt2)),
+                          color: active ? C.gold : C.txt2)),
                     ),
                   ),
                 );
@@ -376,14 +429,14 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
         ),
         const SizedBox(width: 8),
         Material(
-          color: ac.surf2,
+          color: C.surf2,
           shape: const CircleBorder(),
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: _showSortSheet,
-            child: Padding(
-              padding: const EdgeInsets.all(9),
-              child: Icon(Icons.tune_rounded, size: 18, color: ac.txt2),
+            child: const Padding(
+              padding: EdgeInsets.all(9),
+              child: Icon(Icons.tune_rounded, size: 18, color: C.txt2),
             ),
           ),
         ),
@@ -392,18 +445,17 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
   }
 
   Widget _writeCta(BuildContext context) {
-    final ac = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(Rad.lg)),
+        decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(Rad.lg)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Container(
               width: 44, height: 44,
-              decoration: BoxDecoration(color: ac.navy, borderRadius: BorderRadius.circular(12)),
-              child: Icon(Icons.edit_rounded, color: ac.gold, size: 20),
+              decoration: BoxDecoration(color: C.navy, borderRadius: BorderRadius.circular(12)),
+              child: const Icon(Icons.edit_rounded, color: C.gold, size: 20),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -427,11 +479,11 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                     builder: (_) => ArticleComposerPage(user: widget.user!)));
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: ac.navy, foregroundColor: ac.gold,
+                backgroundColor: C.navy, foregroundColor: C.gold,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: Text('Write a Post', style: AppText.caption.copyWith(
-                  fontSize: 12, fontWeight: FontWeight.w700, color: ac.gold)),
+                  fontSize: 12, fontWeight: FontWeight.w700, color: C.gold)),
             ),
           ),
           const SizedBox(height: 8),
@@ -466,12 +518,11 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
   }
 
   Widget _localFeedEmptyState() {
-    final ac = AppColors.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.school_outlined, size: 44, color: ac.muted),
+          const Icon(Icons.school_outlined, size: 44, color: C.muted),
           const SizedBox(height: 12),
           Text('No school linked', style: AppText.title.copyWith(fontSize: 15), textAlign: TextAlign.center),
           const SizedBox(height: 6),
@@ -492,12 +543,11 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
           ? 'Be the first to write for the Academia Magazine.'
           : 'Sign in to be the first to write for the Academia Magazine.';
     }
-    final ac = AppColors.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.auto_stories_outlined, size: 44, color: ac.muted),
+          const Icon(Icons.auto_stories_outlined, size: 44, color: C.muted),
           const SizedBox(height: 12),
           Text('No articles yet', style: AppText.title.copyWith(fontSize: 15)),
           const SizedBox(height: 6),
@@ -527,7 +577,6 @@ class _FeaturedCarouselState extends State<_FeaturedCarousel> {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return FutureBuilder<List<MagazineArticle>>(
       future: MagazineRepository.instance.watchFeaturedOnce(),
       builder: (context, snap) {
@@ -565,7 +614,7 @@ class _FeaturedCarouselState extends State<_FeaturedCarousel> {
               items.length,
               (i) => Container(
                 width: 6, height: 6, margin: const EdgeInsets.symmetric(horizontal: 3),
-                decoration: BoxDecoration(shape: BoxShape.circle, color: i == _index ? ac.gold : ac.bdr),
+                decoration: BoxDecoration(shape: BoxShape.circle, color: i == _index ? C.gold : C.bdr),
               ),
             )),
           ]),
@@ -588,7 +637,6 @@ class _FeaturedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(Rad.lg),
@@ -601,8 +649,8 @@ class _FeaturedCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-                colors: [ac.navy, ac.navy2], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            gradient: const LinearGradient(
+                colors: [C.navy, C.navy2], begin: Alignment.topLeft, end: Alignment.bottomRight),
             borderRadius: BorderRadius.circular(Rad.lg),
             boxShadow: Shad.md,
             image: (article.thumbnailUrl ?? '').isNotEmpty
@@ -614,8 +662,8 @@ class _FeaturedCard extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: ac.gold, borderRadius: BorderRadius.circular(20)),
-              child: Text('FEATURED', style: AppText.label.copyWith(fontSize: 9.5, color: ac.navy)),
+              decoration: BoxDecoration(color: C.gold, borderRadius: BorderRadius.circular(20)),
+              child: Text('FEATURED', style: AppText.label.copyWith(fontSize: 9.5, color: C.navy)),
             ),
             const Spacer(),
             Text(article.title, style: AppText.h2.copyWith(color: Colors.white),
@@ -649,11 +697,11 @@ class _FeaturedCard extends StatelessWidget {
   }
 }
 
-class _ArticleListCard extends StatelessWidget {
+class ArticleListCard extends StatelessWidget {
   final MagazineArticle article;
   final AppUser? currentUser;
   final VoidCallback onOpen, onOpenAuthor;
-  const _ArticleListCard({
+  const ArticleListCard({
     required this.article, required this.currentUser,
     required this.onOpen, required this.onOpenAuthor,
   });
@@ -667,7 +715,6 @@ class _ArticleListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     final color = _categoryColor(article.category);
     return ACard(
       onTap: onOpen,
@@ -679,7 +726,7 @@ class _ArticleListCard extends StatelessWidget {
             width: 84, height: 84,
             child: (article.thumbnailUrl ?? '').isNotEmpty
                 ? Image.network(article.thumbnailUrl!, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(color: ac.surf3))
+                    errorBuilder: (_, __, ___) => Container(color: C.surf3))
                 : Container(color: color.withValues(alpha: .12),
                     child: Icon(Icons.article_rounded, color: color, size: 26)),
           ),
@@ -692,7 +739,7 @@ class _ArticleListCard extends StatelessWidget {
               if (_isOwn)
                 PopupMenuButton<String>(
                   padding: EdgeInsets.zero,
-                  icon: Icon(Icons.more_horiz_rounded, size: 18, color: ac.muted),
+                  icon: const Icon(Icons.more_horiz_rounded, size: 18, color: C.muted),
                   onSelected: (v) {
                     if (v == 'edit') {
                       Navigator.of(context).push(MaterialPageRoute(
@@ -728,7 +775,7 @@ class _ArticleListCard extends StatelessWidget {
                     UserAvatar(initials: article.authorName.isEmpty ? '?' : article.authorName[0].toUpperCase(),
                         radius: 10, photoUrl: article.authorPhotoUrl),
                     const SizedBox(width: 6),
-                    Text(article.authorName, style: AppText.caption.copyWith(fontSize: 11, color: ac.txt)),
+                    Text(article.authorName, style: AppText.caption.copyWith(fontSize: 11, color: C.txt)),
                   ]),
                 ),
               ),
@@ -737,7 +784,7 @@ class _ArticleListCard extends StatelessWidget {
               const Spacer(),
               _LikeButton(article: article, currentUser: currentUser),
               const SizedBox(width: 10),
-              Icon(Icons.mode_comment_outlined, size: 14, color: ac.muted),
+              const Icon(Icons.mode_comment_outlined, size: 14, color: C.muted),
               const SizedBox(width: 3),
               Text('${article.commentCount}', style: AppText.caption.copyWith(fontSize: 10.5)),
             ]),
@@ -755,10 +802,9 @@ class _LikeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     if (currentUser == null || currentUser!.isGuest) {
       return Row(children: [
-        Icon(Icons.favorite_border_rounded, size: 14, color: ac.muted),
+        const Icon(Icons.favorite_border_rounded, size: 14, color: C.muted),
         const SizedBox(width: 3),
         Text('${article.likeCount}', style: AppText.caption.copyWith(fontSize: 10.5)),
       ]);
@@ -777,7 +823,7 @@ class _LikeButton extends StatelessWidget {
             },
             child: Row(children: [
               Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                  size: 14, color: liked ? ac.red : ac.muted),
+                  size: 14, color: liked ? C.red : C.muted),
               const SizedBox(width: 3),
               Text('${article.likeCount}', style: AppText.caption.copyWith(fontSize: 10.5)),
             ]),
@@ -790,7 +836,7 @@ class _LikeButton extends StatelessWidget {
 
 /// production_plan.md §7B — "Magazine → recommends relevant Articles".
 /// Favorite-subject-driven picks from RecommendationRepository.forMagazine
-/// (real query, real signal), rendered with the same _ArticleListCard the
+/// (real query, real signal), rendered with the same ArticleListCard the
 /// rest of the feed uses rather than a bespoke card, so a recommended
 /// article looks and behaves identically to any other article.
 ///
@@ -832,7 +878,7 @@ class _RecommendedSectionState extends State<_RecommendedSection> {
             const SizedBox(height: 12),
             ...items.map((a) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: _ArticleListCard(
+              child: ArticleListCard(
                 article: a,
                 currentUser: widget.user,
                 onOpen: () => Navigator.of(context).push(MaterialPageRoute(
@@ -877,7 +923,6 @@ class _FollowingAuthorsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return StreamBuilder<List<String>>(
       stream: FollowRepository.instance.watchFollowingIds(userId),
       builder: (context, idsSnap) {
@@ -915,11 +960,7 @@ class _FollowingAuthorsSection extends StatelessWidget {
                             ),
                           ]),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(color: ac.surf2, borderRadius: BorderRadius.circular(20), border: Border.all(color: ac.bdr)),
-                          child: Text('Following', style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w700, color: ac.txt2)),
-                        ),
+                        _FollowPill(currentUserId: userId, authorId: a.id),
                       ]),
                     ),
                   ),
@@ -927,6 +968,52 @@ class _FollowingAuthorsSection extends StatelessWidget {
               ]),
             );
           },
+        );
+      },
+    );
+  }
+}
+
+/// The compact "Following"/"Follow" pill for a list row — was a static,
+/// non-interactive Container before (no InkWell, no onTap: tapping it
+/// did nothing, and it always read "Following" regardless of live
+/// state). Mirrors author_profile_page.dart's _FollowButton, which
+/// already did this correctly on that screen; this is the same real
+/// toggle, just sized for a compact list row instead of a profile header.
+class _FollowPill extends StatelessWidget {
+  final String currentUserId;
+  final String authorId;
+  const _FollowPill({required this.currentUserId, required this.authorId});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<bool>(
+      stream: FollowRepository.instance.watchIsFollowing(currentUserId, authorId),
+      builder: (context, snap) {
+        final following = snap.data ?? false;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () {
+              HapticFeedback.selectionClick();
+              if (following) {
+                FollowRepository.instance.unfollow(currentUserId, authorId);
+              } else {
+                FollowRepository.instance.follow(currentUserId, authorId);
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: following ? C.surf2 : C.primary,
+                borderRadius: BorderRadius.circular(20),
+                border: following ? Border.all(color: C.bdr) : null,
+              ),
+              child: Text(following ? 'Following' : 'Follow', style: AppText.caption.copyWith(
+                  fontSize: 11, fontWeight: FontWeight.w700, color: following ? C.txt2 : Colors.white)),
+            ),
+          ),
         );
       },
     );
@@ -964,7 +1051,7 @@ class _PopularInNetworkSection extends StatelessWidget {
                 const SizedBox(height: 12),
                 ...items.map((a) => Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: _ArticleListCard(
+                  child: ArticleListCard(
                     article: a, currentUser: currentUser,
                     onOpen: () => Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => ArticleReaderPage(article: a, currentUser: currentUser))),
@@ -990,7 +1077,6 @@ class _StudentGallerySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return StreamBuilder<List<MagazineGalleryPost>>(
       stream: MagazineRepository.instance.watchGalleryPosts(limit: 8),
       builder: (context, snap) {
@@ -999,7 +1085,22 @@ class _StudentGallerySection extends StatelessWidget {
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Student Gallery', style: AppText.h2.copyWith(fontSize: 16)),
+            child: Row(children: [
+              Expanded(child: Text('Student Gallery', style: AppText.h2.copyWith(fontSize: 16))),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Rad.xs),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => _AllGalleryPage(user: user))),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    child: Text('See all', style: AppText.subtitle.copyWith(
+                        color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                  ),
+                ),
+              ),
+            ]),
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -1021,7 +1122,7 @@ class _StudentGallerySection extends StatelessWidget {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(Rad.sm),
                         child: Image.network(post.imageUrls.first, width: 90, height: 90, fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(width: 90, height: 90, color: ac.surf3)),
+                            errorBuilder: (_, __, ___) => Container(width: 90, height: 90, color: C.surf3)),
                       ),
                       if (post.imageUrls.length > 1)
                         Positioned(
@@ -1053,7 +1154,6 @@ class _LatestVideosSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return StreamBuilder<List<MagazineVideoPost>>(
       stream: MagazineRepository.instance.watchVideoPosts(limit: 8),
       builder: (context, snap) {
@@ -1062,7 +1162,22 @@ class _LatestVideosSection extends StatelessWidget {
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Latest Videos', style: AppText.h2.copyWith(fontSize: 16)),
+            child: Row(children: [
+              Expanded(child: Text('Latest Videos', style: AppText.h2.copyWith(fontSize: 16))),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Rad.xs),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => _AllVideosPage(user: user))),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    child: Text('See all', style: AppText.subtitle.copyWith(
+                        color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                  ),
+                ),
+              ),
+            ]),
           ),
           const SizedBox(height: 12),
           SizedBox(
@@ -1088,9 +1203,9 @@ class _LatestVideosSection extends StatelessWidget {
                             borderRadius: BorderRadius.circular(Rad.sm),
                             child: (v.thumbnailUrl ?? '').isNotEmpty
                                 ? Image.network(v.thumbnailUrl!, width: 150, height: 90, fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(width: 150, height: 90, color: ac.surf3))
-                                : Container(width: 150, height: 90, color: ac.surf3,
-                                    child: Icon(Icons.videocam_outlined, color: ac.muted)),
+                                    errorBuilder: (_, __, ___) => Container(width: 150, height: 90, color: C.surf3))
+                                : Container(width: 150, height: 90, color: C.surf3,
+                                    child: const Icon(Icons.videocam_outlined, color: C.muted)),
                           ),
                           const Positioned.fill(child: Center(child: Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 32))),
                           if (v.durationSeconds > 0)
@@ -1124,71 +1239,109 @@ class _LatestVideosSection extends StatelessWidget {
 /// as a Club card, not any real podcast/audio feature. There's no audio
 /// pipeline anywhere in this codebase and building a fake one just to
 /// match a label would be exactly the dishonest-placeholder pattern this
-/// project avoids elsewhere — so this section reuses REAL Club data
-/// (already fully built this session) and is honestly labeled
-/// "Recommended Clubs" instead of claiming to be podcasts it isn't.
+/// project avoids elsewhere — so this section reuses REAL Club data and
+/// is honestly labeled "Recommended Clubs" instead of claiming to be
+/// podcasts it isn't.
+///
+/// ── Magazine remake fixes ────────────────────────────────────────────
+/// - Used a raw `club.emoji` character instead of ClubLogo — the exact
+///   "random emoji instead of a real club logo" issue already fixed
+///   everywhere else in Clubs (see theme/club_visuals.dart); this
+///   section just predated that fix.
+/// - Queried every club on the platform with no school scope and no
+///   exclusion of clubs the viewer had already joined — recommending
+///   something the person can't act on (they're either not eligible to
+///   see it, per Clubs' own school-scoping convention, or have nothing
+///   left to do but open a club they're already in). Same bug already
+///   fixed twice this session in Clubs' own recommendation rails.
 class _RecommendedClubsSection extends StatelessWidget {
   final AppUser? user;
   const _RecommendedClubsSection({this.user});
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return StreamBuilder<List<Club>>(
-      stream: ClubRepository.instance.watchClubs(),
+      stream: ClubRepository.instance.watchClubs(schoolId: user?.schoolId),
       builder: (context, snap) {
-        final clubs = (snap.data ?? const <Club>[]).take(6).toList();
-        if (clubs.isEmpty) return const SizedBox.shrink();
-        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Recommended Clubs', style: AppText.h2.copyWith(fontSize: 16)),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 92,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: clubs.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 10),
-              itemBuilder: (_, i) {
-                final club = clubs[i];
-                return Material(
-                  color: Colors.transparent,
-                  borderRadius: BorderRadius.circular(Rad.md),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(Rad.md),
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => ClubDetailPage(club: club, user: user ?? AppUser.guest()))),
-                    child: Container(
-                      width: 170,
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Row(children: [
-                          Container(
-                            width: 28, height: 28,
-                            decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(8)),
-                            child: Center(child: Text(club.emoji, style: const TextStyle(fontSize: 14))),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text(club.name, style: AppText.title.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                        ]),
-                        const SizedBox(height: 6),
-                        Text(club.description, style: AppText.caption.copyWith(fontSize: 10), maxLines: 2, overflow: TextOverflow.ellipsis),
-                        const Spacer(),
-                        Text('${club.memberCount} members', style: AppText.caption.copyWith(fontSize: 10, color: ac.muted)),
-                      ]),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ]);
+        final allClubs = snap.data ?? const <Club>[];
+        if (allClubs.isEmpty) return const SizedBox.shrink();
+        if (user == null || user!.isGuest) {
+          return _section(context, allClubs.take(6).toList(), allClubs);
+        }
+        return StreamBuilder<List<String>>(
+          stream: ClubRepository.instance.watchMyClubIds(user!.id),
+          builder: (context, joinedSnap) {
+            final joinedIds = (joinedSnap.data ?? const <String>[]).toSet();
+            final eligible = allClubs.where((c) => !joinedIds.contains(c.id)).toList();
+            if (eligible.isEmpty) return const SizedBox.shrink();
+            return _section(context, eligible.take(6).toList(), eligible);
+          },
+        );
       },
     );
+  }
+
+  Widget _section(BuildContext context, List<Club> preview, List<Club> seeAllList) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(children: [
+          Expanded(child: Text('Recommended Clubs', style: AppText.h2.copyWith(fontSize: 16))),
+          if (seeAllList.length > preview.length)
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(Rad.xs),
+                onTap: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => AllClubsPage(clubs: seeAllList, user: user ?? AppUser.guest()))),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: Text('See all', style: AppText.subtitle.copyWith(
+                      color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                ),
+              ),
+            ),
+        ]),
+      ),
+      const SizedBox(height: 12),
+      SizedBox(
+        height: 92,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: preview.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 10),
+          itemBuilder: (_, i) {
+            final club = preview[i];
+            return Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(Rad.md),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(Rad.md),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ClubDetailPage(club: club, user: user ?? AppUser.guest()))),
+                child: Container(
+                  width: 170,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Row(children: [
+                      ClubLogo(club: club, size: 28, borderRadius: BorderRadius.circular(8)),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(club.name, style: AppText.title.copyWith(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    ]),
+                    const SizedBox(height: 6),
+                    Text(club.description, style: AppText.caption.copyWith(fontSize: 10), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    const Spacer(),
+                    Text('${club.memberCount} members', style: AppText.caption.copyWith(fontSize: 10, color: C.muted)),
+                  ]),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    ]);
   }
 }
 
@@ -1220,6 +1373,204 @@ class _FeedSkeleton extends StatelessWidget {
             ]),
           ),
       ],
+    );
+  }
+}
+
+/// "See all" destination for a tab's main article list — was previously
+/// a plain, non-interactive Text label. Reuses the exact stream the tab
+/// itself uses (so it's honestly "the same list, full screen" rather
+/// than promising something more comprehensive) and the same
+/// ArticleListCard every other article list in this file uses.
+class _AllArticlesPage extends StatelessWidget {
+  final String title;
+  final Stream<List<MagazineArticle>> stream;
+  final AppUser? user;
+  const _AllArticlesPage({required this.title, required this.stream, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: C.bg,
+      appBar: AppBar(
+        backgroundColor: C.bg, elevation: 0,
+        iconTheme: const IconThemeData(color: C.txt),
+        title: Text(title, style: AppText.title),
+      ),
+      body: AppBackground(child: StreamBuilder<List<MagazineArticle>>(
+        stream: stream,
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const _FeedSkeleton();
+          }
+          if (snap.hasError) return ErrorView(message: snap.error.toString());
+          final articles = snap.data ?? const <MagazineArticle>[];
+          if (articles.isEmpty) {
+            return const EmptyState(icon: Icons.auto_stories_outlined, title: 'No articles here yet');
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            itemCount: articles.length,
+            itemBuilder: (_, i) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: ArticleListCard(
+                article: articles[i],
+                currentUser: user,
+                onOpen: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ArticleReaderPage(article: articles[i], currentUser: user))),
+                onOpenAuthor: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => AuthorProfilePage(authorId: articles[i].authorId, currentUser: user))),
+              ),
+            ),
+          );
+        },
+      )),
+    );
+  }
+}
+
+/// "See all" destination for Student Gallery — a scrollable grid of
+/// every post's cover image (same per-post preview the horizontal strip
+/// already used), tapping into the same real GalleryViewerPage.
+class _AllGalleryPage extends StatelessWidget {
+  final AppUser? user;
+  const _AllGalleryPage({this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: C.bg,
+      appBar: AppBar(
+        backgroundColor: C.bg, elevation: 0,
+        iconTheme: const IconThemeData(color: C.txt),
+        title: Text('Student Gallery', style: AppText.title),
+      ),
+      body: AppBackground(child: StreamBuilder<List<MagazineGalleryPost>>(
+        stream: MagazineRepository.instance.watchGalleryPosts(limit: 150),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Padding(padding: EdgeInsets.all(16), child: ShimmerBlock(height: 400));
+          }
+          final posts = snap.data ?? const <MagazineGalleryPost>[];
+          if (posts.isEmpty) {
+            return const EmptyState(icon: Icons.photo_library_outlined, title: 'No photos yet',
+                subtitle: 'Be the first to share a photo with the school.');
+          }
+          return GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3, crossAxisSpacing: 8, mainAxisSpacing: 8),
+            itemCount: posts.length,
+            itemBuilder: (_, i) {
+              final post = posts[i];
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Rad.sm),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => GalleryViewerPage(post: post, currentUser: user))),
+                  child: Stack(fit: StackFit.expand, children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(Rad.sm),
+                      child: Image.network(post.imageUrls.first, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(color: C.surf3)),
+                    ),
+                    if (post.imageUrls.length > 1)
+                      Positioned(
+                        right: 4, bottom: 4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
+                          child: Text('${post.imageUrls.length}',
+                              style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                  ]),
+                ),
+              );
+            },
+          );
+        },
+      )),
+    );
+  }
+}
+
+/// "See all" destination for Latest Videos — a vertical list (thumbnail,
+/// title, author, views) instead of the horizontal strip, tapping into
+/// the same real MagazineVideoPlayerPage.
+class _AllVideosPage extends StatelessWidget {
+  final AppUser? user;
+  const _AllVideosPage({this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: C.bg,
+      appBar: AppBar(
+        backgroundColor: C.bg, elevation: 0,
+        iconTheme: const IconThemeData(color: C.txt),
+        title: Text('Latest Videos', style: AppText.title),
+      ),
+      body: AppBackground(child: StreamBuilder<List<MagazineVideoPost>>(
+        stream: MagazineRepository.instance.watchVideoPosts(limit: 150),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Padding(padding: EdgeInsets.all(16), child: ShimmerBlock(height: 400));
+          }
+          final videos = snap.data ?? const <MagazineVideoPost>[];
+          if (videos.isEmpty) {
+            return const EmptyState(icon: Icons.videocam_outlined, title: 'No videos yet',
+                subtitle: 'Be the first to share a video with the school.');
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: videos.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (_, i) {
+              final v = videos[i];
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Rad.md),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => MagazineVideoPlayerPage(video: v))),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Stack(children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(Rad.sm),
+                        child: (v.thumbnailUrl ?? '').isNotEmpty
+                            ? Image.network(v.thumbnailUrl!, width: 120, height: 72, fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(width: 120, height: 72, color: C.surf3))
+                            : Container(width: 120, height: 72, color: C.surf3,
+                                child: const Icon(Icons.videocam_outlined, color: C.muted)),
+                      ),
+                      const Positioned.fill(child: Center(child: Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 28))),
+                      if (v.durationSeconds > 0)
+                        Positioned(
+                          right: 4, bottom: 4,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(6)),
+                            child: Text(v.durationLabel, style: const TextStyle(color: Colors.white, fontSize: 9)),
+                          ),
+                        ),
+                    ]),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(v.title, style: AppText.title.copyWith(fontSize: 13.5), maxLines: 2, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 4),
+                        Text('${v.authorName} · ${v.viewCount} views', style: AppText.caption.copyWith(fontSize: 11)),
+                      ]),
+                    ),
+                  ]),
+                ),
+              );
+            },
+          );
+        },
+      )),
     );
   }
 }

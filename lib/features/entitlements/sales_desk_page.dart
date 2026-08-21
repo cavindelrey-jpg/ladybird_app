@@ -23,6 +23,7 @@ import '../../models/purchase.dart';
 import '../../models/voucher.dart';
 import '../../repositories/entitlement_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 
@@ -46,16 +47,17 @@ class _SalesDeskPageState extends State<SalesDeskPage>
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     // Defence in depth. The entry point in AdminPanelPage is already
     // gated, but a page that grants premium shouldn't rely on its caller
     // being the only way in.
     if (!widget.user.canManageUsers) {
       return Scaffold(
-        backgroundColor: C.bg,
+        backgroundColor: ac.bg,
         appBar: AppBar(
-          backgroundColor: C.bg,
+          backgroundColor: ac.bg,
           elevation: 0,
-          iconTheme: const IconThemeData(color: C.txt),
+          iconTheme: IconThemeData(color: ac.txt),
           title: Text('Sales Desk', style: AppText.title),
         ),
         body: AppBackground(
@@ -65,7 +67,7 @@ class _SalesDeskPageState extends State<SalesDeskPage>
               child: Text(
                 'You don\'t have permission to issue vouchers.',
                 textAlign: TextAlign.center,
-                style: AppText.body.copyWith(color: C.txt2),
+                style: AppText.body.copyWith(color: ac.txt2),
               ),
             ),
           ),
@@ -74,11 +76,11 @@ class _SalesDeskPageState extends State<SalesDeskPage>
     }
 
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg,
+        backgroundColor: ac.bg,
         elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text('Sales Desk', style: AppText.title),
         bottom: TabBar(controller: _tc, tabs: const [
           Tab(text: 'RECORD A SALE'),
@@ -112,7 +114,7 @@ class _RecordSaleTabState extends State<_RecordSaleTab> {
   final _sourceCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
 
-  EntitlementPackage _package = EntitlementPackage.premium1Year;
+  EntitlementPackage _package = EntitlementPackage.gold1Year;
   PaymentMethod _method = PaymentMethod.cash;
   PurchaseStatus _status = PurchaseStatus.completed;
 
@@ -173,6 +175,7 @@ class _RecordSaleTabState extends State<_RecordSaleTab> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Form(
       key: _formKey,
       child: ListView(
@@ -181,7 +184,7 @@ class _RecordSaleTabState extends State<_RecordSaleTab> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-                color: C.surf2, borderRadius: BorderRadius.circular(Rad.sm)),
+                color: ac.surf2, borderRadius: BorderRadius.circular(Rad.sm)),
             child: Text(
               'Record a payment that has already been collected in person. '
               'This does not charge anyone — it files the sale and generates '
@@ -195,9 +198,9 @@ class _RecordSaleTabState extends State<_RecordSaleTab> {
           const SizedBox(height: 6),
           DropdownButtonFormField<EntitlementPackage>(
             initialValue: _package,
-            decoration: _dec(),
+            decoration: _dec(ac),
             style: AppText.body.copyWith(fontSize: 14),
-            dropdownColor: C.surf,
+            dropdownColor: ac.surf,
             items: EntitlementPackage.values
                 .map((p) => DropdownMenuItem(value: p, child: Text(p.label)))
                 .toList(),
@@ -218,7 +221,7 @@ class _RecordSaleTabState extends State<_RecordSaleTab> {
             controller: _amountCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             style: AppText.body.copyWith(fontSize: 15),
-            decoration: _dec(hint: 'e.g. 5000'),
+            decoration: _dec(ac, hint: 'e.g. 5000'),
             validator: (v) {
               final parsed = num.tryParse((v ?? '').trim());
               if (parsed == null) return 'Enter the amount collected';
@@ -238,9 +241,9 @@ class _RecordSaleTabState extends State<_RecordSaleTab> {
           const SizedBox(height: 6),
           DropdownButtonFormField<PaymentMethod>(
             initialValue: _method,
-            decoration: _dec(),
+            decoration: _dec(ac),
             style: AppText.body.copyWith(fontSize: 14),
-            dropdownColor: C.surf,
+            dropdownColor: ac.surf,
             items: PaymentMethod.values
                 .map((m) => DropdownMenuItem(value: m, child: Text(m.label)))
                 .toList(),
@@ -253,7 +256,7 @@ class _RecordSaleTabState extends State<_RecordSaleTab> {
           TextFormField(
             controller: _buyerCtrl,
             style: AppText.body.copyWith(fontSize: 15),
-            decoration: _dec(hint: 'e.g. Mrs. Foka'),
+            decoration: _dec(ac, hint: 'e.g. Mrs. Foka'),
           ),
           const SizedBox(height: 6),
           Text(
@@ -268,7 +271,7 @@ class _RecordSaleTabState extends State<_RecordSaleTab> {
           TextFormField(
             controller: _sourceCtrl,
             style: AppText.body.copyWith(fontSize: 15),
-            decoration: _dec(hint: 'e.g. Yaoundé Office'),
+            decoration: _dec(ac, hint: 'e.g. Yaoundé Office'),
           ),
           const SizedBox(height: 20),
 
@@ -277,9 +280,9 @@ class _RecordSaleTabState extends State<_RecordSaleTab> {
           const SizedBox(height: 6),
           DropdownButtonFormField<PurchaseStatus>(
             initialValue: _status,
-            decoration: _dec(),
+            decoration: _dec(ac),
             style: AppText.body.copyWith(fontSize: 14),
-            dropdownColor: C.surf,
+            dropdownColor: ac.surf,
             items: PurchaseStatus.values
                 .map((s) => DropdownMenuItem(value: s, child: Text(s.label)))
                 .toList(),
@@ -291,7 +294,7 @@ class _RecordSaleTabState extends State<_RecordSaleTab> {
             controller: _noteCtrl,
             maxLines: 2,
             style: AppText.body.copyWith(fontSize: 14),
-            decoration: _dec(label: 'Note (optional)'),
+            decoration: _dec(ac, label: 'Note (optional)'),
           ),
 
           if (_error != null) ...[
@@ -299,8 +302,8 @@ class _RecordSaleTabState extends State<_RecordSaleTab> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                  color: C.redb, borderRadius: BorderRadius.circular(Rad.sm)),
-              child: Text(_error!, style: AppText.bodySm.copyWith(color: C.red)),
+                  color: ac.redBg, borderRadius: BorderRadius.circular(Rad.sm)),
+              child: Text(_error!, style: AppText.bodySm.copyWith(color: ac.red)),
             ),
           ],
 
@@ -321,11 +324,11 @@ class _RecordSaleTabState extends State<_RecordSaleTab> {
     );
   }
 
-  InputDecoration _dec({String? hint, String? label}) => InputDecoration(
+  InputDecoration _dec(AppColors ac, {String? hint, String? label}) => InputDecoration(
         hintText: hint,
         labelText: label,
         filled: true,
-        fillColor: C.surf3,
+        fillColor: ac.surf3,
         border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(Rad.sm),
             borderSide: BorderSide.none),
@@ -339,19 +342,20 @@ class _IssuedVoucherCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: C.grnb,
+        color: ac.grnBg,
         borderRadius: BorderRadius.circular(Rad.md),
-        border: Border.all(color: C.grn.withValues(alpha: .4)),
+        border: Border.all(color: ac.grn.withValues(alpha: .4)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.confirmation_number_outlined, size: 18, color: C.grn),
+          Icon(Icons.confirmation_number_outlined, size: 18, color: ac.grn),
           const SizedBox(width: 8),
           Text('Voucher issued',
-              style: AppText.title.copyWith(fontSize: 14, color: C.grn)),
+              style: AppText.title.copyWith(fontSize: 14, color: ac.grn)),
         ]),
         const SizedBox(height: 12),
         SelectableText(
@@ -389,6 +393,7 @@ class _VouchersTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return StreamBuilder<List<Voucher>>(
       stream: EntitlementRepository.instance.watchVouchers(),
       builder: (context, snap) {
@@ -401,7 +406,7 @@ class _VouchersTab extends StatelessWidget {
               padding: const EdgeInsets.all(28),
               child: Text('Could not load vouchers.\n${snap.error}',
                   textAlign: TextAlign.center,
-                  style: AppText.bodySm.copyWith(color: C.red)),
+                  style: AppText.bodySm.copyWith(color: ac.red)),
             ),
           );
         }
@@ -416,7 +421,7 @@ class _VouchersTab extends StatelessWidget {
               child: Text(
                 'No vouchers issued yet.\nRecord a sale to generate the first one.',
                 textAlign: TextAlign.center,
-                style: AppText.body.copyWith(color: C.txt2),
+                style: AppText.body.copyWith(color: ac.txt2),
               ),
             ),
           );
@@ -435,22 +440,23 @@ class _VoucherRow extends StatelessWidget {
   final Voucher voucher;
   const _VoucherRow({required this.voucher});
 
-  static Color _statusColor(VoucherStatus s) {
+  static Color _statusColor(AppColors ac, VoucherStatus s) {
     switch (s) {
-      case VoucherStatus.unused:   return C.blu;
-      case VoucherStatus.active:   return C.grn;
-      case VoucherStatus.redeemed: return C.grn;
-      case VoucherStatus.expired:  return C.muted;
-      case VoucherStatus.revoked:  return C.red;
+      case VoucherStatus.unused:   return ac.blu;
+      case VoucherStatus.active:   return ac.grn;
+      case VoucherStatus.redeemed: return ac.grn;
+      case VoucherStatus.expired:  return ac.muted;
+      case VoucherStatus.revoked:  return ac.red;
     }
   }
 
   Future<void> _revoke(BuildContext context) async {
+    final ac = AppColors.of(context);
     final reasonCtrl = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: C.surf,
+        backgroundColor: ac.surf,
         title: Text('Revoke voucher?', style: AppText.title.copyWith(fontSize: 16)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(
@@ -471,7 +477,7 @@ class _VoucherRow extends StatelessWidget {
               child: const Text('Cancel')),
           TextButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Revoke', style: TextStyle(color: C.red))),
+              child: Text('Revoke', style: TextStyle(color: ac.red))),
         ],
       ),
     );
@@ -490,15 +496,16 @@ class _VoucherRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     final status = voucher.effectiveStatus;
-    final color = _statusColor(status);
+    final color = _statusColor(ac, status);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: C.surf,
+        color: ac.surf,
         borderRadius: BorderRadius.circular(Rad.sm),
-        border: Border.all(color: C.bdr),
+        border: Border.all(color: ac.bdr),
       ),
       child: Row(children: [
         Expanded(
@@ -529,7 +536,7 @@ class _VoucherRow extends StatelessWidget {
           IconButton(
             tooltip: 'Revoke',
             onPressed: () => _revoke(context),
-            icon: const Icon(Icons.block_rounded, size: 18, color: C.muted),
+            icon: Icon(Icons.block_rounded, size: 18, color: ac.muted),
           ),
       ]),
     );

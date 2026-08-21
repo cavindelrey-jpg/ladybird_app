@@ -8,7 +8,6 @@ import '../core/constants.dart';
 import '../core/xp_rules.dart';
 import '../core/result.dart';
 import '../repositories/xp_repository.dart';
-import '../repositories/serial_repository.dart';
 
 class AuthService {
   AuthService._();
@@ -92,18 +91,6 @@ class AuthService {
     return user;
   }
 
-  /// Live roster for AdminPanelPage's user-management tab — every account
-  /// (any role) tied to [schoolId], updating as roles/status change.
-  Stream<List<AppUser>> watchSchoolUsers(String schoolId) {
-    if (schoolId.isEmpty) return Stream.value(const []);
-    return _db
-        .collection(AppConstants.colUsers)
-        .where('schoolId', isEqualTo: schoolId)
-        .snapshots()
-        .map((snap) =>
-            snap.docs.map((d) => AppUser.fromFirestore(d.id, d.data())).toList());
-  }
-
   // ── Admin operations ───────────────────────────────────────────────────────
   Future<void> changeUserRole(String userId, UserRole newRole) =>
       _db.collection(AppConstants.colUsers).doc(userId).update({'role': newRole.name});
@@ -159,111 +146,6 @@ class AuthService {
   static Future<void> markFirstLoginComplete(String userId) async =>
       FirebaseFirestore.instance.collection(AppConstants.colUsers)
           .doc(userId).update({'isFirstLogin': false});
-
-  // ── Serial-number / seat enrollment ─────────────────────────────────────
-  // Two distinct onboarding paths, both reached from SerialJoinPage /
-  // ClaimSeatScreen after SerialRepository.preview() has already shown the
-  // institution's branding: a brand-new independent-style account claimed
-  // straight off a serial (this), vs. activating a school-pre-provisioned
-  // seat that already has a name/class assigned (claimLinkedSeat below).
-
-  /// Creates the Firebase Auth user, then atomically claims [serialCode] via
-  /// the server-enforced `claimSerial` Cloud Function (see
-  /// SerialRepository.claim -- the transaction lives server-side so a
-  /// modified client can't forge a claim). Rolls back the just-created auth
-  /// user on any failure after that point, so a failed claim never leaves an
-  /// orphaned, unlinked account behind.
-  Future<AppUser> claimSerialAndCreateAccount({
-    required String serialCode,
-    required String institutionId,
-    required String name,
-    required String email,
-    required String password,
-  }) async {
-    final cred = await _auth.createUserWithEmailAndPassword(email: email, password: password);
-    final fbUser = cred.user!;
-    await fbUser.getIdToken(true); // avoid auth-token propagation race, see note above
-
-    final claimResult = await SerialRepository.instance.claim(code: serialCode, uid: fbUser.uid);
-    if (claimResult is Failure<void>) {
-      await fbUser.delete();
-      throw Exception(claimResult.message);
-    }
-
-    final user = AppUser(
-      id: fbUser.uid, name: name, email: email,
-      role: UserRole.student, accountType: AccountType.linked,
-      status: AccountStatus.active, schoolId: institutionId,
-      serialNumber: serialCode.trim().toUpperCase(),
-    );
-    try {
-      await _db.collection(AppConstants.colUsers).doc(fbUser.uid).set(user.toFirestore());
-    } catch (e) {
-      await SerialRepository.instance.release(serialCode);
-      await fbUser.delete();
-      rethrow;
-    }
-    return user;
-  }
-
-  /// Activates a school-pre-provisioned seat (created via
-  /// AccountsRepository.createSeat, assigned via assignSeat): verifies the
-  /// temp password the school gave the student against
-  /// schools/{schoolCode}/seats/{seatId}, then creates the student's own
-  /// Firebase Auth login and burns the temp password one-way. Firestore
-  /// rules deliberately allow any signed-in user to read/update a seat doc
-  /// (see firestore.rules "Seat claiming happens pre-auth-doc-existing") so
-  /// this whole check runs client-side against real rules, not a Cloud
-  /// Function -- there's no server-side seat-claim function to call.
-  Future<AppUser> claimLinkedSeat({
-    required String schoolCode,
-    required String seatId,
-    required String tempPassword,
-    required String newEmail,
-    required String newPassword,
-    required String studentName,
-  }) async {
-    final seatRef = _db
-        .collection(AppConstants.colSchools).doc(schoolCode)
-        .collection(AppConstants.colSeats).doc(seatId);
-    final seatDoc = await seatRef.get();
-    if (!seatDoc.exists) {
-      throw Exception('This seat no longer exists. Contact your school.');
-    }
-    final seat = StudentAccount.fromFirestore(seatDoc.id, seatDoc.data()!);
-    if (seat.status == AccountStatus.active) {
-      throw Exception('This seat has already been activated.');
-    }
-    if (seat.tempPassword.isEmpty || seat.tempPassword != tempPassword.trim()) {
-      throw Exception('That temporary password is incorrect.');
-    }
-
-    final cred = await _auth.createUserWithEmailAndPassword(
-        email: newEmail, password: newPassword);
-    final fbUser = cred.user!;
-    await fbUser.getIdToken(true); // avoid auth-token propagation race, see note above
-
-    final user = AppUser(
-      id: fbUser.uid, name: studentName, email: newEmail,
-      role: UserRole.student, accountType: AccountType.linked,
-      status: AccountStatus.active, schoolId: schoolCode,
-      classLevel: seat.classLevel,
-    );
-    try {
-      await _db.collection(AppConstants.colUsers).doc(fbUser.uid).set(user.toFirestore());
-      // Burn the temp password one-way -- only reachable after the seat
-      // check above passed, so this can't race a second successful claim.
-      await seatRef.update({
-        'studentName': studentName,
-        'status': AccountStatus.active.name,
-        'tempPassword': '',
-      });
-    } catch (e) {
-      await fbUser.delete();
-      rethrow;
-    }
-    return user;
-  }
 
   // ── Gamification (real, minimal) ───────────────────────────────────────
   // Called once per Home page load. Decides — from the user's OWN last

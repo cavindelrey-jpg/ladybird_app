@@ -4,7 +4,15 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
-      flutter: stable
+      # Pinned, not "stable" -- "stable" floats to whatever's newest at
+      # build time, and it just broke this build: a newer stable SDK
+      # added TextInputClient.onFocusReceived, which the locked
+      # flutter_quill 11.5.0 (pubspec.lock) doesn't implement, so every
+      # test/build touching the Quill editor failed to compile. 3.41.5 is
+      # the exact version this codebase has actually been developed and
+      # verified against. Bump deliberately (and re-verify flutter_quill
+      # compatibility) rather than letting this drift again.
+      flutter: 3.41.5
       # No android_signing block yet — Codemagic validates that any
       # referenced keystore actually exists under Code signing identities
       # (Settings > Code signing identities > Android keystores), it does

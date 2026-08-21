@@ -35,6 +35,3 @@ workflows:
     artifacts:
       - build/app/outputs/**/*.apk
       - build/app/outputs/**/mapping.txt
-    publishing:
-      email:
-        recipients: []

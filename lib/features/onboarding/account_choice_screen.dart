@@ -37,7 +37,7 @@ class AccountChoiceScreen extends StatelessWidget {
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const AcademiaLogo(size: 52),
+            const BrandLogo(size: 52),
             const SizedBox(height: 20),
             Text('Create your account',
                 style: GoogleFonts.sora(fontSize: 24, fontWeight: FontWeight.w800, color: ac.txt)),

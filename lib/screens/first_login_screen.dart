@@ -33,7 +33,7 @@ class _FirstLoginScreenState extends State<FirstLoginScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const AcademiaLogo(size: 72),
+              const BrandLogo(size: 72),
               const SizedBox(height: 24),
               Text('Welcome, ${widget.user.name.split(' ').first}!',
                 style: GoogleFonts.sora(fontSize: 26, fontWeight: FontWeight.w800, color: ac.txt),

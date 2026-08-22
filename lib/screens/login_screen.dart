@@ -178,7 +178,7 @@ class _LoginScreenState extends State<LoginScreen>
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [ac.navy, ac.navy2, const Color(0xFF1A3A70)],
+            colors: [ac.navy, ac.navy2, Color.lerp(ac.navy2, ac.primary, 0.5)!],
           ),
         ),
         child: SafeArea(
@@ -193,7 +193,7 @@ class _LoginScreenState extends State<LoginScreen>
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const SizedBox(height: 20),
                     // Logo
-                    const AcademiaLogo(size: 52),
+                    const BrandLogo(size: 52),
                     const SizedBox(height: 28),
 
                     // Brand name + subline

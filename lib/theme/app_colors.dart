@@ -24,6 +24,7 @@
 // until it gets the same conversion.
 
 import 'package:flutter/material.dart';
+import '../config/branding.dart';
 
 class AppColors extends ThemeExtension<AppColors> {
   final Color bg, surf, surf2, surf3;
@@ -54,8 +55,20 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.shadow,
   });
 
-  static AppColors of(BuildContext context) =>
-      Theme.of(context).extension<AppColors>() ?? light;
+  /// Was hardcoded to Academia's palette regardless of Branding.brandId --
+  /// BRAND_ID=green_hill changed the app name/logo/tagline (those read
+  /// Branding.current directly) but every widget reading colors via
+  /// AppColors.of(context) (the majority of the app -- see file header)
+  /// still rendered Academia's navy/blue, since this never checked the
+  /// brand. Route to the brand-matched palette here instead.
+  static AppColors of(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (Branding.current.brandId == 'green_hill') {
+      return Theme.of(context).extension<AppColors>() ??
+          (isDark ? greenHillDark : greenHillLight);
+    }
+    return Theme.of(context).extension<AppColors>() ?? (isDark ? dark : light);
+  }
 
   // ── Light — identical values to `C` in app_theme.dart ───────────────────
   static const AppColors light = AppColors(
@@ -87,6 +100,44 @@ class AppColors extends ThemeExtension<AppColors> {
     pur: Color(0xFF8B5CF6), purBg: Color(0x1A8B5CF6), purDark: Color(0xFFA78BFA), purLight: Color(0xFF8B5CF6),
     blu: Color(0xFF4F8CFF), bluBg: Color(0x1A4F8CFF),
     shadow: Color(0x73000000), // rgba(0,0,0,.45)
+  );
+
+  // ── Green Hill — brand/header colors only (primary, navy) swapped to
+  // the crest's green; every functional/status color (gold "Gold" tier
+  // badge, red, org, pur, blu, grn success-state) stays IDENTICAL to the
+  // Academia palette -- those represent app state, not brand identity,
+  // and repainting them green would collide with e.g. the entitlement
+  // system's own "Gold tier" badge or a success/error indicator.
+  // primary/navy values sampled from assets/branding/green_hill_logo.png's
+  // shield (medium green fill, darker green outline).
+  static const AppColors greenHillLight = AppColors(
+    bg: Color(0xFFF5F7FA), surf: Color(0xFFFFFFFF), surf2: Color(0xFFF8F9FB), surf3: Color(0xFFF1F3F8),
+    txt: Color(0xFF0F172A), txt2: Color(0xFF475569), muted: Color(0xFF94A3B8),
+    bdr: Color(0xFFE2E8F0), bdr2: Color(0xFFF1F5F9),
+    primary: Color(0xFF16A34A), primaryBg: Color(0xFFDCFCE7),
+    navy: Color(0xFF0A7A3B), navy2: Color(0xFF0F5C35),
+    gold: Color(0xFFC9A227), goldBg: Color(0xFFFBF3DA),
+    grn: Color(0xFF16A34A), grnBg: Color(0xFFDCFCE7),
+    red: Color(0xFFDC2626), redBg: Color(0xFFFEE2E2),
+    org: Color(0xFFEA580C), orgBg: Color(0xFFFFEDD5),
+    pur: Color(0xFF7C3AED), purBg: Color(0xFFF5F3FF), purDark: Color(0xFF6D28D9), purLight: Color(0xFF8B5CF6),
+    blu: Color(0xFF0284C7), bluBg: Color(0xFFE0F2FE),
+    shadow: Color(0x0D0A1432),
+  );
+
+  static const AppColors greenHillDark = AppColors(
+    bg: Color(0xFF0D1117), surf: Color(0xFF161B22), surf2: Color(0xFF1E2633), surf3: Color(0xFF242C3D),
+    txt: Color(0xFFF5F5F5), txt2: Color(0xFFB8BCC8), muted: Color(0xFF6B7280),
+    bdr: Color(0xFF1E2633), bdr2: Color(0xFF1A2230),
+    primary: Color(0xFF22C55E), primaryBg: Color(0x1A22C55E),
+    navy: Color(0xFF06140D), navy2: Color(0xFF0D1F17),
+    gold: Color(0xFFFBBF24), goldBg: Color(0x1AFBBF24),
+    grn: Color(0xFF22C55E), grnBg: Color(0x1A22C55E),
+    red: Color(0xFFEF4444), redBg: Color(0x1AEF4444),
+    org: Color(0xFFFB923C), orgBg: Color(0x1AFB923C),
+    pur: Color(0xFF8B5CF6), purBg: Color(0x1A8B5CF6), purDark: Color(0xFFA78BFA), purLight: Color(0xFF8B5CF6),
+    blu: Color(0xFF4F8CFF), bluBg: Color(0x1A4F8CFF),
+    shadow: Color(0x73000000),
   );
 
   @override

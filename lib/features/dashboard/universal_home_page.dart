@@ -583,7 +583,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                    : () => _open(context, PersonalStudyPage(user: _u!))),
       ('Challenge', Icons.local_fire_department_rounded, ac.org,
           () => _openDailyChallenge(context)),
-      ('Calendar', Icons.event_rounded, ac.pur,
+      ('Announcements', Icons.campaign_rounded, ac.pur,
           () => _open(context, AnnouncementsPage(user: _userOrGuest, canPost: !_isGuest && _u!.canPostAnnouncement))),
       ('Messages', Icons.mail_outline_rounded, ac.primary,
           _isGuest ? () => showToast(context, 'Sign in to message other members.')

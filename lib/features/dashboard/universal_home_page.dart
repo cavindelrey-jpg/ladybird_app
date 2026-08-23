@@ -50,7 +50,6 @@ import '../../models/hero_slide.dart';
 import '../../pages/daily_challenge_page.dart';
 import '../../pages/search_page.dart';
 import '../../pages/notifications_page.dart';
-import '../../pages/profile_page.dart';
 import '../academic_content/content_viewer_page.dart';
 import '../academic_content/content_details_page.dart';
 import '../testing/quiz_categories_page.dart';

@@ -4098,3 +4098,70 @@ Academia's, only the *generator config* points at Green Hills. Run
 `flutter analyze` after pulling this — it could not be run in this
 sandbox (`flutter` not installed) so the `C` token rename/repaint and
 branding.dart default change are unverified against the compiler.
+
+## 2026-08-23 (2) — Home dashboard rebuilt to match Green Hills mockup.jpg
+
+User provided a mockup (mockup.jpg: green hero greeting, 4-stat card,
+Continue Learning, Today's Schedule, 2x5 Quick Access grid, Upcoming
+Events + Announcements) and said to change the existing Home screen
+entirely to match it, not add alongside it. Rewrote
+lib/features/dashboard/universal_home_page.dart in place (same class
+name/constructor, so no other file needed to change) rather than the
+prior "Gamma mockup" layout (avatar+3 pills, single banner, 5-icon Quick
+Access, Progress+Challenge row, Top Writers+Announcements row).
+
+Every real data source got wired to its closest mockup concept:
+- Courses/XP stats: AppUser.courseIds.length / XpRepository lifetime XP
+  (unchanged sources, same as before).
+- "Progress": real % of this week's days with recorded activity
+  (AppUser.weekActivityDates) -- the mockup's "75% Progress / Overall" is
+  undefined in this app (no course-completion-% concept exists), so used
+  the closest real weekly-engagement signal instead of inventing one.
+- "Badges": real count of distinct subjects with >=1 completed quiz
+  (TestRepository.subjectCompletionCountsOnce, count of entries >0) --
+  there is no badge/achievement model anywhere in this codebase; this is
+  the closest existing real per-subject "earned recognition" signal.
+- "Today's Schedule": real PersonalStudySlot data (self-authored student
+  study sessions) for the current weekday, NOT an official class
+  timetable -- no such admin-authored model exists (see
+  personal_study_slot.dart's own comment: it references a "TimetableSlot"
+  that was planned but never built).
+- "Upcoming Events": no events/calendar model exists at all (Calendar was
+  explicitly removed as dead code referencing a deleted Institution model
+  in a same-day-earlier commit) -- left as an honest empty state rather
+  than reintroducing a dead concept.
+- Quick Access 10 tiles: kept Library/Past Questions/Quizzes/Tests/Clubs
+  from the mockup as-is (Tests routes to the same QuizCategoriesPage tree
+  as Quizzes -- this codebase doesn't model them separately). Replaced
+  "School Connect" (dead code, removed earlier today) and "Calendar" (see
+  above) with Magazine and Announcements; replaced "Marks" (no
+  student-facing results-list page exists, only per-attempt
+  TestResultPage) with Daily Challenge, since that page had ZERO other
+  entry point anywhere in the app before this change -- dropping its only
+  Home card would have made it permanently unreachable dead code.
+  Messages tile shows a real unread-count badge (sum of
+  Conversation.unreadCount[userId] across MessagingRepository
+  .watchConversations).
+- Dropped the "Top Writers" panel (mockup doesn't have it, and it's still
+  reachable from magazine_feed_page.dart) but kept the promo
+  HeroBannerCarousel (admin-managed via hero_slide_manager_page.dart,
+  Home was its only render surface) and the "Recommended for You" rail
+  (production_plan.md §1 feature, unit-tested via
+  rankHomeSubjectsByUsage) -- both real features not pictured in the
+  mockup but with no other home, so kept rather than orphaned.
+- Hero card has no real photo asset to match the mockup's desk/plant
+  photo -- used a translucent decorative icon on the green gradient
+  instead of fabricating/sourcing stock photography.
+
+Did NOT touch the bottom navigation bar (HomeShell in app_router.dart:
+Home/Library/Magazine/Courses/Profile) -- that's shared app chrome across
+every tab, not part of "this screen", and already covers 4 of the
+mockup's 5 nav concepts (Home/Courses/Library/Profile) under a different
+order/FAB treatment; reordering it is a separate, broader-blast-radius
+change than what was asked.
+
+**Could not verify with `flutter analyze`/`flutter test`** -- no Flutter
+SDK in this sandbox. Reviewed the full file by hand for balanced
+braces/parens and correct constructor signatures against every page/repo
+it calls into, but this is unverified against the actual compiler. Run
+`flutter analyze` and `flutter test` first thing next session.

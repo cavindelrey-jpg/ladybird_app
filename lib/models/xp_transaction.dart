@@ -224,6 +224,7 @@ class XpTransaction {
       case XpSource.clubQuestion:    return 'club_question';
       case XpSource.clubAnswer:      return 'club_answer';
       case XpSource.clubBestAnswer:  return 'club_best_answer';
+      case XpSource.dailyLearning:   return 'daily_learning';
     }
   }
 }

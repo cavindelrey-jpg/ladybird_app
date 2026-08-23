@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
+import '../../config/branding.dart';
 import '../../models/entitlement.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
@@ -37,12 +38,12 @@ class AccountChoiceScreen extends StatelessWidget {
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const BrandLogo(size: 52),
+            const Center(child: BrandLogo(size: 52)),
             const SizedBox(height: 20),
             Text('Create your account',
                 style: GoogleFonts.sora(fontSize: 24, fontWeight: FontWeight.w800, color: ac.txt)),
             const SizedBox(height: 6),
-            Text('Choose how you want to join Academia.',
+            Text('Choose how you want to join ${Branding.current.appName}.',
                 style: GoogleFonts.inter(fontSize: 14, color: ac.txt2)),
             const SizedBox(height: 28),
 
@@ -66,7 +67,7 @@ class AccountChoiceScreen extends StatelessWidget {
               iconColor: ac.txt2,
               iconBg: ac.surf3,
               title: 'Premium Silver',
-              subtitle: 'Direct payment or an Academia vendor voucher. '
+              subtitle: 'Direct payment or a vendor voucher. '
                   'Every premium feature — except Video Courses.',
               badge: 'PREMIUM',
               badgeColor: ac.navy,
@@ -81,7 +82,7 @@ class AccountChoiceScreen extends StatelessWidget {
               iconColor: ac.gold,
               iconBg: ac.goldBg,
               title: 'Premium Gold',
-              subtitle: 'Direct payment or an Academia vendor voucher. '
+              subtitle: 'Direct payment or a vendor voucher. '
                   'Full access, including Video Courses.',
               badge: 'PREMIUM',
               badgeColor: ac.navy,

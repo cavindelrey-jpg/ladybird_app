@@ -43,7 +43,7 @@ class _FirstLoginScreenState extends State<FirstLoginScreen> {
                 style: GoogleFonts.inter(fontSize: 15, color: ac.txt2, height: 1.5),
                 textAlign: TextAlign.center),
               const SizedBox(height: 48),
-              PrimaryBtn(label: 'Enter Academia', loading: _done, onTap: _complete),
+              PrimaryBtn(label: 'Get Started', loading: _done, onTap: _complete),
             ],
           ),
         ),

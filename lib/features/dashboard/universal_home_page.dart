@@ -2,10 +2,15 @@
 //
 // Home dashboard, redesigned to match the Green Hills mockup
 // (mockup.jpg): branded top bar, a green greeting hero with an
-// overlapping 4-stat card (Courses/XP/Progress/Badges), a promo banner
-// carousel (real, admin-managed via hero_slide_manager_page.dart --
-// kept, just repositioned), Continue Learning, Today's Schedule, a
-// 2x5 Quick Access grid, and an Upcoming Events / Announcements row.
+// overlapping 4-stat card (Courses/XP/Progress/Badges), Continue
+// Learning, Today's Schedule, a 2x5 Quick Access grid, and an Upcoming
+// Events / Announcements row.
+//
+// No promo banner carousel -- the mockup doesn't have one, and per an
+// explicit correction pass it must not exist here even though
+// HeroBannerCarousel (admin-managed via hero_slide_manager_page.dart)
+// is a real, working feature. That admin page is still reachable to
+// manage slide content; Home is just no longer where they render.
 //
 // Every number and card is wired to real data or a real repository. The
 // mockup pictures two things this codebase has no real backing for:
@@ -45,8 +50,6 @@ import '../../repositories/messaging_repository.dart';
 import '../../services/auth_service.dart';
 import '../../repositories/xp_repository.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/hero_banner_carousel.dart';
-import '../../models/hero_slide.dart';
 import '../../pages/daily_challenge_page.dart';
 import '../../pages/search_page.dart';
 import '../../pages/notifications_page.dart';
@@ -133,8 +136,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             _topBar(context),
             const SizedBox(height: 14),
             _heroAndStats(context),
-            const SizedBox(height: 20),
-            HeroBannerCarousel(placement: HeroPlacement.home, user: widget.user),
             const SizedBox(height: 24),
             _sectionHeader('Continue Learning',
                 onViewAll: () => _open(context, AcademicContentPage(user: _userOrGuest))),

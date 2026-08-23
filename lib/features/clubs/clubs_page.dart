@@ -74,8 +74,20 @@ class _ClubsPageState extends State<ClubsPage> {
   // building this inline in `build()` created a brand-new .snapshots()
   // stream on every keystroke's setState. That's what made the Clubs
   // search bar appear to vanish while typing.
+  //
+  // Was `watchClubs(schoolId: widget.user.schoolId)` -- this app's own
+  // architecture (see app_router.dart's header comment) is a single
+  // account model with NO institution/school-linking, so schoolId is
+  // null/unset for the overwhelming majority of accounts. Any club
+  // created under a different (or null-vs-set) schoolId than the
+  // viewer's silently vanished from Discover Clubs even though the
+  // query succeeded -- not a permission or index problem, just a filter
+  // that doesn't match how this app actually assigns accounts anymore.
+  // Discover should show every club platform-wide; a club's own
+  // schoolId still drives its "school-verified" badge (see
+  // ClubDetailPage), just not this list's visibility.
   late final Stream<List<Club>> _clubsStream =
-      ClubRepository.instance.watchClubs(schoolId: widget.user.schoolId);
+      ClubRepository.instance.watchClubs();
 
   bool get _canCreate => !widget.user.isGuest;
 

@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
+import '../config/branding.dart';
 import '../services/auth_service.dart';
-import '../widgets/widgets.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -191,13 +191,14 @@ class _LoginScreenState extends State<LoginScreen>
                 child: Form(
                   key: _formKey,
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const SizedBox(height: 20),
-                    // Logo
-                    const BrandLogo(size: 52),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 48),
 
-                    // Brand name + subline
-                    Text('Academia',
+                    // Brand name + subline -- no logo mark on this screen
+                    // by design (correction pass: sign-in should present
+                    // Green Hills identity via clean text, not an image
+                    // mark), reads from Branding so it's never hardcoded
+                    // to a specific product name.
+                    Text(Branding.current.appName,
                         style: AppText.display.copyWith(fontSize: 26, color: Colors.white)),
                     const SizedBox(height: 6),
                     Text('Sign in to your account',
@@ -263,7 +264,7 @@ class _LoginScreenState extends State<LoginScreen>
                     const SizedBox(height: 40),
 
                     // Footer
-                    Center(child: Text('Powered by Academia',
+                    Center(child: Text(Branding.current.tagline,
                         style: AppText.caption.copyWith(
                             color: Colors.white.withValues(alpha: .3)))),
                   ]),

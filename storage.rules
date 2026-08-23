@@ -54,6 +54,39 @@ service firebase.storage {
         ).data.participantIds;
     }
 
+    // Fix for F1 (pentest_report.md): article_thumbnails/club_banners/
+    // course_covers used to be `allow write: if isSignedIn()` with no
+    // ownership check at all, while the Firestore DOCUMENT each image
+    // belongs to (articles/{id}, clubs/{id}, public_courses/{id}) is
+    // strictly owner-gated -- any signed-in user could overwrite another
+    // user's article thumbnail/club banner/course cover by uploading to
+    // its predictable {id}.jpg path, without ever touching the document
+    // that actually "owns" it. These three helpers mirror the exact
+    // ownership check each corresponding firestore.rules update rule
+    // already uses, extracting the id from the filename (fileName is
+    // always `{id}.{ext}`, matching every actual upload call site in
+    // lib/repositories/).
+    function isArticleAuthor(articleId) {
+      return isSignedIn() &&
+        firestore.get(/databases/(default)/documents/articles/$(articleId)).data.authorId == request.auth.uid;
+    }
+
+    function isCourseCreator(courseId) {
+      return isSignedIn() &&
+        firestore.get(/databases/(default)/documents/public_courses/$(courseId)).data.creatorId == request.auth.uid;
+    }
+
+    function isClubManager(clubId) {
+      return isSignedIn() && (
+        firestore.get(/databases/(default)/documents/clubs/$(clubId)).data.moderatorId == request.auth.uid
+        || (
+          firestore.exists(/databases/(default)/documents/clubs/$(clubId)/members/$(request.auth.uid))
+          && firestore.get(/databases/(default)/documents/clubs/$(clubId)/members/$(request.auth.uid)).data.role in ['admin', 'moderator']
+        )
+        || canManageSchool()
+      );
+    }
+
     // ── avatars/{uid}.jpg ────────────────────────────────────────────
     // Public read (profile photos shown everywhere — avatars, chat,
     // clubs); only the owning account can (over)write their own.
@@ -63,15 +96,18 @@ service firebase.storage {
     }
 
     // ── article_thumbnails/{articleId}.jpg ──────────────────────────
+    // Fix for F1: owner-only, matching articles/{id}'s own update rule.
     match /article_thumbnails/{fileName} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isArticleAuthor(fileName.split('.')[0]);
     }
 
     // ── club_banners/{clubId}.jpg ────────────────────────────────────
+    // Fix for F1: club admin/moderator/staff only, matching clubs/{id}'s
+    // own update rule.
     match /club_banners/{fileName} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isClubManager(fileName.split('.')[0]);
     }
 
     // ── hero_slides/{slideId}.jpg ─────────────────────────────────────
@@ -88,9 +124,11 @@ service firebase.storage {
     }
 
     // ── course_covers/{courseId}.jpg ──────────────────────────────────
+    // Fix for F1: creator-only, matching public_courses/{id}'s own
+    // update rule.
     match /course_covers/{fileName} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isCourseCreator(fileName.split('.')[0]);
     }
 
     // ── quiz_categories/{categoryId}.jpg ──────────────────────────────

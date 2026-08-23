@@ -242,6 +242,15 @@ service cloud.firestore {
       match /study_timetable/{slotId} {
         allow read, create, update, delete: if isOwner(uid);
       }
+
+      // Daily Learning progress (lib/repositories/daily_learning_repository.dart)
+      // -- which lessons of a course (Etymology first) this user has
+      // completed. Course/lesson CONTENT is static app data, not
+      // Firestore -- only per-user progress needs a rule. Self-only,
+      // same shape as study_timetable above.
+      match /dailyLearningProgress/{courseId} {
+        allow read, create, update: if isOwner(uid);
+      }
     }
 
     // ── curriculum_icons/{id} ─────────────────────────────────────────

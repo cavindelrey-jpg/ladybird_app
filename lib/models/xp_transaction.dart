@@ -74,6 +74,7 @@ enum XpSource {
   clubQuestion,
   clubAnswer,
   clubBestAnswer,
+  dailyLearning,
 }
 
 extension XpSourceExt on XpSource {
@@ -101,6 +102,10 @@ extension XpSourceExt on XpSource {
       case XpSource.clubQuestion:    return 10;
       case XpSource.clubAnswer:      return 10;
       case XpSource.clubBestAnswer:  return 25;
+      // Daily Learning (Home's "Challenge" tile -- Etymology is the first
+      // course) quiz questions are MCQ-shaped, same rate as Testing's own
+      // mcq source.
+      case XpSource.dailyLearning:   return 15;
     }
   }
 
@@ -117,6 +122,7 @@ extension XpSourceExt on XpSource {
       case XpSource.clubQuestion:    return 'Club Question';
       case XpSource.clubAnswer:      return 'Club Answer';
       case XpSource.clubBestAnswer:  return 'Best Answer';
+      case XpSource.dailyLearning:   return 'Daily Learning';
     }
   }
 }

@@ -43,14 +43,13 @@ import '../../models/personal_study_slot.dart';
 import '../../models/messaging.dart';
 import '../../repositories/personal_study_repository.dart';
 import '../../repositories/announcement_repository.dart';
-import '../../repositories/daily_challenge_repository.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../repositories/test_repository.dart';
 import '../../repositories/messaging_repository.dart';
 import '../../services/auth_service.dart';
 import '../../repositories/xp_repository.dart';
 import '../../widgets/widgets.dart';
-import '../../pages/daily_challenge_page.dart';
+import '../daily_learning/daily_learning_hub_page.dart';
 import '../../pages/search_page.dart';
 import '../../pages/notifications_page.dart';
 import '../academic_content/content_viewer_page.dart';
@@ -582,7 +581,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           _isGuest ? () => showToast(context, 'Sign in to build your study schedule.')
                    : () => _open(context, PersonalStudyPage(user: _u!))),
       ('Challenge', Icons.local_fire_department_rounded, ac.org,
-          () => _openDailyChallenge(context)),
+          _isGuest ? () => showToast(context, "Sign in to take today's challenge.")
+                   : () => _open(context, DailyLearningHubPage(user: _u!))),
       ('Announcements', Icons.campaign_rounded, ac.pur,
           () => _open(context, AnnouncementsPage(user: _userOrGuest, canPost: !_isGuest && _u!.canPostAnnouncement))),
       ('Messages', Icons.mail_outline_rounded, ac.primary,
@@ -656,21 +656,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         );
       },
     );
-  }
-
-  Future<void> _openDailyChallenge(BuildContext context) async {
-    if (_isGuest) {
-      showToast(context, "Sign in to take today's challenge.");
-      return;
-    }
-    final challenge = await DailyChallengeRepository.instance.getToday();
-    if (!context.mounted) return;
-    if (challenge == null) {
-      showToast(context, 'No challenge today -- check back soon.');
-      return;
-    }
-    Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => DailyChallengePage(user: _u!, challenge: challenge)));
   }
 
   // -- Upcoming Events + Announcements -------------------------------------

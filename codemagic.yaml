@@ -28,6 +28,17 @@ workflows:
     scripts:
       - name: Get Flutter packages
         script: flutter pub get
+      - name: Regenerate app icon + splash from Green Hill branding
+        # pubspec.yaml's flutter_launcher_icons/flutter_native_splash
+        # config points at assets/branding/green_hill_logo.png, but that
+        # only takes effect once these generators actually run -- without
+        # this step the committed android/ios/web/windows icon files stay
+        # whatever was last generated (previously Academia's logo, since
+        # nothing regenerated them here before). Running both every build
+        # means the icon can't silently drift stale again.
+        script: |
+          flutter pub run flutter_launcher_icons
+          flutter pub run flutter_native_splash:create
       - name: Analyze
         # --no-fatal-infos: flutter analyze exits 1 on ANY finding,
         # including plain style infos (unnecessary_const, prefer_const_

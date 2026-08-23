@@ -30,23 +30,30 @@ class Branding {
     required this.splashAssetPath,
   });
 
+  // Was defaulted to 'academia' -- this codebase now only ships as Green
+  // Hills (codemagic.yaml has a single BRAND_ID=green_hill workflow), so
+  // any build/run invocation that omits the dart-define (a plain `flutter
+  // run`, an IDE launch config, a future CI step someone forgets to flag)
+  // rendered Academia's name/logo/colors by default instead. Default to
+  // green_hill so "just run it" is Green Hills without remembering the flag.
   static const String _envBrandId =
-      String.fromEnvironment('BRAND_ID', defaultValue: 'academia');
+      String.fromEnvironment('BRAND_ID', defaultValue: 'green_hill');
 
   /// Hardcoded fallback so every screen has *something* to read even if
   /// asset loading hasn't completed yet (or fails) -- matches this
   /// codebase's existing "never a blank/broken screen" standard. main()
   /// awaits [load] before runApp, so in practice this is only ever seen
-  /// for one frame at worst.
+  /// for one frame at worst. Mirrors assets/branding/green_hill.json so
+  /// that one frame is Green Hills too, not a flash of Academia blue.
   static Branding _current = const Branding(
     brandId: _envBrandId,
-    appName: 'Academia',
-    tagline: 'Your Complete Smart School Platform',
-    primaryColor: const Color(0xFF1A56DB),
-    secondaryColor: const Color(0xFF0A1F44),
-    accentColor: const Color(0xFFC9A227),
-    logoAssetPath: 'assets/icon/academia_logo_square.png',
-    splashAssetPath: 'assets/icon/academia_logo_square.png',
+    appName: 'Green Hills Academic Complex',
+    tagline: 'Solid Foundation. Discipline. Success.',
+    primaryColor: const Color(0xFF0A7A3B),
+    secondaryColor: const Color(0xFF16A34A),
+    accentColor: const Color(0xFF86EFAC),
+    logoAssetPath: 'assets/branding/green_hill_logo.png',
+    splashAssetPath: 'assets/branding/green_hill_logo.png',
   );
 
   static Branding get current => _current;

@@ -4035,3 +4035,66 @@ for the same commands throughout. `git commit -m` with a multi-line
 PowerShell here-string also failed ("not a git command", an argument-
 passing issue); `git commit -F <file>` worked. If Bash git commands start
 hanging again, switch to PowerShell rather than retrying Bash repeatedly.
+
+## 2026-08-23 — Kill remaining Academia blue/logo (user: "past attempts kept failing")
+
+User reported the app still shows Academia's blue theme and logo despite
+prior brand-aware work (AppColors/BrandLogo conversions on Home, Login,
+first-login, account-choice). Root-caused three independent leaks, fixed
+all three rather than re-attempting the same partial screen-by-screen
+conversion that had already failed twice:
+
+1. **Home-screen app icon + native splash were still Academia's navy
+   torch mark**, unconditionally, regardless of BRAND_ID — these are
+   pre-generated binary files (android mipmap-*/ic_launcher.png, iOS
+   AppIcon.appiconset, etc.) produced by `flutter_launcher_icons`/
+   `flutter_native_splash`, and pubspec.yaml's config for both still
+   pointed at `assets/icon/academia_logo_square.png`. Runtime
+   `Branding`/`BrandLogo` fixes never touch these — they're baked in at
+   codegen time, before Flutter even boots. Fixed: pubspec.yaml now
+   points both at `assets/branding/green_hill_logo.png`, and
+   codemagic.yaml runs both generators every build (new step, before
+   Analyze) so this can't go stale again. **Could not regenerate the
+   actual checked-in binary icon files in this sandbox** — no `flutter`,
+   no ImageMagick, no network for `pip install Pillow`. The new
+   codemagic.yaml step will regenerate them on the next CI build; the
+   committed files under android/ios/web/windows res dirs are still the
+   old Academia PNGs until that build runs.
+2. **`_envBrandId` default was `'academia'`**, so any invocation that
+   omits `--dart-define=BRAND_ID` (bare `flutter run`, an IDE launch
+   config) rendered Academia's name/logo/colors. Codemagic's own build
+   does pass the flag correctly, but nothing else in the repo did.
+   Assumption: since codemagic.yaml now has exactly one workflow and it
+   only ever builds `green_hill`, this codebase is no longer
+   meaningfully dual-brand — defaulted `_envBrandId` and the hardcoded
+   pre-load `Branding._current` fallback to Green Hills' real values
+   instead of Academia's placeholders.
+3. **~60 call sites across clubs_page.dart, magazine_feed_page.dart,
+   hero_slide_manager_page.dart, create_club_page.dart,
+   club_settings_page.dart, quick_access_feature.dart** read the legacy
+   `C.primary`/`C.navy`/`C.gold` constants directly (many inside `const`
+   constructors), not the brand-aware `AppColors.of(context)` — per
+   app_colors.dart's own file header, `C` was deliberately left
+   const/non-brand-aware because making it context-aware would break
+   every `const` call site with no compiler here to catch which ones.
+   Converting all ~60 sites file-by-file is the same multi-hour
+   `const`-removal refactor previously flagged as out-of-scope (and
+   plausibly why past sessions "kept failing" — large uncompiled
+   mechanical refactors are exactly where that goes wrong). Instead,
+   repainted `C.primary`/`primaryBg`/`navy`/`navy2`/`navy3` themselves to
+   Green Hills' green (the same hex values `AppColors.greenHillLight`
+   already samples from the real logo) — zero call sites touched, zero
+   `const` removed, every remaining blue reference goes green at once.
+   `C.gold` and all semantic/status colors (red/org/pur/blu/grn) left
+   untouched, matching the precedent already set in
+   `AppColors.greenHillLight`.
+
+**Not done / follow-up for a real Flutter+network environment**: run
+`flutter pub run flutter_launcher_icons` and
+`flutter pub run flutter_native_splash:create` locally (or just push and
+let the new codemagic step do it) to actually regenerate the committed
+icon/splash binaries — until then the *files on disk* are still
+Academia's, only the *generator config* points at Green Hills. Run
+`flutter analyze` after pulling this — it could not be run in this
+sandbox (`flutter` not installed) so the `C` token rename/repaint and
+branding.dart default change are unverified against the compiler.

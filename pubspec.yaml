@@ -75,20 +75,28 @@ flutter:
     - assets/icon/
     - assets/branding/
 
+# Was pointed at assets/icon/academia_logo_square.png -- this only ever
+# regenerates the checked-in platform icon/splash files when someone runs
+# `flutter pub run flutter_launcher_icons`/`flutter_native_splash:create`
+# by hand, so the home-screen app icon and native splash screen (shown
+# before Branding.load() ever runs) stayed Academia's navy torch mark
+# even after in-app screens went brand-aware. Pointed at the real Green
+# Hills crest now, and codemagic.yaml runs both generators every build so
+# this can't silently drift stale again.
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/icon/academia_logo_square.png"
+  image_path: "assets/branding/green_hill_logo.png"
   remove_alpha_ios: true
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/icon/academia_logo_square.png"
+  adaptive_icon_foreground: "assets/branding/green_hill_logo.png"
 
 flutter_native_splash:
   color: "#FFFFFF"
-  image: "assets/icon/academia_logo_square.png"
+  image: "assets/branding/green_hill_logo.png"
   android_12:
     color: "#FFFFFF"
-    image: "assets/icon/academia_logo_square.png"
+    image: "assets/branding/green_hill_logo.png"
   android: true
   ios: true
 

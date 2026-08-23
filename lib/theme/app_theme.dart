@@ -1,23 +1,35 @@
 // lib/theme/app_theme.dart
-// Academia Design System — Material 3, Navy × Gold palette.
+// Green Hills Design System — Material 3, Green × Gold palette.
 // All colour tokens are defined once here, used everywhere.
+//
+// `C.primary`/`navy`/`navy2`/`navy3` were Academia's blue/navy brand
+// tokens. This codebase now only ships as Green Hills (codemagic.yaml
+// has a single BRAND_ID=green_hill workflow) and ~60 call sites across
+// clubs/magazine/admin pages still read these `C.xxx` constants directly
+// in `const` constructors rather than the brand-aware AppColors.of()
+// (see app_colors.dart's file header for why `C` can't be made
+// context-aware without breaking every `const` call site). Repainting
+// the constants themselves to Green Hills' green — the same values
+// AppColors.greenHillLight already samples from
+// assets/branding/green_hill_logo.png's shield — fixes every one of
+// those sites at once without the multi-file `const`-removal refactor.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 import '../config/branding.dart';
 
-/// Academia Design System colour tokens.
+/// Green Hills Design System colour tokens.
 class C {
   C._();
 
   // ── Brand ───────────────────────────────────────────────────────────────
-  static const Color primary   = Color(0xFF1A56DB);   // Academy Blue
-  static const Color primaryBg = Color(0xFFEEF4FF);   // Very pale blue
+  static const Color primary   = Color(0xFF16A34A);   // Green Hills green
+  static const Color primaryBg = Color(0xFFDCFCE7);   // Very pale green
 
-  static const Color navy  = Color(0xFF0A1F44);   // Deep navy
-  static const Color navy2 = Color(0xFF152D5E);   // Mid navy
-  static const Color navy3 = Color(0xFF3B4E7A);   // Slate navy
+  static const Color navy  = Color(0xFF0A7A3B);   // Deep green (was navy)
+  static const Color navy2 = Color(0xFF0F5C35);   // Mid green (was navy2)
+  static const Color navy3 = Color(0xFF1F7A4D);   // Slate green (was navy3)
 
   static const Color gold  = Color(0xFFC9A227);   // Academy Gold
   static const Color goldp = Color(0xFFFBF3DA);   // Pale gold

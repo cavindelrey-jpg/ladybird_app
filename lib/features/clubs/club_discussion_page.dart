@@ -26,6 +26,8 @@ import '../../models/models.dart';
 import '../../repositories/club_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
+import '../../config/branding.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 
@@ -78,9 +80,10 @@ class _AskQuestionPageState extends State<AskQuestionPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
-      appBar: AppBar(backgroundColor: C.bg, elevation: 0, iconTheme: const IconThemeData(color: C.txt),
+      backgroundColor: ac.bg,
+      appBar: AppBar(backgroundColor: ac.bg, elevation: 0, iconTheme: IconThemeData(color: ac.txt),
           title: Text('Ask a Question', style: AppText.title)),
       body: AppBackground(child: SafeArea(child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -201,15 +204,17 @@ class _ClubDiscussionDetailPageState extends State<ClubDiscussionDetailPage> {
 
   void _shareDiscussion() {
     HapticFeedback.selectionClick();
-    Share.share('"${widget.discussion.title}" — a discussion in ${widget.club.name} on Academia.\n\n'
-        'Open the Academia app, go to Clubs > ${widget.club.name} > Discussions to join in.');
+    final appName = Branding.current.appName;
+    Share.share('"${widget.discussion.title}" — a discussion in ${widget.club.name} on $appName.\n\n'
+        'Open the $appName app, go to Clubs > ${widget.club.name} > Discussions to join in.');
   }
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
-      appBar: AppBar(backgroundColor: C.bg, elevation: 0, iconTheme: const IconThemeData(color: C.txt),
+      backgroundColor: ac.bg,
+      appBar: AppBar(backgroundColor: ac.bg, elevation: 0, iconTheme: IconThemeData(color: ac.txt),
           title: Text('Discussion', style: AppText.title),
           actions: [
             IconButton(icon: const Icon(Icons.ios_share_rounded), onPressed: _shareDiscussion, tooltip: 'Share'),

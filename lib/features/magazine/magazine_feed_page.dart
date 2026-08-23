@@ -70,6 +70,7 @@ import '../../repositories/follow_repository.dart';
 import '../../repositories/recommendation_repository.dart';
 import '../../repositories/club_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../theme/category_colors.dart';
 import '../../theme/club_visuals.dart';
 import '../../widgets/widgets.dart';
@@ -204,8 +205,9 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: AppBackground(child: SafeArea(
         child: Column(children: [
           _header(context),
@@ -1390,11 +1392,12 @@ class _AllArticlesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text(title, style: AppText.title),
       ),
       body: AppBackground(child: StreamBuilder<List<MagazineArticle>>(
@@ -1438,11 +1441,12 @@ class _AllGalleryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text('Student Gallery', style: AppText.title),
       ),
       body: AppBackground(child: StreamBuilder<List<MagazineGalleryPost>>(
@@ -1505,11 +1509,12 @@ class _AllVideosPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text('Latest Videos', style: AppText.title),
       ),
       body: AppBackground(child: StreamBuilder<List<MagazineVideoPost>>(

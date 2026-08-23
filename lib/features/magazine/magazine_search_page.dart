@@ -12,6 +12,7 @@ import '../../models/magazine_article.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../core/debouncer.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'magazine_feed_page.dart' show ArticleListCard;
@@ -59,11 +60,12 @@ class _MagazineSearchPageState extends State<MagazineSearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         titleSpacing: 0,
         title: Container(
           height: 40,

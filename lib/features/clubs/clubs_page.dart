@@ -45,6 +45,7 @@ import '../../repositories/recommendation_repository.dart';
 import '../../core/result.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 import '../../theme/club_visuals.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
@@ -99,8 +100,9 @@ class _ClubsPageState extends State<ClubsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: AppBackground(child: SafeArea(
         child: StreamBuilder<List<Club>>(
           stream: _clubsStream,
@@ -800,11 +802,12 @@ class AllClubsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
         title: Text('Discover Clubs', style: AppText.title),
       ),
       body: AppBackground(child: clubs.isEmpty
@@ -870,8 +873,9 @@ class _ClubDetailPageState extends State<ClubDetailPage>
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: SafeArea(
         bottom: false,
         child: Column(children: [
@@ -1275,12 +1279,13 @@ class _ClubChatPageState extends State<ClubChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: C.bg, elevation: 0,
-        iconTheme: const IconThemeData(color: C.txt),
-        title: Text('${widget.club.name} · Chat', style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700, color: C.txt)),
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
+        title: Text('${widget.club.name} · Chat', style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt)),
       ),
       body: _ChatTab(club: widget.club, user: widget.user, scroll: _scroll, ctrl: _ctrl, onSend: _send),
     );
@@ -1447,8 +1452,9 @@ class _FeedTab extends StatefulWidget {
 class _FeedTabState extends State<_FeedTab> {
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: StreamBuilder<List<ClubPost>>(
         stream: ClubRepository.instance.watchPosts(widget.club.id),
         builder: (context, snap) {
@@ -1672,8 +1678,9 @@ class _DiscussionsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: StreamBuilder<List<ClubDiscussion>>(
         stream: ClubRepository.instance.watchDiscussions(club.id),
         builder: (context, snap) {
@@ -1769,8 +1776,9 @@ class _ResourcesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: StreamBuilder<List<ClubResource>>(
         stream: ClubRepository.instance.watchResources(club.id),
         builder: (context, snap) {
@@ -1912,8 +1920,9 @@ class _EventsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Scaffold(
-      backgroundColor: C.bg,
+      backgroundColor: ac.bg,
       body: StreamBuilder<List<ClubEvent>>(
         stream: ClubRepository.instance.watchEvents(club.id),
         builder: (context, snap) {

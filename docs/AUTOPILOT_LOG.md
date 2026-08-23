@@ -4165,3 +4165,45 @@ SDK in this sandbox. Reviewed the full file by hand for balanced
 braces/parens and correct constructor signatures against every page/repo
 it calls into, but this is unverified against the actual compiler. Run
 `flutter analyze` and `flutter test` first thing next session.
+
+## 2026-08-23 (3) — Found the real reason it still looks like Academia: native splash + web manifest
+
+User pushed back hard ("still blue as hell... still looks too much like
+Academia") after the earlier theme-token fixes. Investigated what's
+actually still Academia-branded outside `lib/`:
+
+- **Web (`web/manifest.json`, `web/index.html`)**: name/short_name/
+  description/title/apple-mobile-web-app-title were still literally
+  "Academia", and theme_color/background_color were Academia navy
+  (`#0B1B33`). This is pure text/JSON, no image tooling needed -- fixed
+  directly: name -> "Green Hills Academic Complex", theme_color ->
+  `#0A7A3B` (green), background_color -> `#FFFFFF`.
+- **iOS `Info.plist` CFBundleDisplayName**: "Academia App" -- the label
+  under the icon on an iOS home screen. Fixed to "Green Hill Academy"
+  (matches the Android `greenhill` flavor's resValue app_name, which was
+  already correct -- Android's per-flavor branding split was done right
+  already, this was just checked and confirmed, not changed).
+- **Android launcher label**: already correct per-flavor
+  (`android/app/build.gradle.kts`'s `greenhill` productFlavor resValue is
+  "Green Hill Academy") -- confirmed, not a source of the complaint.
+- **The actual native splash screen PNG** (`android/app/src/main/res/
+  drawable-xxxhdpi/splash.png` etc.) is very likely the real, dominant
+  cause of "still blue as hell": it's the literal Academia navy
+  torch-A logo, shown full-screen before Flutter (and Branding.load())
+  ever runs -- the first thing anyone sees on every launch. Same root
+  cause identified and partially addressed in the 2026-08-23 (1) session
+  (pubspec.yaml's flutter_launcher_icons/flutter_native_splash config now
+  points at assets/branding/green_hill_logo.png, and codemagic.yaml now
+  runs both generators every build) -- but the actual checked-in binary
+  PNGs (Android mipmaps/drawables, iOS AppIcon.appiconset, web
+  splash/img/*.png, web/icons/Icon-*.png, favicon.png) are still the old
+  Academia files and **still cannot be regenerated in this sandbox**:
+  confirmed (again) no `flutter`, no ImageMagick (`apt-get install
+  imagemagick` timed out -- no network), no `pip install Pillow` (also
+  timed out -- no network). This genuinely requires either running
+  `flutter pub run flutter_launcher_icons` + `flutter pub run
+  flutter_native_splash:create` in a real Flutter environment, or a
+  Codemagic build (which now does this automatically per the earlier
+  fix) -- there is no source-code-only fix for a pre-generated binary
+  image file. Told the user this directly rather than claiming it's
+  fixed.

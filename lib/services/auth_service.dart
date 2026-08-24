@@ -1,4 +1,5 @@
 // lib/services/auth_service.dart
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:google_sign_in/google_sign_in.dart';
@@ -8,6 +9,7 @@ import '../core/constants.dart';
 import '../core/xp_rules.dart';
 import '../core/result.dart';
 import '../repositories/xp_repository.dart';
+import 'analytics_service.dart' show AuditService, AuditSeverity;
 
 class AuthService {
   AuthService._();
@@ -35,17 +37,49 @@ class AuthService {
         (doc) => doc.exists ? AppUser.fromFirestore(u.uid, doc.data()!) : null);
   }
 
+  // Pre-launch audit: real login attempts (success, suspended-account
+  // block, and failure) were not logged anywhere -- fire-and-forget
+  // (unawaited, best-effort per AuditService.log's own contract) so a
+  // slow/failed audit write never blocks or breaks the actual sign-in
+  // flow. 'platform' is the bucket for accounts with no schoolId (this
+  // app's single-account model means that's most of them) rather than
+  // making institutionId nullable throughout AuditService.
   Future<AppUser?> signIn({required String email, required String password}) async {
-    final cred = await _auth.signInWithEmailAndPassword(email: email, password: password);
-    final uid  = cred.user!.uid;
-    final doc  = await _db.collection(AppConstants.colUsers).doc(uid).get();
-    if (!doc.exists) return null;
-    final user = AppUser.fromFirestore(uid, doc.data()!);
-    if (user.status == AccountStatus.suspended) {
-      await _auth.signOut();
-      throw Exception('This account has been suspended. Contact administration.');
+    try {
+      final cred = await _auth.signInWithEmailAndPassword(email: email, password: password);
+      final uid  = cred.user!.uid;
+      final doc  = await _db.collection(AppConstants.colUsers).doc(uid).get();
+      if (!doc.exists) {
+        unawaited(AuditService.instance.log(
+          institutionId: 'platform', actorId: uid, actorRole: 'unknown',
+          action: 'login_failed_no_profile', severity: AuditSeverity.warning,
+        ));
+        return null;
+      }
+      final user = AppUser.fromFirestore(uid, doc.data()!);
+      if (user.status == AccountStatus.suspended) {
+        await _auth.signOut();
+        unawaited(AuditService.instance.log(
+          institutionId: user.schoolId ?? 'platform', actorId: uid, actorRole: user.roleLabel,
+          action: 'login_blocked_suspended', severity: AuditSeverity.warning,
+        ));
+        throw Exception('This account has been suspended. Contact administration.');
+      }
+      unawaited(AuditService.instance.log(
+        institutionId: user.schoolId ?? 'platform', actorId: uid, actorRole: user.roleLabel,
+        action: 'login_success',
+      ));
+      return user;
+    } on fb.FirebaseAuthException catch (e) {
+      // Deliberately logs the email + error CODE, never the password --
+      // useful for spotting a brute-force pattern against one account
+      // without recording anything sensitive.
+      unawaited(AuditService.instance.log(
+        institutionId: 'platform', actorId: email, actorRole: 'unknown',
+        action: 'login_failed', metadata: {'code': e.code}, severity: AuditSeverity.warning,
+      ));
+      rethrow;
     }
-    return user;
   }
 
   Future<AppUser> signUpIndependent({

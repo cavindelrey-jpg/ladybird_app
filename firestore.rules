@@ -1024,8 +1024,19 @@ service cloud.firestore {
       }
     }
 
-    // ── audit_logs/{id} ───────────────────────────────────────────────
-    match /audit_logs/{id} {
+    // ── audit_logs/{institutionId}/entries/{entryId} ─────────────────────
+    // Pre-launch audit finding: this rule was `match /audit_logs/{id}`,
+    // a flat top-level match -- but AuditService.log() (services/
+    // analytics_service.dart) writes to the NESTED path
+    // `audit_logs/{institutionId}/entries/{entryId}`. A single-segment
+    // match does not cascade to subcollections in Firestore rules, so
+    // every write to the real path had no matching rule at all and was
+    // default-denied -- the audit-logging mechanism has never actually
+    // worked. (Currently also has zero call sites anywhere in lib/, so
+    // this was silent/inert rather than an active production failure --
+    // flagging both facts: the plumbing is now fixed, but nothing calls
+    // it yet. See docs/AUTOPILOT_LOG.md.)
+    match /audit_logs/{institutionId}/entries/{entryId} {
       allow read: if isSuperAdmin();
       allow create: if isSignedIn(); // app writes audit entries for any signed-in action
       allow update, delete: if false; // append-only

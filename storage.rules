@@ -54,6 +54,19 @@ service firebase.storage {
         ).data.participantIds;
     }
 
+    // Pre-launch audit: no path in this file enforced any file-size
+    // limit at all -- a signed-in user (any tier that could write to a
+    // given path) could upload an arbitrarily large object, a real
+    // storage-cost/abuse vector with nothing here to stop it (client-side
+    // picker restrictions alone don't count -- a modified client can
+    // skip them entirely). Two tiers: images stay small, actual content
+    // files (videos/PDFs/docs) get a generous but bounded cap.
+    function underSize(maxBytes) {
+      return request.resource.size < maxBytes;
+    }
+    function isReasonableImage() { return underSize(10 * 1024 * 1024); }        // 10MB
+    function isReasonableContentFile() { return underSize(300 * 1024 * 1024); } // 300MB -- video lessons need headroom
+
     // Fix for F1 (pentest_report.md): article_thumbnails/club_banners/
     // course_covers used to be `allow write: if isSignedIn()` with no
     // ownership check at all, while the Firestore DOCUMENT each image
@@ -92,14 +105,14 @@ service firebase.storage {
     // clubs); only the owning account can (over)write their own.
     match /avatars/{fileName} {
       allow read: if true;
-      allow write: if isSignedIn() && fileName.matches(request.auth.uid + '\\..*');
+      allow write: if isSignedIn() && fileName.matches(request.auth.uid + '\\..*') && isReasonableImage();
     }
 
     // ── article_thumbnails/{articleId}.jpg ──────────────────────────
     // Fix for F1: owner-only, matching articles/{id}'s own update rule.
     match /article_thumbnails/{fileName} {
       allow read: if true;
-      allow write: if isArticleAuthor(fileName.split('.')[0]);
+      allow write: if isArticleAuthor(fileName.split('.')[0]) && isReasonableImage();
     }
 
     // ── club_banners/{clubId}.jpg ────────────────────────────────────
@@ -107,20 +120,20 @@ service firebase.storage {
     // own update rule.
     match /club_banners/{fileName} {
       allow read: if true;
-      allow write: if isClubManager(fileName.split('.')[0]);
+      allow write: if isClubManager(fileName.split('.')[0]) && isReasonableImage();
     }
 
     // ── hero_slides/{slideId}.jpg ─────────────────────────────────────
     // Matches heroSlides/{id} Firestore rule: superAdmin/schoolAdmin only.
     match /hero_slides/{fileName} {
       allow read: if true;
-      allow write: if canManageSchool();
+      allow write: if canManageSchool() && isReasonableImage();
     }
 
     // ── curriculum_icons/{docId}.jpg ──────────────────────────────────
     match /curriculum_icons/{fileName} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isSignedIn() && isReasonableImage();
     }
 
     // ── course_covers/{courseId}.jpg ──────────────────────────────────
@@ -128,7 +141,7 @@ service firebase.storage {
     // update rule.
     match /course_covers/{fileName} {
       allow read: if true;
-      allow write: if isCourseCreator(fileName.split('.')[0]);
+      allow write: if isCourseCreator(fileName.split('.')[0]) && isReasonableImage();
     }
 
     // ── quiz_categories/{categoryId}.jpg ──────────────────────────────
@@ -138,7 +151,7 @@ service firebase.storage {
     // canUploadContent gate on the edit affordance.
     match /quiz_categories/{fileName} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isSignedIn() && isReasonableImage();
     }
 
     // ── test_thumbnails/{testId}.jpg ──────────────────────────────────
@@ -148,7 +161,7 @@ service firebase.storage {
     // a real owner unlike the free-text Subject/Topic tree nodes above.
     match /test_thumbnails/{fileName} {
       allow read: if true;
-      allow write: if canUploadContent();
+      allow write: if canUploadContent() && isReasonableImage();
     }
 
     // ── public_courses/inline/... ─────────────────────────────────────
@@ -157,20 +170,22 @@ service firebase.storage {
     // Admin SDK (bypasses these rules entirely), this just covers reads.
     match /public_courses/inline/{fileName} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if isSignedIn() && isReasonableImage();
     }
 
     // ── content_files/{institutionId}/{fileName} ──────────────────────
     // ── thumbnails/{institutionId}/{fileName} ─────────────────────────
     // Matches academic_content/{id} Firestore rule: lecturer+ uploads,
-    // anyone (including guests) reads.
+    // anyone (including guests) reads. content_files holds the actual
+    // book/video/PDF, so it gets the larger content-file cap;
+    // thumbnails are images, small cap.
     match /content_files/{institutionId}/{fileName} {
       allow read: if true;
-      allow write: if canUploadContent();
+      allow write: if canUploadContent() && isReasonableContentFile();
     }
     match /thumbnails/{institutionId}/{fileName} {
       allow read: if true;
-      allow write: if canUploadContent();
+      allow write: if canUploadContent() && isReasonableImage();
     }
 
     // ── chat_media/{conversationId}/{fileName} ────────────────────────
@@ -178,11 +193,19 @@ service firebase.storage {
     // Only the two (or more) participants in a conversation can read or
     // send its attachments — mirrors conversations/{id}/messages'
     // Firestore rule exactly (request.auth.uid in participantIds).
+    // read and write split (rather than the original combined `allow
+    // read, write`) because request.resource.size is only meaningful on
+    // a write -- referencing it on a read would error the rule and
+    // effectively break reading chat attachments entirely. chat_files
+    // can be any attachment type (not just images), so it gets the
+    // larger content-file cap rather than the image-only one.
     match /chat_media/{conversationId}/{fileName} {
-      allow read, write: if isConversationParticipant(conversationId);
+      allow read: if isConversationParticipant(conversationId);
+      allow write: if isConversationParticipant(conversationId) && isReasonableImage();
     }
     match /chat_files/{conversationId}/{fileName} {
-      allow read, write: if isConversationParticipant(conversationId);
+      allow read: if isConversationParticipant(conversationId);
+      allow write: if isConversationParticipant(conversationId) && isReasonableContentFile();
     }
 
     // ── Default deny ───────────────────────────────────────────────────

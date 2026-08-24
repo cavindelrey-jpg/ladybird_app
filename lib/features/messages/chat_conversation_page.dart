@@ -185,7 +185,18 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     if (mounted) setState(() { _sending = false; _uploadProgress = null; });
   }
 
-  /// General file attachment — any type, not just photo/video.
+  /// General file attachment — any type, not just photo/video (unlike
+  /// the content-upload pickers elsewhere, which already lock down to a
+  /// document/media allowlist). Blocking executables specifically here
+  /// rather than adopting the same narrow allowlist -- a chat attachment
+  /// legitimately can be almost any document/media/archive type, so a
+  /// blocklist for the genuinely dangerous formats is the right shape
+  /// for this one picker, not "any file at all".
+  static const _blockedChatExtensions = {
+    'exe', 'apk', 'bat', 'cmd', 'com', 'msi', 'dmg', 'app',
+    'deb', 'sh', 'jar', 'scr', 'pif', 'vbs', 'js', 'ps1',
+  };
+
   Future<void> _pickAndSendFile() async {
     final result = await FilePicker.platform.pickFiles(withData: false);
     if (result == null || result.files.isEmpty) return;
@@ -193,6 +204,11 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     final path = picked.path;
     if (path == null) {
       if (mounted) showToast(context, 'Could not read that file.', isError: true);
+      return;
+    }
+    final ext = picked.extension?.toLowerCase() ?? '';
+    if (_blockedChatExtensions.contains(ext)) {
+      if (mounted) showToast(context, 'That file type isn\'t allowed as an attachment.', isError: true);
       return;
     }
     await _uploadAndSendFile(File(path), picked.name);

@@ -4521,3 +4521,61 @@ if they were, `--write` bypasses every firestore.rules check via an
 admin key -- same "ask directly, don't autopilot-default" bar the prior
 session's actual course publish used. The two JSON files are ready to
 run through that exact command when the user has that environment.
+
+## 2026-08-24 (5) — Phase 5: nav reorg, "+" content-creation menu, real announcement photo upload, message contrast
+
+**item 13 (nav reorg)**: app_drawer.dart regrouped into the exact 4
+sections requested -- Content (Home/Academia Courses/Academia Library/
+Past Questions), Assessment (Academia Tests/Academia Quizzes/Create
+Quiz), Communication (Magazine/Messaging/Clubs), Settings &
+Personalization (Settings/Notifications/Support/Profile). Grading Queue
+(lecturer+) doesn't fit any of the four -- kept as a clearly separated
+trailing section rather than forced in.
+
+**item 14 (remove permanent creation shortcuts)**: found two real
+instances of "sitting constantly at the top" -- Courses'
+`_createCourseCta` (always visible for any signed-in user) and
+Magazine's `_writeCta` card (Write a Post/Photos/Video, always visible
+for any non-guest). Removed both, including their now-dead private
+methods and the imports that were only used inside them
+(CourseComposerPage, GalleryComposerPage, VideoComposerPage). Built
+`widgets/create_content_sheet.dart` -- one shared bottom sheet reachable
+from a new global "+" FAB on HomeShell (shared chrome across every
+bottom-nav tab) offering Article/Photos/Video/Course, plus Quiz/Library
+Content for lecturer+. Every destination is a real, pre-existing
+composer page; nothing new was invented, only how they're reached.
+
+**item 12 (announcement image upload)**: the "Image URL" field
+(confirmed via the supplied screenshot) had a deeper bug than just being
+the wrong widget -- `_imageCtrl`'s value was never even read by
+`_publish()`; filling it in did literally nothing, and `Announcement`
+had no `imageUrl` field to receive it. Added the field (model +
+Firestore read/write), a real device-photo flow (ImagePicker -> Storage
+upload keyed to a pre-allocated doc id, same two-step order
+hero_slide_manager_page.dart already uses -- get a real id first so the
+image can be keyed to it before the Firestore doc exists), and wired the
+result into `AnnCard` (which never rendered an image at all before, so
+even a correctly-populated imageUrl would have been invisible).
+`AnnouncementRepository.post()` changed from `add()`-only to the same
+upsert-on-id shape SchoolMarksRepository.upsert already uses.
+`storage.rules` gained `announcement_images/{id}.jpg`, gated on
+`canUploadContent()` (lecturer+) -- matching, not weaker than, the
+EXISTING announcements/{id} Firestore rule, which itself already gates
+on role (canPostAnnouncement()) rather than per-document ownership.
+
+**item 16 (message contrast)**: sent bubbles were `ac.primaryBg` (a pale
+tint) vs received `ac.surf` (plain surface) -- both very light, low-
+saturation colors that collapse toward similar in dark mode too. Changed
+to solid `ac.primary` for sent (white text/timestamp/read-receipt) vs
+plain `ac.surf` with a border for received (unchanged dark text) --
+same solid-accent-vs-neutral-surface convention WhatsApp/Telegram/
+iMessage all use, which holds up in both themes since one side is
+always a strong solid color.
+
+Phase 5 items 17 (subheadings) and 18 (internal school-page logos) were
+already closed in the earlier Academia-rename commit this session
+(schoolAppBar() + Library/Courses/Clubs/Messages headers) -- not
+repeated here.
+
+Not run against a compiler. Continuing to Phase 6 (homepage banner photo
++ messaging UI polish) next.

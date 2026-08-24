@@ -79,9 +79,7 @@ import 'article_reader_page.dart';
 import 'article_composer_page.dart';
 import 'author_profile_page.dart';
 import 'top_writers_page.dart';
-import 'gallery_composer_page.dart';
 import 'gallery_viewer_page.dart';
-import 'video_composer_page.dart';
 import 'magazine_video_player_page.dart';
 import '../clubs/clubs_page.dart';
 import '../../pages/notifications_page.dart';
@@ -287,7 +285,6 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                     )),
                     if (_tab == _FeedTab.trending && !_isGuest)
                       _PopularInNetworkSection(userId: widget.user!.id, currentUser: widget.user),
-                    if (_canCompose) _writeCta(context),
                   ],
                 );
               },
@@ -446,78 +443,6 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
     );
   }
 
-  Widget _writeCta(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(Rad.lg)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(color: C.navy, borderRadius: BorderRadius.circular(12)),
-              child: const Icon(Icons.edit_rounded, color: C.gold, size: 20),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Share your voice with the world',
-                    style: AppText.title.copyWith(fontSize: 13.5),
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
-                Text('Write and publish your ideas today.',
-                    style: AppText.caption.copyWith(fontSize: 11.5),
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-              ]),
-            ),
-          ]),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                HapticFeedback.mediumImpact();
-                Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => ArticleComposerPage(user: widget.user!)));
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: C.navy, foregroundColor: C.gold,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: Text('Write a Post', style: AppText.caption.copyWith(
-                  fontSize: 12, fontWeight: FontWeight.w700, color: C.gold)),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  HapticFeedback.selectionClick();
-                  Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => GalleryComposerPage(user: widget.user!)));
-                },
-                icon: const Icon(Icons.photo_library_outlined, size: 16),
-                label: Text('Photos', style: AppText.caption.copyWith(fontSize: 11.5)),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  HapticFeedback.selectionClick();
-                  Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => VideoComposerPage(user: widget.user!)));
-                },
-                icon: const Icon(Icons.videocam_outlined, size: 16),
-                label: Text('Video', style: AppText.caption.copyWith(fontSize: 11.5)),
-              ),
-            ),
-          ]),
-        ]),
-      ),
-    );
-  }
 
   Widget _localFeedEmptyState() {
     return Center(

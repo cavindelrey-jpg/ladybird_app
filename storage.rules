@@ -130,6 +130,18 @@ service firebase.storage {
       allow write: if canManageSchool() && isReasonableImage();
     }
 
+    // ── announcement_images/{announcementId}.jpg ───────────────────────
+    // Architecture brief item 12: device photo upload for announcements.
+    // Role-gated (not per-document ownership) to match the EXISTING
+    // announcements/{id} and schools/{schoolId}/announcements/{id}
+    // Firestore rules exactly, both of which already gate create/update
+    // on canPostAnnouncement() (any lecturer+), not a specific author —
+    // this isn't a weaker link than what already governs the doc itself.
+    match /announcement_images/{fileName} {
+      allow read: if true;
+      allow write: if canUploadContent() && isReasonableImage();
+    }
+
     // ── curriculum_icons/{docId}.jpg ──────────────────────────────────
     match /curriculum_icons/{fileName} {
       allow read: if true;

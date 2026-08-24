@@ -787,8 +787,14 @@ class _MessageBubble extends StatelessWidget {
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
+        // Item 16: a pale tint (primaryBg) vs plain surface read as two
+        // near-identical light shades, especially in dark mode where both
+        // collapse toward the same dark neutral. Solid primary vs plain
+        // surface gives real contrast in both themes -- same convention
+        // as WhatsApp/Telegram/iMessage (solid accent for "me", neutral
+        // surface for "them").
         decoration: BoxDecoration(
-          color: isMe ? ac.primaryBg : ac.surf,
+          color: isMe ? ac.primary : ac.surf,
           borderRadius: BorderRadius.circular(16),
           border: isMe ? null : Border.all(color: ac.bdr),
         ),
@@ -847,17 +853,18 @@ class _MessageBubble extends StatelessWidget {
             _SharedContentCard(message: message, currentUser: currentUser),
           if (message.text.isNotEmpty) ...[
             if ((message.imageUrl ?? message.videoUrl ?? message.fileUrl ?? '').isNotEmpty) const SizedBox(height: 8),
-            Text(message.text, style: AppText.bodySm.copyWith(color: ac.txt, fontSize: 14)),
+            Text(message.text, style: AppText.bodySm.copyWith(color: isMe ? Colors.white : ac.txt, fontSize: 14)),
           ],
           if (linkUrl != null) _LinkPreviewCard(url: linkUrl),
           const SizedBox(height: 4),
           Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(_formatTime(message.sentAt), style: AppText.caption.copyWith(fontSize: 10)),
+            Text(_formatTime(message.sentAt),
+                style: AppText.caption.copyWith(fontSize: 10, color: isMe ? Colors.white70 : ac.muted)),
             if (isMe) ...[
               const SizedBox(width: 4),
               message.isPending
-                  ? Icon(Icons.schedule_rounded, size: 12, color: ac.muted)
-                  : Icon(Icons.done_all_rounded, size: 13, color: read ? ac.primary : ac.muted),
+                  ? const Icon(Icons.schedule_rounded, size: 12, color: Colors.white70)
+                  : Icon(Icons.done_all_rounded, size: 13, color: read ? Colors.white : Colors.white70),
             ],
           ]),
         ]),

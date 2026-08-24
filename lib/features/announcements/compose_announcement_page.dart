@@ -1,9 +1,16 @@
 // lib/features/announcements/compose_announcement_page.dart
 // Full-page announcement composer for Teachers and Admins.
-// Supports title, body, urgency flag, and optional image URL attachment.
+// Supports title, body, urgency flag, and an optional photo attached
+// straight from the device -- item 12 of the architecture brief: the old
+// "Image URL" text field wasn't even wired into the Announcement it
+// built (filling it in silently did nothing). Pick -> upload -> preview
+// -> publish, same shape as every other image attachment in this app
+// (hero slides, article thumbnails).
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../models/models.dart';
 import '../../repositories/announcement_repository.dart';
 import '../../core/result.dart';
@@ -22,9 +29,10 @@ class ComposeAnnouncementPage extends StatefulWidget {
 class _ComposeAnnouncementPageState extends State<ComposeAnnouncementPage> {
   final _titleCtrl   = TextEditingController();
   final _bodyCtrl    = TextEditingController();
-  final _imageCtrl   = TextEditingController();
+  File? _pickedImage;
   bool _urgent = false;
   bool _loading = false;
+  bool _uploadingImage = false;
   String _category = 'General';
 
   static const _categories = ['General', 'Academic', 'Sports', 'Club', 'Emergency'];
@@ -33,8 +41,12 @@ class _ComposeAnnouncementPageState extends State<ComposeAnnouncementPage> {
   void dispose() {
     _titleCtrl.dispose();
     _bodyCtrl.dispose();
-    _imageCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked != null) setState(() => _pickedImage = File(picked.path));
   }
 
   Future<void> _publish() async {
@@ -44,9 +56,29 @@ class _ComposeAnnouncementPageState extends State<ComposeAnnouncementPage> {
     }
     setState(() => _loading = true);
 
+    final repo = AnnouncementRepository.instance;
+    // A real id is needed BEFORE the image upload so the file can be
+    // keyed to it (and so publish still works cleanly with no photo
+    // attached, in which case the empty-id add() path below is used).
+    final id = _pickedImage != null ? repo.newId(widget.user.schoolId) : '';
+    String? imageUrl;
+    if (_pickedImage != null) {
+      setState(() => _uploadingImage = true);
+      final uploadResult = await repo.uploadImage(id: id, imageFile: _pickedImage!);
+      if (!mounted) return;
+      setState(() => _uploadingImage = false);
+      switch (uploadResult) {
+        case Success(:final value): imageUrl = value;
+        case Failure(:final message):
+          setState(() => _loading = false);
+          showToast(context, '❌ $message');
+          return;
+      }
+    }
+
     final tag = _urgent ? '🔴 Urgent' : '📢 $_category';
     final ann = Announcement(
-      id: '',
+      id: id,
       title: _titleCtrl.text.trim(),
       body: _bodyCtrl.text.trim(),
       tag: tag,
@@ -55,9 +87,10 @@ class _ComposeAnnouncementPageState extends State<ComposeAnnouncementPage> {
       date: DateTime.now(),
       urgent: _urgent,
       schoolId: widget.user.schoolId,
+      imageUrl: imageUrl,
     );
 
-    final result = await AnnouncementRepository.instance.post(ann);
+    final result = await repo.post(ann);
     setState(() => _loading = false);
     if (!mounted) return;
 
@@ -184,18 +217,38 @@ class _ComposeAnnouncementPageState extends State<ComposeAnnouncementPage> {
           ),
           const SizedBox(height: 16),
 
-          // Optional image URL
-          Text('Image URL (optional)',
+          // Optional photo, picked straight from the device
+          Text('Photo (optional)',
             style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
-          TextField(
-            controller: _imageCtrl,
-            keyboardType: TextInputType.url,
-            decoration: const InputDecoration(
-              hintText: 'https://…',
-              prefixIcon: Icon(Icons.image_outlined),
+          if (_pickedImage != null)
+            Stack(children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.file(_pickedImage!, height: 160, width: double.infinity, fit: BoxFit.cover),
+              ),
+              Positioned(
+                top: 6, right: 6,
+                child: Material(
+                  color: Colors.black54,
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                    onPressed: () => setState(() => _pickedImage = null),
+                  ),
+                ),
+              ),
+              if (_uploadingImage)
+                const Positioned.fill(
+                  child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                ),
+            ])
+          else
+            OutlinedButton.icon(
+              onPressed: _pickImage,
+              icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+              label: const Text('Add a photo from your device'),
             ),
-          ),
           const SizedBox(height: 32),
 
           PrimaryBtn(label: '📢 Publish Announcement', loading: _loading, onTap: _publish),

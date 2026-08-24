@@ -62,7 +62,7 @@ class AnnouncementsPage extends StatelessWidget {
               return AnnCard(
                 tag: a.tag, title: a.title, body: a.body,
                 date: dateStr, accent: a.urgent ? ac.red : ac.navy2,
-                urgent: a.urgent,
+                urgent: a.urgent, imageUrl: a.imageUrl,
               );
             },
           );

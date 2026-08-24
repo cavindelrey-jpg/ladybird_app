@@ -21,6 +21,7 @@ import '../pages/profile_page.dart';
 import '../features/dashboard/universal_home_page.dart';
 import '../features/magazine/magazine_feed_page.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/create_content_sheet.dart';
 import '../features/onboarding/account_choice_screen.dart';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -298,6 +299,14 @@ class _HomeShellState extends State<HomeShell> {
           children: List.generate(nav.length,
               (i) => _visitedTabs.contains(i) ? _buildPage(ac, nav[i]) : const SizedBox.shrink()),
         ),
+      ),
+      // Architecture brief item 14: content creation lives behind this
+      // one "+" button instead of permanent per-page CTA cards -- see
+      // create_content_sheet.dart for the destinations it opens.
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: ac.gold,
+        onPressed: () => showCreateContentSheet(context, widget.user),
+        child: Icon(Icons.add_rounded, color: ac.navy),
       ),
       bottomNavigationBar: DecoratedBox(
         // A restyle of the selected-tab indicator only (still a plain

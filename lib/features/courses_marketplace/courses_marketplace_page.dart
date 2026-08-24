@@ -23,7 +23,6 @@ import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
 import '../../pages/profile_page.dart';
 import 'course_reader_page.dart';
-import 'course_composer_page.dart';
 import 'course_creator_profile_page.dart';
 import 'course_navigation_page.dart';
 
@@ -105,8 +104,6 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
     return u != null && !u.isGuest && u.favoriteSubjects.isNotEmpty;
   }
 
-  bool get _canCreate => widget.user != null;
-
   /// Switches category and clears any active search. Every entry point that
   /// changes _category (banner section-jump, category chips, popular
   /// topics) must go through this -- otherwise a leftover _searchQuery
@@ -179,7 +176,6 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
                   const SizedBox(height: 12),
                   _contributorFeed(context, ac, stream: _feedStream, searchQuery: _searchQuery),
                 ],
-                if (_canCreate) _createCourseCta(context, ac),
               ],
             ),
           ),
@@ -540,28 +536,6 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
     );
   }
 
-  Widget _createCourseCta(BuildContext context, AppColors ac) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: () {
-            HapticFeedback.mediumImpact();
-            Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => CourseComposerPage(user: widget.user!)));
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: ac.navy, foregroundColor: ac.gold,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          icon: const Icon(Icons.edit_rounded, size: 18),
-          label: Text('Create Course', style: AppText.button.copyWith(fontSize: 14, color: ac.gold)),
-        ),
-      ),
-    );
-  }
 }
 
 class _FeaturedCourseCard extends StatelessWidget {

@@ -22,6 +22,12 @@ class Announcement {
   final String sourceType;
   final String? referenceId; // articleId / paperId / clubId
 
+  /// Real Firebase Storage download URL -- was a free-text URL field the
+  /// composer never even wired into this constructor (filling it in did
+  /// nothing). Now populated by uploading a device photo, same
+  /// pick-then-upload pattern as hero slides/article thumbnails.
+  final String? imageUrl;
+
   const Announcement({
     required this.id,
     required this.title,
@@ -34,6 +40,7 @@ class Announcement {
     this.schoolId,
     this.sourceType = 'general',
     this.referenceId,
+    this.imageUrl,
   });
 
   factory Announcement.fromFirestore(DocumentSnapshot doc) {
@@ -50,6 +57,7 @@ class Announcement {
       schoolId: d['schoolId'],
       sourceType: d['sourceType'] ?? 'general',
       referenceId: d['referenceId'],
+      imageUrl: d['imageUrl'],
     );
   }
 
@@ -64,6 +72,7 @@ class Announcement {
     'schoolId': schoolId,
     'sourceType': sourceType,
     'referenceId': referenceId,
+    'imageUrl': imageUrl,
     'createdAt': FieldValue.serverTimestamp(),
   };
 }

@@ -486,31 +486,44 @@ class AnnCard extends StatelessWidget {
   final String tag, title, body, date;
   final Color accent;
   final bool urgent;
+  final String? imageUrl;
   const AnnCard({
     super.key, required this.tag, required this.title,
     required this.body, required this.date,
-    required this.accent, this.urgent = false,
+    required this.accent, this.urgent = false, this.imageUrl,
   });
 
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     return ACard(
+      padding: EdgeInsets.zero,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          StatusBadge(label: tag, color: accent),
-          if (urgent) ...[
-            const SizedBox(width: 8),
-            StatusBadge(label: 'URGENT', color: ac.red, bg: ac.redBg),
-          ],
-          const Spacer(),
-          Text(date, style: AppText.caption),
-        ]),
-        const SizedBox(height: 10),
-        Text(title, style: AppText.title.copyWith(fontSize: 14)),
-        const SizedBox(height: 4),
-        Text(body, style: AppText.bodySm,
-            maxLines: 3, overflow: TextOverflow.ellipsis),
+        if ((imageUrl ?? '').isNotEmpty)
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(Rad.md)),
+            child: Image.network(imageUrl!, height: 140, width: double.infinity, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+          ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              StatusBadge(label: tag, color: accent),
+              if (urgent) ...[
+                const SizedBox(width: 8),
+                StatusBadge(label: 'URGENT', color: ac.red, bg: ac.redBg),
+              ],
+              const Spacer(),
+              Text(date, style: AppText.caption),
+            ]),
+            const SizedBox(height: 10),
+            Text(title, style: AppText.title.copyWith(fontSize: 14)),
+            const SizedBox(height: 4),
+            Text(body, style: AppText.bodySm,
+                maxLines: 3, overflow: TextOverflow.ellipsis),
+          ]),
+        ),
       ]),
     );
   }

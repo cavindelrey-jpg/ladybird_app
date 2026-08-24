@@ -1,7 +1,11 @@
 // lib/widgets/app_drawer.dart
-// Global navigation drawer — Courses, Past Questions, Clubs, Magazine,
-// Messages, Profile, Settings, Notifications, Help, plus (lecturer+) the
-// Grading Queue. Shared by the universal dashboard for every account type.
+// Global navigation drawer, organized into 4 hierarchical groups per the
+// architecture brief's item 13: Content (Home/Academia Courses/Academia
+// Library/Past Questions), Assessment (Academia Tests/Academia Quizzes/
+// Create Quiz), Communication (Magazine/Messaging/Clubs), Settings &
+// Personalization (Settings/Notifications/Support/Profile) -- plus
+// (lecturer+) the Grading Queue, which doesn't fit any of the four.
+// Shared by the universal dashboard for every account type.
 //
 // Guest (user == null) can open every destination to browse, but write
 // actions inside those destinations should independently refuse Guests —
@@ -47,6 +51,10 @@ class AppDrawer extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
               children: [
+                // Architecture brief item 13: four hierarchical groups
+                // (Content/Assessment/Communication/Settings) replacing
+                // what used to be a flatter, less organized list.
+                _sectionLabel(ac, 'Content'),
                 _item(context, ac, Icons.home_rounded, 'Home', () {}),
                 // "Course Navigation" used to be a separate top-level
                 // entry pointing at CourseNavigationPage -- but
@@ -58,7 +66,6 @@ class AppDrawer extends StatelessWidget {
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => CoursesMarketplacePage(user: user)));
                 }),
-                _sectionLabel(ac, 'Content'),
                 _item(context, ac, Icons.folder_copy_rounded, 'Academia Library', () {
                   if (_isGuest) {
                     _goSignIn(context);
@@ -76,6 +83,7 @@ class AppDrawer extends StatelessWidget {
                             user: user!, initialTypeFilter: ContentType.pastPaper)));
                   }
                 }),
+
                 _sectionLabel(ac, 'Assessment'),
                 // Tests and Quizzes intentionally open the SAME browse
                 // tree (QuizCategoriesPage) -- this codebase doesn't
@@ -91,10 +99,6 @@ class AppDrawer extends StatelessWidget {
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => QuizCategoriesPage(user: user ?? AppUser.guest())));
                 }),
-                _item(context, ac, Icons.menu_book_rounded, 'Magazine', () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => MagazineFeedPage(user: user)));
-                }),
                 // TestRepository.createTest() had no caller anywhere in
                 // the app until this entry existed — tests could only
                 // have been created straight in the Firestore console.
@@ -103,15 +107,20 @@ class AppDrawer extends StatelessWidget {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => TestComposerPage(author: user!)));
                   }),
-                _item(context, ac, Icons.person_outline_rounded, 'Profile', () {
+
+                _sectionLabel(ac, 'Communication'),
+                _item(context, ac, Icons.menu_book_rounded, 'Magazine', () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => MagazineFeedPage(user: user)));
+                }),
+                _item(context, ac, Icons.chat_bubble_outline_rounded, 'Messaging', () {
                   if (_isGuest) {
                     _goSignIn(context);
                   } else {
                     Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => ProfilePage(user: user!)));
+                        builder: (_) => MessagesHomePage(user: user!)));
                   }
                 }),
-                Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: ac.bdr2),
                 _item(context, ac, Icons.groups_rounded, 'Clubs', () {
                   if (_isGuest) {
                     _goSignIn(context);
@@ -120,14 +129,8 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => ClubsPage(user: user!)));
                   }
                 }),
-                _item(context, ac, Icons.chat_bubble_outline_rounded, 'Messages', () {
-                  if (_isGuest) {
-                    _goSignIn(context);
-                  } else {
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => MessagesHomePage(user: user!)));
-                  }
-                }),
+
+                _sectionLabel(ac, 'Settings & Personalization'),
                 _item(context, ac, Icons.settings_outlined, 'Settings', () {
                   if (_isGuest) {
                     _goSignIn(context);
@@ -144,9 +147,22 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => NotificationsPage(userId: user!.id)));
                   }
                 }),
-                _item(context, ac, Icons.help_outline_rounded, 'Help & Support',
+                _item(context, ac, Icons.help_outline_rounded, 'Support',
                     () => Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => const HelpSupportPage()))),
+                _item(context, ac, Icons.person_outline_rounded, 'Profile', () {
+                  if (_isGuest) {
+                    _goSignIn(context);
+                  } else {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => ProfilePage(user: user!)));
+                  }
+                }),
+
+                // Doesn't fit any of the 4 requested groups (it's an
+                // internal staff workflow, not user-facing content
+                // navigation) -- kept as a clearly separated trailing
+                // section rather than forced into one of the four.
                 if (!_isGuest && user!.hasMinRole(UserRole.lecturer)) ...[
                   Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: ac.bdr2),
                   _item(context, ac, Icons.rate_review_rounded, 'Grading Queue', () {

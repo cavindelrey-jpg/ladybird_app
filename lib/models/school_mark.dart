@@ -75,6 +75,15 @@ class SchoolMark {
   final String subject;
   final String teacherName;
   final AcademicSequence sequence;
+
+  /// e.g. "2026" -- was entirely absent before the CSV import feature
+  /// (architecture brief item 21) needed it: without a year, marks from
+  /// different academic years for the same student/subject/sequence are
+  /// indistinguishable. Defaults to the current calendar year for any
+  /// mark written without one, including every pre-existing document
+  /// read back before this field existed.
+  final String academicYear;
+
   final double score;
   final double maxScore; // as originally entered -- usually 20 or 100
   final DateTime? gradedAt;
@@ -88,6 +97,7 @@ class SchoolMark {
     required this.subject,
     this.teacherName = '',
     required this.sequence,
+    required this.academicYear,
     required this.score,
     required this.maxScore,
     this.gradedAt,
@@ -127,6 +137,9 @@ class SchoolMark {
       subject: d['subject'] ?? '',
       teacherName: d['teacherName'] ?? '',
       sequence: AcademicSequence.fromKey(d['sequence'] ?? '') ?? AcademicSequence.t1s1,
+      academicYear: (d['academicYear'] as String?)?.isNotEmpty == true
+          ? d['academicYear'] as String
+          : DateTime.now().year.toString(),
       score: (d['score'] as num?)?.toDouble() ?? 0,
       maxScore: (d['maxScore'] as num?)?.toDouble() ?? 20,
       gradedAt: (d['gradedAt'] as Timestamp?)?.toDate(),
@@ -141,6 +154,7 @@ class SchoolMark {
         'subject': subject,
         'teacherName': teacherName,
         'sequence': sequence.name,
+        'academicYear': academicYear,
         'score': score,
         'maxScore': maxScore,
         'gradedAt': FieldValue.serverTimestamp(),

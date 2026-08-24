@@ -13,6 +13,7 @@ import '../../repositories/school_marks_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import 'marks_entry_page.dart';
+import 'marks_csv_import_page.dart';
 import 'widgets/school_shared_widgets.dart';
 
 enum _CompareTarget { previousSequence, firstSequence }
@@ -76,13 +77,20 @@ class _MarksPageState extends State<MarksPage> {
         title: 'Marks',
         subtitle: 'View your academic performance',
         trailing: [
-          if (u.canUploadContent)
+          if (u.canRecordAnyMarks) ...[
             IconButton(
               icon: Icon(Icons.edit_note_rounded, color: ac.txt2),
               tooltip: 'Enter marks',
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => MarksEntryPage(staff: u))).then((_) => _refresh()),
             ),
+            IconButton(
+              icon: Icon(Icons.upload_file_rounded, color: ac.txt2),
+              tooltip: 'Upload CSV',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => MarksCsvImportPage(staff: u))).then((_) => _refresh()),
+            ),
+          ],
         ],
       ),
       body: Column(children: [

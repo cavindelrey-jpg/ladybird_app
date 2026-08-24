@@ -273,6 +273,14 @@ class AppUser {
     return teachingAssignments.contains(TeachingAssignment(subject: subject, classLevel: classLevel));
   }
 
+  /// Whether this account can record marks for ANY (subject, classLevel)
+  /// at all -- the UI-visibility check for "Enter Marks"/"Upload CSV"
+  /// entry points, as opposed to [canRecordMarksFor] which checks one
+  /// specific pair. `canUploadContent` (any lecturer+) used to gate these
+  /// entry points; that was the item-22 bug (any teacher, any subject).
+  bool get canRecordAnyMarks =>
+      isSchoolMember && (hasMinRole(UserRole.schoolAdmin) || isSchoolClassMaster || teachingAssignments.isNotEmpty);
+
   // ── Privilege system ───────────────────────────────────────────────────────
   int get privilegeLevel {
     switch (role) {

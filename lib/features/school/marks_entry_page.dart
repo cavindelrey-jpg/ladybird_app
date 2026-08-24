@@ -1,10 +1,13 @@
 // lib/features/school/marks_entry_page.dart
 // Staff-only entry point for real marks -- without this, MarksPage would
-// have no way to ever show real data. Gated to canUploadContent
-// (lecturer+), matching the marks/{id} Firestore rule exactly. Search
-// reuses MessagingRepository.searchUsers (the same name-prefix search
-// already used to find people to message) rather than inventing a
-// second user-search implementation.
+// have no way to ever show real data. Gated to isSchoolMember + an actual
+// teaching assignment/class-master/admin standing, matching the marks/{id}
+// Firestore rule's canRecordMarksFor() exactly (architecture brief items
+// 22-24: a Physics teacher for Form 5 must not be able to enter Form 4
+// Math marks just because they hold the lecturer role). Search reuses
+// MessagingRepository.searchUsers (the same name-prefix search already
+// used to find people to message) rather than inventing a second
+// user-search implementation.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -34,15 +37,39 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
   String _subject = kAcademicSubjects.first;
   final _scoreCtrl = TextEditingController();
   final _teacherCtrl = TextEditingController();
+  late final _yearCtrl = TextEditingController(text: DateTime.now().year.toString());
   double _maxScore = 20;
   bool _searching = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _teacherCtrl.text = widget.staff.name;
+  }
 
   @override
   void dispose() {
     _teacherCtrl.dispose();
     _searchCtrl.dispose();
     _scoreCtrl.dispose();
+    _yearCtrl.dispose();
     super.dispose();
+  }
+
+  /// Subjects the CURRENT student may have marks entered for by this
+  /// staff member -- item 22 (own teaching assignments only) plus item
+  /// 23 (a class master may enter any subject for their own class,
+  /// regardless of what they personally teach). School admins see the
+  /// full subject list, matching item 24's school-wide reach.
+  List<String> _allowedSubjectsFor(String studentClassLevel) {
+    if (widget.staff.hasMinRole(UserRole.schoolAdmin)) return kAcademicSubjects;
+    final allowed = <String>{
+      if (widget.staff.classMasterOfClass == studentClassLevel && studentClassLevel.isNotEmpty)
+        ...kAcademicSubjects,
+      for (final a in widget.staff.teachingAssignments)
+        if (a.classLevel == studentClassLevel) a.subject,
+    };
+    return allowed.toList()..sort();
   }
 
   Future<void> _search(String query) async {
@@ -65,6 +92,15 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
       showToast(context, 'Pick a student first.', isError: true);
       return;
     }
+    final classLevel = (student['classLevel'] as String?) ?? '';
+    // Client-side mirror of the real enforcement in firestore.rules'
+    // canRecordMarksFor() -- catches the mistake before a wasted round
+    // trip, but the rule itself is the actual boundary (item 25: never
+    // rely on the UI alone).
+    if (!widget.staff.canRecordMarksFor(subject: _subject, classLevel: classLevel)) {
+      showToast(context, 'You\'re not assigned to teach $_subject in $classLevel.', isError: true);
+      return;
+    }
     final score = double.tryParse(_scoreCtrl.text.trim());
     if (score == null) {
       showToast(context, 'Enter a valid numeric score.', isError: true);
@@ -74,10 +110,11 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
       id: '',
       schoolId: widget.staff.schoolId ?? '',
       studentId: student['id'] as String,
-      classLevel: (student['classLevel'] as String?) ?? '',
+      classLevel: classLevel,
       subject: _subject,
       teacherName: _teacherCtrl.text.trim(),
       sequence: _sequence,
+      academicYear: _yearCtrl.text.trim().isEmpty ? DateTime.now().year.toString() : _yearCtrl.text.trim(),
       score: score,
       maxScore: _maxScore,
       gradedBy: widget.staff.id,
@@ -96,11 +133,14 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
 
-    if (!widget.staff.canUploadContent) {
+    if (!widget.staff.canRecordAnyMarks) {
       return Scaffold(
         backgroundColor: ac.bg,
         appBar: AppBar(backgroundColor: ac.bg, elevation: 0),
-        body: Center(child: Text('Staff access required.', style: GoogleFonts.inter(color: ac.muted))),
+        body: Center(child: Text(
+            'You need a teaching assignment or class-master standing to enter marks.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(color: ac.muted))),
       );
     }
 
@@ -135,6 +175,8 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
                 _selectedStudent = r;
                 _results = [];
                 _searchCtrl.text = r['name'] ?? '';
+                final allowed = _allowedSubjectsFor((r['classLevel'] as String?) ?? '');
+                _subject = allowed.isNotEmpty ? allowed.first : '';
               }),
             ),
           if (_selectedStudent != null) ...[
@@ -156,13 +198,35 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
               items: [for (final s in AcademicSequence.values) DropdownMenuItem(value: s, child: Text(s.label))],
               onChanged: (v) => setState(() => _sequence = v ?? _sequence),
             ),
-            DropdownButtonFormField<String>(
-              initialValue: _subject,
-              decoration: const InputDecoration(labelText: 'Subject'),
-              items: [for (final s in kAcademicSubjects) DropdownMenuItem(value: s, child: Text(s))],
-              onChanged: (v) => setState(() => _subject = v ?? _subject),
+            Builder(builder: (_) {
+              final allowedSubjects = _allowedSubjectsFor((_selectedStudent!['classLevel'] as String?) ?? '');
+              if (allowedSubjects.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    'You have no teaching assignment for ${_selectedStudent!['classLevel'] ?? 'this class'}.',
+                    style: GoogleFonts.inter(fontSize: 12.5, color: ac.red),
+                  ),
+                );
+              }
+              if (!allowedSubjects.contains(_subject)) _subject = allowedSubjects.first;
+              return DropdownButtonFormField<String>(
+                initialValue: _subject,
+                decoration: const InputDecoration(labelText: 'Subject'),
+                items: [for (final s in allowedSubjects) DropdownMenuItem(value: s, child: Text(s))],
+                onChanged: (v) => setState(() => _subject = v ?? _subject),
+              );
+            }),
+            TextField(
+              controller: _teacherCtrl,
+              readOnly: !widget.staff.hasMinRole(UserRole.schoolAdmin),
+              decoration: const InputDecoration(labelText: 'Teacher'),
             ),
-            TextField(controller: _teacherCtrl, decoration: const InputDecoration(labelText: 'Teacher')),
+            TextField(
+              controller: _yearCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Academic Year'),
+            ),
             Row(children: [
               Expanded(
                 child: TextField(

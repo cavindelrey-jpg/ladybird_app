@@ -173,6 +173,32 @@ service cloud.firestore {
         );
     }
 
+    // Architecture brief items 22-24: marks-entry permission must come
+    // from a teacher's ACTUAL assignment, never merely from holding the
+    // lecturer role. Mirrors AppUser.canRecordMarksFor() in
+    // lib/models/app_user.dart exactly (same three arms, same order) --
+    // kept in sync by hand since rules and Dart can't share code.
+    function isSchoolAdminOf(schoolId) {
+      return hasMinRole('schoolAdmin') && isOwnSchool(schoolId);
+    }
+
+    function isClassMasterOf(schoolId, classLevel) {
+      return isSignedIn() && isOwnSchool(schoolId) && classLevel != ''
+        && myUserDoc().get('classMasterOfClass', '') == classLevel;
+    }
+
+    function teachesAssignment(schoolId, subject, classLevel) {
+      return isSignedIn() && isOwnSchool(schoolId)
+        && myUserDoc().get('teachingAssignments', [])
+             .hasAny([{'subject': subject, 'classLevel': classLevel}]);
+    }
+
+    function canRecordMarksFor(schoolId, subject, classLevel) {
+      return isSchoolAdminOf(schoolId)
+        || isClassMasterOf(schoolId, classLevel)
+        || teachesAssignment(schoolId, subject, classLevel);
+    }
+
     // Club-scoped role helpers (used by the clubs/{clubId} rules below).
     function clubMemberRole(clubId) {
       return get(/databases/$(database)/documents/clubs/$(clubId)/members/$(request.auth.uid)).data.role;
@@ -946,10 +972,22 @@ service cloud.firestore {
     }
 
     // ── marks/{id}, sequences/{id}, subjects/{id} ─────────────────────
+    // Used to be "any lecturer+ can read/write ANY mark, at ANY school"
+    // (canUploadContent()/canManageSchool() alone) -- a Physics teacher
+    // at Green Hills could read or overwrite a Form 4 Math mark, or a
+    // student's marks at a different school entirely. Architecture brief
+    // items 22-25: permission comes from an actual (subject, classLevel)
+    // teaching assignment, class-master standing, or school-admin rank --
+    // all scoped to the mark's OWN school. See canRecordMarksFor() above.
     match /marks/{id} {
-      allow read: if isSignedIn() &&
-        (resource.data.studentId == request.auth.uid || canUploadContent() || canManageSchool());
-      allow write: if canUploadContent() || canManageSchool();
+      allow read: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid
+        || canRecordMarksFor(resource.data.schoolId, resource.data.subject, resource.data.classLevel)
+      );
+      allow create: if canRecordMarksFor(
+        request.resource.data.schoolId, request.resource.data.subject, request.resource.data.classLevel);
+      allow update, delete: if canRecordMarksFor(
+        resource.data.schoolId, resource.data.subject, resource.data.classLevel);
     }
     match /sequences/{id} { allow read: if isSignedIn(); allow write: if canManageSchool(); }
     match /subjects/{id}  { allow read: if isSignedIn(); allow write: if canManageSchool(); }

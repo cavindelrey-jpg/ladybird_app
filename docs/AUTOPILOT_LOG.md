@@ -4395,3 +4395,61 @@ purely cosmetic no-op.
 Not yet done from Phase 5: nav reorg into 4 categories, removing
 permanent creation shortcuts in favor of a "+" menu, device image upload
 for announcements, message sender/receiver contrast. Continuing.
+
+## 2026-08-24 (3) — Phase 2: real marks permissions + CSV import (items 19-24)
+
+**item 19 (auto-connect)**: checked Timetable/School Connect for a fake
+"your school isn't connected" wall -- didn't find one. Both already
+gated correctly on `schoolId.isEmpty`, and since Phase 1 made
+`schoolId` only ever get set via a real voucher redemption, that check
+is now genuinely truthful rather than a dead-end. The one remaining
+empty state (Timetable's "class isn't set") is honest missing data
+(a school member who redeemed without supplying a class), not the
+false "not connected" state the brief was actually describing -- left
+alone, and closed further by folding class-selection into the voucher
+redemption step itself back in Phase 1.
+
+**items 22-24 (the real permission bug)**: `marks/{id}`'s firestore.rule
+was `canUploadContent() || canManageSchool()` -- ANY lecturer, at ANY
+school, could read or write ANY student's mark. Rewrote using new
+`canRecordMarksFor(schoolId, subject, classLevel)` (mirrors
+AppUser.canRecordMarksFor exactly, kept in sync by hand since rules and
+Dart don't share code): schoolAdmin+ of that school, OR class master of
+that classLevel (any subject), OR a teacher with that exact (subject,
+classLevel) in teachingAssignments -- all scoped to the mark's own
+school via isOwnSchool(). Read gained the same school-scoping (it
+previously had NONE -- any lecturer anywhere could read any student's
+marks cross-school).
+
+marks_entry_page.dart's gate changed from canUploadContent (any
+lecturer) to the new AppUser.canRecordAnyMarks, and its subject dropdown
+now only offers subjects the signed-in staff member is actually assigned
+for the SELECTED STUDENT'S class (recomputed on student selection) --
+previously it was every subject in kAcademicSubjects, unconditionally.
+Teacher-name field now prefills the signed-in staff member's own name
+and is read-only for non-admins (was free text -- anyone could claim to
+be any teacher in the record).
+
+**item 21 (CSV template + upload)**: found `SchoolMark` had NO academic
+year field at all -- a real pre-existing gap (marks from different years
+for the same student/subject/sequence would be indistinguishable).
+Added `academicYear` (defaults to the current calendar year for every
+existing document read back without one, so nothing already stored
+breaks). New `marks_csv_import_page.dart`: "Download CSV Template" (a
+real generated CSV with header + one filled example row, shared via
+Share.shareXFiles -- confirmed share_plus is pinned to ^9.0.0 in
+pubspec.yaml/lock, so used that version's real API rather than the
+unified SharePlus.instance.share() from v10+, which doesn't exist here);
+"Upload CSV" parses via package:csv, validates every row (required
+columns, valid sequence key, numeric score within 0..maxScore, AND the
+exact same canRecordMarksFor() check as manual entry -- a bulk CSV must
+not be a way around the per-assignment restriction), resolves
+studentName -> a real studentId scoped to the staff member's own school
++ the row's class (ambiguous/zero matches fail closed, never guessed),
+shows a per-row valid/error preview, then imports only the valid rows
+through the same SchoolMarksRepository.upsert() every other write goes
+through -- so the real firestore.rules enforcement applies per row here
+too, not just client-side.
+
+Not run against a compiler or a live Firebase project -- same standing
+ceiling. Continuing to Phase 4 (quiz content) next.

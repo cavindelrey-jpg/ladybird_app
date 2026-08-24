@@ -1,0 +1,91 @@
+{
+  "subject": "Computer Science",
+  "title": "Programming Foundations Quiz",
+  "description": "Covers algorithms, variables and data types, and conditionals/loops from the Introduction to Programming course.",
+  "difficulty": "easy",
+  "category": "Senior Secondary School",
+  "topic": "Foundations of Programming",
+  "institutionId": null,
+  "createdBy": "academia-compiler",
+  "createdByName": "Academia",
+  "questions": [
+    {
+      "type": "mcq",
+      "prompt": "What is an algorithm?",
+      "points": 10,
+      "options": [
+        "A programming language with strict grammar rules",
+        "A logical sequence of steps needed to solve a problem",
+        "A named container that stores a value",
+        "A block of code that repeats until a condition is met"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "type": "mcq",
+      "prompt": "Which data type would best store `is_student = true`?",
+      "points": 10,
+      "options": ["Integer", "Float", "String", "Boolean"],
+      "correctIndex": 3
+    },
+    {
+      "type": "mcq",
+      "prompt": "In most programming languages, what does `\"2\" + \"2\"` evaluate to?",
+      "points": 10,
+      "options": ["4", "\"22\"", "An error every time", "0"],
+      "correctIndex": 1
+    },
+    {
+      "type": "mcq",
+      "prompt": "Which loop repeats a known, fixed number of times, such as once for every student in a class list?",
+      "points": 10,
+      "options": ["A for loop", "A while loop", "An if statement", "A variable"],
+      "correctIndex": 0
+    },
+    {
+      "type": "mcq",
+      "prompt": "Given `if score >= 50: print(\"Pass\") else: print(\"Fail\")`, what prints when score = 42?",
+      "points": 10,
+      "options": ["Pass", "Fail", "Nothing prints", "An error"],
+      "correctIndex": 1
+    },
+    {
+      "type": "structured",
+      "prompt": "Rewrite the tea-making algorithm as numbered steps for making instant noodles.",
+      "points": 15,
+      "lineCount": 6,
+      "rubricGuidance": "Award full credit for a clear, unambiguous, correctly ordered numbered list mirroring the tea example's structure (e.g. boil water, add noodles, wait a fixed time, drain/season, serve). Order and clarity matter more than exact wording.",
+      "expectedPoints": [
+        { "text": "Steps are numbered and in a logical, fixed order" },
+        { "text": "Includes boiling or heating water" },
+        { "text": "Includes a defined waiting/cooking time" },
+        { "text": "Each step is unambiguous, matching the tea example's style" }
+      ]
+    },
+    {
+      "type": "structured",
+      "prompt": "Trace through this loop by hand and list every number it prints:\n\nfor n in range(1, 11):\n    if n % 2 == 0:\n        print(n)",
+      "points": 15,
+      "lineCount": 3,
+      "rubricGuidance": "Correct answer: 2, 4, 6, 8, 10 -- the loop checks every integer from 1 to 10 inclusive and prints only the even ones. Award partial credit for correct method (identifying it filters even numbers) with a minor arithmetic slip.",
+      "expectedPoints": [
+        { "text": "Lists exactly 2, 4, 6, 8, 10" },
+        { "text": "Explains the loop filters for even numbers using n % 2 == 0" }
+      ]
+    },
+    {
+      "type": "longForm",
+      "prompt": "Explain why choosing the correct data type matters when writing a program, using integers, floats, strings, and booleans as examples.",
+      "points": 20,
+      "keyPoints": [
+        { "text": "The computer treats each data type differently when performing operations" },
+        { "text": "Adding two integers such as 2 + 2 produces the number 4" },
+        { "text": "Adding two strings such as \"2\" + \"2\" joins them into the text \"22\" instead of adding" },
+        { "text": "Integers store whole numbers with no decimal part" },
+        { "text": "Floats store decimal numbers such as 3.14" },
+        { "text": "Booleans can only be true or false, used for conditions and decisions" },
+        { "text": "Choosing the wrong type can introduce subtle, hard-to-find bugs" }
+      ]
+    }
+  ]
+}

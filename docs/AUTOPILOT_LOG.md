@@ -4453,3 +4453,71 @@ too, not just client-side.
 
 Not run against a compiler or a live Firebase project -- same standing
 ceiling. Continuing to Phase 4 (quiz content) next.
+
+## 2026-08-24 (4) — Phase 4: real quiz content for the actual existing course catalogue
+
+Per item 7's own instruction ("first inspect the existing courses"), went
+looking for ground truth rather than inventing course names. No live
+Firebase access from this sandbox, but found real, non-git-tracked
+evidence on disk: exactly 2 courses are actually published in the live
+`public_courses` collection ("Introduction to Calculus" / Mathematics,
+"Introduction to Programming" / Computer Science -- both 3 lessons, both
+confirmed via docs/AUTOPILOT_LOG's own prior-session publish record).
+Their real source Markdown (`course-mathematics.md`/
+`course-computer-science.md`, both already git-tracked at the repo root)
+gave the actual lesson content and practice questions to write quizzes
+from -- not fabricated. Also found the actual compiler script
+(`compile-quiz.js`, in a sibling directory outside this repo) and its
+full validation rules, plus an existing but incomplete
+`quiz-calculus.json` (4 MCQ + 1 structured, no category/topic fields,
+predates the current compiler version) sitting unpublished on disk.
+
+Wrote two new, fully-spec-compliant quiz source files at the repo root
+(same location convention as the course .md files):
+- `quiz-calculus-integration.json` -- 7 questions (4 MCQ, 2 structured, 1
+  Essay/longForm with 7 key points), covering the Integration lesson.
+  Two questions are literally lesson's own embedded practice questions
+  (∫(6x²-4x+1)dx, and the definite integral of x² from 0 to 2) --
+  reusing real content rather than inventing new problems where the
+  lesson already had them.
+- `quiz-programming-foundations.json` -- 8 questions (5 MCQ, 2
+  structured, 1 Essay) covering all 3 Introduction to Programming
+  lessons -- this course had ZERO quiz coverage before this. Two
+  structured questions are also the lesson's own practice questions
+  (rewrite the tea algorithm for noodles; trace the even-number loop).
+
+Both use `category: "Senior Secondary School"` (verified against
+`kDefaultAcademicSections` in academic_section.dart -- exact string
+match required) and `topic` set to each course's own front-matter topic
+field exactly, which is the real course-linking mechanism in this
+architecture (test.dart mirrors PublicCourse's Category/Subject/Topic
+tree; there's no direct foreign key). `createdBy`/`createdByName` use
+the corrected "academia-compiler"/"Academia" convention (a prior session
+found the compiler's OLD default said "Claude" and fixed it) rather than
+copying the stale existing quiz-calculus.json's values.
+
+**Attempted an actual dry-run compile via `node compile-quiz.js
+--out ...` to validate for real** -- blocked by the permission
+classifier for executing an unreviewed script from a sibling directory
+outside this repo (`academia_compiler`, no git repo of its own, not
+something the user named). Respected the block rather than working
+around it. Instead hand-validated both files against every rule in the
+compiler's own source (which was already read in full this session):
+type enum, required prompt, positive-integer points, mcq options/
+correctIndex bounds, longForm keyPoints count (7-9 required, both files
+have exactly 7), structured expectedPoints shape -- via a throwaway
+Python script re-implementing those exact checks. Both pass.
+
+**This is coverage of every course this session can actually verify
+exists** -- 2 courses, both now have real quizzes across all 3 question
+types. If more courses exist live in Firestore that left no trace on
+this disk, this session has no way to know that from here; not claiming
+exhaustive catalogue coverage beyond what was actually verified.
+
+**Not published** -- publishing requires `node compile-quiz.js
+<file> --write --serviceAccount <key>` from a real environment with
+network + Firebase admin credentials, neither available here, and even
+if they were, `--write` bypasses every firestore.rules check via an
+admin key -- same "ask directly, don't autopilot-default" bar the prior
+session's actual course publish used. The two JSON files are ready to
+run through that exact command when the user has that environment.

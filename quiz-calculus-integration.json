@@ -1,0 +1,92 @@
+{
+  "subject": "Mathematics",
+  "title": "Calculus: Integration Quiz",
+  "description": "Tests understanding of indefinite/definite integrals and the area-under-a-curve interpretation, from the Integration lesson of Introduction to Calculus.",
+  "difficulty": "hard",
+  "category": "Senior Secondary School",
+  "topic": "Calculus",
+  "institutionId": null,
+  "createdBy": "academia-compiler",
+  "createdByName": "Academia",
+  "questions": [
+    {
+      "type": "mcq",
+      "prompt": "The indefinite integral ∫ xⁿ dx (for n ≠ -1) reverses which differentiation rule?",
+      "points": 10,
+      "options": ["The chain rule", "The power rule", "The product rule", "The sum rule"],
+      "correctIndex": 1
+    },
+    {
+      "type": "mcq",
+      "prompt": "Why does every indefinite integral include a \"+ C\"?",
+      "points": 10,
+      "options": [
+        "Because integration always overestimates the true area",
+        "Because differentiating any constant gives zero, so many functions share the same derivative",
+        "Because C stands for the coordinates of the curve's midpoint",
+        "It is only a notational convention with no mathematical meaning"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "type": "mcq",
+      "prompt": "What does a definite integral ∫ₐᵇ f(x) dx compute?",
+      "points": 10,
+      "options": [
+        "The slope of the tangent line at x = a",
+        "The instantaneous rate of change at x = b",
+        "The exact area between the curve and the x-axis, from x = a to x = b",
+        "The value of f(x) at the midpoint of a and b"
+      ],
+      "correctIndex": 2
+    },
+    {
+      "type": "mcq",
+      "prompt": "Evaluate ∫₁³ 2x dx.",
+      "points": 10,
+      "options": ["4", "6", "8", "9"],
+      "correctIndex": 2
+    },
+    {
+      "type": "structured",
+      "prompt": "Evaluate ∫ (6x² − 4x + 1) dx.",
+      "points": 15,
+      "lineCount": 4,
+      "rubricGuidance": "Apply the power rule to each term: 6x² → 2x³, -4x → -2x², 1 → x. Correct answer: 2x³ - 2x² + x + C. Full credit requires all three terms correctly integrated and the constant of integration included.",
+      "expectedPoints": [
+        { "text": "Integrates 6x² to 2x³ using the power rule" },
+        { "text": "Integrates -4x to -2x²" },
+        { "text": "Integrates the constant 1 to x" },
+        { "text": "Includes the constant of integration C" }
+      ]
+    },
+    {
+      "type": "structured",
+      "prompt": "Calculate the definite integral of f(x) = x² from x = 0 to x = 2, and state what this value physically represents.",
+      "points": 15,
+      "lineCount": 5,
+      "rubricGuidance": "Antiderivative is x³/3. Evaluate F(2) - F(0) = 8/3 - 0 = 8/3. This value represents the exact area between the curve f(x) = x² and the x-axis, between x = 0 and x = 2.",
+      "expectedPoints": [
+        { "text": "Finds the antiderivative x³/3" },
+        { "text": "Evaluates F(2) = 8/3" },
+        { "text": "Evaluates F(0) = 0" },
+        { "text": "States the final value 8/3", "keywords": ["2.67", "2.666"] },
+        { "text": "States it represents the area under the curve between x=0 and x=2" }
+      ]
+    },
+    {
+      "type": "longForm",
+      "prompt": "Explain how integration and differentiation relate to each other, and why integration is described as the reverse of differentiation.",
+      "points": 20,
+      "keyPoints": [
+        { "text": "Differentiation finds a rate of change, geometrically the slope of the tangent line" },
+        { "text": "Integration finds a total accumulated quantity, most commonly the area under a curve" },
+        { "text": "Indefinite integration reverses the power rule used in differentiation" },
+        { "text": "The +C constant exists because differentiating any constant produces zero" },
+        { "text": "A definite integral is evaluated by finding the antiderivative F(x) and computing F(b) minus F(a)" },
+        { "text": "Because differentiation and integration undo each other, they are treated as inverse operations" },
+        { "text": "A definite integral gives the exact area between a curve and the x-axis over an interval" }
+      ]
+    }
+  ]
+}

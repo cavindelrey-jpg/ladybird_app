@@ -17,7 +17,6 @@ import '../pages/settings_page.dart';
 import '../features/onboarding/account_choice_screen.dart';
 import '../screens/login_screen.dart';
 import '../features/courses_marketplace/courses_marketplace_page.dart';
-import '../features/courses_marketplace/course_navigation_page.dart';
 import '../features/clubs/clubs_page.dart';
 import '../features/academic_content/academic_content_page.dart';
 import '../features/messages/messages_home_page.dart';
@@ -49,15 +48,18 @@ class AppDrawer extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
               children: [
                 _item(context, ac, Icons.home_rounded, 'Home', () {}),
+                // "Course Navigation" used to be a separate top-level
+                // entry pointing at CourseNavigationPage -- but
+                // CoursesMarketplacePage already has its own prominent
+                // "Browse by Curriculum" CTA into that exact same page.
+                // Two routes to the same conceptual place; removed the
+                // duplicate rather than keep both.
                 _item(context, ac, Icons.school_rounded, 'Courses', () {
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => CoursesMarketplacePage(user: user)));
                 }),
-                _item(context, ac, Icons.account_tree_rounded, 'Course Navigation', () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => CourseNavigationPage(currentUser: user)));
-                }),
-                _item(context, ac, Icons.folder_copy_rounded, 'Content Library', () {
+                _sectionLabel(ac, 'Content'),
+                _item(context, ac, Icons.folder_copy_rounded, 'Library', () {
                   if (_isGuest) {
                     _goSignIn(context);
                   } else {
@@ -74,6 +76,42 @@ class AppDrawer extends StatelessWidget {
                             user: user!, initialTypeFilter: ContentType.pastPaper)));
                   }
                 }),
+                _sectionLabel(ac, 'Assessment'),
+                // Tests and Quizzes intentionally open the SAME browse
+                // tree (QuizCategoriesPage) -- this codebase doesn't
+                // model them as separate systems (see
+                // tests_subject_picker_page.dart's own file comment).
+                // Kept as two entries to match the requested structure,
+                // not because they lead anywhere different.
+                _item(context, ac, Icons.assignment_rounded, 'Tests', () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => QuizCategoriesPage(user: user ?? AppUser.guest())));
+                }),
+                _item(context, ac, Icons.quiz_rounded, 'Quizzes', () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => QuizCategoriesPage(user: user ?? AppUser.guest())));
+                }),
+                _item(context, ac, Icons.menu_book_rounded, 'Magazine', () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => MagazineFeedPage(user: user)));
+                }),
+                // TestRepository.createTest() had no caller anywhere in
+                // the app until this entry existed — tests could only
+                // have been created straight in the Firestore console.
+                if (!_isGuest && user!.hasMinRole(UserRole.lecturer))
+                  _item(context, ac, Icons.post_add_rounded, 'Create Quiz', () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => TestComposerPage(author: user!)));
+                  }),
+                _item(context, ac, Icons.person_outline_rounded, 'Profile', () {
+                  if (_isGuest) {
+                    _goSignIn(context);
+                  } else {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => ProfilePage(user: user!)));
+                  }
+                }),
+                Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: ac.bdr2),
                 _item(context, ac, Icons.groups_rounded, 'Clubs', () {
                   if (_isGuest) {
                     _goSignIn(context);
@@ -82,29 +120,12 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => ClubsPage(user: user!)));
                   }
                 }),
-                _item(context, ac, Icons.menu_book_rounded, 'Magazine', () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => MagazineFeedPage(user: user)));
-                }),
-                _item(context, ac, Icons.quiz_rounded, 'Tests & Quizzes', () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => QuizCategoriesPage(user: user ?? AppUser.guest())));
-                }),
                 _item(context, ac, Icons.chat_bubble_outline_rounded, 'Messages', () {
                   if (_isGuest) {
                     _goSignIn(context);
                   } else {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => MessagesHomePage(user: user!)));
-                  }
-                }),
-                Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: ac.bdr2),
-                _item(context, ac, Icons.person_outline_rounded, 'Profile', () {
-                  if (_isGuest) {
-                    _goSignIn(context);
-                  } else {
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => ProfilePage(user: user!)));
                   }
                 }),
                 _item(context, ac, Icons.settings_outlined, 'Settings', () {
@@ -128,13 +149,6 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => const HelpSupportPage()))),
                 if (!_isGuest && user!.hasMinRole(UserRole.lecturer)) ...[
                   Divider(height: 24, thickness: 1, indent: 16, endIndent: 16, color: ac.bdr2),
-                  // TestRepository.createTest() had no caller anywhere in
-                  // the app until this entry — tests could only have been
-                  // created straight in the Firestore console.
-                  _item(context, ac, Icons.post_add_rounded, 'Create Test', () {
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => TestComposerPage(author: user!)));
-                  }),
                   _item(context, ac, Icons.rate_review_rounded, 'Grading Queue', () {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => GradingPage(grader: user!)));
@@ -215,6 +229,16 @@ class AppDrawer extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 12),
         minLeadingWidth: 28,
       ),
+    );
+  }
+
+  /// Non-tappable group heading -- "Content" over Library/Past
+  /// Questions, "Assessment" over Tests/Quizzes -- visually groups
+  /// related items without turning the grouping itself into a route.
+  Widget _sectionLabel(AppColors ac, String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 12, 4),
+      child: Text(title.toUpperCase(), style: AppText.label.copyWith(color: ac.muted, fontSize: 10.5)),
     );
   }
 

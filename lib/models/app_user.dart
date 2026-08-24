@@ -2,6 +2,8 @@
 // 6-tier role system. Fully backward-compatible with prior 4-role enum.
 
 import 'entitlement.dart';
+import 'school_voucher.dart' show SchoolRole, SchoolRoleX;
+import 'teaching_assignment.dart';
 
 enum UserRole {
   guest,          // unauthenticated / restricted
@@ -110,6 +112,34 @@ class AppUser {
   final int continueReadingPage;
   final int? continueReadingTotalPages;
 
+  // ── School membership (architecture brief items 2-6) ───────────────────
+  /// This account's role WITHIN [schoolId], set only by redeeming a
+  /// SchoolVoucher (see school_access_repository.dart) — never
+  /// self-assigned. Null means "has a schoolId or not, but no school-app
+  /// role" — the actual gate every school-only screen/nav entry checks,
+  /// since holding an ordinary Academia account must never by itself grant
+  /// access to a school's app (item 2).
+  final SchoolRole? schoolRole;
+
+  /// (subject, classLevel) pairs this teacher is actually assigned to —
+  /// the real permission source for marks entry (item 22). Empty for
+  /// every non-teacher role.
+  final List<TeachingAssignment> teachingAssignments;
+
+  /// The classLevel this account is Class Master of, if any (item 23).
+  /// Independent of [teachingAssignments] — a class master's broader
+  /// permission applies to this class regardless of which subject(s)
+  /// they teach there.
+  final String? classMasterOfClass;
+
+  /// The school_vouchers/{code} doc that granted [schoolRole] — audit
+  /// trail, and (same reasoning as Entitlement.sourceRef /
+  /// isValidGiftRedemption() in firestore.rules) what lets the security
+  /// rule verify a self-service schoolId/schoolRole write against the
+  /// referenced voucher's own stored school/role rather than trusting the
+  /// client's claim.
+  final String? schoolVoucherRef;
+
   const AppUser({
     required this.id,
     required this.name,
@@ -141,6 +171,10 @@ class AppUser {
     this.continueReadingTitle,
     this.continueReadingPage = 1,
     this.continueReadingTotalPages,
+    this.schoolRole,
+    this.teachingAssignments = const [],
+    this.classMasterOfClass,
+    this.schoolVoucherRef,
   }) : legacyIsPremium = isPremium;
 
   // ── Entitlement (production_plan.md §8) ────────────────────────────────────
@@ -217,7 +251,27 @@ class AppUser {
   // Backward-compat aliases used by existing code
   bool get isTeacher => isLecturer;
   bool get isAdmin   => isDeptAdmin || isSchoolAdmin || isSuperAdmin;
-  bool get isParent  => false; // removed from hierarchy; safe fallback
+  bool get isParent  => schoolRole == SchoolRole.parent;
+
+  // ── School membership gates (architecture brief items 2, 22-24) ────────
+  /// The actual "does this account belong to a school's app" check — NOT
+  /// `!isGuest`. Every school-only screen/nav entry (School Connect,
+  /// Timetable, Marks) must gate on this, not on merely being signed in.
+  bool get isSchoolMember => schoolId != null && schoolId!.isNotEmpty && schoolRole != null;
+
+  bool get isSchoolClassMaster => schoolRole == SchoolRole.classMaster || (classMasterOfClass ?? '').isNotEmpty;
+
+  /// Marks/attendance-record permission for one (subject, classLevel) —
+  /// item 22/23/24. Admins (schoolAdmin+) can record anywhere in their own
+  /// school; a class master can record for their own class regardless of
+  /// subject; any other teacher only for a (subject, classLevel) pair
+  /// they're actually assigned to.
+  bool canRecordMarksFor({required String subject, required String classLevel}) {
+    if (!isSchoolMember) return false;
+    if (hasMinRole(UserRole.schoolAdmin)) return true;
+    if (isSchoolClassMaster && classMasterOfClass == classLevel) return true;
+    return teachingAssignments.contains(TeachingAssignment(subject: subject, classLevel: classLevel));
+  }
 
   // ── Privilege system ───────────────────────────────────────────────────────
   int get privilegeLevel {
@@ -290,6 +344,12 @@ class AppUser {
     continueReadingTitle: d['continueReadingTitle'],
     continueReadingPage: (d['continueReadingPage'] as num?)?.toInt() ?? 1,
     continueReadingTotalPages: (d['continueReadingTotalPages'] as num?)?.toInt(),
+    schoolRole: SchoolRoleX.fromName(d['schoolRole']?.toString() ?? ''),
+    teachingAssignments: (d['teachingAssignments'] as List<dynamic>? ?? [])
+        .map((m) => TeachingAssignment.fromMap(Map<String, dynamic>.from(m as Map)))
+        .toList(),
+    classMasterOfClass: d['classMasterOfClass'],
+    schoolVoucherRef: d['schoolVoucherRef'],
   );
 
   /// Handles both old 4-role values and new 6-role values stored in Firestore.
@@ -330,6 +390,10 @@ class AppUser {
     'continueReadingTitle': continueReadingTitle,
     'continueReadingPage': continueReadingPage,
     'continueReadingTotalPages': continueReadingTotalPages,
+    'schoolRole': schoolRole?.name,
+    'teachingAssignments': teachingAssignments.map((t) => t.toMap()).toList(),
+    'classMasterOfClass': classMasterOfClass,
+    'schoolVoucherRef': schoolVoucherRef,
   };
 
   AppUser copyWith({
@@ -346,6 +410,8 @@ class AppUser {
     List<String>? weekActivityDates,
     String? continueReadingItemId, String? continueReadingTitle,
     int? continueReadingPage, int? continueReadingTotalPages,
+    SchoolRole? schoolRole, List<TeachingAssignment>? teachingAssignments,
+    String? classMasterOfClass, String? schoolVoucherRef,
   }) => AppUser(
     id: id ?? this.id, name: name ?? this.name,
     email: email ?? this.email, photoUrl: photoUrl ?? this.photoUrl,
@@ -374,5 +440,9 @@ class AppUser {
     continueReadingTitle: continueReadingTitle ?? this.continueReadingTitle,
     continueReadingPage: continueReadingPage ?? this.continueReadingPage,
     continueReadingTotalPages: continueReadingTotalPages ?? this.continueReadingTotalPages,
+    schoolRole: schoolRole ?? this.schoolRole,
+    teachingAssignments: teachingAssignments ?? this.teachingAssignments,
+    classMasterOfClass: classMasterOfClass ?? this.classMasterOfClass,
+    schoolVoucherRef: schoolVoucherRef ?? this.schoolVoucherRef,
   );
 }

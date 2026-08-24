@@ -138,6 +138,41 @@ service cloud.firestore {
         );
     }
 
+    // ── School-membership helpers (architecture brief items 2-6) ────────
+    // A school app (School Connect/Timetable/Marks/marks-entry) must only
+    // be reachable by someone holding a valid voucher for THAT school —
+    // never by merely being a signed-in Academia account. Mirrors
+    // isValidGiftRedemption() immediately above: the referenced
+    // school_vouchers/{code} doc must be UNUSED, the write may only name
+    // the redeemer themselves, and the granted contentRole may only ever
+    // RAISE the stored role, never lower it.
+    function schoolVoucherContentRole(role) {
+      return role == 'student'     ? 'student' :
+             role == 'parent'      ? 'guest' :
+             role == 'teacher'     ? 'lecturer' :
+             role == 'classMaster' ? 'lecturer' :
+             role == 'admin'       ? 'schoolAdmin' : 'guest';
+    }
+
+    function isValidSchoolVoucherRedemption() {
+      let ref = request.resource.data.get('schoolVoucherRef', '');
+      return ref != ''
+        && exists(/databases/$(database)/documents/school_vouchers/$(ref))
+        && get(/databases/$(database)/documents/school_vouchers/$(ref)).data.status == 'unused'
+        && request.resource.data.get('schoolId', '') ==
+             get(/databases/$(database)/documents/school_vouchers/$(ref)).data.schoolId
+        && request.resource.data.get('schoolRole', '') ==
+             get(/databases/$(database)/documents/school_vouchers/$(ref)).data.role
+        // role may only rise to what the voucher grants, or stay exactly
+        // what it already was (a platform admin redeeming a student code
+        // keeps their existing higher role — handled by the second arm).
+        && (
+          request.resource.data.role ==
+            schoolVoucherContentRole(get(/databases/$(database)/documents/school_vouchers/$(ref)).data.role)
+          || request.resource.data.role == resource.data.role
+        );
+    }
+
     // Club-scoped role helpers (used by the clubs/{clubId} rules below).
     function clubMemberRole(clubId) {
       return get(/databases/$(database)/documents/clubs/$(clubId)/members/$(request.auth.uid)).data.role;
@@ -157,9 +192,22 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.auth.uid == uid;
       allow update: if isSignedIn() && accountNotSuspended() && (
         (request.auth.uid == uid &&
-          request.resource.data.role == resource.data.role &&
+          // role/schoolId/schoolRole can each move ONLY as part of a
+          // verified school-voucher redemption (isValidSchoolVoucherRedemption
+          // covers role; the other two conditions below cover
+          // schoolId/schoolRole directly) — otherwise they must stay put,
+          // same "no client-side privilege escalation" principle this
+          // whole rule already enforces for role/status.
+          (request.resource.data.role == resource.data.role || isValidSchoolVoucherRedemption()) &&
           request.resource.data.status == resource.data.status &&
-          request.resource.data.schoolId == resource.data.schoolId &&
+          (request.resource.data.schoolId == resource.data.schoolId || isValidSchoolVoucherRedemption()) &&
+          (request.resource.data.get('schoolRole', null) == resource.data.get('schoolRole', null)
+            || isValidSchoolVoucherRedemption()) &&
+          // classMasterOfClass/classLevel may only move alongside a valid
+          // redemption too -- a plain profile edit must not let a student
+          // grant themselves class-master standing.
+          (request.resource.data.get('classMasterOfClass', null) == resource.data.get('classMasterOfClass', null)
+            || isValidSchoolVoucherRedemption()) &&
           request.resource.data.accountType == resource.data.accountType &&
           // Paid access can't be self-granted — either the entitlement
           // fields don't move at all, or this is a genuine §9 voucher
@@ -1178,6 +1226,53 @@ service cloud.firestore {
 
       // Same reasoning as purchases: a redeemed voucher is the proof of
       // why an account has premium. Revoke sets a status, never deletes.
+      allow delete: if false;
+    }
+
+    // ── schools/{schoolId} ────────────────────────────────────────────
+    // The school registry (architecture brief item 4 — generic, not
+    // hardcoded to Green Hills). Readable by anyone signed in (the
+    // redemption success screen and any school-picker UI need to show a
+    // school's name); registering a new school is platform-level, same
+    // tier as "Register a School" already is elsewhere in this app.
+    match /schools/{schoolId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSuperAdmin();
+      allow delete: if false;
+    }
+
+    // ── school_vouchers/{code} ───────────────────────────────────────
+    // Same get-vs-list reasoning as vouchers/{voucherId} above: a
+    // redeeming user must be able to read the one code they hold (its id
+    // IS the code, see school_voucher.dart), but never enumerate the
+    // collection to harvest unused codes.
+    match /school_vouchers/{code} {
+      allow get:  if isSignedIn();
+      allow list: if canManageUsers();
+
+      // Only school/platform staff issue codes, and only for a school
+      // they're allowed to administer (their own school, or any school if
+      // they're a superAdmin/platform-level departmentAdmin+).
+      allow create: if canManageUsers()
+                    && request.resource.data.createdByUid == request.auth.uid
+                    && request.resource.data.status == 'unused'
+                    && (isSuperAdmin() || isOwnSchool(request.resource.data.schoolId));
+
+      allow update: if
+        // Staff administration — revoking a code.
+        canManageUsers()
+        // A user redeeming a code they hold — narrow, same shape as
+        // vouchers/{voucherId}'s redemption branch.
+        || (
+          isSignedIn()
+          && accountNotSuspended()
+          && resource.data.status == 'unused'
+          && request.resource.data.status == 'redeemed'
+          && request.resource.data.redeemedByUserId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['status', 'redeemedByUserId', 'redeemedAt'])
+        );
+
       allow delete: if false;
     }
 

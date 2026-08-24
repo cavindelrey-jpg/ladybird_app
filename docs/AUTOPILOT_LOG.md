@@ -4266,3 +4266,92 @@ nobody had caught:
 this sandbox, same standing constraint as every session. Reviewed every
 edit by hand for import correctness and signature matches. Run
 `flutter analyze` next and paste output if anything breaks.
+
+## 2026-08-24 — School voucher architecture (Phase 1 of the multi-school access-control brief)
+
+User supplied a 28-item architecture/UX brief (auth, voucher-based school
+access, quiz expansion, admin UX). Given the true scope, tracked as 6
+phases via TaskCreate and working through them in order rather than one
+unreviewable mega-diff. This entry covers Phase 1: "the Green Hills app
+must not be accessible simply by holding any Academia account."
+
+**What was actually found before building anything** (per the brief's own
+"inspect before duplicating" instruction): `schoolId` has existed on
+AppUser for a long time, and several content models (Announcement/Club/
+SchoolMark/SchoolRequest) already carry a schoolId for scoping -- but
+grepping for every WRITE of `schoolId` turned up zero call sites that
+ever set it on a user account. `colSeats`/`SerialNumber` are referenced
+only in comments, never implemented. `AccountChoiceScreen` (Individual/
+Silver/Gold) is entirely about Academia CONTENT premium, unrelated to
+school access -- there is no existing "pay for school access" flow to
+remove (item 3 is a non-issue: nothing to delete). The REAL violation of
+"any Academia account gets school access" was
+`profile_page.dart`'s School Navigation section, gated on `!user.isGuest`
+-- any signed-in user, school-linked or not, saw School Connect/Marks/
+Timetable. Home's own "Timetable" quick-access tile was checked and is
+unrelated (routes to the pre-existing Personal Study Timetable, a
+different, non-school feature).
+
+**Built, generic across schools (not hardcoded to Green Hills), per item
+4's explicit instruction:**
+- `models/school.dart` -- the school registry that never existed
+  (`schools/{schoolId}`: code, name).
+- `models/school_voucher.dart` -- SchoolRole enum (student/parent/
+  teacher/classMaster/admin) with a `[SCHOOL][ROLE][RANDOM8]` code shape
+  (e.g. `GHS-4K9QX7M2`) -- the prefix is for humans reading a printed
+  slip, the actual security boundary is the same doc-id-keyed atomic
+  transaction pattern lib/models/voucher.dart already uses (random
+  8-char suffix from the same confusable-free alphabet, ~1.4e11 space
+  per prefix). Deliberately a SEPARATE model from voucher.dart (Premium
+  entitlement) -- different grant, different lifecycle, conflating them
+  would make neither rule expressible cleanly.
+- `AppUser` gained `schoolRole` (orthogonal to the existing `UserRole`
+  content-privilege axis -- a class master is also `UserRole.lecturer`
+  for content purposes, `SchoolRole.classMaster` for the extra class
+  permission), `teachingAssignments` (List<TeachingAssignment>, real
+  (subject, classLevel) pairs -- item 22's actual permission source,
+  replacing the single subject/classLevel string that couldn't express
+  "Physics teacher for Form 5 only"), `classMasterOfClass`, and
+  `schoolVoucherRef` (audit trail + what lets firestore.rules verify a
+  self-service write against the exact voucher referenced, mirroring how
+  `entitlementSourceRef`/`isValidGiftRedemption()` already works for
+  Premium). `isParent` used to be hardcoded `false` with a "removed from
+  hierarchy" comment -- now real (`schoolRole == SchoolRole.parent`).
+- `repositories/school_access_repository.dart` -- `redeemSchoolVoucher()`
+  mirrors `EntitlementRepository.redeemVoucher()`'s transaction shape
+  exactly (same proven atomicity pattern). Only ever RAISES role
+  privilege, never lowers it. Folds item 19's class-selection into the
+  SAME step for student codes (an optional field on the redemption
+  screen) rather than granting access and then immediately showing a
+  separate "your class isn't set" wall. `issueVouchers()` for staff.
+- `firestore.rules` -- new `schools/{schoolId}` and
+  `school_vouchers/{code}` collections (get-vs-list split identical to
+  the existing `vouchers/{voucherId}` reasoning: any signed-in user can
+  `get` a code they already hold, `list` is staff-only so nobody can
+  enumerate unused codes). Extended `users/{uid}`'s update rule with
+  `isValidSchoolVoucherRedemption()` -- role/schoolId/schoolRole/
+  classMasterOfClass can now move, but ONLY as part of a write that
+  simultaneously references an unused school_vouchers doc whose stored
+  schoolId/role match what's being written, same self-write-narrowing
+  shape `isValidGiftRedemption()` already established for premium.
+  **Not deployed** -- `firebase deploy` remains reserved for the repo
+  owner, same standing policy all session.
+- UI: `features/onboarding/school_access_page.dart` (redemption, reachable
+  from Profile's new "Connect Your School" entry when `!isSchoolMember`),
+  `features/onboarding/school_admin_page.dart` (staff issuance --
+  register a school (superAdmin), generate N codes for a role
+  (schoolAdmin of that school, or superAdmin for any school), reachable
+  from Settings for `canManageUsers` accounts). `profile_page.dart`'s
+  School Navigation section now gates on `user.isSchoolMember`
+  (schoolId + schoolRole both set via a real redemption), not `!isGuest`.
+
+**Deliberately not done in this pass, flagged not hidden:**
+- No emulator/live Firebase in this sandbox -- none of this was
+  executed end-to-end, same ceiling as every rules/backend change this
+  session. `flutter analyze`/`flutter test` next, same loop as always.
+- Phases 2-6 of the brief (marks teacher/class-master permission
+  enforcement + CSV upload, School Connect/Timetable auto-connect
+  polish, Academia-content renames, quiz-content generation across the
+  course catalogue, nav/FAB/messaging-contrast/subheading UX pass,
+  homepage banner mockup) are tracked as separate in-flight tasks,
+  continuing next.

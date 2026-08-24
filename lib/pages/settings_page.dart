@@ -15,6 +15,7 @@ import 'change_password_page.dart';
 import 'notification_preferences_page.dart';
 import 'help_support_page.dart';
 import 'about_academia_page.dart';
+import '../features/onboarding/school_admin_page.dart';
 
 import '../widgets/app_background.dart';
 class SettingsPage extends StatelessWidget {
@@ -55,6 +56,15 @@ class SettingsPage extends StatelessWidget {
               'Announcements, comments, replies',
               () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => NotificationPreferencesPage(userId: user.id)))),
+
+          if (user.canManageUsers) ...[
+            const SizedBox(height: 24),
+            _sectionLabel(context, 'School Administration'),
+            _tile(context, Icons.badge_outlined, 'School Access Admin',
+                'Register schools, issue voucher codes',
+                () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => SchoolAdminPage(user: user)))),
+          ],
 
           const SizedBox(height: 24),
           _sectionLabel(context, 'Support'),

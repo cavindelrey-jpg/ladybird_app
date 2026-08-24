@@ -10,3 +10,5 @@ export 'entitlement_repository.dart';
 export 'test_repository.dart';
 export 'public_course_repository.dart';
 export 'academic_section_repository.dart';
+export 'school_repository.dart';
+export 'school_access_repository.dart';

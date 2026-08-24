@@ -15,3 +15,6 @@ export 'daily_challenge.dart';
 export 'xp_transaction.dart';
 export 'test.dart';
 export 'test_attempt.dart';
+export 'school.dart';
+export 'school_voucher.dart';
+export 'teaching_assignment.dart';

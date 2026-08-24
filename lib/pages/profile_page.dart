@@ -11,6 +11,7 @@ import '../features/school/timetable_page.dart';
 import '../features/school/marks_page.dart';
 import '../features/school/school_connect_page.dart';
 import '../features/entitlements/entitlements.dart';
+import '../features/onboarding/school_access_page.dart';
 import 'profile_edit_page.dart';
 import 'bookmarks_page.dart';
 import 'settings_page.dart';
@@ -134,18 +135,26 @@ class ProfilePage extends StatelessWidget {
                     builder: (_) => SalesDeskPage(user: user)))),
 
           // ── Section 2: School Navigation ───────────────────────────────
+          // Gated on isSchoolMember (a redeemed school voucher), NOT on
+          // !isGuest -- holding any signed-in Academia account must never
+          // by itself surface a school's private features (architecture
+          // brief item 2).
           if (!user.isGuest) ...[
             const SizedBox(height: 8),
             _SectionHeader('School Navigation'),
-            _InfoRow(Icons.forum_outlined, 'School Connect', '',
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => SchoolConnectPage(user: user)))),
-            _InfoRow(Icons.assessment_outlined, 'Marks', '',
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => MarksPage(user: user)))),
-            _InfoRow(Icons.calendar_month_outlined, 'Timetable', '',
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => TimetablePage(user: user)))),
+            if (user.isSchoolMember) ...[
+              _InfoRow(Icons.forum_outlined, 'School Connect', '',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => SchoolConnectPage(user: user)))),
+              _InfoRow(Icons.assessment_outlined, 'Marks', '',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => MarksPage(user: user)))),
+              _InfoRow(Icons.calendar_month_outlined, 'Timetable', '',
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => TimetablePage(user: user)))),
+            ] else
+              _InfoRow(Icons.link_rounded, 'Connect Your School', '',
+                  onTap: () => openSchoolAccess(context, user)),
           ],
 
           // ── Section 3: My Learning & Membership ─────────────────────────

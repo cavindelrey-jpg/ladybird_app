@@ -9,6 +9,7 @@ import '../features/timetable/personal_study_page.dart';
 import '../features/testing/xp_dashboard_page.dart';
 import '../features/school/timetable_page.dart';
 import '../features/school/marks_page.dart';
+import '../features/school/school_connect_page.dart';
 import '../features/entitlements/entitlements.dart';
 import 'profile_edit_page.dart';
 import 'bookmarks_page.dart';
@@ -133,11 +134,12 @@ class ProfilePage extends StatelessWidget {
                     builder: (_) => SalesDeskPage(user: user)))),
 
           // ── Section 2: School Navigation ───────────────────────────────
-          // School Connect is built in a later pass and will be added
-          // here once it lands.
           if (!user.isGuest) ...[
             const SizedBox(height: 8),
             _SectionHeader('School Navigation'),
+            _InfoRow(Icons.forum_outlined, 'School Connect', '',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => SchoolConnectPage(user: user)))),
             _InfoRow(Icons.assessment_outlined, 'Marks', '',
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => MarksPage(user: user)))),

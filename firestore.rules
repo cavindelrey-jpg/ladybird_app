@@ -898,6 +898,21 @@ service cloud.firestore {
     match /sequences/{id} { allow read: if isSignedIn(); allow write: if canManageSchool(); }
     match /subjects/{id}  { allow read: if isSignedIn(); allow write: if canManageSchool(); }
 
+    // ── school_requests/{id} ────────────────────────────────────────────
+    // School Connect's five request types (Report an Issue, Leave
+    // Request, Fee Inquiry, School Request, Give Feedback) -- one
+    // collection, a `type` field distinguishes them. A student reads/
+    // creates only their own; staff (lecturer+) read every request for
+    // their school and respond (update) but never delete one, same
+    // "keep the audit trail" reasoning as purchases/{id} below.
+    match /school_requests/{id} {
+      allow read: if isSignedIn() &&
+        (resource.data.studentId == request.auth.uid || canUploadContent() || canManageSchool());
+      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
+      allow update: if canUploadContent() || canManageSchool();
+      allow delete: if false;
+    }
+
     // ── timetable/{id} ────────────────────────────────────────────────
     match /timetable/{id} {
       allow read: if isSignedIn();

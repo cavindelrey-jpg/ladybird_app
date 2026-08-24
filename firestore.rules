@@ -322,6 +322,14 @@ service cloud.firestore {
         allow write: if canManageSchool() && isOwnSchool(schoolId);
       }
 
+      // Class Master name per classLevel -- shown on the student info
+      // card across School Connect/Marks/Timetable. Same read/write
+      // shape as timetable above.
+      match /classInfo/{classLevel} {
+        allow read: if isSignedIn() && isOwnSchool(schoolId);
+        allow write: if canManageSchool() && isOwnSchool(schoolId);
+      }
+
       match /academic_calendar/{eventId} {
         allow read: if isSignedIn() && isOwnSchool(schoolId);
         allow write: if canManageSchool() && isOwnSchool(schoolId);

@@ -33,11 +33,13 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
   AcademicSequence _sequence = AcademicSequence.t1s1;
   String _subject = kAcademicSubjects.first;
   final _scoreCtrl = TextEditingController();
+  final _teacherCtrl = TextEditingController();
   double _maxScore = 20;
   bool _searching = false;
 
   @override
   void dispose() {
+    _teacherCtrl.dispose();
     _searchCtrl.dispose();
     _scoreCtrl.dispose();
     super.dispose();
@@ -74,6 +76,7 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
       studentId: student['id'] as String,
       classLevel: (student['classLevel'] as String?) ?? '',
       subject: _subject,
+      teacherName: _teacherCtrl.text.trim(),
       sequence: _sequence,
       score: score,
       maxScore: _maxScore,
@@ -159,6 +162,7 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
               items: [for (final s in kAcademicSubjects) DropdownMenuItem(value: s, child: Text(s))],
               onChanged: (v) => setState(() => _subject = v ?? _subject),
             ),
+            TextField(controller: _teacherCtrl, decoration: const InputDecoration(labelText: 'Teacher')),
             Row(children: [
               Expanded(
                 child: TextField(

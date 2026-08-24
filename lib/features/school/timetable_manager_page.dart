@@ -162,8 +162,12 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
               DropdownButtonFormField<int>(
                 initialValue: dayOfWeek,
                 decoration: const InputDecoration(labelText: 'Day'),
+                // Mon-Sat only (1-6) -- TimetablePage's weekly grid only
+                // renders those 6 columns, matching mockups/mockup2.jpg.
+                // A Sunday (7) slot would silently never appear to
+                // students if this allowed picking it.
                 items: [
-                  for (var d = 1; d <= 7; d++)
+                  for (var d = 1; d <= 6; d++)
                     DropdownMenuItem(value: d, child: Text(SchoolTimetableSlot.dayNames[d])),
                 ],
                 onChanged: (v) => setSheetState(() => dayOfWeek = v ?? 1),

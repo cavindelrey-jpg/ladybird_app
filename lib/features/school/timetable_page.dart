@@ -1,182 +1,190 @@
 // lib/features/school/timetable_page.dart
-// Official School Timetable -- School Navigation's "Timetable" module.
-// Distinct from Profile's "My Study Plan" (personal, self-authored). Real
-// data: schools/{schoolId}/timetable/{id} via SchoolTimetableRepository,
-// filtered to the signed-in student's own classLevel. No hardcoded
-// periods -- an honest empty state when the school hasn't entered this
-// class's timetable yet, same "never fake data" standard as the rest of
-// this app.
+// Official School Timetable -- matches mockups/mockup2.jpg: a full
+// weekly grid (time rows x Mon-Sat columns), a "Today's Highlights"
+// strip, and a footer note. Distinct from Profile's "My Study Plan"
+// (personal, self-authored). Real data throughout: schools/{schoolId}/
+// timetable/{id} via SchoolTimetableRepository, filtered to the signed-
+// in student's own classLevel. No hardcoded periods -- an honest empty
+// state when the school hasn't entered this class's timetable yet.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../config/branding.dart';
 import '../../models/app_user.dart';
 import '../../models/school_timetable_slot.dart';
 import '../../repositories/school_timetable_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import 'timetable_manager_page.dart';
+import 'widgets/school_shared_widgets.dart';
 
-class TimetablePage extends StatefulWidget {
+class TimetablePage extends StatelessWidget {
   final AppUser user;
   const TimetablePage({super.key, required this.user});
 
   @override
-  State<TimetablePage> createState() => _TimetablePageState();
-}
-
-class _TimetablePageState extends State<TimetablePage> {
-  late int _selectedDay = DateTime.now().weekday;
-
-  @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final u = widget.user;
-    final schoolId = u.schoolId ?? '';
-    final classLevel = u.classLevel;
+    final schoolId = user.schoolId ?? '';
+    final classLevel = user.classLevel;
 
     return Scaffold(
       backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg,
-        elevation: 0,
-        title: Text('Timetable', style: AppText.h2.copyWith(color: ac.txt)),
-        iconTheme: IconThemeData(color: ac.txt),
-        actions: [
-          if (u.canManageSchool)
+      appBar: schoolAppBar(
+        context: context,
+        title: 'Timetable',
+        subtitle: 'Your class schedule at a glance',
+        trailing: [
+          if (user.canManageSchool)
             IconButton(
               icon: Icon(Icons.edit_calendar_outlined, color: ac.txt2),
               tooltip: 'Manage timetable',
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => TimetableManagerPage(user: u))),
+                  builder: (_) => TimetableManagerPage(user: user))),
             ),
         ],
       ),
       body: (schoolId.isEmpty || classLevel.isEmpty)
           ? _missingClassState(ac)
-          : Column(children: [
-              _header(ac, classLevel),
-              _daySelector(ac),
-              Expanded(
-                child: StreamBuilder<List<SchoolTimetableSlot>>(
-                  stream: SchoolTimetableRepository.instance.watchForClass(schoolId, classLevel),
-                  builder: (context, snap) {
-                    if (snap.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-                    }
-                    final all = snap.data ?? const <SchoolTimetableSlot>[];
-                    final dayPeriods = all.where((s) => s.dayOfWeek == _selectedDay).toList();
-                    if (all.isEmpty) return _emptyState(ac, classLevel);
-                    if (dayPeriods.isEmpty) return _emptyDayState(ac);
-                    return ListView.separated(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: dayPeriods.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) => _periodCard(ac, dayPeriods[i]),
-                    );
-                  },
-                ),
-              ),
-            ]),
+          : StreamBuilder<List<SchoolTimetableSlot>>(
+              stream: SchoolTimetableRepository.instance.watchForClass(schoolId, classLevel),
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                }
+                final all = snap.data ?? const <SchoolTimetableSlot>[];
+                if (all.isEmpty) return _emptyState(ac, classLevel);
+                return ListView(
+                  children: [
+                    StudentInfoCard(user: user),
+                    const SizedBox(height: 16),
+                    _todaysHighlights(ac, all),
+                    const SizedBox(height: 16),
+                    _weekGrid(ac, all),
+                    const SizedBox(height: 16),
+                    _noteFooter(context, ac),
+                    const SizedBox(height: 16),
+                  ],
+                );
+              },
+            ),
     );
   }
 
-  Widget _header(AppColors ac, String classLevel) {
-    final u = widget.user;
+  Widget _todaysHighlights(AppColors ac, List<SchoolTimetableSlot> all) {
+    final today = DateTime.now().weekday;
+    final todays = all.where((s) => s.dayOfWeek == today).toList()
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+    if (todays.isEmpty) return const SizedBox.shrink();
+
     return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [ac.navy, ac.navy2],
-            begin: Alignment.topLeft, end: Alignment.bottomRight),
-        borderRadius: BorderRadius.circular(Rad.lg),
-      ),
-      child: Row(children: [
-        CircleAvatar(
-          radius: 22, backgroundColor: Colors.white.withValues(alpha: .15),
-          backgroundImage: (u.photoUrl ?? '').isNotEmpty ? NetworkImage(u.photoUrl!) : null,
-          child: (u.photoUrl ?? '').isEmpty
-              ? Text(u.initials, style: GoogleFonts.sora(color: Colors.white, fontWeight: FontWeight.w700))
-              : null,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(u.name, style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
-            const SizedBox(height: 2),
-            Text('$classLevel · ${Branding.current.appName}',
-                style: GoogleFonts.inter(fontSize: 11.5, color: Colors.white.withValues(alpha: .8))),
-          ]),
-        ),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: ac.purBg, borderRadius: BorderRadius.circular(Rad.md)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.auto_awesome_rounded, color: ac.pur, size: 16),
+          const SizedBox(width: 6),
+          Text("Today's Highlights", style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w800, color: ac.pur)),
+        ]),
+        const SizedBox(height: 10),
+        Wrap(spacing: 16, runSpacing: 8, children: [
+          for (final s in todays.take(4))
+            SizedBox(
+              width: 140,
+              child: Row(children: [
+                Container(width: 6, height: 6, margin: const EdgeInsets.only(right: 6),
+                    decoration: BoxDecoration(color: ac.pur, shape: BoxShape.circle)),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(s.startTime, style: GoogleFonts.inter(fontSize: 10, color: ac.txt2)),
+                    Text(s.subject, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                  ]),
+                ),
+              ]),
+            ),
+        ]),
       ]),
     );
   }
 
-  Widget _daySelector(AppColors ac) {
-    const labels = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return SizedBox(
-      height: 56,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-        itemCount: 7,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) {
-          final day = i + 1;
-          final selected = day == _selectedDay;
-          return GestureDetector(
-            onTap: () => setState(() => _selectedDay = day),
-            child: Container(
-              width: 52,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: selected ? ac.primary : ac.surf,
-                borderRadius: BorderRadius.circular(Rad.sm),
-                border: Border.all(color: selected ? ac.primary : ac.bdr),
-              ),
-              child: Text(labels[day], style: GoogleFonts.sora(
-                  fontSize: 12.5, fontWeight: FontWeight.w700,
-                  color: selected ? Colors.white : ac.txt2)),
-            ),
-          );
-        },
+  Widget _weekGrid(AppColors ac, List<SchoolTimetableSlot> all) {
+    const dayCols = [1, 2, 3, 4, 5, 6]; // Mon-Sat -- no Sunday classes
+    const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    final times = (all.map((s) => s.startTime).toSet().toList()..sort());
+    final byDayAndTime = <String, SchoolTimetableSlot>{
+      for (final s in all) '${s.dayOfWeek}:${s.startTime}': s,
+    };
+    const timeColWidth = 62.0;
+    const dayColWidth = 108.0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Column(children: [
+            // Header row
+            Row(children: [
+              SizedBox(width: timeColWidth, height: 40, child: Center(
+                  child: Text('Time', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: ac.muted)))),
+              for (final label in dayLabels)
+                SizedBox(width: dayColWidth, height: 40, child: Center(
+                    child: Text(label, style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w800, color: ac.txt)))),
+            ]),
+            Divider(height: 1, color: ac.bdr),
+            for (final time in times) ...[
+              Row(children: [
+                SizedBox(
+                  width: timeColWidth, height: 56,
+                  child: Center(child: Text(time, style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w700, color: ac.txt2))),
+                ),
+                for (final day in dayCols)
+                  SizedBox(
+                    width: dayColWidth, height: 56,
+                    child: _gridCell(ac, byDayAndTime['$day:$time']),
+                  ),
+              ]),
+              Divider(height: 1, color: ac.bdr2),
+            ],
+          ]),
+        ),
       ),
     );
   }
 
-  Widget _periodCard(AppColors ac, SchoolTimetableSlot s) {
+  Widget _gridCell(AppColors ac, SchoolTimetableSlot? slot) {
+    if (slot == null) {
+      return Center(child: Text('—', style: GoogleFonts.inter(fontSize: 12, color: ac.muted)));
+    }
     return Container(
+      margin: const EdgeInsets.all(4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(8)),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(slot.subject, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.sora(fontSize: 10.5, fontWeight: FontWeight.w700, color: ac.primary)),
+        if ((slot.room ?? '').isNotEmpty)
+          Text(slot.room!, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(fontSize: 9, color: ac.primary.withValues(alpha: .75))),
+      ]),
+    );
+  }
+
+  Widget _noteFooter(BuildContext context, AppColors ac) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: ac.surf, borderRadius: BorderRadius.circular(Rad.md),
-        border: Border(left: BorderSide(color: ac.primary, width: 3)),
-      ),
+      decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(Rad.md)),
       child: Row(children: [
-        SizedBox(
-          width: 64,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(s.startTime, style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w800, color: ac.txt)),
-            Text(s.endTime, style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted)),
-          ]),
-        ),
-        Container(width: 1, height: 34, color: ac.bdr2, margin: const EdgeInsets.symmetric(horizontal: 10)),
+        Icon(Icons.info_outline_rounded, color: ac.primary, size: 18),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(s.subject, style: GoogleFonts.sora(fontSize: 13.5, fontWeight: FontWeight.w700, color: ac.txt)),
-            const SizedBox(height: 2),
-            Row(children: [
-              Icon(Icons.person_outline_rounded, size: 13, color: ac.muted),
-              const SizedBox(width: 3),
-              Text(s.teacherName.isEmpty ? 'Unassigned' : s.teacherName,
-                  style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
-              if ((s.room ?? '').isNotEmpty) ...[
-                const SizedBox(width: 10),
-                Icon(Icons.room_outlined, size: 13, color: ac.muted),
-                const SizedBox(width: 3),
-                Text(s.room!, style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
-              ],
-            ]),
+            Text('Please Note', style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w800, color: ac.primary)),
+            Text('Timetable is subject to change. Check regularly for updates.',
+                style: GoogleFonts.inter(fontSize: 11, color: ac.txt2)),
           ]),
         ),
       ]),
@@ -214,10 +222,5 @@ class _TimetablePageState extends State<TimetablePage> {
                 style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2)),
           ]),
         ),
-      );
-
-  Widget _emptyDayState(AppColors ac) => Center(
-        child: Text('No periods scheduled for this day.',
-            style: GoogleFonts.inter(fontSize: 12.5, color: ac.muted)),
       );
 }

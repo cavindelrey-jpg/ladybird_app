@@ -1,8 +1,9 @@
 // lib/features/school/school_connect_page.dart
 // The student's central interface for communicating with and receiving
-// information from the school. Real data throughout:
-//   - Header: student identity + class.
-//   - Quick action: jump straight to submitting a request.
+// information from the school. Matches mockups/mockup1.jpg: shared
+// crest header + student info card, a quick-action box, 5 big colored
+// service cards, side-by-side Announcements/Upcoming Events, and a
+// footer. Real data throughout:
 //   - School services: 5 request types -> SchoolRequestFormPage, all
 //     backed by the real school_requests/{id} collection.
 //   - Calendar & activities: real schools/{schoolId}/academic_calendar
@@ -10,7 +11,9 @@
 //     correct, unused Firestore rule.
 //   - Teacher Announcements: reuses the existing, already-real
 //     AnnouncementRepository scoped to this school -- no new backend.
-//   - Footer: School Info.
+//   - Footer: real School Info (Branding) + a real "Contact School
+//     Office" action -- routes into the same request system rather than
+//     showing fabricated phone numbers no data source backs.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -18,15 +21,17 @@ import '../../config/branding.dart';
 import '../../models/announcement.dart';
 import '../../models/app_user.dart';
 import '../../models/school_event.dart';
+import '../../models/school_request.dart';
 import '../../repositories/announcement_repository.dart';
 import '../../repositories/school_event_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
+import '../../pages/notifications_page.dart';
 import '../announcements/announcements_page.dart';
 import 'school_calendar_manager_page.dart';
 import 'school_request_form_page.dart';
 import 'school_requests_admin_page.dart';
-import '../../models/school_request.dart';
+import 'widgets/school_shared_widgets.dart';
 
 class SchoolConnectPage extends StatelessWidget {
   final AppUser user;
@@ -39,12 +44,16 @@ class SchoolConnectPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg,
-        elevation: 0,
-        title: Text('School Connect', style: AppText.h2.copyWith(color: ac.txt)),
-        iconTheme: IconThemeData(color: ac.txt),
-        actions: [
+      appBar: schoolAppBar(
+        context: context,
+        title: 'School Connect',
+        subtitle: 'Stay connected with your school',
+        trailing: [
+          IconButton(
+            icon: Icon(Icons.notifications_outlined, color: ac.txt2),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => NotificationsPage(userId: user.id))),
+          ),
           if (user.canManageSchool || user.canUploadContent)
             IconButton(
               icon: Icon(Icons.inbox_outlined, color: ac.txt2),
@@ -57,247 +66,234 @@ class SchoolConnectPage extends StatelessWidget {
       body: schoolId.isEmpty
           ? _missingSchoolState(ac)
           : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              padding: const EdgeInsets.only(bottom: 24),
               children: [
-                _header(ac),
+                StudentInfoCard(user: user),
                 const SizedBox(height: 16),
-                _quickActionBox(context, ac, schoolId),
+                _quickActionBox(context, ac),
                 const SizedBox(height: 20),
-                _sectionLabel(ac, 'School Services'),
+                _sectionLabel(ac, 'How can we help you today?'),
                 const SizedBox(height: 10),
-                _servicesGrid(context, ac, schoolId),
+                _servicesRow(context, ac),
                 const SizedBox(height: 24),
-                _calendarSection(context, ac, schoolId),
-                const SizedBox(height: 24),
-                _announcementsSection(context, ac, schoolId),
-                const SizedBox(height: 24),
-                _schoolInfoFooter(ac),
+                _announcementsAndEventsRow(context, ac, schoolId),
+                const SizedBox(height: 20),
+                _contactFooter(context, ac),
               ],
             ),
     );
   }
 
-  Widget _header(AppColors ac) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [ac.navy, ac.navy2], begin: Alignment.topLeft, end: Alignment.bottomRight),
-        borderRadius: BorderRadius.circular(Rad.lg),
-      ),
-      child: Row(children: [
-        CircleAvatar(
-          radius: 24, backgroundColor: Colors.white.withValues(alpha: .15),
-          backgroundImage: (user.photoUrl ?? '').isNotEmpty ? NetworkImage(user.photoUrl!) : null,
-          child: (user.photoUrl ?? '').isEmpty
-              ? Text(user.initials, style: GoogleFonts.sora(color: Colors.white, fontWeight: FontWeight.w700))
-              : null,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(user.name, style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
-            const SizedBox(height: 2),
-            Text(user.classLevel.isEmpty ? Branding.current.appName : '${user.classLevel} · ${Branding.current.appName}',
-                style: GoogleFonts.inter(fontSize: 11.5, color: Colors.white.withValues(alpha: .8))),
-          ]),
-        ),
-      ]),
-    );
-  }
-
-  Widget _quickActionBox(BuildContext context, AppColors ac, String schoolId) {
-    return Material(
-      color: ac.primaryBg,
-      borderRadius: BorderRadius.circular(Rad.md),
-      child: InkWell(
+  Widget _quickActionBox(BuildContext context, AppColors ac) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Material(
+        color: ac.primaryBg,
         borderRadius: BorderRadius.circular(Rad.md),
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => SchoolRequestFormPage(user: user, initialType: SchoolRequestType.general))),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(children: [
-            Icon(Icons.chat_bubble_outline_rounded, color: ac.primary, size: 20),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text('Need something from the school? Send a request.',
-                  style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: ac.primary)),
-            ),
-            Icon(Icons.arrow_forward_rounded, size: 16, color: ac.primary),
-          ]),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(Rad.md),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => SchoolRequestFormPage(user: user, initialType: SchoolRequestType.general))),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(children: [
+              Icon(Icons.chat_bubble_outline_rounded, color: ac.primary, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('Need something from the school? Send a request.',
+                    style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: ac.primary)),
+              ),
+              Icon(Icons.arrow_forward_rounded, size: 16, color: ac.primary),
+            ]),
+          ),
         ),
       ),
     );
   }
 
-  Widget _sectionLabel(AppColors ac, String text) =>
-      Text(text, style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w800, color: ac.txt));
+  Widget _sectionLabel(AppColors ac, String text) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Text(text, style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w800, color: ac.txt)),
+      );
 
-  Widget _servicesGrid(BuildContext context, AppColors ac, String schoolId) {
+  Widget _servicesRow(BuildContext context, AppColors ac) {
     final items = <(SchoolRequestType, IconData, Color)>[
-      (SchoolRequestType.issue, Icons.report_problem_outlined, ac.red),
-      (SchoolRequestType.leave, Icons.event_busy_outlined, ac.org),
-      (SchoolRequestType.feeInquiry, Icons.payments_outlined, ac.gold),
-      (SchoolRequestType.general, Icons.assignment_outlined, ac.primary),
-      (SchoolRequestType.feedback, Icons.feedback_outlined, ac.pur),
+      (SchoolRequestType.issue, Icons.report_problem_outlined, ac.org),
+      (SchoolRequestType.leave, Icons.event_available_outlined, ac.grn),
+      (SchoolRequestType.feeInquiry, Icons.payments_outlined, ac.blu),
+      (SchoolRequestType.general, Icons.description_outlined, ac.pur),
+      (SchoolRequestType.feedback, Icons.chat_bubble_outline_rounded, ac.red),
     ];
-    return GridView.count(
-      crossAxisCount: 3,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 0.95,
-      children: [
-        for (final (type, icon, color) in items)
-          Material(
-            color: ac.surf,
+    return SizedBox(
+      height: 104,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (_, i) {
+          final (type, icon, color) = items[i];
+          return Material(
+            color: color.withValues(alpha: .10),
             borderRadius: BorderRadius.circular(Rad.md),
             child: InkWell(
               borderRadius: BorderRadius.circular(Rad.md),
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => SchoolRequestFormPage(user: user, initialType: type))),
               child: Container(
+                width: 96,
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
+                alignment: Alignment.center,
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Container(
-                    width: 38, height: 38,
-                    decoration: BoxDecoration(color: color.withValues(alpha: .12), shape: BoxShape.circle),
-                    child: Icon(icon, color: color, size: 18),
-                  ),
-                  const SizedBox(height: 8),
+                  Icon(icon, color: color, size: 24),
+                  const SizedBox(height: 10),
                   Text(type.label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w600, color: ac.txt)),
+                      style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
                 ]),
               ),
             ),
-          ),
-      ],
+          );
+        },
+      ),
     );
   }
 
-  Widget _calendarSection(BuildContext context, AppColors ac, String schoolId) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        _sectionLabel(ac, 'Calendar & Activities'),
-        if (user.canManageSchool)
-          TextButton.icon(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => SchoolCalendarManagerPage(user: user))),
-            icon: const Icon(Icons.edit_calendar_outlined, size: 16),
-            label: const Text('Manage'),
-          ),
-      ]),
-      const SizedBox(height: 10),
-      StreamBuilder<List<SchoolEvent>>(
-        stream: SchoolEventRepository.instance.watchAll(schoolId),
-        builder: (context, snap) {
-          final all = snap.data ?? const <SchoolEvent>[];
-          final upcoming = all.where((e) => e.isUpcoming).toList();
-          if (all.isEmpty) {
-            return _emptyCard(ac, 'No activities on the calendar yet.');
-          }
-          return Column(children: [
-            Text('Upcoming Events', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: ac.muted)),
-            const SizedBox(height: 6),
-            if (upcoming.isEmpty)
-              _emptyCard(ac, 'No upcoming events right now.')
-            else
-              for (final e in upcoming.take(5)) _eventCard(ac, e),
-          ]);
-        },
+  Widget _announcementsAndEventsRow(BuildContext context, AppColors ac, String schoolId) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: IntrinsicHeight(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Expanded(child: _panel(
+            ac,
+            icon: Icons.campaign_rounded, iconColor: ac.primary,
+            title: 'Announcements',
+            onViewAll: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => AnnouncementsPage(user: user, canPost: user.canPostAnnouncement))),
+            child: StreamBuilder<List<Announcement>>(
+              stream: AnnouncementRepository.instance.watchAnnouncements(schoolId: schoolId),
+              builder: (context, snap) {
+                final items = snap.data ?? const <Announcement>[];
+                if (items.isEmpty) return _emptyPanelText(ac, 'No announcements yet.');
+                return Column(children: [
+                  for (final a in items.take(3)) _announcementRow(ac, a),
+                ]);
+              },
+            ),
+          )),
+          const SizedBox(width: 12),
+          Expanded(child: _panel(
+            ac,
+            icon: Icons.event_rounded, iconColor: ac.gold,
+            title: 'Upcoming Events',
+            onViewAll: user.canManageSchool
+                ? () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => SchoolCalendarManagerPage(user: user)))
+                : null,
+            child: StreamBuilder<List<SchoolEvent>>(
+              stream: SchoolEventRepository.instance.watchAll(schoolId),
+              builder: (context, snap) {
+                final upcoming = (snap.data ?? const <SchoolEvent>[]).where((e) => e.isUpcoming).toList();
+                if (upcoming.isEmpty) return _emptyPanelText(ac, 'No upcoming events.');
+                return Column(children: [
+                  for (final e in upcoming.take(3)) _eventRow(ac, e),
+                ]);
+              },
+            ),
+          )),
+        ]),
       ),
-    ]);
+    );
   }
 
-  Widget _eventCard(AppColors ac, SchoolEvent e) {
+  Widget _panel(AppColors ac, {required IconData icon, required Color iconColor, required String title,
+      required Widget child, VoidCallback? onViewAll}) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: ac.bdr)),
-      child: Row(children: [
-        Container(
-          width: 44, height: 44,
-          decoration: BoxDecoration(color: ac.goldBg, borderRadius: BorderRadius.circular(10)),
-          alignment: Alignment.center,
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text('${e.startAt.day}', style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w800, color: ac.gold)),
-            Text(_monthAbbr(e.startAt.month), style: GoogleFonts.inter(fontSize: 8.5, color: ac.gold)),
-          ]),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(e.title, style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: ac.txt)),
-            if ((e.location ?? '').isNotEmpty)
-              Text(e.location!, style: GoogleFonts.inter(fontSize: 10.5, color: ac.txt2)),
-          ]),
-        ),
-      ]),
-    );
-  }
-
-  String _monthAbbr(int m) => const ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m];
-
-  Widget _announcementsSection(BuildContext context, AppColors ac, String schoolId) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        _sectionLabel(ac, 'Teacher Announcements'),
-        TextButton(
-          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => AnnouncementsPage(user: user, canPost: user.canPostAnnouncement))),
-          child: const Text('View all'),
-        ),
-      ]),
-      StreamBuilder<List<Announcement>>(
-        stream: AnnouncementRepository.instance.watchAnnouncements(schoolId: schoolId),
-        builder: (context, snap) {
-          final items = snap.data ?? const <Announcement>[];
-          if (items.isEmpty) return _emptyCard(ac, 'No announcements from the school yet.');
-          return Column(children: [
-            for (final a in items.take(3))
-              Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: ac.bdr)),
-                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Icon(Icons.campaign_rounded, size: 16, color: ac.primary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(a.title, style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
-                      Text(a.authorName, style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted)),
-                    ]),
-                  ),
-                ]),
-              ),
-          ]);
-        },
-      ),
-    ]);
-  }
-
-  Widget _schoolInfoFooter(AppColors ac) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: ac.surf3, borderRadius: BorderRadius.circular(Rad.md)),
+      decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('School Info', style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w800, color: ac.txt)),
-        const SizedBox(height: 6),
-        Text(Branding.current.appName,
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: ac.txt2)),
-        Text(Branding.current.tagline, style: GoogleFonts.inter(fontSize: 11, color: ac.muted)),
+        Row(children: [
+          Icon(icon, size: 15, color: iconColor),
+          const SizedBox(width: 5),
+          Expanded(child: Text(title, style: GoogleFonts.sora(fontSize: 11.5, fontWeight: FontWeight.w800, color: ac.txt))),
+        ]),
+        if (onViewAll != null) ...[
+          const SizedBox(height: 2),
+          GestureDetector(
+            onTap: onViewAll,
+            child: Text('View all', style: GoogleFonts.sora(fontSize: 10, fontWeight: FontWeight.w700, color: ac.primary)),
+          ),
+        ],
+        const SizedBox(height: 8),
+        child,
       ]),
     );
   }
 
-  Widget _emptyCard(AppColors ac, String message) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: ac.bdr)),
-        child: Text(message, style: GoogleFonts.inter(fontSize: 11.5, color: ac.muted)),
-      );
+  Widget _announcementRow(AppColors ac, Announcement a) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(a.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.sora(fontSize: 10.5, fontWeight: FontWeight.w700, color: ac.txt, height: 1.3)),
+        Text(a.authorName, style: GoogleFonts.inter(fontSize: 9, color: ac.muted)),
+      ]),
+    );
+  }
+
+  Widget _eventRow(AppColors ac, SchoolEvent e) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 30, height: 30,
+          decoration: BoxDecoration(color: ac.goldBg, borderRadius: BorderRadius.circular(6)),
+          alignment: Alignment.center,
+          child: Text('${e.startAt.day}', style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w800, color: ac.gold)),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(e.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.sora(fontSize: 10.5, fontWeight: FontWeight.w700, color: ac.txt, height: 1.3)),
+        ),
+      ]),
+    );
+  }
+
+  Widget _emptyPanelText(AppColors ac, String message) =>
+      Text(message, style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted));
+
+  Widget _contactFooter(BuildContext context, AppColors ac) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: ac.surf3, borderRadius: BorderRadius.circular(Rad.md)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Need to talk to someone?', style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w800, color: ac.txt)),
+          const SizedBox(height: 4),
+          Text('Reach out to the school directly through School Connect.',
+              style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => SchoolRequestFormPage(user: user, initialType: SchoolRequestType.general))),
+              icon: const Icon(Icons.call_outlined, size: 16),
+              label: const Text('Contact School Office'),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Divider(color: ac.bdr, height: 1),
+          const SizedBox(height: 10),
+          Text('School Info', style: GoogleFonts.sora(fontSize: 11.5, fontWeight: FontWeight.w800, color: ac.txt)),
+          const SizedBox(height: 4),
+          Text(Branding.current.appName, style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w600, color: ac.txt2)),
+          Text(Branding.current.tagline, style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted)),
+        ]),
+      ),
+    );
+  }
 
   Widget _missingSchoolState(AppColors ac) => Center(
         child: Padding(

@@ -73,6 +73,7 @@ class SchoolMark {
   final String studentId;
   final String classLevel;
   final String subject;
+  final String teacherName;
   final AcademicSequence sequence;
   final double score;
   final double maxScore; // as originally entered -- usually 20 or 100
@@ -85,6 +86,7 @@ class SchoolMark {
     required this.studentId,
     required this.classLevel,
     required this.subject,
+    this.teacherName = '',
     required this.sequence,
     required this.score,
     required this.maxScore,
@@ -123,6 +125,7 @@ class SchoolMark {
       studentId: d['studentId'] ?? '',
       classLevel: d['classLevel'] ?? '',
       subject: d['subject'] ?? '',
+      teacherName: d['teacherName'] ?? '',
       sequence: AcademicSequence.fromKey(d['sequence'] ?? '') ?? AcademicSequence.t1s1,
       score: (d['score'] as num?)?.toDouble() ?? 0,
       maxScore: (d['maxScore'] as num?)?.toDouble() ?? 20,
@@ -136,6 +139,7 @@ class SchoolMark {
         'studentId': studentId,
         'classLevel': classLevel,
         'subject': subject,
+        'teacherName': teacherName,
         'sequence': sequence.name,
         'score': score,
         'maxScore': maxScore,

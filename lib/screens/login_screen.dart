@@ -51,9 +51,20 @@ class _LoginScreenState extends State<LoginScreen>
       );
       if (!mounted) return;
       if (user == null) {
+        // Wrong credentials -- close the autofill session without
+        // prompting a save (shouldSave: false is the default, stated
+        // explicitly here since saving a rejected password would be
+        // actively wrong, not just unhelpful).
+        TextInput.finishAutofillContext(shouldSave: false);
         setState(() { _error = 'Account not found. Check your credentials.'; _loading = false; });
         return;
       }
+      // Commits the autofill session -- this is what actually triggers
+      // Android/iOS/browser's "Save password?" prompt after a
+      // successful sign-in. autofillHints on the fields alone only
+      // covers the READ side (offering saved credentials); this is the
+      // WRITE side.
+      TextInput.finishAutofillContext();
       // AppRouter's root StreamBuilder swaps the underlying screen on auth
       // change, but when LoginScreen was reached via Navigator.push (e.g.
       // the drawer's "Sign In" entry for guests) that pushed route stays on
@@ -66,6 +77,7 @@ class _LoginScreenState extends State<LoginScreen>
       }
     } catch (e) {
       if (!mounted) return;
+      TextInput.finishAutofillContext(shouldSave: false);
       setState(() {
         _error = e.toString().replaceFirst('Exception: ', '');
         _loading = false;
@@ -190,7 +202,14 @@ class _LoginScreenState extends State<LoginScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
                 child: Form(
                   key: _formKey,
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  // Groups the email/password fields so the platform
+                  // password manager (Android/iOS/Chrome autofill) can
+                  // both offer saved credentials on focus AND prompt to
+                  // save new ones after a successful sign-in -- without
+                  // this, autofillHints alone on the individual fields
+                  // isn't reliably picked up.
+                  child: AutofillGroup(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     const SizedBox(height: 48),
 
                     // Brand name + subline -- no logo mark on this screen
@@ -223,6 +242,7 @@ class _LoginScreenState extends State<LoginScreen>
                       hint: 'Email address',
                       icon: Icons.email_outlined,
                       keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.username, AutofillHints.email],
                       validator: (v) => v == null || !v.contains('@')
                           ? 'Enter a valid email' : null,
                     ),
@@ -234,6 +254,7 @@ class _LoginScreenState extends State<LoginScreen>
                       hint: 'Password',
                       icon: Icons.lock_outline_rounded,
                       obscureText: _obscure,
+                      autofillHints: const [AutofillHints.password],
                       onSubmitted: (_) => _login(),
                       validator: (v) => v == null || v.length < 6
                           ? 'Enter your password' : null,
@@ -267,7 +288,8 @@ class _LoginScreenState extends State<LoginScreen>
                     Center(child: Text(Branding.current.tagline,
                         style: AppText.caption.copyWith(
                             color: Colors.white.withValues(alpha: .3)))),
-                  ]),
+                    ]),
+                  ),
                 ),
               ),
             ),
@@ -287,10 +309,11 @@ class _GlassField extends StatelessWidget {
   final Widget? suffix;
   final String? Function(String?)? validator;
   final ValueChanged<String>? onSubmitted;
+  final Iterable<String>? autofillHints;
   const _GlassField({
     required this.controller, required this.hint, required this.icon,
     this.obscureText = false, this.keyboardType, this.suffix,
-    this.validator, this.onSubmitted,
+    this.validator, this.onSubmitted, this.autofillHints,
   });
 
   @override
@@ -300,6 +323,7 @@ class _GlassField extends StatelessWidget {
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
+      autofillHints: autofillHints,
       onFieldSubmitted: onSubmitted,
       validator: validator,
       style: const TextStyle(color: Colors.white, fontSize: 15),

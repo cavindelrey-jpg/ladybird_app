@@ -9,6 +9,7 @@
 // pop back to the root to reveal it.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
@@ -58,6 +59,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
         name: _nameCtrl.text.trim(),
       );
       if (!mounted) return;
+      // Commits the autofill session so the platform password manager
+      // offers to save the newly-created credentials.
+      TextInput.finishAutofillContext();
 
       if (widget.isPremium) {
         final uid = AuthService.instance.firebaseUser?.uid ?? '';
@@ -79,6 +83,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       Navigator.of(context).popUntil((r) => r.isFirst);
     } catch (e) {
       if (!mounted) return;
+      TextInput.finishAutofillContext(shouldSave: false);
       setState(() {
         _error = e.toString().replaceFirst('Exception: ', '');
         _loading = false;
@@ -118,7 +123,8 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
           child: Form(
             key: _formKey,
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child: AutofillGroup(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
@@ -184,6 +190,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 controller: _nameCtrl,
                 hint: 'Full name',
                 icon: Icons.person_outline_rounded,
+                autofillHints: const [AutofillHints.name],
                 validator: (v) => (v == null || v.trim().length < 2) ? 'Enter your name' : null,
               ),
               const SizedBox(height: 12),
@@ -192,6 +199,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 hint: 'Email address',
                 icon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
+                // "new" hints (not plain username/password) -- this is
+                // an account-creation form, so the password manager
+                // should offer to GENERATE a strong password, not just
+                // recall an existing one.
+                autofillHints: const [AutofillHints.newUsername, AutofillHints.email],
                 validator: (v) => (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
               ),
               const SizedBox(height: 12),
@@ -200,6 +212,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 hint: 'Password',
                 icon: Icons.lock_outline_rounded,
                 obscureText: _obscure,
+                autofillHints: const [AutofillHints.newPassword],
                 onSubmitted: (_) => _submit(),
                 validator: (v) => (v == null || v.length < 6) ? 'At least 6 characters' : null,
                 suffix: IconButton(
@@ -217,10 +230,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               ),
               const SizedBox(height: 16),
               Center(
-                child: Text('By continuing you agree to Academia\'s guidelines.',
+                child: Text('By continuing you agree to our guidelines.',
                     style: GoogleFonts.inter(fontSize: 11, color: ac.muted)),
               ),
-            ]),
+              ]),
+            ),
           ),
         ),
       )),
@@ -237,10 +251,11 @@ class _Field extends StatelessWidget {
   final Widget? suffix;
   final String? Function(String?)? validator;
   final ValueChanged<String>? onSubmitted;
+  final Iterable<String>? autofillHints;
   const _Field({
     required this.controller, required this.hint, required this.icon,
     this.obscureText = false, this.keyboardType, this.suffix,
-    this.validator, this.onSubmitted,
+    this.validator, this.onSubmitted, this.autofillHints,
   });
 
   @override
@@ -249,6 +264,7 @@ class _Field extends StatelessWidget {
     return TextFormField(
       controller: controller,
       obscureText: obscureText,
+      autofillHints: autofillHints,
       keyboardType: keyboardType,
       onFieldSubmitted: onSubmitted,
       validator: validator,

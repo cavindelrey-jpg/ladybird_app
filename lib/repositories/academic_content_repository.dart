@@ -267,34 +267,70 @@ class AcademicContentRepository {
       return const Failure('This item has no file to download.', null);
     }
     try {
-      final dir = await getApplicationDocumentsDirectory();
-      final offlineDir = Directory('${dir.path}/offline_content');
-      if (!await offlineDir.exists()) await offlineDir.create(recursive: true);
-      final ext = url.contains('.') ? url.split('.').last.split('?').first : 'bin';
-      final localPath = '${offlineDir.path}/${item.id}.$ext';
-
-      final request = http.Request('GET', Uri.parse(url));
-      final response = await request.send().timeout(const Duration(minutes: 5));
-      if (response.statusCode >= 400) {
-        return Failure('Download failed (server returned ${response.statusCode}).', null);
-      }
-      final total = response.contentLength ?? 0;
-      var received = 0;
-      final file = File(localPath);
-      final sink = file.openWrite();
-      await response.stream.map((chunk) {
-        received += chunk.length;
-        if (total > 0) onProgress?.call(received / total);
-        return chunk;
-      }).pipe(sink);
-      await sink.close();
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('$_offlinePrefsPrefix${item.id}', localPath);
-      return Success(localPath);
+      final path = await _streamToCache(item.id, url, onProgress: onProgress);
+      return Success(path);
     } catch (e) {
       return Failure('Download failed — check your connection and try again.', e);
     }
+  }
+
+  /// The viewer-facing counterpart to [downloadForOffline] -- same cache
+  /// slot (an explicit "Save for Offline" and a plain view are
+  /// interchangeable; whichever happens first satisfies the other), but
+  /// silent/automatic: ContentViewerPage calls this on open so PDFs/
+  /// Word docs open from a real local file instead of the whole document
+  /// being buffered into memory by a single blocking `http.get()` on
+  /// every single view (previously: every open re-downloaded the entire
+  /// file from scratch with no caching at all, however recently it had
+  /// already been viewed). Returns the cached path if one already
+  /// exists -- true instant reopen, no network -- otherwise streams to
+  /// disk and returns once ready. Throws on failure; callers show their
+  /// own error state.
+  Future<String> ensureLocalCopy({
+    required String contentId,
+    required String fileUrl,
+    void Function(double)? onProgress,
+  }) async {
+    final existing = await offlineFilePath(contentId);
+    if (existing != null) return existing;
+    return _streamToCache(contentId, fileUrl, onProgress: onProgress);
+  }
+
+  /// Shared streaming-download core for [downloadForOffline] and
+  /// [ensureLocalCopy] -- writes incrementally to disk via the response
+  /// stream (never holds the whole file in memory at once, unlike a
+  /// plain `http.get()`), reports 0.0-1.0 progress, and records the
+  /// resulting path in the same offline-cache slot both callers share.
+  Future<String> _streamToCache(
+    String contentId,
+    String url, {
+    void Function(double)? onProgress,
+  }) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final offlineDir = Directory('${dir.path}/offline_content');
+    if (!await offlineDir.exists()) await offlineDir.create(recursive: true);
+    final ext = url.contains('.') ? url.split('.').last.split('?').first : 'bin';
+    final localPath = '${offlineDir.path}/$contentId.$ext';
+
+    final request = http.Request('GET', Uri.parse(url));
+    final response = await request.send().timeout(const Duration(minutes: 5));
+    if (response.statusCode >= 400) {
+      throw Exception('Download failed (server returned ${response.statusCode}).');
+    }
+    final total = response.contentLength ?? 0;
+    var received = 0;
+    final file = File(localPath);
+    final sink = file.openWrite();
+    await response.stream.map((chunk) {
+      received += chunk.length;
+      if (total > 0) onProgress?.call(received / total);
+      return chunk;
+    }).pipe(sink);
+    await sink.close();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_offlinePrefsPrefix$contentId', localPath);
+    return localPath;
   }
 
   /// Deletes the locally-downloaded file (if any) and forgets its path.

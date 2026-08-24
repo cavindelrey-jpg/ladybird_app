@@ -85,7 +85,7 @@ class ContentViewerPage extends StatelessWidget {
         ViewableFileKind.pdf => _PdfViewer(
             url: fileUrl, localFilePath: localFilePath, contentId: contentId, userId: userId),
         ViewableFileKind.video => _VideoViewer(url: fileUrl, localFilePath: localFilePath),
-        ViewableFileKind.docx => _DocxViewer(url: fileUrl, localFilePath: localFilePath),
+        ViewableFileKind.docx => _DocxViewer(url: fileUrl, localFilePath: localFilePath, contentId: contentId),
       },
     );
   }
@@ -120,9 +120,24 @@ class _ImageViewer extends StatelessWidget {
   }
 }
 
-/// Loads the saved page position (if any) before building the actual PDF
-/// viewer, so PdfControllerPinch can be constructed with the right
-/// initialPage from the start rather than jumping after first render.
+/// Resolves everything needed before the actual PDF viewer can be built:
+/// the saved page position AND a real local file to open pdfx against.
+///
+/// Previously this only awaited the saved-page lookup, then handed
+/// PdfControllerPinch either a local path or `PdfDocument.openData
+/// (_fetchBytes(url))` -- a single blocking `http.get()` that buffers
+/// the ENTIRE PDF into memory before pdfx renders even page 1, with NO
+/// caching at all: reopening the exact same book a minute later
+/// re-downloaded it from scratch every time. That was the actual
+/// bottleneck behind "PDFs/books take forever to open" -- not a
+/// timeout, not the renderer, the download strategy itself.
+///
+/// Now: resolve the saved page AND a cached local copy (via
+/// AcademicContentRepository.ensureLocalCopy -- instant if this exact
+/// file was ever opened or explicitly saved before, streamed-to-disk
+/// with real progress otherwise) concurrently rather than sequentially,
+/// and always open pdfx from a local file. First open of a never-seen
+/// file still has to download once; every open after that is instant.
 class _PdfViewer extends StatefulWidget {
   final String url;
   final String? localFilePath;
@@ -135,24 +150,73 @@ class _PdfViewer extends StatefulWidget {
 }
 
 class _PdfViewerState extends State<_PdfViewer> {
-  late final Future<int> _initialPageFuture = _loadInitialPage();
+  late final Future<(int, String?)> _readyFuture = _prepare();
+  double _downloadProgress = 0;
 
-  Future<int> _loadInitialPage() async {
+  Future<(int, String?)> _prepare() async {
     final contentId = widget.contentId;
     final userId = widget.userId;
-    if (contentId == null || userId == null) return 1;
-    return AcademicContentRepository.instance
-        .savedReadPage(contentId: contentId, userId: userId);
+
+    // Both kicked off before either is awaited, so the Firestore read
+    // and the file download/cache-check happen in parallel, not
+    // back-to-back.
+    final initialPageFuture = (contentId != null && userId != null)
+        ? AcademicContentRepository.instance.savedReadPage(contentId: contentId, userId: userId)
+        : Future.value(1);
+
+    final Future<String?> pathFuture;
+    if (widget.localFilePath != null) {
+      pathFuture = Future.value(widget.localFilePath);
+    } else if (contentId != null) {
+      pathFuture = AcademicContentRepository.instance.ensureLocalCopy(
+        contentId: contentId,
+        fileUrl: widget.url,
+        onProgress: (p) {
+          if (mounted) setState(() => _downloadProgress = p);
+        },
+      );
+    } else {
+      // No contentId to cache against (caller has no persisted content
+      // item) -- fall back to letting pdfx read the URL directly rather
+      // than buffering it here too.
+      pathFuture = Future.value(null);
+    }
+
+    final page = await initialPageFuture;
+    final path = await pathFuture;
+    return (page, path);
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<int>(
-      future: _initialPageFuture,
+    return FutureBuilder<(int, String?)>(
+      future: _readyFuture,
       builder: (context, snap) {
-        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+        if (snap.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text('Could not open this PDF: ${snap.error}', textAlign: TextAlign.center),
+            ),
+          );
+        }
+        if (!snap.hasData) {
+          return Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              CircularProgressIndicator(
+                strokeWidth: 2,
+                value: _downloadProgress > 0 ? _downloadProgress : null,
+              ),
+              if (_downloadProgress > 0) ...[
+                const SizedBox(height: 12),
+                Text('${(_downloadProgress * 100).round()}%'),
+              ],
+            ]),
+          );
+        }
+        final (page, path) = snap.data!;
         return _PdfViewerBody(
-          url: widget.url, localFilePath: widget.localFilePath, initialPage: snap.data!,
+          url: widget.url, localFilePath: path, initialPage: page,
           contentId: widget.contentId, userId: widget.userId,
         );
       },
@@ -182,9 +246,11 @@ class _PdfViewerBodyState extends State<_PdfViewerBody> {
   void initState() {
     super.initState();
     _controller = PdfControllerPinch(
-      // Offline copy first (no network round trip at all), network
-      // fallback otherwise -- see content_details_page's "Save for
-      // offline" for what actually populates localFilePath.
+      // By the time this widget exists, _PdfViewerState has already
+      // resolved a real local file whenever a contentId was available
+      // to cache against (see that class's doc comment) -- openData's
+      // whole-file network fetch is now only reached for the rare
+      // caller with no contentId at all.
       document: widget.localFilePath != null
           ? PdfDocument.openFile(widget.localFilePath!)
           : PdfDocument.openData(_fetchBytes(widget.url)),
@@ -293,7 +359,8 @@ class _VideoViewerState extends State<_VideoViewer> {
 class _DocxViewer extends StatefulWidget {
   final String url;
   final String? localFilePath;
-  const _DocxViewer({required this.url, this.localFilePath});
+  final String? contentId;
+  const _DocxViewer({required this.url, this.localFilePath, this.contentId});
 
   @override
   State<_DocxViewer> createState() => _DocxViewerState();
@@ -312,9 +379,19 @@ class _DocxViewerState extends State<_DocxViewer> {
 
   Future<void> _load() async {
     try {
-      // Offline copy first — skips the network fetch entirely, same
-      // pattern as the PDF/image/video viewers.
-      final path = widget.localFilePath;
+      // Offline/cached copy first. Same fix as the PDF viewer: an
+      // explicit localFilePath wins outright, otherwise auto-cache via
+      // ensureLocalCopy when a contentId exists (instant on repeat
+      // opens) instead of always re-downloading the whole document with
+      // a plain http.get() -- only falls through to that raw fetch when
+      // there's no contentId to cache against at all.
+      var path = widget.localFilePath;
+      final contentId = widget.contentId;
+      if (path == null && contentId != null) {
+        path = await AcademicContentRepository.instance.ensureLocalCopy(
+          contentId: contentId, fileUrl: widget.url,
+        );
+      }
       Uint8List bytes;
       if (path != null) {
         bytes = await File(path).readAsBytes();

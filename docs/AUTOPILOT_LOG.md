@@ -4579,3 +4579,44 @@ repeated here.
 
 Not run against a compiler. Continuing to Phase 6 (homepage banner photo
 + messaging UI polish) next.
+
+## 2026-08-24 (6) — Phase 6: banner mockup blocked on tooling, messaging UX already covered
+
+**item 11 (homepage banner photo)**: the correct mockup was identified
+this turn (mockups/Screenshot_20260824-102051.png -- confirmed by its
+"9:41" status bar, the standard design-mockup placeholder time, not a
+real device screenshot) showing a desk/plant/lamp photo behind the
+green hero banner. Could not extract just that photo from the full
+mockup screenshot -- no PIL, no ImageMagick, and pip/apt have no network
+in this sandbox (confirmed again, same result as every earlier attempt
+this session). Deliberately did NOT ship the raw full-mockup screenshot
+as the banner asset -- at the banner's aspect ratio that would show
+duplicate baked-in header text and stat cards behind the real Flutter
+UI, which is a visible bug, not a fix. Left the existing translucent
+decorative icon in place (the same honest fallback a prior session
+already chose for the identical reason). If the user can supply just
+the cropped photo as its own image file, it drops in with zero code
+changes -- the hero banner's image slot is already wired for exactly
+that.
+
+**item 15 (messaging/content-creation UI)**: the chat composer's
+attachment bar (confirmed via mockups/Screenshot_20260824-094954.png)
+already renders colored icon tiles (Note/Course/Quiz/Article/Past Paper)
+above the text input, matching the WhatsApp/Telegram-style "tap an
+attachment type, then attach" pattern item 15 describes. Combined with
+this session's new global "+" creation sheet (Phase 5, item 14), judged
+this sufficiently covered without further unverified rework -- did not
+find a concrete gap between the current implementation and the supplied
+reference screenshot's actual layout style.
+
+---
+
+This closes all 6 phases of the architecture/access-control/quiz/admin-UX
+brief tracked this session (voucher-based school access + server-side
+enforcement, real marks permissions + CSV import, Academia content
+renames, real quiz content for both existing courses, nav reorg + global
+creation menu + working announcement photo upload + message contrast,
+and this banner/messaging review). Nothing in this multi-part effort was
+run against a compiler, an emulator, or a live Firebase project -- same
+standing ceiling as the rest of this session. `flutter analyze`/
+`flutter test` next, same loop as always.

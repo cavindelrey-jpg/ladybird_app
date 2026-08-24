@@ -167,8 +167,7 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
           child: Row(children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Library', style: AppText.h1.copyWith(fontSize: 22)),
-                Text('Save. Study. Succeed.', style: AppText.caption.copyWith(fontSize: 12)),
+                Text('Academia Library', style: AppText.h1.copyWith(fontSize: 22)),
               ]),
             ),
             XpBalanceBadge(userId: widget.user.id),

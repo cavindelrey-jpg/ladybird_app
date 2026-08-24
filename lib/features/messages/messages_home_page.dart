@@ -105,7 +105,6 @@ class _MessagesHomePageState extends State<MessagesHomePage> {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Messages', style: AppText.h1.copyWith(fontSize: 22)),
-            Text('Connect one-to-one. Start conversations.', style: AppText.caption.copyWith(fontSize: 12)),
           ]),
         ),
         IconButton(

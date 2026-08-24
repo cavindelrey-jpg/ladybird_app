@@ -4355,3 +4355,43 @@ different, non-school feature).
   course catalogue, nav/FAB/messaging-contrast/subheading UX pass,
   homepage banner mockup) are tracked as separate in-flight tasks,
   continuing next.
+
+## 2026-08-24 (2) — Phase 3 (Academia content renames) + opportunistic Phase 5 items
+
+Renamed the 4 sections item 1 names, everywhere they appear with enough
+room to read clearly: drawer ("Academia Library"/"Academia Courses"/
+"Academia Quizzes"/"Academia Tests"), each page's own header/AppBar
+title, and Home's quick-access tiles (checked precedent first --
+"Past Questions"/"Daily Challenge" are already comparable-length 2-word
+tile labels that render fine, so no reason "Academia Library" wouldn't).
+Left the bottom NavigationBar's own tab labels ("Library"/"Courses")
+unchanged -- that's the one genuinely space-constrained surface (5 tabs,
+full-width, single short word each) where an unverified longer label
+risks overflow/wrap I can't check without a live device; the drawer +
+page headers already make the Academia/school distinction unambiguous
+everywhere there's room to say it clearly. "Past Questions" was NOT
+renamed -- item 1's rename list doesn't include it, not extending past
+what was actually asked. Academia Magazine needed no change (already
+correct, confirmed).
+
+While in academic_content_page.dart/courses_marketplace_page.dart's exact
+header blocks for the rename, also removed their marketing-tagline
+subheadings ("Save. Study. Succeed." / "Learn. Share. Grow.") -- item 17
+of the same brief, same file, same lines, no reason to make it a separate
+pass. Extended the sweep to Clubs ("Find your people...") and Messages
+("Connect one-to-one...") per item 17's "and other pages" instruction --
+grepped every AppText.h1 header in lib/ to find the rest of this pattern
+rather than guessing which pages had it.
+
+Also fixed schoolAppBar() (features/school/widgets/school_shared_widgets.dart),
+shared by School Connect/Marks/Timetable: removed the BrandLogo crest +
+subtitle line it rendered on every one of those pages -- items 17 AND 18
+both land on this one shared widget, since all three pages route through
+it. subtitle param kept as optional-with-default (not required) rather
+than touching all 3 call sites to delete an argument that's now merely
+inert -- zero behavior change, avoids 3 extra unverified edits for a
+purely cosmetic no-op.
+
+Not yet done from Phase 5: nav reorg into 4 categories, removing
+permanent creation shortcuts in favor of a "+" menu, device image upload
+for announcements, message sender/receiver contrast. Continuing.

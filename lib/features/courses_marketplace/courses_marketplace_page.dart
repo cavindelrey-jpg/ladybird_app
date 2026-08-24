@@ -195,8 +195,7 @@ class _CoursesMarketplacePageState extends State<CoursesMarketplacePage> {
       child: Row(children: [
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Courses', style: AppText.h1.copyWith(fontSize: 22)),
-            Text('Learn. Share. Grow.', style: AppText.caption.copyWith(fontSize: 12)),
+            Text('Academia Courses', style: AppText.h1.copyWith(fontSize: 22)),
           ]),
         ),
         IconButton(icon: Icon(Icons.search_rounded, color: ac.txt2),

@@ -1,9 +1,15 @@
 // lib/features/school/widgets/school_shared_widgets.dart
 // Shared header + student-info-card widgets for School Connect, Marks,
-// and Timetable -- mockups/mockup1-3.jpg all use the exact same top bar
-// (back arrow, school crest, title + subtitle) and student card (photo,
-// name+role badge, Class/Student ID, Class Master/School) shape, just
-// with different page titles/subtitles and trailing actions.
+// and Timetable.
+//
+// schoolAppBar() used to render a BrandLogo crest + title + subtitle.
+// Per architecture brief item 18, the school app already establishes
+// school identity at the app level (launcher icon, splash, Home banner)
+// -- repeating a logo inside every individual school feature page is
+// internal clutter, not identity the reader needs restated screen to
+// screen. Item 17 separately asks every page to drop its explanatory
+// subheading and keep only the primary title. Both land here since all
+// three school pages share this one AppBar builder.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -12,15 +18,15 @@ import '../../../models/app_user.dart';
 import '../../../repositories/school_class_info_repository.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/app_colors.dart';
-import '../../../widgets/widgets.dart';
 
-/// The school crest + title + subtitle combination every School Connect/
-/// Marks/Timetable AppBar uses. [trailing] is whatever page-specific
-/// icon buttons sit on the right (mockups vary: bell, calendar, download).
+/// The title bar every School Connect/Marks/Timetable page uses.
+/// [trailing] is whatever page-specific icon buttons sit on the right
+/// (mockups vary: bell, calendar, download). [subtitle] is accepted for
+/// call-site compatibility but intentionally unused -- see file header.
 PreferredSizeWidget schoolAppBar({
   required BuildContext context,
   required String title,
-  required String subtitle,
+  String subtitle = '',
   List<Widget> trailing = const [],
 }) {
   final ac = AppColors.of(context);
@@ -28,19 +34,8 @@ PreferredSizeWidget schoolAppBar({
     backgroundColor: ac.bg,
     elevation: 0,
     iconTheme: IconThemeData(color: ac.txt),
-    titleSpacing: 0,
-    title: Row(children: [
-      const BrandLogo(size: 34),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w800, color: ac.txt)),
-          Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(fontSize: 10.5, color: ac.txt2)),
-        ]),
-      ),
-    ]),
+    title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
+        style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w800, color: ac.txt)),
     actions: trailing,
   );
 }

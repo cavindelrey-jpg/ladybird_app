@@ -560,16 +560,16 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   // particular has NO other entry point anywhere in the app).
   Widget _quickAccessGrid(BuildContext context) {
     final row1 = <(String, IconData, Color, VoidCallback)>[
-      ('Library', Icons.menu_book_rounded, ac.primary,
+      ('Academia Library', Icons.menu_book_rounded, ac.primary,
           () => _open(context, AcademicContentPage(user: _userOrGuest))),
       ('Past Questions', Icons.description_rounded, ac.grn,
           () => _open(context, AcademicContentPage(user: _userOrGuest, initialTypeFilter: ContentType.pastPaper))),
-      ('Quizzes', Icons.help_outline_rounded, ac.gold,
+      ('Academia Quizzes', Icons.help_outline_rounded, ac.gold,
           () => _open(context, QuizCategoriesPage(user: _userOrGuest))),
       // Same browse tree as Quizzes -- this codebase doesn't model
       // "Tests" as a separate system from Quizzes (see
       // tests_subject_picker_page.dart's own file comment).
-      ('Tests', Icons.assignment_rounded, ac.primary,
+      ('Academia Tests', Icons.assignment_rounded, ac.primary,
           () => _open(context, QuizCategoriesPage(user: _userOrGuest))),
       ('Clubs', Icons.groups_rounded, ac.grn,
           () => _open(context, ClubsPage(user: _userOrGuest))),

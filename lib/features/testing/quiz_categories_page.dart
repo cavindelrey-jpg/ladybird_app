@@ -110,7 +110,7 @@ class _QuizCategoriesPageState extends State<QuizCategoriesPage> {
     return Scaffold(
       backgroundColor: ac.bg,
       appBar: AppBar(
-        title: Text('Tests & Quizzes', style: AppText.h2),
+        title: Text('Academia Quizzes & Tests', style: AppText.h2),
         actions: [
           if (!isGuest)
             IconButton(

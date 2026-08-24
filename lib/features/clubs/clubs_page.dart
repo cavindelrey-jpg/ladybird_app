@@ -175,7 +175,6 @@ class _ClubsPageState extends State<ClubsPage> {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Clubs', style: AppText.h1.copyWith(fontSize: 22)),
-            Text('Find your people. Share ideas. Grow together.', style: AppText.caption.copyWith(fontSize: 12)),
           ]),
         ),
         IconButton(

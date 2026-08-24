@@ -54,12 +54,12 @@ class AppDrawer extends StatelessWidget {
                 // "Browse by Curriculum" CTA into that exact same page.
                 // Two routes to the same conceptual place; removed the
                 // duplicate rather than keep both.
-                _item(context, ac, Icons.school_rounded, 'Courses', () {
+                _item(context, ac, Icons.school_rounded, 'Academia Courses', () {
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => CoursesMarketplacePage(user: user)));
                 }),
                 _sectionLabel(ac, 'Content'),
-                _item(context, ac, Icons.folder_copy_rounded, 'Library', () {
+                _item(context, ac, Icons.folder_copy_rounded, 'Academia Library', () {
                   if (_isGuest) {
                     _goSignIn(context);
                   } else {
@@ -83,11 +83,11 @@ class AppDrawer extends StatelessWidget {
                 // tests_subject_picker_page.dart's own file comment).
                 // Kept as two entries to match the requested structure,
                 // not because they lead anywhere different.
-                _item(context, ac, Icons.assignment_rounded, 'Tests', () {
+                _item(context, ac, Icons.assignment_rounded, 'Academia Tests', () {
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => QuizCategoriesPage(user: user ?? AppUser.guest())));
                 }),
-                _item(context, ac, Icons.quiz_rounded, 'Quizzes', () {
+                _item(context, ac, Icons.quiz_rounded, 'Academia Quizzes', () {
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => QuizCategoriesPage(user: user ?? AppUser.guest())));
                 }),

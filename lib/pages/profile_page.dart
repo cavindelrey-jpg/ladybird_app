@@ -8,6 +8,7 @@ import '../services/auth_service.dart';
 import '../features/timetable/personal_study_page.dart';
 import '../features/testing/xp_dashboard_page.dart';
 import '../features/school/timetable_page.dart';
+import '../features/school/marks_page.dart';
 import '../features/entitlements/entitlements.dart';
 import 'profile_edit_page.dart';
 import 'bookmarks_page.dart';
@@ -132,13 +133,14 @@ class ProfilePage extends StatelessWidget {
                     builder: (_) => SalesDeskPage(user: user)))),
 
           // ── Section 2: School Navigation ───────────────────────────────
-          // School Connect and Marks are built in later passes and will
-          // be added here as they land -- Timetable (official,
-          // admin-authored, real schools/{schoolId}/timetable data) is
-          // the first of the three.
+          // School Connect is built in a later pass and will be added
+          // here once it lands.
           if (!user.isGuest) ...[
             const SizedBox(height: 8),
             _SectionHeader('School Navigation'),
+            _InfoRow(Icons.assessment_outlined, 'Marks', '',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => MarksPage(user: user)))),
             _InfoRow(Icons.calendar_month_outlined, 'Timetable', '',
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => TimetablePage(user: user)))),

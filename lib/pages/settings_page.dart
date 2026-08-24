@@ -61,7 +61,7 @@ class SettingsPage extends StatelessWidget {
           _tile(context, Icons.help_outline_rounded, 'Help & Support', 'FAQs and contact',
               () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => const HelpSupportPage()))),
-          _tile(context, Icons.info_outline_rounded, 'About Academia', 'Version 2.0.0',
+          _tile(context, Icons.info_outline_rounded, 'About', 'Version 2.0.0',
               () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => const AboutAcademiaPage()))),
 

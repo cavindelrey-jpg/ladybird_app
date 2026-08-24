@@ -4207,3 +4207,62 @@ actually still Academia-branded outside `lib/`:
   fix) -- there is no source-code-only fix for a pre-generated binary
   image file. Told the user this directly rather than claiming it's
   fixed.
+
+## 2026-08-23 (4) — Found and fixed the *actual* remaining blue: AppColors.of() dead fallback
+
+User asked what technically "blocked" full theming before, and whether it
+was something in a separate "Academia website" that changing would
+"disturb." Answer, grounded by re-reading this log: there is no such
+coupling. `academia_website`/`academia_web` are separate Next.js
+marketing sites with no git repo of their own, not part of this Flutter
+app, unaffected by anything in `lib/`. The real blockers were entirely
+internal to this codebase, and investigating them turned up a genuine bug
+nobody had caught:
+
+- **`AppColors.of(context)`'s brand-aware fallback was dead code.**
+  `AppTheme.light`/`.dark` (app_theme.dart) both register a *fixed*
+  `AppColors` object via `extensions: const [...]` — `AppColors.light` in
+  light mode, `AppColors.dark` in dark mode, both still the literal
+  Academia navy/blue palette (`primary: 0xFF1A56DB` / `0xFF4F8CFF`).
+  `AppColors.of()` did `Theme.of(context).extension<AppColors>() ??
+  (isDark ? greenHillDark : greenHillLight)` — but the extension is
+  *always* registered, so that `??` fallback to the correct green palette
+  never ran. Every screen reading colors via `AppColors.of(context)`
+  (Home, Profile, School Connect/Marks/Timetable, etc. — the majority of
+  screens converted to the brand-aware pattern over past sessions) was
+  silently still rendering Academia blue this whole time. This is very
+  likely the dominant, previously-unidentified reason "still blue" kept
+  recurring even after the `C` token repaint and web/manifest fixes.
+  Fixed by checking `Branding.current.brandId` *before* consulting the
+  registered extension, and by registering `AppColors.greenHillLight`/
+  `greenHillDark` (not `.light`/`.dark`) on `AppTheme.light`/`.dark`
+  directly as defense-in-depth. `AppTheme.dark`'s entire ThemeData
+  (buttons/inputs/nav bar/chips/FAB) was also rebuilt from
+  `AppColors.greenHillDark` instead of `AppColors.dark` — dark mode's
+  default Material component colors were hardcoded blue too, a second,
+  separate instance of the same root bug.
+- **Literal "Academia" UI text** — swept `lib/` for user-visible string
+  literals (not identifiers/class names, not the inert `academia.json`
+  brand file, not the HTTP User-Agent string): fixed empty-state copy,
+  share-sheet text, FAQ questions, the About page (rewrote using
+  `Branding.current` instead of hardcoded copy + swapped its lone
+  remaining `AcademiaLogo` for `BrandLogo`), settings tile label, search
+  hint, suspended-account message, notification system-sender label,
+  entitlement-source label, magazine header/share text. Left
+  `support@academia.cm` in help_support_page.dart untouched and flagged
+  to the user rather than inventing a replacement address — no verified
+  Green Hills support email exists in this codebase to substitute it
+  with.
+- Confirmed (grep sweep) no remaining `Colors.blue`/blue hex literals
+  outside of: (a) the now-provably-unreachable legacy `AppColors.light`/
+  `.dark` constants (kept as inert dual-brand safety net, matching
+  existing precedent), and (b) two deliberate multi-color palettes
+  (`HierarchyAvatar`'s avatar-color picker, `club_visuals.dart`'s badge
+  palette) that include blue only as one of several differentiator hues,
+  not as the app's brand color — same category as the "Information: Blue"
+  semantic color the user separately asked to keep.
+
+**Could not run `flutter analyze`/`flutter test`** — no Flutter SDK in
+this sandbox, same standing constraint as every session. Reviewed every
+edit by hand for import correctness and signature matches. Run
+`flutter analyze` next and paste output if anything breaks.

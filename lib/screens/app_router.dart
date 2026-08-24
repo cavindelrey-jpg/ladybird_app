@@ -203,7 +203,7 @@ class _SuspendedScreen extends StatelessWidget {
           Text('Account Suspended',
               style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.w700, color: ac.txt)),
           const SizedBox(height: 8),
-          Text('Please contact Academia support.',
+          Text('Please contact support.',
               style: GoogleFonts.inter(color: ac.txt2), textAlign: TextAlign.center),
           const SizedBox(height: 24),
           OutlinedButton(

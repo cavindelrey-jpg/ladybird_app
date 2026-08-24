@@ -261,7 +261,7 @@ class _RecordSaleTabState extends State<_RecordSaleTab> {
           const SizedBox(height: 6),
           Text(
             'Who handed over the money. Used for support lookups — the buyer '
-            'usually has no Academia account at all.',
+            'usually has no account at all.',
             style: AppText.caption,
           ),
           const SizedBox(height: 20),

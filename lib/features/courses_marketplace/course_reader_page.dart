@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../config/branding.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import 'dart:convert';
@@ -448,7 +449,7 @@ class _CourseActionRow extends StatelessWidget {
         icon: Icons.share_outlined, color: ac.txt2, label: 'Share',
         onTap: () {
           HapticFeedback.selectionClick();
-          Share.share('${course.title}\n\nRead it on Academia.');
+          Share.share('${course.title}\n\nRead it on ${Branding.current.appName}.');
         },
       ),
     ]);

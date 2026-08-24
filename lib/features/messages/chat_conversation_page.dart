@@ -969,7 +969,7 @@ class _SharedContentCardState extends State<_SharedContentCard> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(widget.message.sharedTitle ?? widget.message.sharedType!.label,
                     style: AppText.title.copyWith(fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
-                Text('${widget.message.sharedSubtitle ?? ''} · Academia ${widget.message.sharedType!.label}'.trim(),
+                Text('${widget.message.sharedSubtitle ?? ''} · ${widget.message.sharedType!.label}'.trim(),
                     style: AppText.caption.copyWith(fontSize: 10.5), maxLines: 1, overflow: TextOverflow.ellipsis),
               ]),
             ),

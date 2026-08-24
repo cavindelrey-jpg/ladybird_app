@@ -95,7 +95,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
         title: TextField(
           controller: _ctrl,
           autofocus: true,
-          decoration: const InputDecoration(hintText: 'Search Academia...', border: InputBorder.none),
+          decoration: const InputDecoration(hintText: 'Search...', border: InputBorder.none),
           onSubmitted: _performSearch,
         ),
         bottom: TabBar(

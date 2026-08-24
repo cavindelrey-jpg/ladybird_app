@@ -181,11 +181,11 @@ class AppTheme {
       foregroundColor: C.navy,
       elevation: 2,
     ),
-    extensions: const [AppColors.light],
+    extensions: const [AppColors.greenHillLight],
   );
 
   // ── Dark ──────────────────────────────────────────────────────────────
-  // Mirrors `light` field-for-field but sourced from `AppColors.dark`
+  // Mirrors `light` field-for-field but sourced from `AppColors.greenHillDark`
   // instead of the hardcoded `C.xxx` constants — `C` itself stays a
   // light-only compile-time constant (see app_colors.dart's file comment
   // for why), so this is built from the dark token set directly rather
@@ -193,39 +193,39 @@ class AppTheme {
   static final ThemeData dark = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    scaffoldBackgroundColor: AppColors.dark.bg,
+    scaffoldBackgroundColor: AppColors.greenHillDark.bg,
     // Same branding seed as the light theme above — see that comment for
     // the partial-coverage tradeoff.
     colorScheme: ColorScheme.fromSeed(
       seedColor: Branding.current.primaryColor,
       primary: Branding.current.primaryColor,
       secondary: Branding.current.accentColor,
-      surface: AppColors.dark.surf,
+      surface: AppColors.greenHillDark.surf,
       brightness: Brightness.dark,
     ),
     appBarTheme: AppBarTheme(
-      backgroundColor: AppColors.dark.surf,
-      foregroundColor: AppColors.dark.txt,
+      backgroundColor: AppColors.greenHillDark.surf,
+      foregroundColor: AppColors.greenHillDark.txt,
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
       surfaceTintColor: Colors.transparent,
-      iconTheme: IconThemeData(color: AppColors.dark.txt),
+      iconTheme: IconThemeData(color: AppColors.greenHillDark.txt),
     ),
     cardTheme: CardThemeData(
-      color: AppColors.dark.surf,
+      color: AppColors.greenHillDark.surf,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: AppColors.dark.bdr),
+        side: BorderSide(color: AppColors.greenHillDark.bdr),
       ),
       surfaceTintColor: Colors.transparent,
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.dark.primary,
+        backgroundColor: AppColors.greenHillDark.primary,
         foregroundColor: Colors.white,
-        disabledBackgroundColor: AppColors.dark.primary.withValues(alpha: .4),
+        disabledBackgroundColor: AppColors.greenHillDark.primary.withValues(alpha: .4),
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         minimumSize: const Size(double.infinity, 52),
@@ -236,67 +236,67 @@ class AppTheme {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.dark.primary,
-        side: BorderSide(color: AppColors.dark.primary, width: 1.5),
+        foregroundColor: AppColors.greenHillDark.primary,
+        side: BorderSide(color: AppColors.greenHillDark.primary, width: 1.5),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        overlayColor: AppColors.dark.primary.withValues(alpha: .1),
+        overlayColor: AppColors.greenHillDark.primary.withValues(alpha: .1),
         animationDuration: Dur.fast,
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: AppColors.dark.primary,
-        overlayColor: AppColors.dark.primary.withValues(alpha: .1),
+        foregroundColor: AppColors.greenHillDark.primary,
+        overlayColor: AppColors.greenHillDark.primary.withValues(alpha: .1),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.xs)),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: AppColors.dark.surf3,
+      fillColor: AppColors.greenHillDark.surf3,
       border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.dark.bdr)),
+          borderSide: BorderSide(color: AppColors.greenHillDark.bdr)),
       enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.dark.bdr)),
+          borderSide: BorderSide(color: AppColors.greenHillDark.bdr)),
       focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.dark.primary, width: 1.5)),
+          borderSide: BorderSide(color: AppColors.greenHillDark.primary, width: 1.5)),
       errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.dark.red)),
+          borderSide: BorderSide(color: AppColors.greenHillDark.red)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      hintStyle: TextStyle(color: AppColors.dark.muted),
+      hintStyle: TextStyle(color: AppColors.greenHillDark.muted),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: AppColors.dark.surf,
-      indicatorColor: AppColors.dark.primaryBg,
+      backgroundColor: AppColors.greenHillDark.surf,
+      indicatorColor: AppColors.greenHillDark.primaryBg,
       indicatorShape: const StadiumBorder(),
       labelTextStyle: WidgetStateProperty.all(
           const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return IconThemeData(color: AppColors.dark.primary, size: 22);
+          return IconThemeData(color: AppColors.greenHillDark.primary, size: 22);
         }
-        return IconThemeData(color: AppColors.dark.muted, size: 22);
+        return IconThemeData(color: AppColors.greenHillDark.muted, size: 22);
       }),
       elevation: 0,
       surfaceTintColor: Colors.transparent,
     ),
     chipTheme: ChipThemeData(
-      backgroundColor: AppColors.dark.surf3,
-      selectedColor: AppColors.dark.primaryBg,
+      backgroundColor: AppColors.greenHillDark.surf3,
+      selectedColor: AppColors.greenHillDark.primaryBg,
       labelStyle: const TextStyle(fontSize: 12),
-      side: BorderSide(color: AppColors.dark.bdr),
+      side: BorderSide(color: AppColors.greenHillDark.bdr),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     ),
-    dividerColor: AppColors.dark.bdr,
+    dividerColor: AppColors.greenHillDark.bdr,
     floatingActionButtonTheme: FloatingActionButtonThemeData(
-      backgroundColor: AppColors.dark.gold,
-      foregroundColor: AppColors.dark.navy,
+      backgroundColor: AppColors.greenHillDark.gold,
+      foregroundColor: AppColors.greenHillDark.navy,
       elevation: 2,
     ),
-    extensions: const [AppColors.dark],
+    extensions: const [AppColors.greenHillDark],
   );
 }
 

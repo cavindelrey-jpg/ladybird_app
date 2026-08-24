@@ -55,17 +55,21 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.shadow,
   });
 
-  /// Was hardcoded to Academia's palette regardless of Branding.brandId --
-  /// BRAND_ID=green_hill changed the app name/logo/tagline (those read
-  /// Branding.current directly) but every widget reading colors via
-  /// AppColors.of(context) (the majority of the app -- see file header)
-  /// still rendered Academia's navy/blue, since this never checked the
-  /// brand. Route to the brand-matched palette here instead.
+  /// Checks Branding.current BEFORE consulting the ThemeExtension registered
+  /// on the current Theme. That order matters: AppTheme.light/.dark both
+  /// register a *fixed* AppColors object under `extensions:` (evaluated
+  /// once, can't itself branch on brand), so `Theme.of(context)
+  /// .extension<AppColors>()` always finds something and the old
+  /// `?? (isDark ? greenHillDark : greenHillLight)` fallback never ran --
+  /// every AppColors.of(context) call site (Home, Profile, etc.) was
+  /// silently reading whatever was registered on the ThemeData regardless
+  /// of brand. AppTheme now registers the green_hill extensions directly
+  /// (see app_theme.dart), but checking brand first here too means this
+  /// keeps working correctly even if that registration ever drifts again.
   static AppColors of(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     if (Branding.current.brandId == 'green_hill') {
-      return Theme.of(context).extension<AppColors>() ??
-          (isDark ? greenHillDark : greenHillLight);
+      return isDark ? greenHillDark : greenHillLight;
     }
     return Theme.of(context).extension<AppColors>() ?? (isDark ? dark : light);
   }

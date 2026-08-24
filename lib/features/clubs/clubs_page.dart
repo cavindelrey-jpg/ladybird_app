@@ -47,6 +47,7 @@ import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/club_visuals.dart';
+import '../../config/branding.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
@@ -416,7 +417,7 @@ class _ClubsPageState extends State<ClubsPage> {
         ]),
         const SizedBox(height: 12),
         if (allClubs.isEmpty)
-          Text('No clubs on Academia yet — be the first to create one.', style: AppText.bodySm)
+          Text('No clubs yet — be the first to create one.', style: AppText.bodySm)
         else
           SizedBox(
             height: 260,
@@ -811,7 +812,7 @@ class AllClubsPage extends StatelessWidget {
         title: Text('Discover Clubs', style: AppText.title),
       ),
       body: AppBackground(child: clubs.isEmpty
-          ? const EmptyState(icon: Icons.groups_outlined, title: 'No clubs on Academia yet',
+          ? const EmptyState(icon: Icons.groups_outlined, title: 'No clubs yet',
               subtitle: 'Be the first to create one.')
           : ListView.separated(
               padding: const EdgeInsets.all(16),
@@ -1136,8 +1137,8 @@ class _Hero extends StatelessWidget {
             title: const Text('Invite via Share'),
             onTap: () {
               Navigator.pop(context);
-              Share.share('Join "${club.name}" on Academia!\n\n${club.description}\n\n'
-                  'Open the Academia app, go to Clubs, and search for it to join.');
+              Share.share('Join "${club.name}"!\n\n${club.description}\n\n'
+                  'Open the ${Branding.current.appName} app, go to Clubs, and search for it to join.');
             },
           ),
           const Divider(height: 1),

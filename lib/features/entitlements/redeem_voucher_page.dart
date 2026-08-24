@@ -172,7 +172,7 @@ class _RedeemVoucherPageState extends State<RedeemVoucherPage> {
                 style: AppText.title.copyWith(fontSize: 13)),
             const SizedBox(height: 6),
             Text(
-              'Someone can buy Premium for you at an Academia sales point and '
+              'Someone can buy Premium for you at a sales point and '
               'give you the code. Redeeming it here adds Premium to this '
               'account — if you already have Premium, the new time is added '
               'to what you have left rather than replacing it.',

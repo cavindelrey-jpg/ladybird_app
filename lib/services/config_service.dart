@@ -91,7 +91,7 @@ class ConfigService {
 
   bool get isMaintenanceMode => getBool(ConfigKey.maintenanceMode);
   String get maintenanceMessage => getString(ConfigKey.maintenanceMessage,
-      fallback: 'Academia is undergoing scheduled maintenance. Please try again shortly.');
+      fallback: 'Green Hills Academic Complex is undergoing scheduled maintenance. Please try again shortly.');
   int get maxUploadMb => getInt(ConfigKey.maxUploadMb, fallback: 50);
   int get pageSize    => getInt(ConfigKey.paginationPageSize, fallback: 20);
   bool get aiTutorEnabled   => getBool(ConfigKey.aiTutorEnabled, fallback: true);

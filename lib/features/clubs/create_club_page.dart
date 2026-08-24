@@ -292,7 +292,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
                   subtitle: Text(
                       _restrictToSchool
                           ? 'Only people at your school will see this club.'
-                          : 'Open to everyone on Academia.',
+                          : 'Open to everyone.',
                       style: GoogleFonts.inter(fontSize: 11.5, color: C.txt2)),
                   value: _restrictToSchool,
                   activeThumbColor: C.gold,

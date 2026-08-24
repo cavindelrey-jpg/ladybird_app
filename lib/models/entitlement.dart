@@ -170,7 +170,7 @@ class Entitlement {
       case EntitlementSource.sponsor:     return 'Sponsored';
       case EntitlementSource.school:      return 'Provided by a partner organization';
       case EntitlementSource.promotional: return 'Promotional access';
-      case EntitlementSource.adminGrant:  return 'Granted by Academia';
+      case EntitlementSource.adminGrant:  return 'Granted by admin';
     }
   }
 

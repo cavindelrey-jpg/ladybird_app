@@ -7,6 +7,7 @@
 // Firestore: users/{uid}/notifications/{notificationId}
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../config/branding.dart';
 
 enum NotificationType {
   announcement,
@@ -21,7 +22,7 @@ enum NotificationType {
       case NotificationType.comment:          return 'Comment';
       case NotificationType.reply:            return 'Reply';
       case NotificationType.articlePublished: return 'New Article';
-      case NotificationType.system:           return 'Academia';
+      case NotificationType.system:           return Branding.current.appName;
     }
   }
 }

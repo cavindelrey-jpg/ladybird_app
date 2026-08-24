@@ -15,7 +15,7 @@ class _Faq {
 }
 
 const _faqs = [
-  _Faq('How do I join my school on Academia?',
+  _Faq('How do I link my account to my school?',
       "Go to Settings or the welcome screen and choose 'I have a school code'. "
       'Enter the code your school administrator gave you, then sign in or create '
       'your account to link it.'),
@@ -29,10 +29,10 @@ const _faqs = [
   _Faq('How do I pay for Premium?',
       'Payment is via MTN Mobile Money or Orange Money, right in the app, '
       'on the Premium unlock screen.'),
-  _Faq('Can I use Academia without a school?',
+  _Faq('Can I use the app without a school?',
       'Yes — create an independent account to access the Content Library, '
-      'Past Questions, Clubs, and (soon) the Academia Magazine without being '
-      'linked to any institution.'),
+      'Past Questions, Clubs, and (soon) the Green Hills Magazine without '
+      'being linked to any institution.'),
   _Faq('How do I switch to a different school?',
       "Open Settings and tap 'Switch School' (only shown for school-linked "
       'accounts) to leave your current institution and enter a new code.'),
@@ -68,7 +68,7 @@ class HelpSupportPage extends StatelessWidget {
               Text('Still need help?', style: GoogleFonts.sora(
                   fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
               const SizedBox(height: 6),
-              Text('Reach the Academia team directly and we\'ll get back to you.',
+              Text('Reach our support team directly and we\'ll get back to you.',
                   style: GoogleFonts.inter(fontSize: 12, color: ac.txt2)),
               const SizedBox(height: 14),
               SizedBox(

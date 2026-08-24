@@ -128,7 +128,7 @@ void main() {
 
     test('zero correct answers earns zero XP even at max difficulty/level', () {
       final xp = questionXp(
-        type: QuestionType.ac, pointsAwarded: 0, maxPoints: 40,
+        type: QuestionType.longForm, pointsAwarded: 0, maxPoints: 40,
         difficulty: TestDifficulty.hard, levelMultiplier: 2.2,
       );
       expect(xp, 0);
@@ -199,7 +199,7 @@ void main() {
     test('scales the flat base rate by the level multiplier only', () {
       expect(baseXpAtLevel(QuestionType.mcq, 1.0), 15);
       expect(baseXpAtLevel(QuestionType.mcq, 1.6), 24); // 15*1.6=24.0
-      expect(baseXpAtLevel(QuestionType.ac, 2.2), 121); // 55*2.2=121.0
+      expect(baseXpAtLevel(QuestionType.longForm, 2.2), 121); // 55*2.2=121.0
     });
   });
 

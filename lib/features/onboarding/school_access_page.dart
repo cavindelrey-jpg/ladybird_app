@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/result.dart';
 import '../../models/app_user.dart';
+import '../../models/school_voucher.dart';
 import '../../repositories/school_access_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';

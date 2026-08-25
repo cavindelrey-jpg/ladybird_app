@@ -11,7 +11,6 @@
 // enforces this server-side too, row by row.
 
 import 'dart:io';
-import 'package:csv/csv.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -29,6 +28,79 @@ import '../../widgets/widgets.dart';
 const List<String> _kTemplateColumns = [
   'studentName', 'classLevel', 'subject', 'sequence', 'academicYear', 'score', 'maxScore',
 ];
+
+/// Minimal RFC4180-style CSV encoder. Written directly rather than via
+/// package:csv -- a real `flutter analyze` run reported both of that
+/// package's expected classes (CsvToListConverter/ListToCsvConverter) as
+/// "isn't a class" against the version actually pinned in pubspec.lock
+/// (8.0.0), which can't be verified further in this sandbox (no network
+/// to check the real published API for that version). Only the shape
+/// this page actually needs (a simple comma-delimited grid with basic
+/// quoting) -- not a general-purpose CSV library replacement.
+String _encodeCsv(List<List<String>> rows) {
+  String encodeField(String f) {
+    if (f.contains(',') || f.contains('"') || f.contains('\n')) {
+      return '"${f.replaceAll('"', '""')}"';
+    }
+    return f;
+  }
+  return rows.map((row) => row.map(encodeField).join(',')).join('\n');
+}
+
+/// Matching decoder -- handles quoted fields, escaped "" quotes, and
+/// \n/\r\n line endings (including newlines embedded inside a quoted
+/// field), which is what a real spreadsheet export can produce.
+List<List<String>> _decodeCsv(String content) {
+  final rows = <List<String>>[];
+  var row = <String>[];
+  final field = StringBuffer();
+  var inQuotes = false;
+  var i = 0;
+  while (i < content.length) {
+    final ch = content[i];
+    if (inQuotes) {
+      if (ch == '"') {
+        if (i + 1 < content.length && content[i + 1] == '"') {
+          field.write('"');
+          i += 2;
+        } else {
+          inQuotes = false;
+          i++;
+        }
+      } else {
+        field.write(ch);
+        i++;
+      }
+      continue;
+    }
+    if (ch == '"') {
+      inQuotes = true;
+      i++;
+    } else if (ch == ',') {
+      row.add(field.toString());
+      field.clear();
+      i++;
+    } else if (ch == '\n' || ch == '\r') {
+      row.add(field.toString());
+      field.clear();
+      rows.add(row);
+      row = [];
+      if (ch == '\r' && i + 1 < content.length && content[i + 1] == '\n') {
+        i += 2;
+      } else {
+        i++;
+      }
+    } else {
+      field.write(ch);
+      i++;
+    }
+  }
+  if (field.isNotEmpty || row.isNotEmpty) {
+    row.add(field.toString());
+    rows.add(row);
+  }
+  return rows;
+}
 
 class _ImportRow {
   final int lineNumber;
@@ -58,7 +130,7 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
   Future<void> _downloadTemplate() async {
     setState(() => _busy = true);
     try {
-      final csv = const ListToCsvConverter().convert([
+      final csv = _encodeCsv([
         _kTemplateColumns,
         ['Ada Lovelace', 'Form 5', 'Physics', 't1s1', DateTime.now().year.toString(), '15', '20'],
       ]);
@@ -92,7 +164,7 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
 
     try {
       final content = await File(path).readAsString();
-      final table = const CsvToListConverter(eol: '\n').convert(content, shouldParseNumbers: false);
+      final table = _decodeCsv(content);
       if (table.isEmpty) {
         setState(() => _importError = 'The file is empty.');
         return;

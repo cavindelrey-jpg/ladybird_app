@@ -138,7 +138,7 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
       final file = File('${dir.path}/marks_template.csv');
       await file.writeAsString(csv);
       if (!mounted) return;
-      await Share.shareXFiles([XFile(file.path)], text: 'Green Hills marks import template');
+      await Share.shareXFiles([XFile(file.path)], text: 'Ladybird marks import template');
     } catch (e) {
       if (mounted) showToast(context, 'Could not generate the template file.', isError: true);
     } finally {

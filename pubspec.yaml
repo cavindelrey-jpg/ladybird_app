@@ -1,5 +1,5 @@
 name: academia_app
-description: Academia Cameroon — Learning Platform
+description: Ladybird School — School Management Platform
 publish_to: 'none'
 version: 2.0.0+1
 
@@ -75,28 +75,31 @@ flutter:
     - assets/icon/
     - assets/branding/
 
-# Was pointed at assets/icon/academia_logo_square.png -- this only ever
-# regenerates the checked-in platform icon/splash files when someone runs
-# `flutter pub run flutter_launcher_icons`/`flutter_native_splash:create`
-# by hand, so the home-screen app icon and native splash screen (shown
-# before Branding.load() ever runs) stayed Academia's navy torch mark
-# even after in-app screens went brand-aware. Pointed at the real Green
-# Hills crest now, and codemagic.yaml runs both generators every build so
-# this can't silently drift stale again.
+# Forked from the Green Hills app -- pointed at assets/branding/
+# ladybird_logo.png, matching this fork's BRAND_ID default (see
+# lib/config/branding.dart). That file does NOT exist yet (no real
+# Ladybird logo was supplied when this fork was created -- see
+# docs/AUTOPILOT_LOG.md), so running these generators will fail until a
+# real square PNG is dropped in at that path. In-app screens don't need
+# the generators to run -- BrandLogo already falls back to an initials
+# badge when the asset is missing (lib/widgets/widgets.dart) -- but the
+# native home-screen icon and splash screen can't use that fallback, so
+# they'll stay whatever was last generated (currently Green Hills') until
+# someone supplies the logo and runs both commands below.
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/branding/green_hill_logo.png"
+  image_path: "assets/branding/ladybird_logo.png"
   remove_alpha_ios: true
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/branding/green_hill_logo.png"
+  adaptive_icon_foreground: "assets/branding/ladybird_logo.png"
 
 flutter_native_splash:
   color: "#FFFFFF"
-  image: "assets/branding/green_hill_logo.png"
+  image: "assets/branding/ladybird_logo.png"
   android_12:
     color: "#FFFFFF"
-    image: "assets/branding/green_hill_logo.png"
+    image: "assets/branding/ladybird_logo.png"
   android: true
   ios: true
 

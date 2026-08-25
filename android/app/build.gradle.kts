@@ -29,7 +29,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.academia_app"
+        // Ladybird fork of the Green Hills app -- defaults to the ladybird
+        // package so a flavor-less `flutter run`/`flutter build` (no
+        // --flavor flag) matches this repo's primary identity, same
+        // reasoning as BRAND_ID's default in lib/config/branding.dart.
+        applicationId = "com.example.academia_app.ladybird"
         minSdk = flutter.minSdkVersion
         targetSdk = 36
         // No manual ndk.abiFilters here -- Flutter's own --split-per-abi
@@ -55,17 +59,23 @@ android {
         }
     }
 
-    // Same codebase, two distinct products (see lib/config/branding.dart
+    // Same codebase, multiple distinct products (see lib/config/branding.dart
     // for the Dart-side half of this split -- BRAND_ID picks the
     // name/colors/logo). Build with e.g.:
     //   flutter build apk --flavor academia --dart-define=BRAND_ID=academia
     //   flutter build apk --flavor greenhill --dart-define=BRAND_ID=green_hill
+    //   flutter build apk --flavor ladybird --dart-define=BRAND_ID=ladybird
     // --flavor and --dart-define are independent flags and must both be
     // passed together to get a consistent build -- the flavor picks the
     // Android applicationId/launcher label, the dart-define picks the
     // in-app branding. Mismatching them (e.g. --flavor greenhill with
     // BRAND_ID=academia) produces a build that looks like one product
     // and installs as the other's package -- always pass both.
+    //
+    // The academia/greenhill flavors are carried over unmodified from the
+    // Green Hills app this was forked from (see docs/AUTOPILOT_LOG.md) --
+    // left in place rather than stripped so this stays an accurate copy;
+    // delete them once it's clear this repo will only ever ship Ladybird.
     flavorDimensions += "brand"
     productFlavors {
         create("academia") {
@@ -75,11 +85,16 @@ android {
         }
         create("greenhill") {
             dimension = "brand"
-            // Distinct package -- installs side-by-side with the academia
-            // flavor rather than overwriting it, so both can be demoed on
-            // the same device at once.
             applicationId = "com.example.academia_app.greenhill"
             resValue("string", "app_name", "Green Hill Academy")
+        }
+        create("ladybird") {
+            dimension = "brand"
+            // Distinct package -- installs side-by-side with the other
+            // flavors rather than overwriting them, so multiple brands can
+            // be demoed on the same device at once.
+            applicationId = "com.example.academia_app.ladybird"
+            resValue("string", "app_name", "Ladybird School")
         }
     }
 }

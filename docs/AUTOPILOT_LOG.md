@@ -4620,3 +4620,120 @@ and this banner/messaging review). Nothing in this multi-part effort was
 run against a compiler, an emulator, or a live Firebase project -- same
 standing ceiling as the rest of this session. `flutter analyze`/
 `flutter test` next, same loop as always.
+
+## 2026-08-25 — Forked from greenhills_app as Ladybird School
+
+This repo (`ladybird_app`) is a fork of `greenhills_app`, created per the
+user's request in the Green Hills session for "a second, identical repo
+for another school, Ladybird ... that we're going to edit later." Decided
+against extending Green Hills' own multi-brand system in-place (adding
+Ladybird as a third `BRAND_ID` inside that repo) and instead mirrored
+this team's own established precedent: `academia-cameroon` is already a
+separate GitHub repo forked from this same codebase for a different
+deployment. A full repo fork is heavier to maintain long-term than a
+third brand config, but it's what the user explicitly asked for twice
+("copy it, copy it, copy it") and matches existing practice, so did not
+override it.
+
+**Base commit:** forked from `greenhills_app`'s `demo-prep` branch (not
+`main` — `main` turned out to be a near-empty 1-commit stub, unrelated
+history to `demo-prep`; `demo-prep` is where the actual 242-commit app
+build lives). This repo's `main` branch now holds that full content.
+
+**What changed (mechanical rebrand, all placeholder pending real assets):**
+- `lib/config/branding.dart` — default `BRAND_ID` is now `ladybird`;
+  hardcoded fallback `Branding` object uses placeholder Ladybird
+  name/tagline/colors.
+- `assets/branding/ladybird.json` — new brand config file, same
+  placeholder values.
+- `lib/core/constants.dart` — `appName` fallback constant updated.
+- Android (`android/app/build.gradle.kts`) — `defaultConfig.applicationId`
+  now `com.example.academia_app.ladybird` (so a flavor-less build matches
+  this repo's identity); added a `ladybird` product flavor alongside the
+  pre-existing `academia`/`greenhill` ones (left those in place rather
+  than stripped, so this stays an accurate copy — delete later once it's
+  clear this repo only ever ships Ladybird).
+- iOS — `Info.plist` `CFBundleDisplayName` → "Ladybird School";
+  `project.pbxproj` `PRODUCT_BUNDLE_IDENTIFIER` for the Runner target
+  (not RunnerTests) → `com.example.academiaApp.ladybird`.
+- `pubspec.yaml` — `description` field updated (was actually stale,
+  still read "Academia Cameroon" in the Green Hills source repo —
+  pre-existing inconsistency, not introduced here); `name:` (the Dart
+  package name, `academia_app`) deliberately left UNCHANGED — renaming it
+  would require rewriting every `package:academia_app/...` import
+  app-wide with no compiler available in this sandbox to verify the
+  result, and the Cameroon fork shows this team doesn't rename it either.
+  `flutter_launcher_icons`/`flutter_native_splash` `image_path` pointed
+  at `assets/branding/ladybird_logo.png`.
+- `codemagic.yaml` — the single `android-release` workflow retargeted
+  from Green Hill to Ladybird (BRAND_ID, flavor, artifact path).
+- 6 hardcoded user-facing "Green Hills" strings replaced with "Ladybird"
+  (magazine share text/title/empty-states, help FAQ copy, marks-CSV
+  share text, maintenance-mode fallback message) — found via
+  `grep -rl "Green Hill"`. Used plain string literals rather than
+  `Branding.current.appName` interpolation for these, even though that
+  pattern already exists elsewhere in the codebase (e.g.
+  `clubs_page.dart`) — no compiler available in this sandbox to verify
+  new imports resolve correctly, so chose the lower-risk edit.
+
+**Known gaps — NOT done, need a human or a later session with tooling:**
+1. **No real Ladybird logo asset.** `assets/branding/ladybird_logo.png`
+   does not exist. In-app `BrandLogo` widget falls back gracefully to an
+   initials badge ("L"), but `flutter_launcher_icons`/
+   `flutter_native_splash` will fail outright until a real square PNG is
+   supplied — see the same logo-spec guidance given to the user in the
+   Green Hills session (square, ≥1024px, transparent PNG, mark centered
+   with ~18%+ padding for the Android adaptive-icon safe zone).
+2. **Placeholder name/colors/tagline.** "Ladybird School", the red/black/
+   yellow palette, and the tagline are all guesses (ladybird-bug color
+   association), not supplied by the user. Confirm and replace in
+   `assets/branding/ladybird.json` + `lib/config/branding.dart`.
+3. **Deep theme colors are NOT brand-aware yet — this is a pre-existing
+   gap in the Green Hills source app, not something this fork
+   introduced.** `lib/theme/app_colors.dart`'s `AppColors.of(context)`
+   special-cases `brandId == 'green_hill'` to return a bespoke hand-tuned
+   palette; `lib/theme/app_theme.dart`'s `AppThemeData.light`/`.dark`
+   hardcode `AppColors.greenHillLight`/`greenHillDark` into ~20 semantic
+   Material theme fields (scaffold background, input fields, nav bar,
+   dividers, chips, etc.), independent of `Branding.current`. Only the
+   ColorScheme seed/primary/secondary actually read `Branding.current`.
+   Net effect: Ladybird will get red/black buttons and the right app
+   name/logo, but most of the UI chrome (backgrounds, borders, input
+   fields) will still visually read as Green Hills' palette until
+   `AppColors`/`AppThemeData` are refactored to derive every semantic
+   color from `Branding.current` generically instead of the Green-Hills-
+   specific literals. Did not attempt this refactor — it's a real design
+   exercise (mapping 3 brand colors to ~20 semantic slots per light/dark
+   mode) that deserves the real Ladybird palette as input, not a
+   placeholder one, and is well beyond "copy + rename."
+4. **`google-services.json`/iOS `GoogleService-Info.plist` do not have
+   the new `com.example.academia_app.ladybird` / `com.example.academiaApp
+   .ladybird` package registered.** This repo shares the same Firebase
+   project (`academia-b1705`) as `greenhills_app`, matching the
+   `academia-cameroon` precedent (deliberate: this is what makes the
+   Academia Library/Courses/Quizzes/Magazine and the `schools/{id}`
+   registry genuinely shared across school repos with zero duplication).
+   But a new Android/iOS app must be registered under that Firebase
+   project via the Firebase Console (or `flutterfire configure`) before
+   the `ladybird` flavor/build will actually initialize Firebase — this
+   sandbox has no interactive `firebase login` available to do that
+   itself. Until that's done, builds using the ladybird applicationId
+   will fail Firebase init at runtime.
+5. **No `schools/{schoolId}` Firestore document exists for Ladybird
+   yet.** That's a live production Firestore write (via the in-app
+   "Register a School" superAdmin flow, `SchoolRepository.registerSchool`)
+   — deliberately not scripted blind against production Firestore from
+   this sandbox with no compiler/emulator to verify against first. Do
+   this by running the real app once signing/Firebase registration
+   (gap #4) is resolved.
+6. **iOS flavor/scheme split not implemented** — same gap already
+   flagged in the Green Hills repo for its own `greenhill` flavor;
+   iOS still only has one bundle id, now pointed at Ladybird. A future
+   session would need real Xcode scheme/build-configuration work (not
+   attempted here — pbxproj surgery beyond a single string substitution
+   is high-risk without Xcode itself to validate the result).
+
+Nothing in this fork was run against a compiler (`flutter` isn't
+installed in this sandbox) — same standing ceiling as every other
+session on the source repo. `flutter analyze`/`flutter pub get` should
+be the first thing run against this repo once real tooling is available.

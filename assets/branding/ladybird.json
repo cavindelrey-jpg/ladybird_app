@@ -1,0 +1,9 @@
+{
+  "appName": "Ladybird School",
+  "tagline": "Growing Together, Learning Forever.",
+  "primaryColor": "#D7263D",
+  "secondaryColor": "#1A1A1A",
+  "accentColor": "#FFC93C",
+  "logoAssetPath": "assets/branding/ladybird_logo.png",
+  "splashAssetPath": "assets/branding/ladybird_logo.png"
+}

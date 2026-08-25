@@ -1,6 +1,6 @@
 workflows:
   android-release:
-    name: Green Hill Android Release
+    name: Ladybird Android Release
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
@@ -20,22 +20,21 @@ workflows:
       # keystore is uploaded there, the app keeps building signed with
       # the debug keystore (see android/app/build.gradle.kts's release
       # signingConfig) — fine for internal testing, not for Play Store.
-      # Once a keystore is uploaded (name it `greenhill_release`), add:
+      # Once a keystore is uploaded (name it `ladybird_release`), add:
       #   android_signing:
-      #     - greenhill_release
+      #     - ladybird_release
       vars:
-        BRAND_ID: green_hill
+        BRAND_ID: ladybird
     scripts:
       - name: Get Flutter packages
         script: flutter pub get
-      - name: Regenerate app icon + splash from Green Hill branding
+      - name: Regenerate app icon + splash from Ladybird branding
         # pubspec.yaml's flutter_launcher_icons/flutter_native_splash
-        # config points at assets/branding/green_hill_logo.png, but that
-        # only takes effect once these generators actually run -- without
-        # this step the committed android/ios/web/windows icon files stay
-        # whatever was last generated (previously Academia's logo, since
-        # nothing regenerated them here before). Running both every build
-        # means the icon can't silently drift stale again.
+        # config points at assets/branding/ladybird_logo.png, which does
+        # NOT exist yet (see docs/AUTOPILOT_LOG.md) -- this step will fail
+        # until a real Ladybird logo PNG is added at that path. Left the
+        # step in (rather than removed) so the build fails loudly instead
+        # of silently shipping a stale Green Hills icon.
         script: |
           flutter pub run flutter_launcher_icons
           flutter pub run flutter_native_splash:create
@@ -48,7 +47,7 @@ workflows:
         script: flutter analyze --no-fatal-infos
       - name: Run tests
         script: flutter test
-      - name: Build Green Hill APK
+      - name: Build Ladybird APK
         # --target-platform=android-arm64: without this Flutter builds a
         # "fat" universal APK bundling native libs for every ABI (arm64,
         # armv7, x86_64), which is why the artifact ballooned to ~83MB.
@@ -56,14 +55,14 @@ workflows:
         # sold since ~2018 is) is what produced the ~40MB build before.
         script: |
           flutter build apk --release \
-            --flavor greenhill \
-            --dart-define=BRAND_ID=green_hill \
+            --flavor ladybird \
+            --dart-define=BRAND_ID=ladybird \
             --dart-define=APP_MODE=school \
             --target-platform=android-arm64
     artifacts:
-      # Only the exact Green Hill release output -- not a recursive
+      # Only the exact Ladybird release output -- not a recursive
       # `outputs/**/*.apk` glob, which would match the SAME apk twice
       # (Gradle writes it to both outputs/flutter-apk/ and
-      # outputs/apk/greenhill/release/) and would match Academia's
-      # flavor output too if that ever gets built alongside this.
-      - build/app/outputs/flutter-apk/app-greenhill-release.apk
+      # outputs/apk/ladybird/release/) and would match the other flavors'
+      # output too if those ever get built alongside this.
+      - build/app/outputs/flutter-apk/app-ladybird-release.apk

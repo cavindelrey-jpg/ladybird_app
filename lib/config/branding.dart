@@ -1,7 +1,7 @@
 // lib/config/branding.dart
 // The *look* half of the white-label split (see app_config.dart for the
 // *behavior* half). Selected via --dart-define=BRAND_ID=<id> (defaults
-// to 'academia'), loaded once at startup from the matching
+// to 'ladybird' in this fork), loaded once at startup from the matching
 // assets/branding/<id>.json, and read everywhere via Branding.current.
 
 import 'dart:convert';
@@ -30,30 +30,32 @@ class Branding {
     required this.splashAssetPath,
   });
 
-  // Was defaulted to 'academia' -- this codebase now only ships as Green
-  // Hills (codemagic.yaml has a single BRAND_ID=green_hill workflow), so
-  // any build/run invocation that omits the dart-define (a plain `flutter
-  // run`, an IDE launch config, a future CI step someone forgets to flag)
-  // rendered Academia's name/logo/colors by default instead. Default to
-  // green_hill so "just run it" is Green Hills without remembering the flag.
+  // This repo is the Ladybird fork of the Green Hills app (see
+  // docs/AUTOPILOT_LOG.md for the fork record) -- it ships as Ladybird
+  // only, same reasoning the Green Hills repo already used for defaulting
+  // to its own brand: "just run it" (a plain `flutter run`, an IDE launch
+  // config, a CI step someone forgets to flag) should render Ladybird,
+  // not fall through to Academia's or Green Hills' identity.
   static const String _envBrandId =
-      String.fromEnvironment('BRAND_ID', defaultValue: 'green_hill');
+      String.fromEnvironment('BRAND_ID', defaultValue: 'ladybird');
 
   /// Hardcoded fallback so every screen has *something* to read even if
   /// asset loading hasn't completed yet (or fails) -- matches this
   /// codebase's existing "never a blank/broken screen" standard. main()
   /// awaits [load] before runApp, so in practice this is only ever seen
-  /// for one frame at worst. Mirrors assets/branding/green_hill.json so
-  /// that one frame is Green Hills too, not a flash of Academia blue.
+  /// for one frame at worst. Mirrors assets/branding/ladybird.json so
+  /// that one frame is Ladybird too. Colors/name here are PLACEHOLDERS
+  /// (no real Ladybird brand reference was supplied) -- see
+  /// assets/branding/ladybird.json and docs/AUTOPILOT_LOG.md.
   static Branding _current = const Branding(
     brandId: _envBrandId,
-    appName: 'Green Hills Academic Complex',
-    tagline: 'Solid Foundation. Discipline. Success.',
-    primaryColor: const Color(0xFF0A7A3B),
-    secondaryColor: const Color(0xFF16A34A),
-    accentColor: const Color(0xFF86EFAC),
-    logoAssetPath: 'assets/branding/green_hill_logo.png',
-    splashAssetPath: 'assets/branding/green_hill_logo.png',
+    appName: 'Ladybird School',
+    tagline: 'Growing Together, Learning Forever.',
+    primaryColor: const Color(0xFFD7263D),
+    secondaryColor: const Color(0xFF1A1A1A),
+    accentColor: const Color(0xFFFFC93C),
+    logoAssetPath: 'assets/branding/ladybird_logo.png',
+    splashAssetPath: 'assets/branding/ladybird_logo.png',
   );
 
   static Branding get current => _current;

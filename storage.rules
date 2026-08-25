@@ -176,6 +176,14 @@ service firebase.storage {
       allow write: if canUploadContent() && isReasonableImage();
     }
 
+    // ── test_question_images/{testId}_{questionId}.jpg ─────────────────
+    // Architecture brief item 9 — real photos/diagrams attached to one
+    // question inside a test. Same role gate as the thumbnail above.
+    match /test_question_images/{fileName} {
+      allow read: if true;
+      allow write: if canUploadContent() && isReasonableImage();
+    }
+
     // ── public_courses/inline/... ─────────────────────────────────────
     // Inline lesson images uploaded by the compiler pipeline (see
     // academia_compiler/compile-course.js) — writes there go through the

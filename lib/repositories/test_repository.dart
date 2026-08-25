@@ -297,6 +297,26 @@ class TestRepository {
     }
   }
 
+  /// Uploads a real photo/diagram for one question inside a test
+  /// (architecture brief item 9 — [TestQuestion.imageUrl]). Keyed by
+  /// both testId and questionId since a single test has many questions,
+  /// unlike the one-per-test thumbnail above.
+  Future<Result<String>> uploadQuestionImage({
+    required String testId,
+    required String questionId,
+    required File imageFile,
+  }) async {
+    try {
+      final ref = FirebaseStorage.instance.ref('test_question_images/${testId}_$questionId.jpg');
+      await ref.putFile(imageFile).timeout(const Duration(seconds: 60),
+          onTimeout: () => throw Exception(
+              'Image upload is taking too long. Check your connection and try again.'));
+      return Success(await ref.getDownloadURL());
+    } catch (e) {
+      return Failure('Failed to upload question image', e);
+    }
+  }
+
   /// Bounded recent-tests fetch across every subject — the fallback/pool
   /// query for RecommendationRepository.forQuizzes(), same "recency,
   /// unfiltered, filtered client-side by caller" shape as

@@ -153,6 +153,13 @@ class TestQuestion {
   // Essay (longForm) only
   final List<EssayKeyPoint> keyPoints;
 
+  /// Architecture brief item 9: real photos/diagrams a question can show
+  /// or ask the learner to analyse, not emoji decoration. Optional and
+  /// type-independent -- any of the three formats can attach one image.
+  /// A real Firebase Storage download URL, same pick -> upload -> preview
+  /// pattern as every other image attachment in this app.
+  final String? imageUrl;
+
   const TestQuestion({
     required this.id,
     required this.type,
@@ -164,6 +171,7 @@ class TestQuestion {
     this.rubricGuidance,
     this.expectedPoints = const [],
     this.keyPoints = const [],
+    this.imageUrl,
   });
 
   /// What this question is actually scored out of.
@@ -200,6 +208,7 @@ class TestQuestion {
         keyPoints: (m['keyPoints'] as List<dynamic>? ?? [])
             .map((k) => EssayKeyPoint.fromMap(Map<String, dynamic>.from(k)))
             .toList(),
+        imageUrl: m['imageUrl'],
       );
 
   Map<String, dynamic> toMap() => {
@@ -211,6 +220,7 @@ class TestQuestion {
         'correctIndex': correctIndex,
         'lineCount': lineCount,
         'rubricGuidance': rubricGuidance,
+        'imageUrl': imageUrl,
         'expectedPoints': expectedPoints.map((k) => k.toMap()).toList(),
         'keyPoints': keyPoints.map((k) => k.toMap()).toList(),
       };

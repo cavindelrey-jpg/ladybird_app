@@ -180,6 +180,14 @@ class _TestTakingPageState extends State<TestTakingPage> {
         ]),
         const SizedBox(height: 10),
         Text(q.prompt, style: AppText.body),
+        if ((q.imageUrl ?? '').isNotEmpty) ...[
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(Rad.sm),
+            child: Image.network(q.imageUrl!, height: 180, width: double.infinity, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+          ),
+        ],
         const SizedBox(height: 12),
         if (q.type == QuestionType.mcq) _mcqOptions(q),
         if (q.type == QuestionType.structured) _structuredInput(q),

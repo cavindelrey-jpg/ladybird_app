@@ -102,13 +102,17 @@ Files: `lib/pages/about_academia_page.dart`, `help_support_page.dart`,
   text/timestamp/read-receipt; received stays a neutral bordered surface.
 - **Port as-is.** Messaging is a general Academia feature.
 
-### 1.8 Quiz question images (started, incomplete)
-- `lib/models/test.dart` — added `TestQuestion.imageUrl` (field only).
-- **NOT finished** — `fromMap`/`toMap` serialization, the question
-  composer's image picker, and the quiz-taking UI's image display were
-  never wired up before this session's work was redirected. The field
-  exists but nothing reads or writes it yet. Treat as a known gap, not a
-  working feature, if you port `test.dart`.
+### 1.8 Quiz question images
+- `lib/models/test.dart` (`TestQuestion.imageUrl` + serialization),
+  `lib/repositories/test_repository.dart` (`uploadQuestionImage`,
+  keyed `test_question_images/{testId}_{questionId}.jpg`),
+  `lib/features/testing/test_composer_page.dart` (per-question image
+  picker, any type — not MCQ-only), `lib/features/testing/test_taking_page.dart`
+  (renders the image above the answer input when present), `storage.rules`
+  (`test_question_images/{fileName}`, same role gate as the existing
+  test-thumbnail rule).
+- **Port as-is.** Same pick-then-upload-after-id-exists pattern already
+  used for the test's own thumbnail; not school-specific.
 
 ---
 

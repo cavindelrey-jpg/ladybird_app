@@ -62,6 +62,13 @@ class _QuestionDraft {
   // Essay
   final List<_KeyPointDraft> keyPoints = [];
 
+  // Optional question image (architecture brief item 9) -- real photos/
+  // diagrams, type-independent (any of the three formats can attach
+  // one). Same pick-then-upload-after-id-exists pattern as the test's
+  // own thumbnail just above in this file.
+  File? pickedImage;
+  String? existingImageUrl;
+
   _QuestionDraft({required this.id, required this.type});
 
   factory _QuestionDraft.fromQuestion(TestQuestion q) {
@@ -74,6 +81,7 @@ class _QuestionDraft {
     d.correctIndex = q.correctIndex;
     d.lineCount.text = q.lineCount.toString();
     d.rubric.text = q.rubricGuidance ?? '';
+    d.existingImageUrl = q.imageUrl;
     for (final k in q.expectedPoints) {
       d.expectedPoints.add(_KeyPointDraft.fromKeyPoint(k));
     }
@@ -123,6 +131,7 @@ class _QuestionDraft {
         keyPoints: type == QuestionType.longForm
             ? keyPoints.map((k) => k.toKeyPoint()).toList()
             : const [],
+        imageUrl: existingImageUrl,
       );
 }
 
@@ -249,6 +258,12 @@ class _TestComposerPageState extends State<TestComposerPage> {
     setState(() => _pickedThumbnail = File(picked.path));
   }
 
+  Future<void> _pickQuestionImage(_QuestionDraft q) async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null) return;
+    setState(() => q.pickedImage = File(picked.path));
+  }
+
   @override
   void dispose() {
     _title.dispose();
@@ -357,7 +372,7 @@ class _TestComposerPageState extends State<TestComposerPage> {
     }
     setState(() => _saving = true);
 
-    final questions = _questions.map((q) {
+    TestQuestion finalizeQuestion(_QuestionDraft q) {
       final built = q.toQuestion();
       if (built.type != QuestionType.mcq) return built;
       // Drop blank trailing MCQ options, keeping the correct index
@@ -378,8 +393,15 @@ class _TestComposerPageState extends State<TestComposerPage> {
         points: built.points,
         options: kept,
         correctIndex: correct.clamp(0, kept.isEmpty ? 0 : kept.length - 1),
+        lineCount: built.lineCount,
+        rubricGuidance: built.rubricGuidance,
+        expectedPoints: built.expectedPoints,
+        keyPoints: built.keyPoints,
+        imageUrl: built.imageUrl,
       );
-    }).toList();
+    }
+
+    var questions = _questions.map(finalizeQuestion).toList();
 
     Test buildTest({required String id, String? thumbnailUrl}) => Test(
           id: id,
@@ -421,6 +443,22 @@ class _TestComposerPageState extends State<TestComposerPage> {
           await TestRepository.instance.uploadTestThumbnail(testId: testId, imageFile: _pickedThumbnail!);
       if (upload is Success<String>) thumbnailUrl = upload.value;
     }
+
+    // Same reasoning as the thumbnail above: a question image also needs
+    // a real testId in its storage path, so this can only happen once
+    // testId is resolved -- then the final question list is rebuilt with
+    // the resolved URLs before the update call below.
+    var anyImageUploaded = false;
+    for (final q in _questions) {
+      if (q.pickedImage == null) continue;
+      final upload = await TestRepository.instance
+          .uploadQuestionImage(testId: testId, questionId: q.id, imageFile: q.pickedImage!);
+      if (upload is Success<String>) {
+        q.existingImageUrl = upload.value;
+        anyImageUploaded = true;
+      }
+    }
+    if (anyImageUploaded) questions = _questions.map(finalizeQuestion).toList();
 
     final result =
         await TestRepository.instance.updateTest(testId, buildTest(id: testId, thumbnailUrl: thumbnailUrl));
@@ -669,12 +707,51 @@ class _TestComposerPageState extends State<TestComposerPage> {
           minLines: 1,
           decoration: const InputDecoration(labelText: 'Question'),
         ),
+        const SizedBox(height: 8),
+        _questionImagePicker(q),
         const SizedBox(height: 12),
         if (q.type == QuestionType.mcq) _mcqEditor(q),
         if (q.type == QuestionType.structured) _structuredEditor(q),
         if (q.type == QuestionType.longForm) _essayEditor(q),
       ]),
     );
+  }
+
+  /// Optional real photo/diagram for one question (item 9) -- shown for
+  /// every question type, not just MCQ, since a Structured or Essay
+  /// prompt can just as legitimately ask the learner to analyse an image.
+  Widget _questionImagePicker(_QuestionDraft q) {
+    final hasImage = q.pickedImage != null || (q.existingImageUrl ?? '').isNotEmpty;
+    if (!hasImage) {
+      return OutlinedButton.icon(
+        onPressed: () => _pickQuestionImage(q),
+        icon: const Icon(Icons.add_photo_alternate_outlined, size: 16),
+        label: const Text('Add image'),
+      );
+    }
+    return Stack(children: [
+      ClipRRect(
+        borderRadius: BorderRadius.circular(Rad.sm),
+        child: q.pickedImage != null
+            ? Image.file(q.pickedImage!, height: 140, width: double.infinity, fit: BoxFit.cover)
+            : Image.network(q.existingImageUrl!, height: 140, width: double.infinity, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+      ),
+      Positioned(
+        top: 4, right: 4,
+        child: Material(
+          color: Colors.black54,
+          shape: const CircleBorder(),
+          child: IconButton(
+            icon: const Icon(Icons.close_rounded, color: Colors.white, size: 16),
+            onPressed: () => setState(() {
+              q.pickedImage = null;
+              q.existingImageUrl = null;
+            }),
+          ),
+        ),
+      ),
+    ]);
   }
 
   Widget _mcqEditor(_QuestionDraft q) {

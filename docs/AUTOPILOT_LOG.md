@@ -5145,3 +5145,90 @@ brace/paren balance programmatically and re-read the full diff by hand.
 The Firebase deploy itself is the one part of this entry that IS
 independently verified (not just "should work") -- `firebase
 firestore:indexes` confirms live state directly.
+
+## 2026-08-26 (7) — Splash-screen logo cropping: not a BoxFit bug, an OS icon-safe-zone one
+
+User reported the loading/splash-screen logos (Ladybird, Academia,
+Green Hill) all appear zoomed/cropped -- outer ring text and edges cut
+off, only the central emblem visible -- and asked to find and fix any
+`BoxFit.cover`/`DecorationImage.fit: BoxFit.cover` responsible.
+
+**Searched exhaustively first rather than guessing**: grepped every
+`BoxFit.cover` in `lib/` (49 hits, all thumbnails/banners/avatars,
+none brand logos) and read both logo-rendering widgets end to end --
+`AcademiaLogo` and `BrandLogo` (`lib/widgets/widgets.dart`) already use
+`BoxFit.contain`. `Branding.splashAssetPath` exists as a per-brand JSON
+field but is never actually read by any widget -- there's no dedicated
+in-app splash/loading screen at all; `main.dart` goes straight from
+Firebase/Branding init to the router. Asked the user to confirm which
+screen they meant before touching anything, given my code search
+contradicted their working assumption -- confirmed: the native OS
+splash screen.
+
+**Real root cause, two different bugs on two platforms:**
+- **Android 12+**: `values-v31/styles.xml` /
+  `values-night-v31/styles.xml`'s `windowSplashScreenAnimatedIcon`
+  pointed straight at `@drawable/android12splash` -- a raw, edge-to-edge
+  copy of the brand logo with zero internal padding (flutter_native_splash
+  generated it correctly scaled per density bucket, 313px-1254px, but with
+  no margin). Android's SplashScreen API enforces its own icon safe-zone
+  on whatever it's given; unpadded content gets cropped into. This is OS
+  behavior, not a Flutter `fit` property -- there's nothing to change to
+  `BoxFit.contain` here because Flutter isn't rendering this screen at all.
+- **iOS**: `LaunchScreen.storyboard`'s `LaunchImage` imageView had
+  `contentMode="center"` while being pinned to fill the entire screen
+  (leading/trailing/top/bottom constraints) with a 1254x1254pt image --
+  "center" draws at native size with no scaling, so on any real device
+  the vast majority of the image extends past the screen edges and
+  `clipsSubviews` cuts it off, showing only the middle. This ONE actually
+  *is* the direct UIKit equivalent of the bug the user described --
+  `contentMode="scaleAspectFit"` is UIKit's `BoxFit.contain`.
+
+**Fixes:**
+- iOS: changed `contentMode="center"` -> `"scaleAspectFit"` directly.
+  Clean, unambiguous, single-line fix.
+- Android: image tooling still unavailable in this sandbox this session
+  too (confirmed again -- `pip install pillow` hung with no output/error
+  for several minutes across three attempts, no ImageMagick CLI present;
+  same wall every prior session hit), so couldn't regenerate a properly
+  padded source bitmap, which is what flutter_native_splash's own docs
+  say is the *correct* fix. Used an Android `<inset>` drawable instead
+  (`android/app/src/main/res/drawable/android12splash_inset.xml`, 20%
+  inset each side) wrapping the existing bitmap with padding at the XML
+  level -- pure resource config, no image editing, and it directly stops
+  the OS from cropping into real content (the inset margin renders as
+  the splash background color instead, which is already white/matches).
+  Repointed both v31 styles.xml files at the inset drawable instead of
+  the raw one.
+
+**Durability problem caught and handled, not just footnoted**: Codemagic's
+existing `android-release` workflow runs `flutter pub run
+flutter_launcher_icons && flutter pub run flutter_native_splash:create`
+on every single build (see codemagic.yaml) -- which regenerates
+styles-v31.xml/styles-night-v31.xml FROM SCRATCH, silently reverting
+`windowSplashScreenAnimatedIcon` back to the raw, uninset drawable. A
+manual-file-only fix would have been invisible in the repo but dead on
+the very next real build. Added a new codemagic.yaml script step
+("Re-apply Android 12 splash crop fix") immediately after the existing
+regeneration step, using `sed` to re-point both styles.xml files at
+`android12splash_inset` every build -- the inset XML file itself is a
+plain committed file the generator doesn't know about and won't touch,
+so only the two-line styles.xml reference needs re-patching each time.
+Verified the sed pattern against a simulated regenerated (raw) file
+before committing.
+
+**What this does NOT fix**: the actual correct long-term solution is
+still a properly padded (or transparent-cutout) source logo per brand,
+same underlying gap as the already-known "black corners" issue in
+pubspec.yaml's comments -- this inset-XML approach is a real, working
+mitigation for the cropping specifically, not a substitute for fixing
+the source assets. Also scoped to the Android 12+ *splash screen*
+specifically, not the app *launcher icon* (adaptive icon foreground),
+which has the identical unpadded-source-image problem but wasn't part
+of this request and would need the same kind of asset fix.
+
+No compiler/device available in this sandbox to visually verify either
+fix renders correctly -- reviewed the XML/storyboard changes by hand
+(constraint/attribute correctness) and tested the sed pattern in
+isolation. Should be verified on a real device via the next Codemagic
+build.

@@ -1,38 +1,42 @@
 // lib/theme/app_theme.dart
-// Green Hills Design System — Material 3, Green × Gold palette.
+// Ladybird Design System — Material 3, Blue × Gold palette.
 // All colour tokens are defined once here, used everywhere.
 //
 // `C.primary`/`navy`/`navy2`/`navy3` were Academia's blue/navy brand
-// tokens. This codebase now only ships as Green Hills (codemagic.yaml
-// has a single BRAND_ID=green_hill workflow) and ~60 call sites across
+// tokens, then briefly repainted to Green Hills' green when this codebase
+// shipped as that brand. This repo is the Ladybird fork (codemagic.yaml
+// has a single BRAND_ID=ladybird workflow) and ~12 call sites across
 // clubs/magazine/admin pages still read these `C.xxx` constants directly
 // in `const` constructors rather than the brand-aware AppColors.of()
 // (see app_colors.dart's file header for why `C` can't be made
 // context-aware without breaking every `const` call site). Repainting
-// the constants themselves to Green Hills' green — the same values
-// AppColors.greenHillLight already samples from
-// assets/branding/green_hill_logo.png's shield — fixes every one of
-// those sites at once without the multi-file `const`-removal refactor.
+// the constants themselves to Ladybird's blue — matching
+// assets/branding/ladybird.json / lib/config/branding.dart's
+// primaryColor/secondaryColor/accentColor exactly (from
+// mockups/ladybird_homescreen.jpg + mockups/ladybird_signin.jpg's crest)
+// — fixes every one of those sites at once without the multi-file
+// `const`-removal refactor. Green Hill's own values live on unchanged in
+// AppColors.greenHillLight/Dark (app_colors.dart) for that flavor.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 import '../config/branding.dart';
 
-/// Green Hills Design System colour tokens.
+/// Ladybird Design System colour tokens.
 class C {
   C._();
 
   // ── Brand ───────────────────────────────────────────────────────────────
-  static const Color primary   = Color(0xFF16A34A);   // Green Hills green
-  static const Color primaryBg = Color(0xFFDCFCE7);   // Very pale green
+  static const Color primary   = Color(0xFF1E6FEB);   // Ladybird blue
+  static const Color primaryBg = Color(0xFFEAF2FE);   // Very pale blue
 
-  static const Color navy  = Color(0xFF0A7A3B);   // Deep green (was navy)
-  static const Color navy2 = Color(0xFF0F5C35);   // Mid green (was navy2)
-  static const Color navy3 = Color(0xFF1F7A4D);   // Slate green (was navy3)
+  static const Color navy  = Color(0xFF0B1F4D);   // Deep navy (brand secondaryColor)
+  static const Color navy2 = Color(0xFF15479C);   // Mid blue-navy (gradient stop)
+  static const Color navy3 = Color(0xFF1B3A6B);   // Slate navy
 
-  static const Color gold  = Color(0xFFC9A227);   // Academy Gold
-  static const Color goldp = Color(0xFFFBF3DA);   // Pale gold
+  static const Color gold  = Color(0xFFF4B400);   // Ladybird gold (brand accentColor)
+  static const Color goldp = Color(0xFFFFF4D6);   // Pale gold
 
   // ── Surfaces ────────────────────────────────────────────────────────────
   static const Color bg    = Color(0xFFF5F7FA);   // App background
@@ -181,51 +185,65 @@ class AppTheme {
       foregroundColor: C.navy,
       elevation: 2,
     ),
-    extensions: const [AppColors.greenHillLight],
+    // Brand-aware, evaluated once when this `static final` is first
+    // accessed -- same timing as colorScheme's Branding.current read
+    // above (after main()'s awaited Branding.load(), before first
+    // build). Was hardcoded to AppColors.greenHillLight unconditionally,
+    // which meant AppColors.of(context) resolved to Green Hill's green
+    // for EVERY brand (its own brand-first check only helps once a
+    // ThemeExtension is already registered here) -- see app_colors.dart's
+    // of() for the matching brand switch.
+    extensions: [_brandColors(dark: false)],
   );
 
   // ── Dark ──────────────────────────────────────────────────────────────
-  // Mirrors `light` field-for-field but sourced from `AppColors.greenHillDark`
-  // instead of the hardcoded `C.xxx` constants — `C` itself stays a
-  // light-only compile-time constant (see app_colors.dart's file comment
-  // for why), so this is built from the dark token set directly rather
-  // than trying to make `C` context-aware.
+  // Mirrors `light` field-for-field but sourced from `_dc` (this brand's
+  // dark AppColors, see `_brandColors()` below) instead of the hardcoded
+  // `C.xxx` constants — `C` itself stays a light-only compile-time
+  // constant (see app_colors.dart's file comment for why), so this is
+  // built from the dark token set directly rather than trying to make `C`
+  // context-aware. Was hardcoded to `AppColors.greenHillDark` throughout
+  // (not just `extensions:`) -- every Material component below (app bar,
+  // cards, buttons, nav bar, FAB, dividers) rendered Green Hill's dark
+  // green for every brand until this was made brand-aware too.
+  static final AppColors _dc = _brandColors(dark: true);
+
   static final ThemeData dark = ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    scaffoldBackgroundColor: AppColors.greenHillDark.bg,
+    scaffoldBackgroundColor: _dc.bg,
     // Same branding seed as the light theme above — see that comment for
     // the partial-coverage tradeoff.
     colorScheme: ColorScheme.fromSeed(
       seedColor: Branding.current.primaryColor,
       primary: Branding.current.primaryColor,
       secondary: Branding.current.accentColor,
-      surface: AppColors.greenHillDark.surf,
+      surface: _dc.surf,
       brightness: Brightness.dark,
     ),
     appBarTheme: AppBarTheme(
-      backgroundColor: AppColors.greenHillDark.surf,
-      foregroundColor: AppColors.greenHillDark.txt,
+      backgroundColor: _dc.surf,
+      foregroundColor: _dc.txt,
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
       surfaceTintColor: Colors.transparent,
-      iconTheme: IconThemeData(color: AppColors.greenHillDark.txt),
+      iconTheme: IconThemeData(color: _dc.txt),
     ),
     cardTheme: CardThemeData(
-      color: AppColors.greenHillDark.surf,
+      color: _dc.surf,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: AppColors.greenHillDark.bdr),
+        side: BorderSide(color: _dc.bdr),
       ),
       surfaceTintColor: Colors.transparent,
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.greenHillDark.primary,
+        backgroundColor: _dc.primary,
         foregroundColor: Colors.white,
-        disabledBackgroundColor: AppColors.greenHillDark.primary.withValues(alpha: .4),
+        disabledBackgroundColor: _dc.primary.withValues(alpha: .4),
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         minimumSize: const Size(double.infinity, 52),
@@ -236,68 +254,84 @@ class AppTheme {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.greenHillDark.primary,
-        side: BorderSide(color: AppColors.greenHillDark.primary, width: 1.5),
+        foregroundColor: _dc.primary,
+        side: BorderSide(color: _dc.primary, width: 1.5),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        overlayColor: AppColors.greenHillDark.primary.withValues(alpha: .1),
+        overlayColor: _dc.primary.withValues(alpha: .1),
         animationDuration: Dur.fast,
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: AppColors.greenHillDark.primary,
-        overlayColor: AppColors.greenHillDark.primary.withValues(alpha: .1),
+        foregroundColor: _dc.primary,
+        overlayColor: _dc.primary.withValues(alpha: .1),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.xs)),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: AppColors.greenHillDark.surf3,
+      fillColor: _dc.surf3,
       border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.greenHillDark.bdr)),
+          borderSide: BorderSide(color: _dc.bdr)),
       enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.greenHillDark.bdr)),
+          borderSide: BorderSide(color: _dc.bdr)),
       focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.greenHillDark.primary, width: 1.5)),
+          borderSide: BorderSide(color: _dc.primary, width: 1.5)),
       errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.greenHillDark.red)),
+          borderSide: BorderSide(color: _dc.red)),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      hintStyle: TextStyle(color: AppColors.greenHillDark.muted),
+      hintStyle: TextStyle(color: _dc.muted),
     ),
     navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: AppColors.greenHillDark.surf,
-      indicatorColor: AppColors.greenHillDark.primaryBg,
+      backgroundColor: _dc.surf,
+      indicatorColor: _dc.primaryBg,
       indicatorShape: const StadiumBorder(),
       labelTextStyle: WidgetStateProperty.all(
           const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return IconThemeData(color: AppColors.greenHillDark.primary, size: 22);
+          return IconThemeData(color: _dc.primary, size: 22);
         }
-        return IconThemeData(color: AppColors.greenHillDark.muted, size: 22);
+        return IconThemeData(color: _dc.muted, size: 22);
       }),
       elevation: 0,
       surfaceTintColor: Colors.transparent,
     ),
     chipTheme: ChipThemeData(
-      backgroundColor: AppColors.greenHillDark.surf3,
-      selectedColor: AppColors.greenHillDark.primaryBg,
+      backgroundColor: _dc.surf3,
+      selectedColor: _dc.primaryBg,
       labelStyle: const TextStyle(fontSize: 12),
-      side: BorderSide(color: AppColors.greenHillDark.bdr),
+      side: BorderSide(color: _dc.bdr),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     ),
-    dividerColor: AppColors.greenHillDark.bdr,
+    dividerColor: _dc.bdr,
     floatingActionButtonTheme: FloatingActionButtonThemeData(
-      backgroundColor: AppColors.greenHillDark.gold,
-      foregroundColor: AppColors.greenHillDark.navy,
+      backgroundColor: _dc.gold,
+      foregroundColor: _dc.navy,
       elevation: 2,
     ),
-    extensions: const [AppColors.greenHillDark],
+    extensions: [_dc],
   );
+}
+
+/// Picks the ThemeExtension to register on [AppTheme.light]/[AppTheme.dark]
+/// for the currently-loaded brand -- mirrors the switch in
+/// `AppColors.of()` (app_colors.dart) so a screen reading colors either
+/// way (via the helper, or by falling through to
+/// `Theme.of(context).extension<AppColors>()`) gets the same answer.
+AppColors _brandColors({required bool dark}) {
+  switch (Branding.current.brandId) {
+    case 'green_hill':
+      return dark ? AppColors.greenHillDark : AppColors.greenHillLight;
+    case 'ladybird':
+      return dark ? AppColors.ladybirdDark : AppColors.ladybirdLight;
+    default:
+      return dark ? AppColors.dark : AppColors.light;
+  }
 }
 
 // ── Design tokens ─────────────────────────────────────────────────────────────

@@ -57,21 +57,25 @@ class AppColors extends ThemeExtension<AppColors> {
 
   /// Checks Branding.current BEFORE consulting the ThemeExtension registered
   /// on the current Theme. That order matters: AppTheme.light/.dark both
-  /// register a *fixed* AppColors object under `extensions:` (evaluated
-  /// once, can't itself branch on brand), so `Theme.of(context)
-  /// .extension<AppColors>()` always finds something and the old
-  /// `?? (isDark ? greenHillDark : greenHillLight)` fallback never ran --
-  /// every AppColors.of(context) call site (Home, Profile, etc.) was
-  /// silently reading whatever was registered on the ThemeData regardless
-  /// of brand. AppTheme now registers the green_hill extensions directly
-  /// (see app_theme.dart), but checking brand first here too means this
-  /// keeps working correctly even if that registration ever drifts again.
+  /// register a brand-specific AppColors object under `extensions:` (see
+  /// `_brandColors()` in app_theme.dart -- it mirrors this same switch), so
+  /// `Theme.of(context).extension<AppColors>()` always finds something and
+  /// the final `?? (isDark ? dark : light)` fallback is mostly a belt-and-
+  /// suspenders default for a brand with no dedicated palette. Checking
+  /// brand first here too means this keeps resolving correctly even if
+  /// that registration ever drifts out of sync again (as it previously
+  /// did: AppTheme unconditionally registered Green Hill's palette for
+  /// every brand, so Ladybird silently rendered Green Hill's green).
   static AppColors of(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    if (Branding.current.brandId == 'green_hill') {
-      return isDark ? greenHillDark : greenHillLight;
+    switch (Branding.current.brandId) {
+      case 'green_hill':
+        return isDark ? greenHillDark : greenHillLight;
+      case 'ladybird':
+        return isDark ? ladybirdDark : ladybirdLight;
+      default:
+        return Theme.of(context).extension<AppColors>() ?? (isDark ? dark : light);
     }
-    return Theme.of(context).extension<AppColors>() ?? (isDark ? dark : light);
   }
 
   // ── Light — identical values to `C` in app_theme.dart ───────────────────
@@ -135,6 +139,52 @@ class AppColors extends ThemeExtension<AppColors> {
     bdr: Color(0xFF1E2633), bdr2: Color(0xFF1A2230),
     primary: Color(0xFF22C55E), primaryBg: Color(0x1A22C55E),
     navy: Color(0xFF06140D), navy2: Color(0xFF0D1F17),
+    gold: Color(0xFFFBBF24), goldBg: Color(0x1AFBBF24),
+    grn: Color(0xFF22C55E), grnBg: Color(0x1A22C55E),
+    red: Color(0xFFEF4444), redBg: Color(0x1AEF4444),
+    org: Color(0xFFFB923C), orgBg: Color(0x1AFB923C),
+    pur: Color(0xFF8B5CF6), purBg: Color(0x1A8B5CF6), purDark: Color(0xFFA78BFA), purLight: Color(0xFF8B5CF6),
+    blu: Color(0xFF4F8CFF), bluBg: Color(0x1A4F8CFF),
+    shadow: Color(0x73000000),
+  );
+
+  // ── Ladybird — brand/header colors (primary, navy, gold) all sourced
+  // from the real brand palette (assets/branding/ladybird.json /
+  // lib/config/branding.dart's primaryColor #1E6FEB, secondaryColor
+  // #0B1F4D, accentColor #F4B400 -- taken from mockups/ladybird_homescreen
+  // .jpg and the crest in mockups/ladybird_signin.jpg). Unlike Green
+  // Hill's split, gold IS a brand color here (the crest's stars), not
+  // just a functional tier-badge color, so it's swapped too -- it still
+  // reads fine in the "Gold tier" badge role since both meanings are
+  // "gold". Every other functional/status color (red, org, pur, blu, grn
+  // success-state) stays identical to the base Academia palette -- those
+  // represent app state, not brand identity.
+  static const AppColors ladybirdLight = AppColors(
+    bg: Color(0xFFF5F7FA), surf: Color(0xFFFFFFFF), surf2: Color(0xFFF8F9FB), surf3: Color(0xFFF1F3F8),
+    txt: Color(0xFF0F172A), txt2: Color(0xFF475569), muted: Color(0xFF94A3B8),
+    bdr: Color(0xFFE2E8F0), bdr2: Color(0xFFF1F5F9),
+    primary: Color(0xFF1E6FEB), primaryBg: Color(0xFFEAF2FE),
+    navy: Color(0xFF0B1F4D), navy2: Color(0xFF15479C),
+    gold: Color(0xFFF4B400), goldBg: Color(0xFFFFF4D6),
+    grn: Color(0xFF16A34A), grnBg: Color(0xFFDCFCE7),
+    red: Color(0xFFDC2626), redBg: Color(0xFFFEE2E2),
+    org: Color(0xFFEA580C), orgBg: Color(0xFFFFEDD5),
+    pur: Color(0xFF7C3AED), purBg: Color(0xFFF5F3FF), purDark: Color(0xFF6D28D9), purLight: Color(0xFF8B5CF6),
+    blu: Color(0xFF0284C7), bluBg: Color(0xFFE0F2FE),
+    shadow: Color(0x0D0A1432),
+  );
+
+  // Dark gold kept as the same amber (#FBBF24) the base `dark`/
+  // `greenHillDark` palettes already use rather than the brand's exact
+  // #F4B400 -- consistent with how primary/navy get lightened for dark-bg
+  // legibility below, and keeps the "gold tier badge" color identical
+  // across brands in dark mode, same reasoning as Green Hill's split.
+  static const AppColors ladybirdDark = AppColors(
+    bg: Color(0xFF0D1117), surf: Color(0xFF161B22), surf2: Color(0xFF1E2633), surf3: Color(0xFF242C3D),
+    txt: Color(0xFFF5F5F5), txt2: Color(0xFFB8BCC8), muted: Color(0xFF6B7280),
+    bdr: Color(0xFF1E2633), bdr2: Color(0xFF1A2230),
+    primary: Color(0xFF4F8CFF), primaryBg: Color(0x1A4F8CFF),
+    navy: Color(0xFF0B1A38), navy2: Color(0xFF13294F),
     gold: Color(0xFFFBBF24), goldBg: Color(0x1AFBBF24),
     grn: Color(0xFF22C55E), grnBg: Color(0x1A22C55E),
     red: Color(0xFFEF4444), redBg: Color(0x1AEF4444),

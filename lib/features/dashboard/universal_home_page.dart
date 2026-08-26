@@ -61,6 +61,7 @@ import '../magazine/magazine_feed_page.dart';
 import '../announcements/announcements_page.dart';
 import '../messages/messages_home_page.dart';
 import '../timetable/personal_study_page.dart';
+import '../../pages/profile_page.dart';
 
 /// Card shadow used throughout this page -- a bit more present than the
 /// app-wide Shad tokens, matching the mockup's soft-but-visible elevation.
@@ -195,6 +196,13 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               decoration: BoxDecoration(color: ac.grn, shape: BoxShape.circle),
             )),
         ]),
+        const SizedBox(width: 4),
+        UserAvatar(
+          initials: _isGuest || _userOrGuest.name.isEmpty ? '?' : _userOrGuest.name[0].toUpperCase(),
+          radius: 17,
+          photoUrl: _u?.photoUrl,
+          onTap: () => _open(context, ProfilePage(user: _userOrGuest)),
+        ),
       ]),
     );
   }

@@ -4863,3 +4863,90 @@ that entry verbatim, including its original `_comment`, so the
   unchanged (transparent logo PNG, `schools/{schoolId}` Firestore doc,
   deep Material theme colors, iOS Firebase registration, iOS
   flavor/scheme split).
+
+## 2026-08-26 (3) — Deep theme colors: Green Hill's green → Ladybird's blue, home/login mockup pass
+
+User supplied `mockups/ladybird_homescreen.jpg` (full Home UI) and
+`mockups/ladybird_signin.jpg` (which turned out to be the same crest
+image as `mockup2.jpg`, not a distinct sign-in layout — used as a
+branding/color reference for that screen, not a layout spec) and asked
+to close the "deep theme colors still hardcoded to Green Hill's palette"
+gap flagged in every entry since the 08-25 fork — this session finally
+had the real palette to do it (previously flagged as "deserves the real
+Ladybird palette as input, not a placeholder one").
+
+**Root cause found, not just a recolor:** `universal_home_page.dart` and
+`login_screen.dart` already read 100% through `AppColors.of(context)` —
+zero `C.xxx` in either file. So why did they still render green? Because
+`AppTheme.light`/`.dark` (app_theme.dart) unconditionally registered
+`AppColors.greenHillLight`/`Dark` under `extensions:` regardless of
+brand, AND `AppTheme.dark`'s entire `ThemeData` body (app bar, cards,
+buttons, nav bar, FAB, dividers, scaffold bg) was hardcoded to
+`AppColors.greenHillDark.xxx` directly — not brand-derived at all. Every
+`AppColors.of(context)` call site was silently reading Green Hill's
+green no matter what `BRAND_ID` was set to; `AppColors.of()`'s own
+brand-first check (added when Green Hill was born) only helps once a
+*matching* ThemeExtension is registered on the Theme, and none was.
+
+**Fix (app_theme.dart, app_colors.dart):**
+- Added `AppColors.ladybirdLight`/`ladybirdDark`: primary/navy/gold
+  sourced from `Branding.current`'s actual values (`#1E6FEB` /
+  `#0B1F4D` / `#F4B400`, from `ladybird.json` and the mockups), every
+  other functional color (red/org/pur/blu/grn) left identical to the
+  base palette — same split Green Hill's own light/dark used, except
+  gold IS treated as brand here (the crest's stars), not just the
+  functional "Gold tier" badge color, since Ladybird's real accentColor
+  happens to literally be gold.
+- `AppColors.of()`: added a `'ladybird'` branch alongside the existing
+  `'green_hill'` one, checked before the ThemeExtension fallback.
+- `AppTheme.light`/`.dark`'s `extensions:` and (for dark) every other
+  `ThemeData` field: replaced the hardcoded `AppColors.greenHillLight`/
+  `Dark` references with a new `_brandColors({required dark})` switch
+  (mirrors `AppColors.of()`'s branch) so the registered extension AND
+  the raw Material theme both follow `Branding.current.brandId` instead
+  of a single flavor baked in at write-time.
+- `C` class (the compile-time constants ~12 remaining `const`
+  call-sites in clubs/magazine/admin still read directly): repainted
+  `primary`/`primaryBg`/`navy`/`navy2`/`navy3`/`gold`/`goldp` from
+  Green Hill's green to the same Ladybird values — same mechanical
+  technique previously used to make this ship as Green Hill, now redone
+  for Ladybird. Every other `C.xxx` token (surfaces, text, borders,
+  status colors) was already brand-neutral and untouched.
+
+**Mockup comparison, Home page:** layout already matches closely (this
+was built against an earlier Green Hills mockup with the same general
+shape — top bar / gradient hero+stat card / Quick Access grid /
+schedule+events rows). One real gap found and fixed: the mockup's top
+bar has a circular profile avatar next to the search/bell icons; Home's
+`_topBar()` had no avatar at all. Added a `UserAvatar` (existing
+widget, same pattern used in `academic_content_page.dart` etc.) wired
+to the real `AppUser.photoUrl` / initials, tapping through to
+`ProfilePage`. **Did NOT add** two other mockup elements that would
+need fabricated data to back them: a "My Tasks" list (no
+assignment/task model exists in this app — same reasoning
+`_todaysScheduleRow`'s own file comment already gives for why "official
+class schedule" was swapped for the real Personal Study Timetable
+instead of invented) and the bottom "Keep up the great work! / View
+Progress" banner (cosmetic-only, could be added risk-free, but skipped
+this pass to stay scoped to the explicit theme-color ask — flagged for
+a future pass, not silently dropped).
+
+**Mockup comparison, Sign-in:** confirmed `ladybird_signin.jpg` is the
+crest, not a screen layout — login_screen.dart's existing "text only,
+no logo mark" decision (from the Green Hills session) has no counter-
+evidence in what was actually supplied, so left unchanged. Already
+100% `AppColors.of(context)`-driven, so the palette fix above alone
+took it from a green immersive gradient to a Ladybird navy/blue one
+with zero screen-specific edits needed.
+
+No compiler available in this sandbox (same standing ceiling as every
+other session) — reviewed both changed files field-by-field against the
+`AppColors` constructor's required-param list by hand instead of
+`flutter analyze`. `flutter analyze` should be the first thing run
+against this diff once real tooling is available.
+
+**Still open:** bottom "Keep up the great work!" banner (Home, cosmetic
+-only, no data dependency — safe to add later); "My Tasks" panel (Home,
+needs a real assignment/task model first — do not fabricate); iOS
+Firebase registration; `schools/{schoolId}` Firestore doc; transparent
+logo PNG; iOS flavor/scheme split.

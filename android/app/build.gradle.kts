@@ -94,7 +94,7 @@ android {
             // flavors rather than overwriting them, so multiple brands can
             // be demoed on the same device at once.
             applicationId = "com.example.academia_app.ladybird"
-            resValue("string", "app_name", "Ladybird School")
+            resValue("string", "app_name", "Ladybird Schools")
         }
     }
 }

@@ -44,18 +44,20 @@ class Branding {
   /// codebase's existing "never a blank/broken screen" standard. main()
   /// awaits [load] before runApp, so in practice this is only ever seen
   /// for one frame at worst. Mirrors assets/branding/ladybird.json so
-  /// that one frame is Ladybird too. Colors/name here are PLACEHOLDERS
-  /// (no real Ladybird brand reference was supplied) -- see
-  /// assets/branding/ladybird.json and docs/AUTOPILOT_LOG.md.
+  /// that one frame is Ladybird too. Name/tagline are exact (from
+  /// mockups/mockup1.jpg's home-screen header and mockups/mockup2.jpg's
+  /// logo); colors are eyeballed from those two images -- no colorpicker
+  /// tool available in this sandbox -- close but not pixel-exact. See
+  /// docs/AUTOPILOT_LOG.md.
   static Branding _current = const Branding(
     brandId: _envBrandId,
-    appName: 'Ladybird School',
-    tagline: 'Growing Together, Learning Forever.',
-    primaryColor: const Color(0xFFD7263D),
-    secondaryColor: const Color(0xFF1A1A1A),
-    accentColor: const Color(0xFFFFC93C),
-    logoAssetPath: 'assets/branding/ladybird_logo.png',
-    splashAssetPath: 'assets/branding/ladybird_logo.png',
+    appName: 'Ladybird Group of Schools',
+    tagline: 'High Moral Standards, Academic Excellence',
+    primaryColor: const Color(0xFF1E6FEB),
+    secondaryColor: const Color(0xFF0B1F4D),
+    accentColor: const Color(0xFFF4B400),
+    logoAssetPath: 'assets/branding/ladybird_logo.jpg',
+    splashAssetPath: 'assets/branding/ladybird_logo.jpg',
   );
 
   static Branding get current => _current;

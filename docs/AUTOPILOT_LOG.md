@@ -4737,3 +4737,83 @@ Nothing in this fork was run against a compiler (`flutter` isn't
 installed in this sandbox) — same standing ceiling as every other
 session on the source repo. `flutter analyze`/`flutter pub get` should
 be the first thing run against this repo once real tooling is available.
+
+## 2026-08-26 — Real Ladybird brand identity replaces placeholders
+
+User supplied two real design references at `mockups/mockup1.jpg` (home
+screen) and `mockups/mockup2.jpg` (the actual crest/logo, "Ladybird Group
+of Schools ... Yaoundé", already a clean 1254x1254 square). Corrected
+everything guessed in the previous entry:
+
+- `appName`: "Ladybird School" → **"Ladybird Group of Schools"** (exact,
+  from both mockups)
+- `tagline`: guessed → **"High Moral Standards, Academic Excellence"**
+  (exact, from the logo ring text)
+- Colors: guessed red/black/yellow → **blue**, matching the logo/homepage
+  (`primaryColor` `#1E6FEB`, `secondaryColor` `#0B1F4D`, `accentColor`
+  `#F4B400` for the gold stars). These are eyeballed from the JPGs, not
+  pixel-sampled — no colorpicker tool available in this sandbox. Close,
+  not exact; revisit if a real hex palette shows up later.
+- Android launcher label / iOS `CFBundleDisplayName` shortened to
+  "Ladybird Schools" (the full "Ladybird Group of Schools" is used for
+  in-app text via `Branding.current.appName`, matching the existing
+  short-launcher-label/full-in-app-name split the Green Hill flavor
+  already used: "Green Hill Academy" vs. "Green Hills Academic Complex").
+- `assets/branding/ladybird_logo.jpg` — copied directly from
+  `mockups/mockup2.jpg`. **Named `.jpg`, not `.png`, on purpose**: it's
+  still a flat JPEG with a solid black background around the rounded
+  badge, not a transparent cutout. Every reference (`branding.dart`,
+  `ladybird.json`, `pubspec.yaml`'s icon/splash config, `codemagic.yaml`)
+  points at this `.jpg` path consistently now.
+
+**Image tooling: exhaustively dead-ended in this sandbox**, confirming
+and extending the exact same wall the Green Hills repo's own log already
+recorded (no PIL, no ImageMagick). This session additionally tried and
+failed:
+- `pip install pillow` — builds from source (no prebuilt wheel for this
+  Termux/Android arm64 target), fails on missing libjpeg headers.
+- `pkg install libjpeg-turbo` / `pkg install python-pillow` (Termux's
+  binary package manager, which should sidestep the compile issue) —
+  hung indefinitely with zero output; the Termux package mirror appears
+  unreachable from this sandbox's network.
+- `npm install jimp` (pure-JS, no native compile needed) — same silent
+  hang; the npm registry appears equally unreachable.
+- No `ffmpeg`/`graphicsmagick`/`cwebp` or other prebuilt CLI image tool
+  present either.
+- (Separately, mid-session: attempted a bounded `git clone` of the
+  Flutter SDK from GitHub to explore actually building a real APK for
+  the user, since GitHub itself is reachable in this sandbox unlike
+  npm/pip/Termux's mirror. Abandoned after it ran well past a 45s bound
+  with no confirmed progress -- even a shallow clone of flutter/flutter
+  is large, and a real APK build additionally needs an Android SDK plus
+  Flutter's own engine-artifact downloads from Google Cloud Storage,
+  which is a multi-gigabyte, likely-multi-step-fragile bootstrap not
+  worth gambling a session on blind. Confirmed no stray process or
+  partial state was left behind afterward.)
+
+Net effect: GitHub-hosted operations (git clone/push, `gh` API) work
+reliably in this sandbox; general package-registry network access
+(PyPI, npm, Termux's own mirror, and by extension Flutter's own
+artifact CDN) does not. Worth remembering for future sessions rather
+than re-discovering this every time.
+
+**Still open** (unchanged from the previous entry except logo/colors are
+now real, not placeholder):
+- Real transparent-PNG cutout of the logo (needs actual image-editing
+  software or the original design file, not achievable in this sandbox)
+- Firebase app registration for `com.example.academia_app.ladybird` /
+  iOS equivalent under the shared `academia-b1705` project
+- `schools/{schoolId}` Firestore doc for Ladybird
+- Deep Material theme colors (`AppColors`/`AppThemeData`) still
+  hardcoded to Green Hills' palette independent of `Branding.current`
+- A real installable build (APK/IPA) — not producible in this sandbox
+  (no Flutter/Android SDK, and bootstrapping one is not a safe bet on
+  this sandbox's network access, see above). The user's own machine, or
+  the already-configured `codemagic.yaml` workflow once the GitHub repo
+  is connected to a Codemagic account, are the real paths to an
+  installable build.
+
+**User constraint this session: do not touch the Green Hills repo at
+all going forward — all Ladybird work happens exclusively in
+`ladybird_app`.** Confirmed via `git status` in both repos before
+committing that no greenhills_app files were touched.

@@ -76,30 +76,31 @@ flutter:
     - assets/branding/
 
 # Forked from the Green Hills app -- pointed at assets/branding/
-# ladybird_logo.png, matching this fork's BRAND_ID default (see
-# lib/config/branding.dart). That file does NOT exist yet (no real
-# Ladybird logo was supplied when this fork was created -- see
-# docs/AUTOPILOT_LOG.md), so running these generators will fail until a
-# real square PNG is dropped in at that path. In-app screens don't need
-# the generators to run -- BrandLogo already falls back to an initials
-# badge when the asset is missing (lib/widgets/widgets.dart) -- but the
-# native home-screen icon and splash screen can't use that fallback, so
-# they'll stay whatever was last generated (currently Green Hills') until
-# someone supplies the logo and runs both commands below.
+# ladybird_logo.jpg, matching this fork's BRAND_ID default (see
+# lib/config/branding.dart). That file is the real Ladybird crest (copied
+# from mockups/mockup2.jpg, already a clean 1254x1254 square) but is a
+# flat JPG with a solid black background around the rounded-badge shape,
+# NOT a transparent PNG -- no image-editing tool was available in this
+# sandbox to cut it out (see docs/AUTOPILOT_LOG.md). Running these
+# generators will work, but the adaptive-icon foreground/splash will show
+# black corners behind the badge instead of blending into the white
+# background configured below, until someone re-exports this as a
+# transparent PNG (e.g. from the original design file) and swaps it in at
+# the same path -- no other config changes needed at that point.
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/branding/ladybird_logo.png"
+  image_path: "assets/branding/ladybird_logo.jpg"
   remove_alpha_ios: true
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/branding/ladybird_logo.png"
+  adaptive_icon_foreground: "assets/branding/ladybird_logo.jpg"
 
 flutter_native_splash:
   color: "#FFFFFF"
-  image: "assets/branding/ladybird_logo.png"
+  image: "assets/branding/ladybird_logo.jpg"
   android_12:
     color: "#FFFFFF"
-    image: "assets/branding/ladybird_logo.png"
+    image: "assets/branding/ladybird_logo.jpg"
   android: true
   ios: true
 

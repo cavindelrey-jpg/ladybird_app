@@ -30,11 +30,12 @@ workflows:
         script: flutter pub get
       - name: Regenerate app icon + splash from Ladybird branding
         # pubspec.yaml's flutter_launcher_icons/flutter_native_splash
-        # config points at assets/branding/ladybird_logo.png, which does
-        # NOT exist yet (see docs/AUTOPILOT_LOG.md) -- this step will fail
-        # until a real Ladybird logo PNG is added at that path. Left the
-        # step in (rather than removed) so the build fails loudly instead
-        # of silently shipping a stale Green Hills icon.
+        # config points at assets/branding/ladybird_logo.jpg (the real
+        # crest, copied from mockups/mockup2.jpg) -- this will run and
+        # produce icons, but with black corners instead of a clean
+        # transparent edge until that file is replaced with a proper
+        # cutout PNG (see docs/AUTOPILOT_LOG.md and pubspec.yaml's comment
+        # above the flutter_launcher_icons config).
         script: |
           flutter pub run flutter_launcher_icons
           flutter pub run flutter_native_splash:create

@@ -1,10 +1,11 @@
 // lib/features/dashboard/universal_home_page.dart
 //
-// Home dashboard, redesigned to match the Green Hills mockup
-// (mockup.jpg): branded top bar, a green greeting hero with an
-// overlapping 4-stat card (Courses/XP/Progress/Badges), Continue
-// Learning, Today's Schedule, a 2x5 Quick Access grid, and an Upcoming
-// Events / Announcements row.
+// Home dashboard, remolded to match mockups/ladybird_homescreen.jpg:
+// branded top bar with profile avatar, a navy/blue greeting hero (Resume
+// Learning button) with an overlapping stat card (class/session strip +
+// Courses/XP/Progress/Badges), a single scrollable Quick Access row,
+// side-by-side Today's Schedule / My Tasks panels, an Upcoming Events /
+// Announcements row, and a bottom "Keep up the great work!" banner.
 //
 // No promo banner carousel -- the mockup doesn't have one, and per an
 // explicit correction pass it must not exist here even though
@@ -13,7 +14,7 @@
 // manage slide content; Home is just no longer where they render.
 //
 // Every number and card is wired to real data or a real repository. The
-// mockup pictures two things this codebase has no real backing for:
+// mockup pictures things this codebase has no real backing for:
 //   - "Today's Schedule" as official class periods with rooms/teachers
 //     -- no such admin-authored timetable model exists (see
 //     personal_study_slot.dart's own file comment: it's an aspirational
@@ -24,6 +25,14 @@
 //     explicitly removed as dead code referencing a deleted Institution
 //     model in a recent commit). Shows an honest empty state rather than
 //     reintroducing that.
+//   - "My Tasks" as a real assignment/due-date list -- no such model
+//     exists either. Reuses the real Continue Reading position (the
+//     same data the hero's "Resume Learning" button opens) framed as a
+//     task, rather than fabricating assignment data.
+//   - "Form 4 Science / 2024/2025 Session" -- the class half is real
+//     (`AppUser.classLevel`); the academic-year half is computed from
+//     today's date (Sept-Aug convention), since no academic-session
+//     field exists anywhere in this app's data model.
 // "School Connect"/"Marks"/"Calendar" Quick Access tiles from the mockup
 // pointed at dead or nonexistent pages -- swapped for real destinations
 // (Magazine, Daily Challenge, Announcements) that this app actually has.
@@ -137,22 +146,15 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             const SizedBox(height: 14),
             _heroAndStats(context),
             const SizedBox(height: 24),
-            _sectionHeader('Continue Learning',
-                onViewAll: () => _open(context, AcademicContentPage(user: _userOrGuest))),
-            const SizedBox(height: 12),
-            _continueLearningCard(context),
-            const SizedBox(height: 24),
-            _sectionHeader("Today's Schedule",
-                viewAllLabel: 'View timetable',
-                onViewAll: _isGuest ? null : () => _open(context, PersonalStudyPage(user: _u!))),
-            const SizedBox(height: 12),
-            _todaysScheduleRow(context),
-            const SizedBox(height: 24),
             _sectionHeader('Quick Access'),
             const SizedBox(height: 12),
-            _quickAccessGrid(context),
+            _quickAccessRow(context),
+            const SizedBox(height: 20),
+            _scheduleAndTasksRow(context),
             const SizedBox(height: 20),
             _eventsAndAnnouncementsRow(context),
+            const SizedBox(height: 20),
+            _motivationBanner(context),
             const SizedBox(height: 24),
             _sectionHeader('Recommended for You',
                 onViewAll: () => _open(context, AcademicContentPage(user: _userOrGuest))),
@@ -215,6 +217,17 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return 'Good evening';
   }
 
+  /// "2026/2027"-style academic-year label, derived from the current date
+  /// (Sept-Aug school-year convention) rather than stored -- this app has
+  /// no real academic-session field on AppUser or anywhere else, so this
+  /// is a computed default (like the mockup's "2024/2025 Session"), not
+  /// fabricated per-user data.
+  String get _academicSession {
+    final now = DateTime.now();
+    final startYear = now.month >= 9 ? now.year : now.year - 1;
+    return '$startYear/${startYear + 1}';
+  }
+
   Widget _heroAndStats(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -247,6 +260,8 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                 Text('"${Branding.current.tagline}"',
                     style: GoogleFonts.inter(fontSize: 12, fontStyle: FontStyle.italic,
                         color: Colors.white.withValues(alpha: .8), height: 1.3)),
+                const SizedBox(height: 16),
+                _resumeLearningButton(context),
               ]),
             ),
             Icon(Icons.auto_stories_rounded, size: 46, color: Colors.white.withValues(alpha: .18)),
@@ -257,6 +272,72 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           child: _statCard(),
         ),
       ]),
+    );
+  }
+
+  /// Button inside the gradient hero card -- reuses the same Continue
+  /// Reading position as My Tasks / the old standalone Continue Learning
+  /// section (see `_myTasksContent`), just a second entry point to the
+  /// same real data rather than a separate feature.
+  Widget _resumeLearningButton(BuildContext context) {
+    return FutureBuilder<({AcademicContent content, int page, int totalPages})?>(
+      future: _continueReadingFuture,
+      builder: (context, snap) {
+        final data = snap.data;
+        return Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(Rad.xl),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(Rad.xl),
+            onTap: () {
+              HapticFeedback.selectionClick();
+              if (data != null) {
+                _reopenContinueReading(context, data);
+              } else {
+                _open(context, AcademicContentPage(user: _userOrGuest));
+              }
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.menu_book_rounded, size: 16, color: ac.navy),
+                const SizedBox(width: 8),
+                Text('Resume Learning',
+                    style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: ac.navy)),
+                const SizedBox(width: 6),
+                Icon(Icons.arrow_forward_rounded, size: 14, color: ac.navy),
+              ]),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Class + academic-year strip at the top of the stat card -- real
+  /// `AppUser.classLevel`, paired with the computed `_academicSession`
+  /// (see that getter for why it's derived, not stored). Hidden for
+  /// guests/unset classLevel rather than showing an empty box.
+  Widget _classInfoStrip() {
+    if (_isGuest || _u!.classLevel.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
+        child: Row(children: [
+          Container(
+            width: 34, height: 34,
+            decoration: BoxDecoration(color: ac.primary, shape: BoxShape.circle),
+            child: const Icon(Icons.school_rounded, color: Colors.white, size: 17),
+          ),
+          const SizedBox(width: 10),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_u!.classLevel, style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w800, color: ac.txt)),
+            Text('$_academicSession Session', style: GoogleFonts.inter(fontSize: 10.5, color: ac.txt2)),
+          ]),
+        ]),
+      ),
     );
   }
 
@@ -277,11 +358,17 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               (Icons.emoji_events_rounded, ac.pur, '$badgeCount', 'Badges\nEarned'),
             ];
             return Container(
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+              padding: const EdgeInsets.symmetric(vertical: 14),
               decoration: BoxDecoration(
                   color: ac.surf, borderRadius: BorderRadius.circular(Rad.lg), boxShadow: _glow),
-              child: Row(children: [
-                for (final s in segments) Expanded(child: _statSegment(s)),
+              child: Column(children: [
+                _classInfoStrip(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: Row(children: [
+                    for (final s in segments) Expanded(child: _statSegment(s)),
+                  ]),
+                ),
               ]),
             );
           },
@@ -370,107 +457,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return _cachedContinueReadingFuture!;
   }
 
-  Widget _continueLearningCard(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: FutureBuilder<({AcademicContent content, int page, int totalPages})?>(
-        future: _continueReadingFuture,
-        builder: (context, snap) {
-          final loading = snap.connectionState == ConnectionState.waiting;
-          final data = snap.data;
-          if (loading) {
-            return Container(
-              height: 96, alignment: Alignment.center,
-              decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), boxShadow: _glow),
-              child: const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-            );
-          }
-          if (data == null) {
-            return Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), boxShadow: _glow),
-              child: Row(children: [
-                Icon(Icons.menu_book_outlined, color: ac.muted, size: 22),
-                const SizedBox(width: 10),
-                Expanded(child: Text('No content in progress -- open something from the Library to start.',
-                    style: GoogleFonts.inter(fontSize: 12, color: ac.muted, height: 1.3))),
-              ]),
-            );
-          }
-          final isVideo = data.content.contentType == ContentType.video;
-          final pct = data.totalPages > 0 ? (data.page / data.totalPages).clamp(0.0, 1.0) : 0.0;
-          final radius = BorderRadius.circular(Rad.md);
-          return Material(
-            color: ac.surf,
-            borderRadius: radius,
-            child: InkWell(
-              borderRadius: radius,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                _reopenContinueReading(context, data);
-              },
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(borderRadius: radius, boxShadow: _glow),
-                child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(Rad.sm),
-                    child: SizedBox(
-                      width: 96, height: 76,
-                      child: Stack(fit: StackFit.expand, alignment: Alignment.center, children: [
-                        (data.content.thumbnailUrl ?? '').isNotEmpty
-                            ? Image.network(data.content.thumbnailUrl!, fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(color: ac.navy))
-                            : Container(color: ac.navy,
-                                child: Center(child: Text(data.content.contentType.emoji,
-                                    style: const TextStyle(fontSize: 26)))),
-                        if (isVideo)
-                          Container(
-                            width: 32, height: 32,
-                            decoration: BoxDecoration(color: Colors.white.withValues(alpha: .85), shape: BoxShape.circle),
-                            child: Icon(Icons.play_arrow_rounded, color: ac.navy, size: 20),
-                          ),
-                      ]),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(data.content.title, maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.sora(fontSize: 13.5, fontWeight: FontWeight.w800, color: ac.txt)),
-                      const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: pct, backgroundColor: ac.bdr2,
-                          valueColor: AlwaysStoppedAnimation(ac.primary), minHeight: 5,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Row(children: [
-                        Text('${(pct * 100).round()}% complete', style: GoogleFonts.inter(
-                            fontSize: 10.5, fontWeight: FontWeight.w700, color: ac.primary)),
-                        const SizedBox(width: 8),
-                        Expanded(child: Text('Page ${data.page} of ${data.totalPages}',
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.inter(fontSize: 10, color: ac.muted))),
-                      ]),
-                    ]),
-                  ),
-                  Container(
-                    width: 28, height: 28,
-                    decoration: BoxDecoration(color: ac.primaryBg, shape: BoxShape.circle),
-                    child: Icon(Icons.chevron_right_rounded, color: ac.primary, size: 18),
-                  ),
-                ]),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Future<void> _reopenContinueReading(
       BuildContext context, ({AcademicContent content, int page, int totalPages}) data) async {
     final localPath = await AcademicContentRepository.instance.offlineFilePath(data.content.id);
@@ -486,67 +472,133 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             )));
   }
 
-  // -- Today's Schedule ---------------------------------------------------
-  // Real Personal Study Timetable slots for today (self-authored revision
-  // sessions) -- see the file header for why this stands in for the
+  // -- Today's Schedule + My Tasks -----------------------------------------
+  // Side-by-side panels matching the mockup's two-column layout. Today's
+  // Schedule uses the real Personal Study Timetable (self-authored
+  // revision slots) -- see the file header for why this stands in for the
   // mockup's "official class schedule" concept, which has no real backing
-  // model in this app.
-  Widget _todaysScheduleRow(BuildContext context) {
+  // model in this app. My Tasks reuses the same real Continue Reading
+  // position the hero card's "Resume Learning" button opens -- there's no
+  // assignment/task model in this app either (same reasoning), so rather
+  // than inventing one, "the thing you should finish next" doubles as the
+  // task list, with an honest empty state when nothing is in progress.
+  Widget _scheduleAndTasksRow(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: IntrinsicHeight(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Expanded(child: _panel(
+              title: "Today's Schedule",
+              onTap: _isGuest ? null : () => _open(context, PersonalStudyPage(user: _u!)),
+              child: _todaysScheduleContent(context))),
+          const SizedBox(width: 12),
+          Expanded(child: _panel(title: 'My Tasks', child: _myTasksContent(context))),
+        ]),
+      ),
+    );
+  }
+
+  Widget _todaysScheduleContent(BuildContext context) {
     if (_isGuest) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: _emptyStrip(icon: Icons.event_note_outlined, message: 'Sign in to build your study schedule.'),
-      );
+      return _emptyStrip(icon: Icons.event_note_outlined, message: 'Sign in to build your study schedule.', compact: true);
     }
     return StreamBuilder<List<PersonalStudySlot>>(
       stream: PersonalStudyRepository.instance.watchToday(_u!.id),
       builder: (context, snap) {
         final slots = snap.data ?? const <PersonalStudySlot>[];
         if (snap.connectionState == ConnectionState.waiting) {
-          return const SizedBox(height: 84, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+          return const SizedBox(height: 60, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
         }
         if (slots.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _emptyStrip(
-              icon: Icons.event_available_outlined,
-              message: 'Nothing scheduled today -- tap "View timetable" to add a study session.',
-            ),
-          );
+          return _emptyStrip(icon: Icons.event_available_outlined, message: 'Nothing scheduled today.', compact: true);
         }
         final accents = [ac.grn, ac.gold, ac.primary, ac.pur];
-        return SizedBox(
-          height: 92,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: slots.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
-            itemBuilder: (_, i) {
-              final s = slots[i];
-              final accent = accents[i % accents.length];
-              return Container(
-                width: 150,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: ac.surf, borderRadius: BorderRadius.circular(Rad.sm),
-                  border: Border(left: BorderSide(color: accent, width: 3)), boxShadow: _glow,
-                ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text('${s.startTime} - ${s.endTime}', style: GoogleFonts.inter(fontSize: 10, color: ac.txt2)),
-                  const SizedBox(height: 4),
-                  Text(s.activity, maxLines: 2, overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: accent)),
-                ]),
-              );
+        final shown = slots.take(3).toList();
+        final remaining = slots.length - shown.length;
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          for (var i = 0; i < shown.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            _scheduleLine(shown[i], accents[i % accents.length]),
+          ],
+          if (remaining > 0) ...[
+            const SizedBox(height: 8),
+            Text('$remaining more class${remaining == 1 ? '' : 'es'} today',
+                style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: ac.primary)),
+          ],
+        ]);
+      },
+    );
+  }
+
+  Widget _scheduleLine(PersonalStudySlot s, Color accent) {
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(
+        width: 3, height: 28,
+        decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(2)),
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${s.startTime} - ${s.endTime}', style: GoogleFonts.inter(fontSize: 9.5, color: ac.txt2)),
+          Text(s.activity, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: ac.txt)),
+        ]),
+      ),
+    ]);
+  }
+
+  Widget _myTasksContent(BuildContext context) {
+    return FutureBuilder<({AcademicContent content, int page, int totalPages})?>(
+      future: _continueReadingFuture,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const SizedBox(height: 60, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+        }
+        final data = snap.data;
+        if (data == null) {
+          return _emptyStrip(
+              icon: Icons.check_circle_outline_rounded,
+              message: 'No tasks yet -- open something from the Library to start.',
+              compact: true);
+        }
+        final pct = data.totalPages > 0 ? (data.page / data.totalPages).clamp(0.0, 1.0) : 0.0;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _reopenContinueReading(context, data);
             },
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 6, height: 6, margin: const EdgeInsets.only(top: 5),
+                decoration: BoxDecoration(color: ac.primary, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(data.content.title, maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.sora(fontSize: 10.5, fontWeight: FontWeight.w700, color: ac.txt, height: 1.3)),
+                  const SizedBox(height: 4),
+                  Text('${(pct * 100).round()}% complete',
+                      style: GoogleFonts.inter(fontSize: 9, fontWeight: FontWeight.w700, color: ac.primary)),
+                ]),
+              ),
+            ]),
           ),
         );
       },
     );
   }
 
-  Widget _emptyStrip({required IconData icon, required String message}) {
+  Widget _emptyStrip({required IconData icon, required String message, bool compact = false}) {
+    if (compact) {
+      return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, color: ac.muted, size: 18),
+        const SizedBox(width: 8),
+        Expanded(child: Text(message, style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted, height: 1.3))),
+      ]);
+    }
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), boxShadow: _glow),
@@ -558,16 +610,21 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     );
   }
 
-  // -- Quick Access -- 2 rows of 5, all real destinations ------------------
-  // "School Connect", "Marks", and "Calendar" from the mockup have no
-  // real page in this app (School Connect/Calendar were deliberately
-  // removed as dead code referencing a deleted Institution model; there's
-  // no student "my marks" list, only per-attempt results). Swapped for
-  // Magazine, Daily Challenge, and Announcements -- real features that
-  // otherwise had no other Home entry point (Daily Challenge in
-  // particular has NO other entry point anywhere in the app).
-  Widget _quickAccessGrid(BuildContext context) {
-    final row1 = <(String, IconData, Color, VoidCallback)>[
+  // -- Quick Access -- single scrollable row, all real destinations -------
+  // Mockup shows a single compact row of tiles rather than the old 2x5
+  // grid -- matched that shape here as a horizontal scroll (same pattern
+  // Today's Schedule already used) instead of a fixed grid, which lets
+  // every real destination stay reachable rather than needing to cut some
+  // into a "More" bucket with its own new page. "School Connect", "Marks",
+  // and "Calendar" from the mockup have no real page in this app (School
+  // Connect/Calendar were deliberately removed as dead code referencing a
+  // deleted Institution model; there's no student "my marks" list, only
+  // per-attempt results). Swapped for Magazine, Daily Challenge, and
+  // Announcements -- real features that otherwise had no other Home entry
+  // point (Daily Challenge in particular has NO other entry point
+  // anywhere in the app).
+  Widget _quickAccessRow(BuildContext context) {
+    final items = <(String, IconData, Color, VoidCallback)>[
       ('Academia Library', Icons.menu_book_rounded, ac.primary,
           () => _open(context, AcademicContentPage(user: _userOrGuest))),
       ('Past Questions', Icons.description_rounded, ac.grn,
@@ -581,8 +638,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           () => _open(context, QuizCategoriesPage(user: _userOrGuest))),
       ('Clubs', Icons.groups_rounded, ac.grn,
           () => _open(context, ClubsPage(user: _userOrGuest))),
-    ];
-    final row2 = <(String, IconData, Color, VoidCallback)>[
       ('Magazine', Icons.auto_stories_rounded, ac.grn,
           () => _open(context, MagazineFeedPage(user: _userOrGuest))),
       ('Timetable', Icons.calendar_month_rounded, ac.gold,
@@ -597,23 +652,17 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           _isGuest ? () => showToast(context, 'Sign in to message other members.')
                    : () => _open(context, MessagesHomePage(user: _u!))),
     ];
-    return Column(children: [
-      _quickAccessGridRow(context, row1),
-      const SizedBox(height: 12),
-      _quickAccessGridRow(context, row2, unreadBadgeFor: 'Messages'),
-    ]);
-  }
-
-  Widget _quickAccessGridRow(BuildContext context, List<(String, IconData, Color, VoidCallback)> items,
-      {String? unreadBadgeFor}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(children: [
-        for (final it in items) ...[
-          Expanded(child: _quickAccessTile(context, it, showUnreadBadge: it.$1 == unreadBadgeFor)),
-          if (it != items.last) const SizedBox(width: 8),
-        ],
-      ]),
+    return SizedBox(
+      height: 84,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 16),
+        itemBuilder: (_, i) => SizedBox(
+            width: 68,
+            child: _quickAccessTile(context, items[i], showUnreadBadge: items[i].$1 == 'Messages')),
+      ),
     );
   }
 
@@ -717,6 +766,57 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           decoration: BoxDecoration(borderRadius: radius, boxShadow: _glow),
           child: inner,
         ),
+      ),
+    );
+  }
+
+  // -- Bottom motivational banner ------------------------------------------
+  // Purely cosmetic, no data dependency -- "View Progress" opens the real
+  // Profile page (XP/entitlement/stats already live there), not a
+  // dedicated stats screen that doesn't exist.
+  Widget _motivationBanner(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(Rad.lg)),
+        child: Row(children: [
+          Container(
+            width: 34, height: 34,
+            decoration: BoxDecoration(color: ac.primary, shape: BoxShape.circle),
+            child: const Icon(Icons.star_rounded, color: Colors.white, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Keep up the great work!',
+                  style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w800, color: ac.txt)),
+              Text('Discipline today, success tomorrow.',
+                  style: GoogleFonts.inter(fontSize: 10.5, color: ac.txt2)),
+            ]),
+          ),
+          const SizedBox(width: 8),
+          Material(
+            color: ac.primary,
+            borderRadius: BorderRadius.circular(Rad.xs),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(Rad.xs),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                _open(context, ProfilePage(user: _userOrGuest));
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('View Progress',
+                      style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.arrow_forward_rounded, size: 12, color: Colors.white),
+                ]),
+              ),
+            ),
+          ),
+        ]),
       ),
     );
   }

@@ -4950,3 +4950,71 @@ against this diff once real tooling is available.
 needs a real assignment/task model first — do not fabricate); iOS
 Firebase registration; `schools/{schoolId}` Firestore doc; transparent
 logo PNG; iOS flavor/scheme split.
+
+## 2026-08-26 (4) — Home page full remold to match ladybird_homescreen.jpg
+
+User looked at the previous pass and said Home "has not changed,
+completely remould it" -- the color-layer fix was real, but the layout
+still visually read as the old design (previous session deliberately
+scoped out the mockup's structural elements -- hero button, class/
+session strip, single-row Quick Access, My Tasks panel, bottom banner --
+to stay narrowly focused on the color ask). This session closed that
+gap: rebuilt Home's structure section-by-section against the mockup
+rather than just the palette.
+
+**Changes (all in `universal_home_page.dart`):**
+- Hero card: added a white "Resume Learning →" pill button, wired to
+  the same real Continue Reading position `_myTasksContent` uses (opens
+  it if something's in progress, else falls through to the Library).
+- Stat card: added a class/session strip above the 4-stat row --
+  `AppUser.classLevel` (real) + a computed "2026/2027"-style academic-
+  year label (Sept-Aug convention, derived from `DateTime.now()` since
+  no academic-session field exists anywhere in this app's data model --
+  not fabricated per-user data, a generic computed default same class
+  of decision as eyeballing a color). Hidden entirely for guests/unset
+  classLevel rather than rendering an empty box.
+- Quick Access: was a fixed 2-row-of-5 grid, now a single horizontally
+  scrollable row (reusing the same ListView.separated pattern Today's
+  Schedule already used) -- closer to the mockup's compact single-row
+  look, and keeps all 10 real destinations reachable via scroll instead
+  of forcing some into an unbuilt "More" page to hit an 8-tile count.
+- Today's Schedule: was a horizontal-scroll row of wide cards, now a
+  compact vertical list (matching the mockup's stacked time-block
+  rows) inside a left-column panel, capped at 3 visible + "N more
+  classes today".
+- New "My Tasks" right-column panel, side-by-side with Today's
+  Schedule (`_scheduleAndTasksRow`, same `IntrinsicHeight`+`_panel`
+  pattern as the existing Events/Announcements row). Deliberately did
+  NOT fabricate an assignment/due-date system for this -- reused the
+  real Continue Reading position instead (the same one the hero button
+  opens), framed as "the task to finish next," with an honest empty
+  state when nothing's in progress. This replaced the old standalone
+  full-width "Continue Learning" section entirely (removed
+  `_continueLearningCard`) rather than showing the same data twice.
+- New bottom "Keep up the great work! / View Progress" banner
+  (`_motivationBanner`) -- purely cosmetic, no data dependency, "View
+  Progress" opens the real Profile page. This was explicitly deferred
+  last session as a "safe to add later, stayed scoped" item; added now
+  as part of the full remold.
+- `_emptyStrip` gained a `compact` mode (icon+text row, no card
+  chrome) for use inside the new half-width panels, alongside the
+  original full-width card version still used by Upcoming
+  Events/Announcements.
+- Updated the file's own header comment (was still describing the
+  pre-remold "2x5 Quick Access grid" / standalone "Continue Learning"
+  section shape).
+
+**Deliberately NOT done:** a real "My Tasks" backed by an actual
+assignment/due-date model, and a stored per-school academic-session
+value -- both would require new data models/admin authoring flows,
+which is out of scope for a visual remold and risks shipping fabricated
+-looking data. Flagged inline in the new file-header comment and in the
+two methods themselves so a future session doesn't mistake the
+Continue-Reading-as-task framing for a real task system.
+
+No compiler available in this sandbox -- reviewed the full diff by hand
+(brace balance, method signatures, removed-method grep for stale
+references, cross-checked against `test/home_recommendation_ranking_test
+.dart`, the only test touching this file, which only exercises the
+untouched top-level ranking function). `flutter analyze` should be the
+first thing run against this once real tooling is available.

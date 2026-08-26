@@ -228,50 +228,60 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return '$startYear/${startYear + 1}';
   }
 
+  /// Mockup has the stat/class-info box living INSIDE the blue hero card,
+  /// to the right of the greeting text -- not as a separate card
+  /// overlapping the bottom edge (that was this file's first attempt at
+  /// this layout and was wrong; corrected after the user pointed at the
+  /// mockup's top-right white box directly).
   Widget _heroAndStats(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(20, 20, 16, 28),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-              colors: [ac.navy, ac.navy2],
-            ),
-            borderRadius: BorderRadius.circular(Rad.lg),
+      child: Container(
+        width: double.infinity,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [ac.navy, ac.navy2],
           ),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('$_timeGreeting,',
-                    style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: .85))),
-                const SizedBox(height: 2),
-                Text.rich(
-                  TextSpan(children: [
-                    TextSpan(text: _isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name.split(' ').first)),
-                    const TextSpan(text: ' \u{1F44B}'),
-                  ]),
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.sora(fontSize: 21, fontWeight: FontWeight.w800, color: Colors.white),
-                ),
-                const SizedBox(height: 10),
-                Text('"${Branding.current.tagline}"',
-                    style: GoogleFonts.inter(fontSize: 12, fontStyle: FontStyle.italic,
-                        color: Colors.white.withValues(alpha: .8), height: 1.3)),
-                const SizedBox(height: 16),
-                _resumeLearningButton(context),
-              ]),
-            ),
-            Icon(Icons.auto_stories_rounded, size: 46, color: Colors.white.withValues(alpha: .18)),
-          ]),
+          borderRadius: BorderRadius.circular(Rad.lg),
         ),
-        Transform.translate(
-          offset: const Offset(0, -16),
-          child: _statCard(),
-        ),
-      ]),
+        child: Stack(children: [
+          Positioned(
+            right: -16, top: 4,
+            child: Icon(Icons.auto_stories_rounded, size: 120, color: Colors.white.withValues(alpha: .06)),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                flex: 5,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('$_timeGreeting,',
+                      style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: .85))),
+                  const SizedBox(height: 2),
+                  Text.rich(
+                    TextSpan(children: [
+                      TextSpan(text: _isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name.split(' ').first)),
+                      const TextSpan(text: ' \u{1F44B}'),
+                    ]),
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.sora(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white),
+                  ),
+                  const SizedBox(height: 10),
+                  Text('"${Branding.current.tagline}"',
+                      style: GoogleFonts.inter(fontSize: 11.5, fontStyle: FontStyle.italic,
+                          color: Colors.white.withValues(alpha: .8), height: 1.3)),
+                  const SizedBox(height: 16),
+                  _resumeLearningButton(context),
+                ]),
+              ),
+              const SizedBox(width: 12),
+              Expanded(flex: 6, child: _statCard()),
+            ]),
+          ),
+        ]),
+      ),
     );
   }
 
@@ -298,14 +308,19 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               }
             },
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              // Sits in a ~45%-width column (see _heroAndStats' flex split)
+              // -- Flexible+ellipsis so a narrow phone shrinks the label
+              // instead of overflowing the row.
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.menu_book_rounded, size: 16, color: ac.navy),
-                const SizedBox(width: 8),
-                Text('Resume Learning',
-                    style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: ac.navy)),
+                Icon(Icons.menu_book_rounded, size: 15, color: ac.navy),
                 const SizedBox(width: 6),
-                Icon(Icons.arrow_forward_rounded, size: 14, color: ac.navy),
+                Flexible(
+                  child: Text('Resume Learning', maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.sora(fontSize: 11.5, fontWeight: FontWeight.w700, color: ac.navy)),
+                ),
+                const SizedBox(width: 5),
+                Icon(Icons.arrow_forward_rounded, size: 13, color: ac.navy),
               ]),
             ),
           ),
@@ -314,33 +329,37 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     );
   }
 
-  /// Class + academic-year strip at the top of the stat card -- real
+  /// Class + academic-year row at the top of the stat box -- real
   /// `AppUser.classLevel`, paired with the computed `_academicSession`
   /// (see that getter for why it's derived, not stored). Hidden for
-  /// guests/unset classLevel rather than showing an empty box.
+  /// guests/unset classLevel rather than showing an empty row.
   Widget _classInfoStrip() {
     if (_isGuest || _u!.classLevel.isEmpty) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
-        child: Row(children: [
-          Container(
-            width: 34, height: 34,
-            decoration: BoxDecoration(color: ac.primary, shape: BoxShape.circle),
-            child: const Icon(Icons.school_rounded, color: Colors.white, size: 17),
-          ),
-          const SizedBox(width: 10),
-          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(_u!.classLevel, style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w800, color: ac.txt)),
-            Text('$_academicSession Session', style: GoogleFonts.inter(fontSize: 10.5, color: ac.txt2)),
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(children: [
+        Container(
+          width: 26, height: 26,
+          decoration: BoxDecoration(color: ac.primary, shape: BoxShape.circle),
+          child: const Icon(Icons.school_rounded, color: Colors.white, size: 13),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text(_u!.classLevel, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.sora(fontSize: 11.5, fontWeight: FontWeight.w800, color: ac.txt)),
+            Text('$_academicSession Session', style: GoogleFonts.inter(fontSize: 9, color: ac.txt2)),
           ]),
-        ]),
-      ),
+        ),
+      ]),
     );
   }
 
+  /// Compact white box living INSIDE the hero card (see `_heroAndStats`),
+  /// not a full-width card of its own -- class/session row on top, then a
+  /// 2x2 grid of stats (icon + value/label side by side per cell),
+  /// matching the mockup's box shape exactly rather than the single wide
+  /// row this page originally shipped with.
   Widget _statCard() {
     return StreamBuilder<(int, int)>(
       stream: _isGuest ? const Stream<(int, int)>.empty() : XpRepository.instance.watchBalance(_u!.id),
@@ -352,23 +371,27 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             final badgeCount = (badgeSnap.data ?? const {}).values.where((v) => v > 0).length;
             final weekPct = _isGuest ? 0 : (_weekActivityCount() / 7 * 100).round();
             final segments = [
-              (Icons.school_rounded, ac.grn, _isGuest ? '0' : '${_u!.courseIds.length}', 'Courses\nEnrolled'),
-              (Icons.star_rounded, ac.gold, '$lifetimeXp', 'XP\nPoints'),
-              (Icons.show_chart_rounded, ac.primary, '$weekPct%', 'Progress\nOverall'),
-              (Icons.emoji_events_rounded, ac.pur, '$badgeCount', 'Badges\nEarned'),
+              (Icons.school_rounded, ac.primary, _isGuest ? '0' : '${_u!.courseIds.length}', 'Courses'),
+              (Icons.star_rounded, ac.gold, '$lifetimeXp', 'XP Points'),
+              (Icons.show_chart_rounded, ac.grn, '$weekPct%', 'Progress'),
+              (Icons.emoji_events_rounded, ac.pur, '$badgeCount', 'Badges'),
             ];
             return Container(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                  color: ac.surf, borderRadius: BorderRadius.circular(Rad.lg), boxShadow: _glow),
-              child: Column(children: [
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 _classInfoStrip(),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: Row(children: [
-                    for (final s in segments) Expanded(child: _statSegment(s)),
-                  ]),
-                ),
+                Row(children: [
+                  Expanded(child: _statSegment(segments[0])),
+                  const SizedBox(width: 8),
+                  Expanded(child: _statSegment(segments[1])),
+                ]),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: _statSegment(segments[2])),
+                  const SizedBox(width: 8),
+                  Expanded(child: _statSegment(segments[3])),
+                ]),
               ]),
             );
           },
@@ -391,19 +414,26 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return count;
   }
 
+  /// One 2x2-grid cell -- icon circle on the left, value+label stacked to
+  /// its right (mockup style), not the icon-above-text stack this page
+  /// used in its first pass at this card.
   Widget _statSegment((IconData, Color, String, String) segment) {
     final (icon, color, value, label) = segment;
-    return Column(mainAxisSize: MainAxisSize.min, children: [
+    return Row(mainAxisSize: MainAxisSize.min, children: [
       Container(
-        width: 34, height: 34,
+        width: 26, height: 26,
         decoration: BoxDecoration(color: color.withValues(alpha: .12), shape: BoxShape.circle),
-        child: Icon(icon, color: color, size: 17),
+        child: Icon(icon, color: color, size: 13),
       ),
-      const SizedBox(height: 6),
-      Text(value, style: GoogleFonts.sora(fontSize: 14.5, fontWeight: FontWeight.w800, color: ac.txt)),
-      const SizedBox(height: 2),
-      Text(label, textAlign: TextAlign.center, maxLines: 2,
-          style: GoogleFonts.inter(fontSize: 8.5, color: ac.txt2, height: 1.15)),
+      const SizedBox(width: 6),
+      Flexible(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w800, color: ac.txt)),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(fontSize: 8.5, color: ac.txt2)),
+        ]),
+      ),
     ]);
   }
 

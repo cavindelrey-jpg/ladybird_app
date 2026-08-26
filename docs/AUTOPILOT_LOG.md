@@ -5018,3 +5018,50 @@ references, cross-checked against `test/home_recommendation_ranking_test
 .dart`, the only test touching this file, which only exercises the
 untouched top-level ranking function). `flutter analyze` should be the
 first thing run against this once real tooling is available.
+
+## 2026-08-26 (5) — Hero card correction: stat box belongs INSIDE the blue card, not below it
+
+User (voice input, re-looked at the mockup): the white class/stat box in
+`mockups/ladybird_homescreen.jpg` sits in the TOP-RIGHT of the blue hero
+banner, beside the greeting text -- not as a separate white card
+overlapping the bottom edge, which is what the previous "remold" pass
+actually built (`Transform.translate(Offset(0,-16))` under the blue
+Container). Re-examined the mockup image directly rather than relying
+on the earlier read; confirmed the earlier read was wrong on this one
+spatial detail.
+
+**Fix (`universal_home_page.dart`):** `_heroAndStats` is now a single
+`Container` (the blue gradient) with a `Row` inside it: left side is the
+existing greeting/tagline/Resume-Learning column, right side is
+`_statCard()` sized via `Expanded(flex: 6)` against the text column's
+`flex: 5`. Removed the `Transform.translate` overlap entirely. Also
+restructured `_statCard`/`_classInfoStrip`/`_statSegment`, since the box
+is now ~45% of card width instead of full-width:
+- Class/session row: smaller icon (26px vs 34px), no background pill
+  (just sits directly on the white box like the mockup).
+- Stats: was a single Row of 4 icon-over-text columns; now a 2x2 grid
+  (`Row` of 2, `SizedBox(height:10)`, `Row` of 2), each cell icon-beside
+  -text (mockup style) via a new compact `_statSegment` layout. Labels
+  shortened to single words ("Courses"/"XP Points"/"Progress"/"Badges")
+  to fit the narrower cells.
+- Dropped the box's shadow (`_glow`) -- sits flush against the blue
+  background like the mockup, no separate elevation needed since it's
+  not floating over a seam anymore.
+- "Resume Learning" button wrapped its label in `Flexible`+ellipsis and
+  shrank icon/font sizes slightly -- it now lives in a ~45%-width
+  column instead of the full hero width, so needs to be able to shrink
+  on narrow phones instead of overflowing.
+- Decorative background book icon moved into a `Stack`+`Positioned`
+  layer behind the Row (was inline beside the greeting text, which no
+  longer has room now that the stat box moved into the same row).
+
+No compiler available in this sandbox -- checked brace/paren balance
+programmatically (matched) and reviewed the new Row/Expanded/Flexible
+nesting by hand for the classic "Flexible inside unbounded Row" pitfall
+(confirmed safe here: the width chain back to the Scaffold is bounded
+throughout, no unconstrained ancestor). `flutter analyze` + an actual
+device/emulator screenshot comparison against the mockup should be the
+first things done once real tooling is available -- this was corrected
+from a text description of the mockup the first time, which is exactly
+the kind of spatial mistake a real screenshot comparison would have
+caught immediately.

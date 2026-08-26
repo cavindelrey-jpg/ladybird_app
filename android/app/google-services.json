@@ -12,7 +12,12 @@
           "package_name": "com.example.academia_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "415070142496-j7o8cmpucda1tvolvjia36nn5dvd9777.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAtT8IiEeIeNwscDmNJ-vNglgaPYfkBUN8"
@@ -20,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "415070142496-j7o8cmpucda1tvolvjia36nn5dvd9777.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     },
@@ -41,6 +51,35 @@
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:415070142496:android:6dafb29e3dd087f4657c45",
+        "android_client_info": {
+          "package_name": "com.example.academia_app.ladybird"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "415070142496-j7o8cmpucda1tvolvjia36nn5dvd9777.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtT8IiEeIeNwscDmNJ-vNglgaPYfkBUN8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "415070142496-j7o8cmpucda1tvolvjia36nn5dvd9777.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

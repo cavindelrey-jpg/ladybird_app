@@ -5065,3 +5065,83 @@ first things done once real tooling is available -- this was corrected
 from a text description of the mockup the first time, which is exactly
 the kind of spatial mistake a real screenshot comparison would have
 caught immediately.
+
+## 2026-08-26 (6) — Quizzes/Courses/Daily Challenge stuck loading: fixed the bug, deployed the actual cause
+
+User reported Quizzes, "the daily challenge", and Courses all spinning
+forever on the real rebuilt device, guessing a connectivity break
+between the app and the database.
+
+**Confirmed a real code bug**: `QuizCategoriesPage._load()`
+(`lib/features/testing/quiz_categories_page.dart`) had no try/catch
+around its `Future.wait([...])` call. Any exception from either
+Firestore call (permission-denied, missing index, real connectivity
+loss -- doesn't matter which) left `_loading = true` forever, since
+the only place that ever set it back to `false` was inside the success
+path. Fixed with the same try/catch + error/retry-state pattern
+`CourseBrowsePage._load()` already uses safely (that page had the
+identical bug shape fixed in an earlier session, per its own inline
+comment) -- added an `_error` field, a retry button, and
+`CrashService.recordError` so a future failure is at least visible in
+Crashlytics instead of silent.
+
+Checked the other two reported pages for the same shape of bug and
+did NOT find it: `CourseBrowsePage` and `CoursesMarketplacePage` both
+already handle errors correctly (try/catch or FutureBuilder checking
+`hasError`, not just `connectionState==waiting`). The "Daily Challenge"
+Quick Access tile goes to `DailyLearningHubPage` (static in-memory
+course list, zero Firestore calls) -- cannot hang. Note:
+`lib/pages/daily_challenge_page.dart` + `DailyChallengeRepository`
+(the `dailyChallenges/{dateKey}` collection) are leftover code from an
+earlier design -- confirmed via grep that nothing in the app currently
+navigates to `DailyChallengePage`, so that's dead code, not what the
+user hit.
+
+**Root cause (not just the symptom)**: grepped this log's own history
+and found the exact same "Quizzes/Courses stuck loading forever"
+pattern documented multiple times before, always traced to Firestore
+rules/indexes written locally but never deployed -- and repeated later
+entries ("firestore.rules — LOCAL EDIT ONLY, not deployed... reserved
+for the repo owner") confirm most rule changes since one early
+successful deploy were never pushed live. Asked the user for explicit
+go-ahead (shared production project, same one greenhills_app/academia-
+cameroon use) before touching it, per the same "modify shared
+resources" bar the earlier Firebase app-registration decision used.
+Confirmed, then ran:
+```
+firebase deploy --only firestore:rules --project academia-b1705       # succeeded
+firebase deploy --only firestore:indexes --project academia-b1705     # failed first try
+```
+Indexes failed on one bad entry: a `members` collectionGroup
+single-field index (`userId` ASCENDING) that Firestore rejected with
+"this index is not necessary, configure using single field index
+controls" -- single-field indexes (including collection-group scope)
+are automatic by default unless explicitly exempted via
+`fieldOverrides`, which is empty in this file, so the explicit
+declaration was pure redundant cruft. Removed that one entry from
+`firestore.indexes.json` and redeployed indexes -- succeeded. Verified
+via `firebase firestore:indexes --project academia-b1705` that all 40
+resulting indexes report `READY` (not still `BUILDING`), so this
+isn't a "will start working in a few minutes" situation.
+
+The 2 "indexes defined in your project that are not present in your
+firestore indexes file" Firebase flags on every deploy are the same
+stale/unused ones the 2026-08-08 session already found and deliberately
+left alone (not force-deleting something possibly still relied on
+elsewhere) -- unrelated to this fix, not new.
+
+**Net effect**: this should fix the actual "can't reach the database"
+failures across every collection this session's rules/indexes deploy
+touched (`tests`/`testAttempts`/`curriculum_icons`/`dailyChallenges`/
+`library`/`members` collection-group and the rest of firestore.rules'
+history), not just Quizzes specifically. If Courses/other screens were
+failing due to the same stale-rules cause, they should now load too —
+worth the user re-testing all three on the already-built APK (rules
+apply immediately, no rebuild needed) before deciding anything else is
+still broken.
+
+No compiler available in this sandbox for the Dart fix -- reviewed
+brace/paren balance programmatically and re-read the full diff by hand.
+The Firebase deploy itself is the one part of this entry that IS
+independently verified (not just "should work") -- `firebase
+firestore:indexes` confirms live state directly.

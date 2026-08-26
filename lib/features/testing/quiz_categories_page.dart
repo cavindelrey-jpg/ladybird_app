@@ -15,6 +15,7 @@ import '../../core/result.dart';
 import '../../models/app_user.dart';
 import '../../models/test.dart';
 import '../../repositories/test_repository.dart';
+import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
@@ -36,6 +37,7 @@ class _QuizCategoriesPageState extends State<QuizCategoriesPage> {
   List<QuizCategory> _categories = [];
   Map<String, int> _counts = {};
   bool _loading = true;
+  String? _error;
 
   /// Managing what a section looks like (or adding a new one) is an
   /// authoring action, same gate TestComposerPage/Create-Test already
@@ -51,17 +53,34 @@ class _QuizCategoriesPageState extends State<QuizCategoriesPage> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    final results = await Future.wait([
-      TestRepository.instance.quizCategoriesOnce(),
-      TestRepository.instance.categoryTestCountsOnce(),
-    ]);
-    if (!mounted) return;
     setState(() {
-      _categories = results[0] as List<QuizCategory>;
-      _counts = results[1] as Map<String, int>;
-      _loading = false;
+      _loading = true;
+      _error = null;
     });
+    try {
+      final results = await Future.wait([
+        TestRepository.instance.quizCategoriesOnce(),
+        TestRepository.instance.categoryTestCountsOnce(),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        _categories = results[0] as List<QuizCategory>;
+        _counts = results[1] as Map<String, int>;
+        _loading = false;
+      });
+    } catch (e, st) {
+      // Previously had no catch at all -- any failure here (permission-
+      // denied, missing index, genuine connectivity loss) left the page
+      // spinning forever instead of reaching either real data or an
+      // honest error state. Same fix CourseBrowsePage._load() already
+      // applies for the identical bug shape.
+      CrashService.instance.recordError(e, st, context: 'QuizCategoriesPage._load');
+      if (!mounted) return;
+      setState(() {
+        _error = "Couldn't load Quizzes -- check your connection and try again.";
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _addCategory() async {
@@ -123,6 +142,20 @@ class _QuizCategoriesPageState extends State<QuizCategoriesPage> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : _error != null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.cloud_off_rounded, size: 40, color: ac.muted),
+                  const SizedBox(height: 12),
+                  Text(_error!, textAlign: TextAlign.center,
+                      style: AppText.bodySm.copyWith(color: ac.muted)),
+                  const SizedBox(height: 16),
+                  OutlinedButton(onPressed: _load, child: const Text('Retry')),
+                ]),
+              ),
+            )
           : RefreshIndicator(
               onRefresh: _load,
               child: GridView.builder(

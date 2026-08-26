@@ -1,8 +1,5 @@
 {
   "indexes": [
-    { "collectionGroup": "members", "queryScope": "COLLECTION_GROUP", "fields": [
-      { "fieldPath": "userId", "order": "ASCENDING" }
-    ]},
     { "collectionGroup": "academic_content", "queryScope": "COLLECTION", "fields": [
       { "fieldPath": "institutionId", "order": "ASCENDING" },
       { "fieldPath": "uploadDate", "order": "DESCENDING" }

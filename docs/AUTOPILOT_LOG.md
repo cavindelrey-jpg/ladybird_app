@@ -4817,3 +4817,49 @@ now real, not placeholder):
 all going forward — all Ladybird work happens exclusively in
 `ladybird_app`.** Confirmed via `git status` in both repos before
 committing that no greenhills_app files were touched.
+
+## 2026-08-26 (2) — Registered real Firebase Android app for ladybird, unblocking Codemagic
+
+User ran the `android-release` Codemagic workflow from the actual
+`codemagic.yaml` (not the UI wizard) and it failed exactly where this
+log's previous entry predicted: `processLadybirdReleaseGoogleServices`
+— "No matching client found for package name
+'com.example.academia_app.ladybird'".
+
+This is a real change to the shared `academia-b1705` Firebase project
+(not local-only), so per CLAUDE.md's "modify shared resources" bar,
+asked the user for explicit go-ahead before running `apps:create`
+rather than just explaining the steps — confirmed "yes, register and
+commit."
+
+Ran (Firebase CLI available and already authenticated as
+`cavindelrey@gmail.com` in this session — network access to npm/Firebase
+worked here, unlike the earlier sandbox that hit dead ends per the
+"Image tooling" note above; that limitation was sandbox-specific, not a
+property of this repo):
+```
+firebase apps:create ANDROID "Ladybird Schools" \
+  --package-name com.example.academia_app.ladybird --project academia-b1705
+firebase apps:sdkconfig ANDROID 1:415070142496:android:6dafb29e3dd087f4657c45 \
+  --project academia-b1705
+```
+
+New real app ID: `1:415070142496:android:6dafb29e3dd087f4657c45`.
+Merged the downloaded config into `android/app/google-services.json`
+by hand rather than overwriting the file outright — `apps:sdkconfig`
+only returns *actually registered* apps, so it omits the `greenhill`
+client entry entirely (that one was already flagged in this log as a
+non-registered placeholder reusing the academia app's ID). Re-added
+that entry verbatim, including its original `_comment`, so the
+`greenhill` flavor's build doesn't regress.
+
+**Still open, one item off the previous "Still open" list resolved:**
+- ~~Firebase app registration for `com.example.academia_app.ladybird`~~
+  — done this session (Android only; iOS equivalent under
+  `com.example.academiaApp.ladybird` is still unregistered).
+- `greenhill` flavor's Firebase app registration remains a
+  placeholder — unaffected by this change, not in scope this session.
+- Everything else from the previous entry's "Still open" list is
+  unchanged (transparent logo PNG, `schools/{schoolId}` Firestore doc,
+  deep Material theme colors, iOS Firebase registration, iOS
+  flavor/scheme split).

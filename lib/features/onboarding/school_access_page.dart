@@ -54,7 +54,7 @@ class _SchoolAccessPageState extends State<SchoolAccessPage> {
     });
 
     final result = await SchoolAccessRepository.instance.redeemSchoolVoucher(
-      user: widget.user,
+      userId: widget.user.id,
       rawCode: _codeCtrl.text,
       classLevel: _classLevel,
     );

@@ -1,16 +1,17 @@
 // lib/repositories/school_access_repository.dart
-// The redemption half of architecture brief items 2-6: a school app must
-// only be accessible to someone holding a valid voucher for THAT school,
-// never to any signed-in Academia account. Mirrors
-// entitlement_repository.dart's redeemVoucher() transaction shape closely
-// on purpose — same proven pattern (doc-id-keyed lookup so the whole
-// check-then-write happens inside one transaction, no query-then-race
-// gap), applied to school membership instead of premium entitlement.
+// The redemption half of the voucher-as-authorization-token design: a
+// school app must only be accessible to someone holding a valid voucher
+// for THAT school AND that app (tenant check), never to any signed-in
+// Academia account. Issuance is a direct insert (RLS'
+// school_vouchers_insert_staff policy enforces the staff/own-school
+// check); redemption goes through the redeem_school_voucher() RPC, since
+// RLS deliberately doesn't expose a client-side select-by-code path for
+// this table (see
+// supabase/migrations/20260831000000_unified_voucher_authorization.sql).
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../core/constants.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../config/branding.dart';
 import '../core/result.dart';
-import '../models/app_user.dart';
 import '../models/school.dart';
 import '../models/school_voucher.dart';
 import 'school_repository.dart';
@@ -18,74 +19,104 @@ import 'school_repository.dart';
 class SchoolRedemptionOutcome {
   final School school;
   final SchoolRole role;
-  const SchoolRedemptionOutcome({required this.school, required this.role});
-}
-
-class _RedeemException implements Exception {
-  final String message;
-  _RedeemException(this.message);
+  final VoucherPremiumTier? premiumTier;
+  const SchoolRedemptionOutcome({required this.school, required this.role, this.premiumTier});
 }
 
 class SchoolAccessRepository {
   SchoolAccessRepository._();
   static final SchoolAccessRepository instance = SchoolAccessRepository._();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final SupabaseClient _supabase = Supabase.instance.client;
 
-  DocumentReference<Map<String, dynamic>> _voucherDoc(String code) =>
-      _db.collection('school_vouchers').doc(code);
-
-  /// Staff-only (enforced by firestore.rules `school_vouchers/{code}`
-  /// create rule — the caller must independently confirm `canManageUsers`
-  /// / school-admin-of-this-school before showing this in the UI, same
-  /// division of labor as EntitlementRepository's voucher issuance).
+  /// Staff-only (enforced by RLS' school_vouchers_insert_staff policy —
+  /// the caller must independently confirm `canManageUsers` / school-
+  /// admin-of-this-school before showing this in the UI).
+  ///
+  /// [premiumTier] is the issuer's choice ONLY for [SchoolRole.student] —
+  /// every other role is forced Gold per the fixed premium rules
+  /// (redesign item 6), and the argument is ignored for them. When [role]
+  /// is student, a linked PARENT voucher (role.parent, premium 'none') is
+  /// auto-generated and inserted alongside each student code (redesign
+  /// item 4 — School -> Student -> Parent) rather than parent being a
+  /// separately issuable role.
   Future<Result<List<SchoolVoucher>>> issueVouchers({
     required School school,
     required SchoolRole role,
     required String issuedByUid,
     int count = 1,
+    VoucherPremiumTier premiumTier = VoucherPremiumTier.silver,
   }) async {
     if (count < 1 || count > 200) {
       return const Failure('Generate between 1 and 200 codes at a time', null);
     }
+    if (role == SchoolRole.parent) {
+      return const Failure(
+          'Parent codes are generated automatically alongside student codes — issue a Student code instead',
+          null);
+    }
     try {
-      final batch = _db.batch();
+      final effectivePremium = role.isAlwaysGold ? VoucherPremiumTier.gold : premiumTier;
       final issued = <SchoolVoucher>[];
+      final rows = <Map<String, dynamic>>[];
+      final now = DateTime.now();
       for (var i = 0; i < count; i++) {
-        // Collision odds are astronomically low (31^8 suffixes per
-        // school+role prefix) — a plain generate-and-write is safe
-        // without a pre-check, same trust level Voucher.generateCode
+        // Collision odds are astronomically low (31^6 random chars per
+        // school+role+premium prefix) — a plain generate-and-write is
+        // safe without a pre-check, same trust level Voucher.generateCode
         // already operates at.
-        final code = SchoolVoucher.generateCode(schoolCode: school.code, role: role);
+        final code = SchoolVoucher.generateCode(
+            schoolCode: school.code, role: role, premiumTier: effectivePremium);
         final voucher = SchoolVoucher(
           id: code,
-          code: SchoolVoucher.formatCode(code),
           schoolId: school.id,
           schoolCode: school.code,
           role: role,
-          createdAt: DateTime.now(),
+          premiumTier: effectivePremium,
+          createdAt: now,
           createdByUid: issuedByUid,
         );
-        batch.set(_voucherDoc(code), voucher.toFirestore());
+        rows.add(voucher.toSupabase());
         issued.add(voucher);
+
+        if (role == SchoolRole.student) {
+          final parentCode = SchoolVoucher.generateCode(
+              schoolCode: school.code, role: SchoolRole.parent, premiumTier: null);
+          final parentVoucher = SchoolVoucher(
+            id: parentCode,
+            schoolId: school.id,
+            schoolCode: school.code,
+            role: SchoolRole.parent,
+            premiumTier: null,
+            linkedStudentVoucherId: code,
+            createdAt: now,
+            createdByUid: issuedByUid,
+          );
+          rows.add(parentVoucher.toSupabase());
+          issued.add(parentVoucher);
+        }
       }
-      await batch.commit();
+      await _supabase.from('school_vouchers').insert(rows);
       return Success(issued);
     } catch (e) {
       return Failure('Failed to generate voucher codes', e);
     }
   }
 
-  /// [classLevel] folds item 19's "which class am I in" step into the same
-  /// redemption flow for student vouchers, rather than granting access
-  /// and then presenting a separate "your class isn't set" wall
-  /// immediately after. Optional for every other role.
+  /// [classLevel] folds "which class am I in" into the same redemption
+  /// step for student vouchers, rather than granting access and then
+  /// presenting a separate wall right after.
+  ///
+  /// Passes this app's fixed [Branding.current.voucherPrefix] (GH for
+  /// greenhills_app, LB for ladybird_app) as the RPC's tenant check —
+  /// server-side enforcement that a Green Hills code can never be
+  /// redeemed through the Ladybird app or vice versa (redesign item 7).
   Future<Result<SchoolRedemptionOutcome>> redeemSchoolVoucher({
-    required AppUser user,
+    required String userId,
     required String rawCode,
     String? classLevel,
   }) async {
-    if (user.id.isEmpty) {
+    if (userId.isEmpty) {
       return const Failure('You need to be signed in to link a school', null);
     }
     if (!SchoolVoucher.isPlausibleCode(rawCode)) {
@@ -94,56 +125,30 @@ class SchoolAccessRepository {
     final normalized = SchoolVoucher.normalizeCode(rawCode);
 
     try {
-      final voucher = await _db.runTransaction<SchoolVoucher>((tx) async {
-        final vSnap = await tx.get(_voucherDoc(normalized));
-        if (!vSnap.exists) {
-          throw _RedeemException('No school code found matching that entry');
-        }
-        final v = SchoolVoucher.fromFirestore(normalized, vSnap.data()!);
-        if (v.status == SchoolVoucherStatus.revoked) {
-          throw _RedeemException('This code has been cancelled');
-        }
-        if (v.status == SchoolVoucherStatus.redeemed) {
-          throw _RedeemException('This code has already been used');
-        }
+      final rows = await _supabase.rpc('redeem_school_voucher', params: {
+        'p_code': normalized,
+        'p_expected_prefix': Branding.current.voucherPrefix,
+        'p_class_level': classLevel,
+      }) as List;
+      final result = rows.first as Map<String, dynamic>;
+      final schoolId = result['out_school_id'] as String;
+      final role = SchoolRoleX.fromName(result['out_role']?.toString() ?? '') ?? SchoolRole.student;
+      final premiumTier = _premiumFromRpc(result['out_premium_tier']?.toString());
 
-        tx.update(_voucherDoc(normalized), {
-          'status': SchoolVoucherStatus.redeemed.name,
-          'redeemedAt': DateTime.now().toIso8601String(),
-          'redeemedByUserId': user.id,
-        });
-
-        final userRef = _db.collection(AppConstants.colUsers).doc(user.id);
-        final userUpdates = <String, dynamic>{
-          'schoolId': v.schoolId,
-          'schoolRole': v.role.name,
-          'schoolVoucherRef': normalized,
-        };
-        // Only ever raises content privilege, never lowers it — a
-        // platform admin redeeming a student code stays a platform admin.
-        if (!user.hasMinRole(v.role.contentRole)) {
-          userUpdates['role'] = v.role.contentRole.name;
-        }
-        if (v.role == SchoolRole.classMaster && classLevel != null && classLevel.isNotEmpty) {
-          userUpdates['classMasterOfClass'] = classLevel;
-        }
-        if (classLevel != null && classLevel.isNotEmpty) {
-          userUpdates['classLevel'] = classLevel;
-        }
-        tx.update(userRef, userUpdates);
-
-        return v;
-      });
-
-      final school = await SchoolRepository.instance.getByIdOnce(voucher.schoolId);
+      final school = await SchoolRepository.instance.getByIdOnce(schoolId);
       if (school == null) {
         return const Failure('School code was valid but the school record is missing — contact support', null);
       }
-      return Success(SchoolRedemptionOutcome(school: school, role: voucher.role));
-    } on _RedeemException catch (e) {
+      return Success(SchoolRedemptionOutcome(school: school, role: role, premiumTier: premiumTier));
+    } on PostgrestException catch (e) {
       return Failure(e.message, e);
     } catch (e) {
       return Failure('Failed to link your school account', e);
     }
+  }
+
+  static VoucherPremiumTier? _premiumFromRpc(String? v) {
+    if (v == null || v == 'free') return null;
+    return VoucherPremiumTier.values.firstWhere((t) => t.name == v, orElse: () => VoucherPremiumTier.silver);
   }
 }

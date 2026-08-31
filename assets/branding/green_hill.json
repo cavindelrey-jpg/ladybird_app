@@ -5,5 +5,6 @@
   "secondaryColor": "#16A34A",
   "accentColor": "#86EFAC",
   "logoAssetPath": "assets/branding/green_hill_logo.png",
-  "splashAssetPath": "assets/branding/green_hill_logo.png"
+  "splashAssetPath": "assets/branding/green_hill_logo.png",
+  "voucherPrefix": "GH"
 }

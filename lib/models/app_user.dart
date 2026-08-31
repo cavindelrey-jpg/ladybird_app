@@ -360,13 +360,26 @@ class AppUser {
     schoolVoucherRef: d['schoolVoucherRef'],
   );
 
-  /// Handles both old 4-role values and new 6-role values stored in Firestore.
+  /// Handles both old 4-role values and new 6-role values stored in
+  /// Firestore, PLUS Postgres's `user_role` enum labels (supabase/
+  /// migrations/20260828060000_initial_schema.sql), which are snake_case
+  /// ('school_admin', 'department_admin', 'super_admin') while this
+  /// Dart enum's `.name` is camelCase ('schoolAdmin', etc.) — without
+  /// these explicit cases, `firstWhere` never matches those three and
+  /// silently falls through to student for EVERY account the
+  /// redeem_school_voucher()/redeem_academia_voucher() RPCs correctly
+  /// promoted server-side (e.g. an itSupport/"Super Admin" voucher
+  /// redemption reads back as a plain student).
   static UserRole _parseRole(dynamic raw) {
     final s = raw?.toString() ?? '';
     // old values → new mapping
     if (s == 'teacher') return UserRole.lecturer;
     if (s == 'admin')   return UserRole.schoolAdmin;
     if (s == 'parent')  return UserRole.guest;
+    // Postgres user_role enum (snake_case) → this Dart enum (camelCase)
+    if (s == 'department_admin') return UserRole.departmentAdmin;
+    if (s == 'school_admin')     return UserRole.schoolAdmin;
+    if (s == 'super_admin')      return UserRole.superAdmin;
     return UserRole.values.firstWhere((r) => r.name == s,
         orElse: () => UserRole.student);
   }

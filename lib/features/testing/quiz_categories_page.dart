@@ -110,14 +110,21 @@ class _QuizCategoriesPageState extends State<QuizCategoriesPage> {
         if (image != null) {
           final upload = await TestRepository.instance
               .uploadQuizCategoryImage(categoryId: c.id, imageFile: image);
-          if (upload is Success<String>) imageUrl = upload.value;
+          switch (upload) {
+            case Success(:final value): imageUrl = value;
+            // A failed upload must not silently proceed as if nothing
+            // was picked -- that's the real bug that made "press edit,
+            // pick a photo" look like it does nothing at all.
+            case Failure(:final message): throw Exception(message);
+          }
         } else {
           // No new photo picked — either an emoji was chosen (mutually
           // exclusive with a photo on a tile) or everything was cleared.
           imageUrl = '';
         }
-        await TestRepository.instance
+        final result = await TestRepository.instance
             .updateQuizCategoryIcon(c.id, emoji: emoji, imageUrl: imageUrl);
+        if (result case Failure(:final message)) throw Exception(message);
       },
     );
     _load();
@@ -155,6 +162,26 @@ class _QuizCategoriesPageState extends State<QuizCategoriesPage> {
                   OutlinedButton(onPressed: _load, child: const Text('Retry')),
                 ]),
               ),
+            )
+          : (_categories.isEmpty && !_canManage)
+          // A blank grid (no tiles at all, and no "+ New section" tile
+          // since only lecturer+ can add one) is visually indistinguishable
+          // from "nothing happened when I tapped Tests" -- spell out why.
+          ? RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 80, 24, 24),
+                  child: Column(children: [
+                    Icon(Icons.inbox_outlined, size: 40, color: ac.muted),
+                    const SizedBox(height: 12),
+                    Text('No test categories yet', style: AppText.title.copyWith(fontSize: 15)),
+                    const SizedBox(height: 6),
+                    Text('Ask a teacher or admin to add one, or pull down to check again.',
+                        style: AppText.bodySm.copyWith(color: ac.txt2), textAlign: TextAlign.center),
+                  ]),
+                ),
+              ]),
             )
           : RefreshIndicator(
               onRefresh: _load,

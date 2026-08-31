@@ -29,6 +29,7 @@ import '../core/xp_rules.dart';
 import '../core/result.dart';
 import '../repositories/xp_repository.dart';
 import 'analytics_service.dart' show AuditService, AuditSeverity;
+import 'app_user_cache_service.dart';
 
 class AuthService {
   AuthService._();
@@ -50,16 +51,76 @@ class AuthService {
   }
 
   /// Live-updates whenever the user's row changes (XP awarded, streak
-  /// recorded, profile edited, etc.) — requires `users` to be in the
-  /// `supabase_realtime` publication (already enabled for this shared table).
+  /// recorded, profile edited, etc.) — the underlying Realtime `.stream()`
+  /// requires an active websocket, which offline or a flaky reconnect
+  /// breaks. This must NEVER be read as "this account doesn't exist" —
+  /// _AppUserGate (screens/app_router.dart) treats a null emission from
+  /// this stream as a reason to sign out, so a network hiccup must not
+  /// produce one. Strategy: paint the cached row instantly (if any),
+  /// replace it with a fresh one-time fetch as soon as that succeeds,
+  /// then layer live Realtime updates on top — but a Realtime error is
+  /// swallowed (logged only), never forwarded, so it can't blank out an
+  /// already-known-good user. The only way this stream legitimately
+  /// emits null is a *successful* fetch that finds no row at all (e.g.
+  /// the account was really deleted server-side).
   Stream<AppUser?> currentAppUserStream() {
     final u = _supabase.auth.currentUser;
     if (u == null) return Stream.value(null);
-    return _supabase
+    final uid = u.id;
+    final controller = StreamController<AppUser?>();
+
+    Future<void> emitCacheThenFetch() async {
+      final cached = await AppUserCacheService.instance.getUser(uid);
+      if (cached != null && !controller.isClosed) {
+        controller.add(cached);
+      }
+      try {
+        final fresh = await currentAppUser();
+        if (controller.isClosed) return;
+        if (fresh != null) {
+          unawaited(AppUserCacheService.instance.putUser(fresh));
+          controller.add(fresh);
+        } else if (cached == null) {
+          // A real, successful "no row" result with nothing cached to
+          // fall back on -- the only legitimate null emission.
+          controller.add(null);
+        }
+        // fresh == null but cached != null: leave the cached value
+        // showing rather than overwrite it with an absence we can't
+        // yet distinguish from a transient blip.
+      } catch (_) {
+        // Network/REST failure -- keep showing whatever we already
+        // emitted (cache or nothing yet); never emit null for this.
+      }
+    }
+
+    unawaited(emitCacheThenFetch());
+
+    final sub = _supabase
         .from('users')
         .stream(primaryKey: ['id'])
-        .eq('id', u.id)
-        .map((rows) => rows.isNotEmpty ? AppUser.fromSupabase(rows.first) : null);
+        .eq('id', uid)
+        .listen(
+          (rows) {
+            if (controller.isClosed) return;
+            if (rows.isNotEmpty) {
+              final user = AppUser.fromSupabase(rows.first);
+              unawaited(AppUserCacheService.instance.putUser(user));
+              controller.add(user);
+            }
+            // An empty row list from a live update is far more likely a
+            // transient resync than a genuine deletion (that already
+            // went through the one-time-fetch "no row" path above) --
+            // ignored rather than emitted as null.
+          },
+          onError: (_) {
+            // Realtime disconnected/errored (offline, etc.) -- keep
+            // showing whatever was last emitted, don't propagate.
+          },
+        );
+
+    controller.onCancel = sub.cancel;
+    return controller.stream;
   }
 
   // Pre-launch audit: real login attempts (success, suspended-account
@@ -160,7 +221,7 @@ class AuthService {
 
   // ── Admin operations ───────────────────────────────────────────────────────
   Future<void> changeUserRole(String userId, UserRole newRole) =>
-      _supabase.from('users').update({'role': newRole.name}).eq('id', userId);
+      _supabase.from('users').update({'role': newRole.pgValue}).eq('id', userId);
 
   Future<void> suspendUser(String userId) =>
       _supabase.from('users').update({'status': AccountStatus.suspended.name}).eq('id', userId);
@@ -169,6 +230,8 @@ class AuthService {
       _supabase.from('users').update({'status': AccountStatus.active.name}).eq('id', userId);
 
   Future<void> signOut() async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid != null) unawaited(AppUserCacheService.instance.clear(uid));
     await _google.signOut();
     await _supabase.auth.signOut();
   }

@@ -204,6 +204,12 @@ class _AppUserGate extends StatelessWidget {
         }
         final user = snap.data;
         if (user == null) {
+          // currentAppUserStream() only ever emits null after a
+          // SUCCESSFUL fetch that found no row at all (account deleted
+          // server-side) — a network failure/offline reconnect keeps
+          // showing the last cached/known user instead of reaching
+          // here, so this signOut() no longer fires on a connectivity
+          // hiccup (see auth_service.dart's currentAppUserStream doc).
           AuthService.instance.signOut();
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }

@@ -17,6 +17,25 @@ enum UserRole {
 enum AccountType  { independent, linked, guest }
 enum AccountStatus{ active, suspended, assigned, unassigned }
 
+extension UserRolePg on UserRole {
+  /// The literal label Postgres's `user_role` enum expects — snake_case,
+  /// unlike this enum's own camelCase `.name`. `_parseRole` below already
+  /// handles reading either casing back in; this is for the (rare) write
+  /// path that sets `public.users.role` directly rather than through a
+  /// security-definer RPC (which already casts its own literals
+  /// correctly server-side, e.g. `'school_admin'::user_role`).
+  String get pgValue {
+    switch (this) {
+      case UserRole.departmentAdmin: return 'department_admin';
+      case UserRole.schoolAdmin:     return 'school_admin';
+      case UserRole.superAdmin:      return 'super_admin';
+      case UserRole.guest:
+      case UserRole.student:
+      case UserRole.lecturer:        return name;
+    }
+  }
+}
+
 /// Editable education levels shown on Profile — Cameroon GCE-relevant,
 /// plus generic options for independent/adult users.
 class EducationLevels {

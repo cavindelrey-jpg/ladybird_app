@@ -28,6 +28,7 @@
 // on a single specific response, same simplification academia-cameroon's
 // own Supabase rewrite made for this exact method.
 
+import 'dart:async';
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/essay_matching.dart';
@@ -37,6 +38,7 @@ import '../models/public_course.dart' show CurriculumIcon;
 import '../models/test.dart';
 import '../models/test_attempt.dart';
 import '../models/xp_transaction.dart';
+import '../services/content_cache_service.dart';
 import 'academic_section_repository.dart';
 import 'xp_repository.dart';
 
@@ -132,14 +134,29 @@ class TestRepository {
     return counts;
   }
 
+  static const String _categoryCountsCacheKey = 'test_category_counts';
+
   /// Real per-category test counts — drives the top-level Quiz page's
   /// category grid ("42 quizzes" per tile). Tests saved before the
   /// Category tier existed (blank [Test.category]) are bucketed under
   /// [kUncategorizedQuizBucket] rather than dropped.
+  ///
+  /// Falls back to the last cached row set on a network failure (offline,
+  /// flaky reconnect) instead of throwing straight out — same reasoning
+  /// as AcademicSectionRepository.sectionsOnce().
   Future<Map<String, int>> categoryTestCountsOnce() async {
-    final rows = await _tests.select('category').eq('published', true);
+    List<Map<String, dynamic>> rawRows;
+    try {
+      final rows = await _tests.select('category').eq('published', true);
+      rawRows = List<Map<String, dynamic>>.from(rows);
+      unawaited(ContentCacheService.instance.putList(_categoryCountsCacheKey, rawRows));
+    } catch (e) {
+      final cached = await ContentCacheService.instance.getList(_categoryCountsCacheKey);
+      if (cached == null) rethrow;
+      rawRows = cached;
+    }
     final counts = <String, int>{};
-    for (final row in rows) {
+    for (final row in rawRows) {
       final raw = (row['category'] as String?) ?? '';
       final category = raw.isEmpty ? kUncategorizedQuizBucket : raw;
       counts[category] = (counts[category] ?? 0) + 1;

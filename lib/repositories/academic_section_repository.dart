@@ -14,30 +14,52 @@
 // uploadQuizCategoryImage() delegate here instead of owning this table
 // directly, so every existing Quiz call site keeps working unchanged.
 
+import 'dart:async';
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/result.dart';
 import '../models/academic_section.dart';
+import '../services/content_cache_service.dart';
 
 class AcademicSectionRepository {
   AcademicSectionRepository._();
   static final AcademicSectionRepository instance = AcademicSectionRepository._();
 
   static const String _bucket = 'app-content';
+  static const String _cacheKey = 'academic_sections';
   final SupabaseClient _db = Supabase.instance.client;
   SupabaseQueryBuilder get _sections => _db.from('academic_sections');
 
   /// All sections, ordered for the grid. Seeds [kDefaultAcademicSections]
   /// the first time this table is ever read empty — a fresh install still
   /// shows the 5 sections asked for at launch instead of a blank page.
+  ///
+  /// This is the top of the browse tree for Quizzes/Course Navigation/
+  /// Library — offline (or a flaky reconnect), a failure here used to
+  /// throw straight out to the caller with nothing to fall back on.
+  /// Now falls back to the last cached list first; only rethrows (real
+  /// error state, not a silent blank page — see QuizCategoriesPage) if
+  /// there's no cache to fall back on either.
   Future<List<AcademicSection>> sectionsOnce() async {
-    final rows = await _sections.select().order('sort_order');
-    if (rows.isEmpty) {
-      await _seedDefaults();
-      final reRows = await _sections.select().order('sort_order');
-      return reRows.map(AcademicSection.fromSupabase).toList();
+    try {
+      final rows = await _sections.select().order('sort_order');
+      if (rows.isEmpty) {
+        await _seedDefaults();
+        final reRows = await _sections.select().order('sort_order');
+        final list = List<Map<String, dynamic>>.from(reRows);
+        unawaited(ContentCacheService.instance.putList(_cacheKey, list));
+        return list.map(AcademicSection.fromSupabase).toList();
+      }
+      final list = List<Map<String, dynamic>>.from(rows);
+      unawaited(ContentCacheService.instance.putList(_cacheKey, list));
+      return list.map(AcademicSection.fromSupabase).toList();
+    } catch (e) {
+      final cached = await ContentCacheService.instance.getList(_cacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        return cached.map(AcademicSection.fromSupabase).toList();
+      }
+      rethrow;
     }
-    return rows.map(AcademicSection.fromSupabase).toList();
   }
 
   Future<void> _seedDefaults() async {

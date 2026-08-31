@@ -9,10 +9,12 @@
 // pair a subtable write with a counter update on `courses` the way
 // Firestore batches used to.
 
+import 'dart:async';
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/public_course.dart';
 import '../core/result.dart';
+import '../services/content_cache_service.dart';
 
 /// Result of [PublicCourseRepository.continueReadingFor] — previous/next
 /// lesson within the same topic sequence, plus the topic's full lesson
@@ -34,12 +36,61 @@ class PublicCourseRepository {
 
   // ── Feed queries ─────────────────────────────────────────
 
-  Stream<List<PublicCourse>> watchLatest({int limit = 30}) => _courses
-      .stream(primaryKey: ['id'])
-      .eq('published', true)
-      .order('created_at', ascending: false)
-      .limit(limit)
-      .map((rows) => rows.map(PublicCourse.fromSupabase).toList());
+  /// Cache-backed: offline (or a flaky reconnect), Realtime's `.stream()`
+  /// below either never delivers a row or errors outright, which used to
+  /// leave the Courses feed permanently empty with no way to tell that
+  /// apart from "there really are no courses". Paints the last cached
+  /// page instantly, replaces it with a fresh fetch as soon as one
+  /// succeeds, then layers live updates on top — a Realtime error is
+  /// swallowed (the cached/fetched list keeps showing), never forwarded.
+  Stream<List<PublicCourse>> watchLatest({int limit = 30}) {
+    const cacheKey = 'courses_latest';
+    final controller = StreamController<List<PublicCourse>>();
+
+    Future<void> emitCacheThenFetch() async {
+      final cached = await ContentCacheService.instance.getList(cacheKey);
+      if (cached != null && !controller.isClosed) {
+        controller.add(cached.map(PublicCourse.fromSupabase).toList());
+      }
+      try {
+        final rows = await _courses
+            .select()
+            .eq('published', true)
+            .order('created_at', ascending: false)
+            .limit(limit);
+        if (controller.isClosed) return;
+        final list = List<Map<String, dynamic>>.from(rows);
+        unawaited(ContentCacheService.instance.putList(cacheKey, list));
+        controller.add(list.map(PublicCourse.fromSupabase).toList());
+      } catch (_) {
+        // Network failure -- keep showing whatever cache/nothing was
+        // already emitted; never emit an empty list for this.
+      }
+    }
+
+    unawaited(emitCacheThenFetch());
+
+    final sub = _courses
+        .stream(primaryKey: ['id'])
+        .eq('published', true)
+        .order('created_at', ascending: false)
+        .limit(limit)
+        .listen(
+          (rows) {
+            if (controller.isClosed) return;
+            final list = List<Map<String, dynamic>>.from(rows);
+            unawaited(ContentCacheService.instance.putList(cacheKey, list));
+            controller.add(list.map(PublicCourse.fromSupabase).toList());
+          },
+          onError: (_) {
+            // Realtime disconnected/errored -- keep showing whatever was
+            // last emitted, don't propagate.
+          },
+        );
+
+    controller.onCancel = sub.cancel;
+    return controller.stream;
+  }
 
   Stream<List<PublicCourse>> watchByCategory(String category, {int limit = 30}) => _courses
       .stream(primaryKey: ['id'])

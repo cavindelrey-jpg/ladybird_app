@@ -91,13 +91,17 @@ class AcademiaVoucher {
     return '$_prefix-${role.code}-$random-${premiumTier.code}';
   }
 
+  /// Deliberately NOT filtered against [_alphabet] — see
+  /// school_voucher.dart's normalizeCode for why: that confusable-free
+  /// set only constrains the RANDOM segment [generateCode] produces, not
+  /// the role segment ('I' for superAdmin would otherwise be stripped).
   static String normalizeCode(String raw) {
-    final upper = raw.toUpperCase().trim();
+    final upper = raw.toUpperCase().trim().replaceAll(RegExp(r'\s+'), '-');
     final buf = StringBuffer();
     for (final ch in upper.split('')) {
-      if (_alphabet.contains(ch) || ch == '-') buf.write(ch);
+      if (RegExp(r'[A-Z0-9-]').hasMatch(ch)) buf.write(ch);
     }
-    return buf.toString();
+    return buf.toString().replaceAll(RegExp(r'-+'), '-');
   }
 
   static ParsedAcademiaVoucherCode? parse(String normalized) {

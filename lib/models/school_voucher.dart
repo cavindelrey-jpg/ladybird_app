@@ -205,16 +205,30 @@ class SchoolVoucher {
     return '${schoolCode.toUpperCase()}-${role.code}-$random-$premiumSeg';
   }
 
-  /// Uppercases and strips everything outside the alphabet-plus-dash so
-  /// `gh-t 6x8294-g` still resolves to the same code — same forgiving-
-  /// input reasoning as the old normalizeCode.
+  /// Uppercases and strips everything outside A-Z/0-9/dash so
+  /// `gh-t 6x8294-g` still resolves to the same code. Deliberately NOT
+  /// filtered against [_alphabet] here — that confusable-free 31-char
+  /// set only constrains what [generateCode] puts in the RANDOM segment;
+  /// the school prefix and role segments are real letters chosen for
+  /// meaning, not randomness, and legitimately include characters
+  /// [_alphabet] excludes (e.g. Ladybird's "LB" prefix has an L, the
+  /// itSupport/"Super Admin" role code is "I" — both would silently get
+  /// stripped by an [_alphabet]-only filter, corrupting the code before
+  /// [parse] ever sees it).
   static String normalizeCode(String raw) {
-    final upper = raw.toUpperCase().trim();
+    // Whitespace -> dash BEFORE filtering, not just dropped: with real
+    // delimiters now load-bearing, a typo'd space in place of a dash
+    // (mobile autocorrect does this) must still land on a segment
+    // boundary, not silently glue two segments together.
+    final upper = raw.toUpperCase().trim().replaceAll(RegExp(r'\s+'), '-');
     final buf = StringBuffer();
     for (final ch in upper.split('')) {
-      if (_alphabet.contains(ch) || ch == '-') buf.write(ch);
+      if (RegExp(r'[A-Z0-9-]').hasMatch(ch)) buf.write(ch);
     }
-    return buf.toString();
+    // Collapses any run of dashes into one -- e.g. a space typed right
+    // next to an already-present dash would otherwise produce "--" and
+    // throw off parse()'s exact 4-segment split.
+    return buf.toString().replaceAll(RegExp(r'-+'), '-');
   }
 
   /// Splits a normalized code into its four explicit segments. Returns

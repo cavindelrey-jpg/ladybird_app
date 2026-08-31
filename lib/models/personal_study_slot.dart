@@ -1,9 +1,9 @@
 // lib/models/personal_study_slot.dart
 // production_plan.md §5's "Personal Study Timetable" — deliberately a
 // separate model from TimetableSlot (the School Timetable, admin-
-// authored, institution-scoped). This one would be self-authored by the
-// student. No Postgres table yet — zero real data at migration time;
-// PersonalStudyRepository below is an honest stub.
+// authored, institution-scoped). This one is self-authored by the
+// student. Backed by public.personal_study_slots (see
+// repositories/personal_study_repository.dart).
 
 class PersonalStudySlot {
   final String id;

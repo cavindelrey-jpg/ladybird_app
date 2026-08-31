@@ -1,8 +1,15 @@
 // lib/screens/app_router.dart
-// Root navigator — single account model (Guest / Individual / Premium
-// Silver / Premium Gold), no institution/school-linking. 6-role permission
-// system retained for content moderation (student/lecturer/admin roles),
-// independent of any school.
+// Root navigator. 2026-09 correction: a fresh install (no session) shows
+// VoucherEntryScreen FIRST — activate with a code or log in to an
+// existing (already-activated) account — with guest browsing one tap
+// away, not the default. Once signed in (including after a code is
+// redeemed once), reopening the app skips straight to HomeShell — this
+// screen only ever appears when authStateChanges reports signed-out, so
+// a returning user with a live session, or one who reinstalls and logs
+// back into their existing account, never sees it again. School
+// membership (schoolId/schoolRole on AppUser) is orthogonal to the
+// 6-role UserRole permission system, which still governs content
+// moderation/authoring privilege independent of any school.
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -23,14 +30,15 @@ import '../features/magazine/magazine_feed_page.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/create_content_sheet.dart';
 import '../features/onboarding/account_choice_screen.dart';
+import '../features/onboarding/voucher_entry_screen.dart';
 
 // ────────────────────────────────────────────────────────────────────────────
 // AppRouter — watches Firebase auth state only.
 //
-// Entry logic:
-//  1. Nobody signed in → Guest is the true front door — full read access to
-//     the feed, notes, past questions, magazine, etc. with no login wall.
-//  2. Somebody IS signed in → HomeShell under the single Academia brand.
+//  1. Nobody signed in → VoucherEntryScreen (the front door: activate
+//     with a code, log in, or "continue browsing without a code" ->
+//     _GuestShell).
+//  2. Somebody IS signed in → HomeShell (via _AppUserGate).
 // ────────────────────────────────────────────────────────────────────────────
 
 class AppRouter extends StatelessWidget {
@@ -45,12 +53,31 @@ class AppRouter extends StatelessWidget {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
         if (snap.data == null) {
-          // Guest: no login wall, browse everything read-only.
-          return const _GuestShell();
+          return const _SignedOutGate();
         }
         return const _AppUserGate();
       },
     );
+  }
+}
+
+/// Toggles between the voucher/login front door and full guest browsing,
+/// purely a local UI choice (never touches auth) — tapping "Continue
+/// browsing without a code" on VoucherEntryScreen just swaps which of
+/// these two this widget shows.
+class _SignedOutGate extends StatefulWidget {
+  const _SignedOutGate();
+  @override
+  State<_SignedOutGate> createState() => _SignedOutGateState();
+}
+
+class _SignedOutGateState extends State<_SignedOutGate> {
+  bool _browsingAsGuest = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_browsingAsGuest) return const _GuestShell();
+    return VoucherEntryScreen(onBrowseAsGuest: () => setState(() => _browsingAsGuest = true));
   }
 }
 

@@ -7,7 +7,7 @@
         <item name="android:windowDrawsSystemBarBackgrounds">false</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="android:windowSplashScreenBackground">#FFFFFF</item>
-        <!-- Same fix as values-v31/styles.xml -- see
+        <!-- Same fix as values-v31/styles.xml — see
              @drawable/android12splash_inset's header comment. -->
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/android12splash_inset</item>
     </style>

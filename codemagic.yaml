@@ -65,6 +65,29 @@ workflows:
           sed -i '' 's|@drawable/android12splash</item>|@drawable/android12splash_inset</item>|' \
             android/app/src/main/res/values-v31/styles.xml \
             android/app/src/main/res/values-night-v31/styles.xml
+
+          # flutter_native_splash's own regenerated comment text contains a
+          # bare "--" mid-comment (e.g. "...raw, unpadded @drawable/
+          # android12splash -- which Android's..."), which the Android
+          # resource merger's stricter-than-browsers XML parser rejects
+          # outright ("The string "--" is not permitted within comments.") --
+          # a real build failure, not a lint. Comments are inert at
+          # runtime, so the robust fix is to strip every XML comment from
+          # these two regenerated files outright rather than trying to
+          # patch specific wording that's controlled by the plugin, not us,
+          # and could change on any flutter_native_splash version bump.
+          python3 - <<'PY'
+          import re
+          for f in [
+              "android/app/src/main/res/values-v31/styles.xml",
+              "android/app/src/main/res/values-night-v31/styles.xml",
+          ]:
+              with open(f) as fh:
+                  content = fh.read()
+              content = re.sub(r"<!--.*?-->", "", content, flags=re.DOTALL)
+              with open(f, "w") as fh:
+                  fh.write(content)
+          PY
       - name: Analyze
         # --no-fatal-infos: flutter analyze exits 1 on ANY finding,
         # including plain style infos (unnecessary_const, prefer_const_

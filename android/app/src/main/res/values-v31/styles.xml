@@ -7,7 +7,7 @@
         <item name="android:windowDrawsSystemBarBackgrounds">false</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="android:windowSplashScreenBackground">#FFFFFF</item>
-        <!-- Was @drawable/android12splash directly -- that's a raw,
+        <!-- Was @drawable/android12splash directly — that's a raw,
              unpadded copy of the logo, which Android's SplashScreen API
              crops into (no safe-zone margin). @drawable/android12splash_inset
              wraps it with padding so the complete logo renders instead.

@@ -22,6 +22,7 @@ import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'content_details_page.dart';
 import 'content_upload_page.dart';
+import 'bulk_past_paper_upload_page.dart';
 import '../../pages/notifications_page.dart';
 import '../../pages/profile_page.dart';
 import '../../widgets/xp_widgets.dart';
@@ -242,9 +243,7 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
           ? FloatingActionButton.extended(
               onPressed: () {
                 HapticFeedback.mediumImpact();
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => ContentUploadPage(user: widget.user)))
-                    .then((_) => _loadSubjects());
+                _showUploadChoices(context);
               },
               backgroundColor: ac.primary,
               foregroundColor: Colors.white,
@@ -252,6 +251,39 @@ class _AcademicContentPageState extends State<AcademicContentPage> {
               label: Text('Upload', style: AppText.button.copyWith(fontSize: 15)),
             )
           : null,
+    );
+  }
+
+  void _showUploadChoices(BuildContext context) {
+    final ac = AppColors.of(context);
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: Icon(Icons.upload_file_rounded, color: ac.primary),
+            title: const Text('Upload one item'),
+            subtitle: const Text('Any content type — notes, books, videos, past papers…'),
+            onTap: () {
+              Navigator.pop(ctx);
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => ContentUploadPage(user: widget.user)))
+                  .then((_) => _loadSubjects());
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.library_books_rounded, color: ac.primary),
+            title: const Text('Bulk upload past papers'),
+            subtitle: const Text('Select many PDFs at once — subject/year/paper read from filenames'),
+            onTap: () {
+              Navigator.pop(ctx);
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => BulkPastPaperUploadPage(user: widget.user)))
+                  .then((_) => _loadSubjects());
+            },
+          ),
+        ]),
+      ),
     );
   }
 }

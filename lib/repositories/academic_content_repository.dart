@@ -74,6 +74,19 @@ class AcademicContentRepository {
     return rows.length;
   }
 
+  /// The most recently uploaded thumbnail already used for [tag] (e.g. a
+  /// discipline name like "Physics"), if any — lets bulk past-paper
+  /// upload reuse one thumbnail per subject automatically instead of
+  /// asking the uploader to pick the same image over and over, and
+  /// without re-uploading a duplicate copy of it each time.
+  Future<String?> findThumbnailForTag(String tag, {String? institutionId}) async {
+    var q = _db.from(_table).select('thumbnail_url').contains('tags', [tag]);
+    if (institutionId != null) q = q.eq('institution_id', institutionId);
+    final rows = await q.order('upload_date', ascending: false).limit(1);
+    if (rows.isEmpty) return null;
+    return rows.first['thumbnail_url'] as String?;
+  }
+
   /// Stream for a single row.
   Stream<AcademicContent?> watchOne(String id) {
     return _db

@@ -155,6 +155,7 @@ class QuestionResponse {
     bool? graded,
     String? feedback,
     int? xpEarned,
+    List<KeyPointOutcome>? keyPointOutcomes,
   }) =>
       QuestionResponse(
         questionId: questionId,
@@ -165,7 +166,7 @@ class QuestionResponse {
         options: options,
         correctIndex: correctIndex,
         textAnswer: textAnswer,
-        keyPointOutcomes: keyPointOutcomes,
+        keyPointOutcomes: keyPointOutcomes ?? this.keyPointOutcomes,
         pointsAwarded: pointsAwarded ?? this.pointsAwarded,
         graded: graded ?? this.graded,
         feedback: feedback ?? this.feedback,

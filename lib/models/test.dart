@@ -30,6 +30,11 @@
 import 'essay_key_point.dart';
 import 'academic_section.dart';
 
+// Re-exported so every file that already imports test.dart for
+// TestQuestion/Test (which reference EssayKeyPoint directly) keeps
+// getting it too, matching the pre-extraction behavior when
+// EssayKeyPoint was defined inline in this file.
+export 'essay_key_point.dart';
 export 'academic_section.dart' show AcademicSection, kDefaultAcademicSections;
 
 enum QuestionType { mcq, structured, longForm }

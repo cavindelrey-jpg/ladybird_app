@@ -52,7 +52,17 @@ workflows:
         # See android/app/src/main/res/drawable/android12splash_inset.xml's
         # own header comment for the full explanation.
         script: |
-          sed -i 's|@drawable/android12splash</item>|@drawable/android12splash_inset</item>|' \
+          # -i '' (with the explicit empty-string argument), not bare -i:
+          # this workflow runs on mac_mini_m2, i.e. BSD sed, which treats
+          # -i's very next argument as a backup-file suffix -- without the
+          # empty string there, BSD sed swallowed the s/// script as that
+          # suffix and tried to parse the first file PATH as the sed
+          # script instead, failing with "command a expects \ followed by
+          # text" (a path fragment happened to look like a broken `a`
+          # command). GNU sed (Linux) would need bare -i instead; this
+          # script only ever runs on Codemagic's mac_mini_m2, so no
+          # cross-platform branch is needed here.
+          sed -i '' 's|@drawable/android12splash</item>|@drawable/android12splash_inset</item>|' \
             android/app/src/main/res/values-v31/styles.xml \
             android/app/src/main/res/values-night-v31/styles.xml
       - name: Analyze

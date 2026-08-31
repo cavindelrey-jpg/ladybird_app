@@ -1,21 +1,31 @@
 // lib/repositories/magazine_repository.dart
-// Full Firestore backing for the Magazine module: feed variants, a single
-// article's comments/likes/bookmarks/shares, publishing/editing, thumbnail
-// upload, and the engagement -> formula-based, 24h-delayed, one-time XP
-// settlement pipeline (production_plan.md §4.5) — see
-// settleMagazineXpIfDue().
+// Supabase backing for the Magazine module: feed variants, a single
+// article's comments/likes/bookmarks/shares, publishing/editing,
+// thumbnail upload, and the engagement -> formula-based, 24h-delayed,
+// one-time XP settlement pipeline (production_plan.md §4.5) — see
+// settleMagazineXpIfDue(). Several operations are SECURITY DEFINER RPCs
+// (supabase/migrations/20260829200000_magazine_engagement_rpcs.sql,
+// 20260829410000_magazine_xp_settlement_rpcs.sql) for the same reason as
+// academia-cameroon's own version: Postgres has no client-side atomic
+// increment and these need to run as more than the caller's own
+// RLS-restricted permissions allow.
 //
-// ── Magazine remake addition ─────────────────────────────────────────────
-// searchArticles() — the feed header's search icon previously only
-// showed an honest "coming soon" toast. This is a real (if bounded)
-// search: same "fetch a window, filter client-side" pattern
-// ClubRepository.searchClubs already uses, not a fake full-text index
-// this project has no infrastructure for.
+// ── Student Gallery / Latest Videos ─────────────────────────────────────
+// No Postgres table exists for either yet — zero real data at migration
+// time (mirrors magazine_media.dart's other non-article content types,
+// which academia-cameroon already stubs the same way). watch* methods
+// return an empty stream; create/upload methods return an honest Failure
+// rather than silently doing nothing, since gallery_composer_page.dart /
+// video_composer_page.dart already surface a Failure's message as a toast.
+//
+// ── searchArticles() ─────────────────────────────────────────────────────
+// Real (if bounded) search: fetches a window of recent published articles
+// and filters client-side by title/description/category/tags/author, same
+// "fetch a window, filter client-side" pattern ClubRepository.searchClubs
+// already uses — this project has no full-text search index.
 
-import 'dart:async';
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/magazine_article.dart';
 import '../models/magazine_gallery_post.dart';
 import '../models/magazine_video_post.dart';
@@ -27,181 +37,88 @@ class MagazineRepository {
   MagazineRepository._();
   static final MagazineRepository instance = MagazineRepository._();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  CollectionReference<Map<String, dynamic>> get _articles => _db.collection('articles');
-  CollectionReference<Map<String, dynamic>> get _galleryPosts => _db.collection('magazine_gallery');
-  CollectionReference<Map<String, dynamic>> get _videoPosts => _db.collection('magazine_videos');
-
-  // ── Student Gallery ──────────────────────────────────────────────────────
-
-  Stream<List<MagazineGalleryPost>> watchGalleryPosts({int limit = 20}) => _galleryPosts
-      .orderBy('createdAt', descending: true)
-      .limit(limit)
-      .snapshots()
-      .map((s) => s.docs.map(MagazineGalleryPost.fromFirestore).toList());
-
-  Future<Result<String>> createGalleryPost(MagazineGalleryPost post) async {
-    try {
-      final ref = await _galleryPosts.add(post.toFirestore());
-      return Success(ref.id);
-    } catch (e) {
-      return Failure('Failed to publish gallery post', e);
-    }
-  }
-
-  /// Called after createGalleryPost() + uploadGalleryImage() to attach the
-  /// now-uploaded image URLs to the post doc created before the images
-  /// existed (the doc id is needed as the Storage path, so create has to
-  /// happen first).
-  Future<Result<void>> setGalleryImages(String postId, List<String> imageUrls) async {
-    try {
-      await _galleryPosts.doc(postId).update({'imageUrls': imageUrls});
-      return const Success(null);
-    } catch (e) {
-      return Failure('Failed to attach photos', e);
-    }
-  }
-
-  Future<Result<String>> uploadGalleryImage({required String postId, required int index, required File file}) async {
-    try {
-      final ref = FirebaseStorage.instance.ref('magazine_gallery/$postId/$index.jpg');
-      await ref.putFile(file).timeout(const Duration(seconds: 60), onTimeout: () => throw Exception(
-          'Upload is taking too long. Check your connection and try again.'));
-      return Success(await ref.getDownloadURL());
-    } catch (e) {
-      return Failure('Failed to upload image', e);
-    }
-  }
-
-  Future<Result<void>> toggleGalleryLike(String postId, String userId) async {
-    if (userId.isEmpty) return const Failure('Sign in to like posts.', null);
-    try {
-      final likeRef = _galleryPosts.doc(postId).collection('likes').doc(userId);
-      final exists = (await likeRef.get()).exists;
-      if (exists) {
-        await likeRef.delete();
-        await _galleryPosts.doc(postId).update({'likeCount': FieldValue.increment(-1)});
-      } else {
-        await likeRef.set({'likedAt': FieldValue.serverTimestamp()});
-        await _galleryPosts.doc(postId).update({'likeCount': FieldValue.increment(1)});
-      }
-      return const Success(null);
-    } catch (e) {
-      return Failure('Failed to update like', e);
-    }
-  }
-
-  Stream<bool> watchIsGalleryLiked(String postId, String userId) {
-    if (userId.isEmpty) return Stream.value(false);
-    return _galleryPosts.doc(postId).collection('likes').doc(userId).snapshots().map((d) => d.exists);
-  }
-
-  // ── Latest Videos ─────────────────────────────────────────────────────────
-
-  Stream<List<MagazineVideoPost>> watchVideoPosts({int limit = 20}) => _videoPosts
-      .orderBy('createdAt', descending: true)
-      .limit(limit)
-      .snapshots()
-      .map((s) => s.docs.map(MagazineVideoPost.fromFirestore).toList());
-
-  Future<Result<String>> createVideoPost(MagazineVideoPost post) async {
-    try {
-      final ref = await _videoPosts.add(post.toFirestore());
-      return Success(ref.id);
-    } catch (e) {
-      return Failure('Failed to publish video', e);
-    }
-  }
-
-  Future<Result<String>> uploadVideoFile({required String postId, required File file}) async {
-    try {
-      final ref = FirebaseStorage.instance.ref('magazine_videos/$postId/video.mp4');
-      await ref.putFile(file).timeout(const Duration(minutes: 5), onTimeout: () => throw Exception(
-          'Upload is taking too long. Check your connection and try again.'));
-      return Success(await ref.getDownloadURL());
-    } catch (e) {
-      return Failure('Failed to upload video', e);
-    }
-  }
-
-  Future<Result<String>> uploadVideoThumbnail({required String postId, required File file}) async {
-    try {
-      final ref = FirebaseStorage.instance.ref('magazine_videos/$postId/thumbnail.jpg');
-      await ref.putFile(file).timeout(const Duration(seconds: 60), onTimeout: () => throw Exception(
-          'Upload is taking too long. Check your connection and try again.'));
-      return Success(await ref.getDownloadURL());
-    } catch (e) {
-      return Failure('Failed to upload thumbnail', e);
-    }
-  }
-
-  /// Same create-then-attach-media pattern as gallery posts — the doc id
-  /// is needed as the Storage path, so create() has to run before upload.
-  Future<Result<void>> setVideoUrls(String postId, {required String videoUrl, String? thumbnailUrl}) async {
-    try {
-      await _videoPosts.doc(postId).update({'videoUrl': videoUrl, if (thumbnailUrl != null) 'thumbnailUrl': thumbnailUrl});
-      return const Success(null);
-    } catch (e) {
-      return Failure('Failed to attach video', e);
-    }
-  }
-
-  Future<void> incrementVideoViews(String postId) async {
-    try {
-      await _videoPosts.doc(postId).update({'viewCount': FieldValue.increment(1)});
-    } catch (_) {
-      // best-effort — a missed view count isn't worth surfacing
-    }
-  }
+  static const String _bucket = 'app-content';
+  final SupabaseClient _db = Supabase.instance.client;
+  SupabaseQueryBuilder get _articles => _db.from('magazine_articles');
 
   // ── Feed variants ──────────────────────────────────────────────────────
 
   Stream<List<MagazineArticle>> watchFeed({int limit = 30}) => _articles
-      .where('published', isEqualTo: true)
-      .orderBy('createdAt', descending: true)
+      .stream(primaryKey: ['id'])
+      .eq('published', true)
+      .order('created_at', ascending: false)
       .limit(limit)
-      .snapshots()
-      .map((s) => s.docs.map(MagazineArticle.fromFirestore).toList());
+      .map((rows) => rows.map(MagazineArticle.fromSupabase).toList());
 
-  /// "Following" feed — articles by a specific set of authors. Firestore's
-  /// whereIn caps at 30 values; callers with more should page/batch.
+  /// "Following" feed — articles by a specific set of authors.
   Stream<List<MagazineArticle>> watchFeedFromAuthors(List<String> authorIds) {
     if (authorIds.isEmpty) return Stream.value(const []);
-    final capped = authorIds.take(30).toList();
+    final capped = authorIds.take(30).toSet();
     return _articles
-        .where('published', isEqualTo: true)
-        .where('authorId', whereIn: capped)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((s) => s.docs.map(MagazineArticle.fromFirestore).toList());
+        .stream(primaryKey: ['id'])
+        .eq('published', true)
+        .order('created_at', ascending: false)
+        .map((rows) => rows
+            .where((r) => capped.contains(r['author_id']))
+            .map(MagazineArticle.fromSupabase)
+            .toList());
   }
 
   /// School-scoped feed.
   Stream<List<MagazineArticle>> watchLocalFeed(String schoolId) => _articles
-      .where('published', isEqualTo: true)
-      .where('schoolId', isEqualTo: schoolId)
-      .orderBy('createdAt', descending: true)
-      .snapshots()
-      .map((s) => s.docs.map(MagazineArticle.fromFirestore).toList());
+      .stream(primaryKey: ['id'])
+      .eq('institution_id', schoolId)
+      .order('created_at', ascending: false)
+      .map((rows) => rows
+          .where((r) => r['published'] == true)
+          .map(MagazineArticle.fromSupabase)
+          .toList());
 
-  /// One-time fetch of featured/pinned articles (e.g. for a carousel at
-  /// the top of the feed) — not a live stream, called once per feed load.
+  /// One-time fetch of featured/pinned articles.
   Future<List<MagazineArticle>> watchFeaturedOnce({int limit = 5}) async {
-    final snap = await _articles
-        .where('published', isEqualTo: true)
-        .where('featured', isEqualTo: true)
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .get();
-    return snap.docs.map(MagazineArticle.fromFirestore).toList();
+    final rows = await _articles
+        .select()
+        .eq('published', true)
+        .eq('featured', true)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    return rows.map(MagazineArticle.fromSupabase).toList();
+  }
+
+  /// Engagement score used to rank "Trending Now" / "Popular in Your
+  /// Network" — reads count most, then comments, then likes.
+  int _engagementScore(MagazineArticle a) =>
+      a.readCount + a.commentCount * 3 + a.likeCount * 2;
+
+  /// Highest-engagement articles published in the last [days] days.
+  Stream<List<MagazineArticle>> watchTrending({int days = 14, int limit = 10}) {
+    final cutoff = DateTime.now().subtract(Duration(days: days)).toIso8601String();
+    return _articles
+        .stream(primaryKey: ['id'])
+        .eq('published', true)
+        .order('created_at', ascending: false)
+        .map((rows) {
+      final items = rows
+          .where((r) => (r['created_at'] as String).compareTo(cutoff) >= 0)
+          .map(MagazineArticle.fromSupabase)
+          .toList()
+        ..sort((a, b) => _engagementScore(b).compareTo(_engagementScore(a)));
+      return items.take(limit).toList();
+    });
+  }
+
+  /// Highest-engagement articles among a set of authors.
+  Stream<List<MagazineArticle>> watchPopularFromAuthors(List<String> authorIds, {int limit = 10}) {
+    if (authorIds.isEmpty) return Stream.value(const []);
+    return watchFeedFromAuthors(authorIds).map((items) {
+      final sorted = List<MagazineArticle>.from(items)
+        ..sort((a, b) => _engagementScore(b).compareTo(_engagementScore(a)));
+      return sorted.take(limit).toList();
+    });
   }
 
   /// One-time "Trending" fetch — computed from real engagement over the
-  /// last 7 days (likes + 2×comments), not manually curated. Reuses
-  /// watchFeed's already-time-ordered, index-free query and filters/sorts
-  /// client-side rather than adding a new composite index for a field
-  /// (createdAt range + published equality + a computed engagement sort)
-  /// Firestore can't express in one query anyway.
+  /// last [windowDays] days (likes + 2×comments), not manually curated.
   Future<List<MagazineArticle>> watchTrendingOnce({int limit = 10, int windowDays = 7}) async {
     final cutoff = DateTime.now().subtract(Duration(days: windowDays));
     final recent = await watchFeed(limit: 80).first;
@@ -211,34 +128,19 @@ class MagazineRepository {
     return pool.take(limit).toList();
   }
 
-  Stream<List<MagazineArticle>> watchByAuthor(String authorId) => _articles
-      .where('authorId', isEqualTo: authorId)
-      .orderBy('createdAt', descending: true)
-      .snapshots()
-      .map((s) => s.docs.map(MagazineArticle.fromFirestore).toList());
-
-  Future<MagazineArticle?> getById(String id) async {
-    final doc = await _articles.doc(id).get();
-    return doc.exists ? MagazineArticle.fromFirestore(doc) : null;
-  }
-
-  /// Real search, bounded on purpose: fetches the [sampleSize] most
-  /// recent published articles once and filters client-side by title,
-  /// description, category, and tags. This project has no full-text
-  /// search index (Algolia, etc.), so this is deliberately the same
-  /// "fetch a window, filter client-side" shape as
-  /// ClubRepository.searchClubs — real results over recent content, not
-  /// a fabricated claim of searching everything ever published.
+  /// Real search, bounded on purpose: fetches the [sampleSize] most recent
+  /// published articles once and filters client-side by title,
+  /// description, category, and tags — no full-text search index exists.
   Future<List<MagazineArticle>> searchArticles(String query, {int sampleSize = 200}) async {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return const [];
-    final snap = await _articles
-        .where('published', isEqualTo: true)
-        .orderBy('createdAt', descending: true)
-        .limit(sampleSize)
-        .get();
-    return snap.docs
-        .map(MagazineArticle.fromFirestore)
+    final rows = await _articles
+        .select()
+        .eq('published', true)
+        .order('created_at', ascending: false)
+        .limit(sampleSize);
+    return rows
+        .map(MagazineArticle.fromSupabase)
         .where((a) =>
             a.title.toLowerCase().contains(q) ||
             a.description.toLowerCase().contains(q) ||
@@ -248,12 +150,59 @@ class MagazineRepository {
         .toList();
   }
 
+  // ── Student Gallery (stub — see file header) ────────────────────────────
+
+  Stream<List<MagazineGalleryPost>> watchGalleryPosts({int limit = 20}) => Stream.value(const []);
+
+  Future<Result<String>> createGalleryPost(MagazineGalleryPost post) async =>
+      const Failure('Photo posts aren\'t available yet.', null);
+
+  Future<Result<void>> setGalleryImages(String postId, List<String> imageUrls) async =>
+      const Failure('Photo posts aren\'t available yet.', null);
+
+  Future<Result<String>> uploadGalleryImage({required String postId, required int index, required File file}) async =>
+      const Failure('Photo posts aren\'t available yet.', null);
+
+  Future<Result<void>> toggleGalleryLike(String postId, String userId) async =>
+      const Failure('Photo posts aren\'t available yet.', null);
+
+  Stream<bool> watchIsGalleryLiked(String postId, String userId) => Stream.value(false);
+
+  // ── Latest Videos (stub — see file header) ──────────────────────────────
+
+  Stream<List<MagazineVideoPost>> watchVideoPosts({int limit = 20}) => Stream.value(const []);
+
+  Future<Result<String>> createVideoPost(MagazineVideoPost post) async =>
+      const Failure('Video posts aren\'t available yet.', null);
+
+  Future<Result<String>> uploadVideoFile({required String postId, required File file}) async =>
+      const Failure('Video posts aren\'t available yet.', null);
+
+  Future<Result<String>> uploadVideoThumbnail({required String postId, required File file}) async =>
+      const Failure('Video posts aren\'t available yet.', null);
+
+  Future<Result<void>> setVideoUrls(String postId, {required String videoUrl, String? thumbnailUrl}) async =>
+      const Failure('Video posts aren\'t available yet.', null);
+
+  Future<void> incrementVideoViews(String postId) async {} // best-effort no-op, nothing to increment yet
+
+  Stream<List<MagazineArticle>> watchByAuthor(String authorId) => _articles
+      .stream(primaryKey: ['id'])
+      .eq('author_id', authorId)
+      .order('created_at', ascending: false)
+      .map((rows) => rows.map(MagazineArticle.fromSupabase).toList());
+
+  Future<MagazineArticle?> getById(String id) async {
+    final row = await _articles.select().eq('id', id).maybeSingle();
+    return row != null ? MagazineArticle.fromSupabase(row) : null;
+  }
+
   // ── Publish / edit / delete ─────────────────────────────────────────────
 
   Future<Result<String>> publish(MagazineArticle article) async {
     try {
-      final ref = await _articles.add(article.toFirestore());
-      return Success(ref.id);
+      final row = await _articles.insert(article.toSupabase()).select('id').single();
+      return Success(row['id'] as String);
     } catch (e) {
       return Failure('Failed to publish article', e);
     }
@@ -261,7 +210,7 @@ class MagazineRepository {
 
   Future<Result<void>> update(MagazineArticle article) async {
     try {
-      await _articles.doc(article.id).set(article.toFirestore(), SetOptions(merge: true));
+      await _articles.update(article.toSupabase()).eq('id', article.id);
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update article', e);
@@ -270,7 +219,7 @@ class MagazineRepository {
 
   Future<Result<void>> delete(String id) async {
     try {
-      await _articles.doc(id).delete();
+      await _articles.delete().eq('id', id);
       return const Success(null);
     } catch (e) {
       return Failure('Failed to delete article', e);
@@ -282,9 +231,9 @@ class MagazineRepository {
     required File imageFile,
   }) async {
     try {
-      final ref = FirebaseStorage.instance.ref('article_thumbnails/$articleId.jpg');
-      await ref.putFile(imageFile);
-      return Success(await ref.getDownloadURL());
+      final path = 'magazine_thumbnails/$articleId.jpg';
+      await _db.storage.from(_bucket).upload(path, imageFile, fileOptions: const FileOptions(upsert: true));
+      return Success(_db.storage.from(_bucket).getPublicUrl(path));
     } catch (e) {
       return Failure('Failed to upload thumbnail', e);
     }
@@ -292,21 +241,24 @@ class MagazineRepository {
 
   // ── Comments ───────────────────────────────────────────────────────────
 
-  Stream<List<ArticleComment>> watchComments(String articleId) => _articles
-      .doc(articleId)
-      .collection('comments')
-      .orderBy('createdAt')
-      .snapshots()
-      .map((s) => s.docs.map((d) => ArticleComment.fromFirestore(d, articleId)).toList());
+  Stream<List<ArticleComment>> watchComments(String articleId) => _db
+      .from('article_comments')
+      .stream(primaryKey: ['id'])
+      .eq('article_id', articleId)
+      .order('created_at')
+      .map((rows) => rows.map(ArticleComment.fromSupabase).toList());
 
   Future<Result<void>> postComment(ArticleComment comment) async {
     try {
-      final batch = _db.batch();
-      final ref = _articles.doc(comment.articleId).collection('comments').doc();
-      batch.set(ref, comment.toFirestore());
-      batch.update(_articles.doc(comment.articleId), {'commentCount': FieldValue.increment(1)});
-      await batch.commit();
-      unawaited(settleMagazineXpIfDue(comment.articleId));
+      await _db.rpc('post_article_comment', params: {
+        'p_article_id': comment.articleId,
+        'p_author_id': comment.authorId,
+        'p_author_name': comment.authorName,
+        'p_author_photo_url': comment.authorPhotoUrl,
+        'p_parent_comment_id': comment.parentCommentId,
+        'p_body': comment.body,
+      });
+      await settleMagazineXpIfDue(comment.articleId);
       return const Success(null);
     } catch (e) {
       return Failure('Failed to post comment', e);
@@ -314,10 +266,10 @@ class MagazineRepository {
   }
 
   // ── Reads, shares -> engagement counters ────────────────────────────────
-  // production_plan.md §4.5: author XP is NOT credited per-event anymore.
-  // recordRead/recordShare (and toggleLike/postComment below) only ever
-  // increment raw counters; the actual XP is computed ONCE, 24h after
-  // publish, from the plan's formula — see settleMagazineXpIfDue().
+  // production_plan.md §4.5: author XP is NOT credited per-event. record*
+  // below only ever increments raw counters; the actual XP is computed
+  // ONCE, no earlier than 24h after publish, from the plan's formula —
+  // see settleMagazineXpIfDue().
 
   Future<Result<void>> recordRead(String articleId, {
     required String? readerId,
@@ -327,14 +279,8 @@ class MagazineRepository {
       return const Success(null); // guests don't earn/track reads
     }
     try {
-      final readRef = _articles.doc(articleId).collection('reads').doc(readerId);
-      await _db.runTransaction((tx) async {
-        final readDoc = await tx.get(readRef);
-        if (readDoc.exists) return; // already read by this person — no-op
-        tx.set(readRef, {'readAt': FieldValue.serverTimestamp()});
-        tx.update(_articles.doc(articleId), {'readCount': FieldValue.increment(1)});
-      });
-      unawaited(settleMagazineXpIfDue(articleId));
+      await _db.rpc('record_article_read', params: {'p_article_id': articleId, 'p_reader_id': readerId});
+      await settleMagazineXpIfDue(articleId);
       return const Success(null);
     } catch (e) {
       return Failure('Failed to record read', e);
@@ -346,14 +292,8 @@ class MagazineRepository {
   Future<Result<void>> recordShare(String articleId, String userId) async {
     if (userId.isEmpty) return const Success(null); // guests don't earn/track shares
     try {
-      final shareRef = _articles.doc(articleId).collection('shares').doc(userId);
-      await _db.runTransaction((tx) async {
-        final shareDoc = await tx.get(shareRef);
-        if (shareDoc.exists) return;
-        tx.set(shareRef, {'sharedAt': FieldValue.serverTimestamp()});
-        tx.update(_articles.doc(articleId), {'shareCount': FieldValue.increment(1)});
-      });
-      unawaited(settleMagazineXpIfDue(articleId));
+      await _db.rpc('record_article_share', params: {'p_article_id': articleId});
+      await settleMagazineXpIfDue(articleId);
       return const Success(null);
     } catch (e) {
       return Failure('Failed to record share', e);
@@ -363,39 +303,21 @@ class MagazineRepository {
   /// production_plan.md §4.5's formula, run exactly once per article, no
   /// earlier than 24h after publish: XP = (views/50) + (likes*2) +
   /// (comments*5) + (shares*4), capped at [kMagazinePerPostXpCap]. There's
-  /// no Cloud Scheduler in this project to fire this automatically at the
-  /// 24h mark, so it's checked opportunistically as a side effect of any
-  /// reader interaction with the article (read/share here, like/comment
-  /// below) — eventually-consistent (an article nobody touches again
-  /// after the 24h mark simply settles the next time anyone does), and
-  /// safe to call redundantly: the transaction's `magazineXpSettled`
-  /// check makes it a no-op after the first successful run.
+  /// no Cloud Scheduler / pg_cron job wired up to fire this automatically
+  /// at the 24h mark, so it's checked opportunistically as a side effect
+  /// of any reader interaction with the article (read/share/comment/like)
+  /// — eventually-consistent, and safe to call redundantly: the RPC's own
+  /// `magazine_xp_settled` check (under a row lock) makes it a no-op after
+  /// the first successful run.
   Future<void> settleMagazineXpIfDue(String articleId) async {
     try {
-      int? amountToAward;
-      String? authorId;
-      await _db.runTransaction((tx) async {
-        final snap = await tx.get(_articles.doc(articleId));
-        if (!snap.exists) return;
-        final article = MagazineArticle.fromFirestore(snap);
-        if (article.magazineXpSettled) return;
-        if (DateTime.now().difference(article.createdAt) < const Duration(hours: 24)) return;
-
-        final raw = (article.readCount / 50) +
-            (article.likeCount * 2) +
-            (article.commentCount * 5) +
-            (article.shareCount * 4);
-        final amount = raw.round().clamp(0, kMagazinePerPostXpCap);
-        tx.update(_articles.doc(articleId), {'magazineXpSettled': true});
-        if (amount > 0) {
-          amountToAward = amount;
-          authorId = article.authorId;
-        }
-      });
-      if (amountToAward != null && authorId != null && authorId!.isNotEmpty) {
-        await XpRepository.instance.awardXp(
-          authorId!, XpSource.magazineRead, amountToAward!, articleId: articleId,
-        );
+      final rows = await _db.rpc('settle_magazine_xp_if_due', params: {'p_article_id': articleId}) as List;
+      if (rows.isEmpty) return;
+      final result = rows.first as Map<String, dynamic>;
+      final authorId = result['out_author_id'] as String?;
+      final amount = (result['out_amount'] as num?)?.toInt() ?? 0;
+      if (authorId != null && authorId.isNotEmpty && amount > 0) {
+        await XpRepository.instance.awardXp(authorId, XpSource.magazineRead, amount, articleId: articleId);
       }
     } catch (_) {
       // best-effort — the next interaction with this article will retry
@@ -408,12 +330,13 @@ class MagazineRepository {
   /// to trigger settleMagazineXpIfDue() as a side effect.
   Future<void> settlePendingXp(String userId) async {
     if (userId.isEmpty) return;
-    final snap = await _articles
-        .where('authorId', isEqualTo: userId)
-        .where('magazineXpSettled', isEqualTo: false)
-        .get();
-    for (final doc in snap.docs) {
-      await settleMagazineXpIfDue(doc.id);
+    try {
+      final rows = await _articles.select('id').eq('author_id', userId).eq('magazine_xp_settled', false);
+      for (final row in rows) {
+        await settleMagazineXpIfDue(row['id'] as String);
+      }
+    } catch (_) {
+      // best-effort, same policy as the rest of this settlement pipeline
     }
   }
 
@@ -422,16 +345,8 @@ class MagazineRepository {
   Future<Result<void>> toggleLike(String articleId, String userId) async {
     if (userId.isEmpty) return const Failure('Sign in to like articles.', null);
     try {
-      final likeRef = _articles.doc(articleId).collection('likes').doc(userId);
-      final exists = (await likeRef.get()).exists;
-      if (exists) {
-        await likeRef.delete();
-        await _articles.doc(articleId).update({'likeCount': FieldValue.increment(-1)});
-      } else {
-        await likeRef.set({'likedAt': FieldValue.serverTimestamp()});
-        await _articles.doc(articleId).update({'likeCount': FieldValue.increment(1)});
-      }
-      unawaited(settleMagazineXpIfDue(articleId));
+      await _db.rpc('toggle_article_like', params: {'p_article_id': articleId});
+      await settleMagazineXpIfDue(articleId);
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update like', e);
@@ -440,22 +355,19 @@ class MagazineRepository {
 
   Stream<bool> watchIsLiked(String articleId, String userId) {
     if (userId.isEmpty) return Stream.value(false);
-    return _articles.doc(articleId).collection('likes').doc(userId)
-        .snapshots().map((d) => d.exists);
+    return _db
+        .from('article_likes')
+        .stream(primaryKey: ['article_id', 'user_id'])
+        .eq('article_id', articleId)
+        .map((rows) => rows.any((r) => r['user_id'] == userId));
   }
 
-  // ── Bookmarks (stored per-user for easy "My Bookmarks" queries) ────────
+  // ── Bookmarks ────────────────────────────────────────────────────────────
 
   Future<Result<void>> toggleBookmark(String articleId, String userId) async {
     if (userId.isEmpty) return const Failure('Sign in to bookmark articles.', null);
     try {
-      final ref = _db.collection('users').doc(userId).collection('bookmarks').doc(articleId);
-      final exists = (await ref.get()).exists;
-      if (exists) {
-        await ref.delete();
-      } else {
-        await ref.set({'savedAt': FieldValue.serverTimestamp()});
-      }
+      await _db.rpc('toggle_article_bookmark', params: {'p_article_id': articleId});
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update bookmark', e);
@@ -464,39 +376,44 @@ class MagazineRepository {
 
   Stream<bool> watchIsBookmarked(String articleId, String userId) {
     if (userId.isEmpty) return Stream.value(false);
-    return _db.collection('users').doc(userId).collection('bookmarks').doc(articleId)
-        .snapshots().map((d) => d.exists);
+    return _db
+        .from('article_bookmarks')
+        .stream(primaryKey: ['article_id', 'user_id'])
+        .eq('article_id', articleId)
+        .map((rows) => rows.any((r) => r['user_id'] == userId));
   }
 
   /// Live list of the user's bookmarked articles, newest-saved first.
   Stream<List<MagazineArticle>> watchBookmarkedArticles(String userId) {
     if (userId.isEmpty) return Stream.value(const []);
     return _db
-        .collection('users').doc(userId).collection('bookmarks')
-        .orderBy('savedAt', descending: true)
-        .snapshots()
-        .asyncMap((snap) async {
-      if (snap.docs.isEmpty) return <MagazineArticle>[];
-      final articles = await Future.wait(snap.docs.map((d) => _articles.doc(d.id).get()));
-      return articles.where((a) => a.exists).map(MagazineArticle.fromFirestore).toList();
+        .from('article_bookmarks')
+        .stream(primaryKey: ['article_id', 'user_id'])
+        .eq('user_id', userId)
+        .order('created_at', ascending: false)
+        .asyncMap((rows) async {
+      if (rows.isEmpty) return <MagazineArticle>[];
+      final ids = rows.map((r) => r['article_id'] as String).toList();
+      final articles = await _articles.select().inFilter('id', ids);
+      final byId = {for (final a in articles) a['id'] as String: a};
+      return ids.where(byId.containsKey).map((id) => MagazineArticle.fromSupabase(byId[id]!)).toList();
     });
   }
 
   // ── Top Writers leaderboard ─────────────────────────────────────────────
   // score = (reads * 0.4) + (comments * 0.6). Aggregated client-side over
-  // recent articles; fine at this scale, revisit with a scheduled Cloud
-  // Function aggregate if the magazine grows large.
+  // recent articles; fine at this scale.
 
   Future<List<TopWriterEntry>> topWriters({int articleSampleSize = 200}) async {
-    final snap = await _articles
-        .where('published', isEqualTo: true)
-        .orderBy('createdAt', descending: true)
-        .limit(articleSampleSize)
-        .get();
+    final rows = await _articles
+        .select()
+        .eq('published', true)
+        .order('created_at', ascending: false)
+        .limit(articleSampleSize);
 
     final byAuthor = <String, ({String name, String? photo, int reads, int comments})>{};
-    for (final doc in snap.docs) {
-      final a = MagazineArticle.fromFirestore(doc);
+    for (final row in rows) {
+      final a = MagazineArticle.fromSupabase(row);
       final existing = byAuthor[a.authorId];
       byAuthor[a.authorId] = (
         name: a.authorName,

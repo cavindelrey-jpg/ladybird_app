@@ -43,8 +43,6 @@
 // instead. Flagging this rather than quietly leaving two numbers that
 // can drift apart.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum XpTransactionType { earn, spend }
 
 // magazineRead: earned by an ARTICLE'S AUTHOR (not the reader) each time
@@ -145,14 +143,12 @@ const int kMagazineReadXp = 2;
 /// formula-based settlement (views/50 + likes*2 + comments*5 + shares*4).
 const int kMagazinePerPostXpCap = 80;
 
-/// The plan's separate 100XP/day magazine allowance is NOT enforced as
-/// its own tracked pool yet — magazine settlements currently draw from
-/// the same shared kDailyXpCap every other XP source does. Building a
-/// real per-category daily-cap system (this, plus §4.4's per-level quiz
-/// caps) was deliberately deferred as one larger, riskier restructuring
-/// of XpRepository.awardXp() rather than two separate half-measures —
-/// see docs/AUTOPILOT_LOG.md. This constant exists so the intended value
-/// is at least written down and easy to find when that work happens.
+/// The plan's separate 100XP/day magazine allowance is enforced server-side
+/// in the award_xp() RPC (see
+/// supabase/migrations/20260829420000_award_xp_category_caps.sql), on top
+/// of (never instead of) the shared kDailyXpCap every other source draws
+/// from. Mirrored here as a constant so the intended value is easy to find
+/// from the client side too — keep both in sync if it ever changes.
 const int kMagazineDailyXpCap = 100;
 
 class XpTransaction {
@@ -183,35 +179,23 @@ class XpTransaction {
     required this.timestamp,
   });
 
-  factory XpTransaction.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
+  factory XpTransaction.fromSupabase(Map<String, dynamic> d) {
     return XpTransaction(
-      id: doc.id,
-      userId: d['userId'] ?? '',
+      id: d['id'] as String,
+      userId: d['user_id'] ?? '',
       type: XpTransactionType.values.firstWhere(
           (t) => t.name == d['type'], orElse: () => XpTransactionType.earn),
       source: XpSource.values.firstWhere(
-          (s) => _sourceKey(s) == d['source'], orElse: () => XpSource.mcq),
+          (s) => sourceKey(s) == d['source'], orElse: () => XpSource.mcq),
       amount: (d['amount'] as num?)?.toInt() ?? 0,
-      paperId: d['paperId'],
-      articleId: d['articleId'],
-      refId: d['refId'],
-      timestamp: (d['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      paperId: d['paper_id'],
+      articleId: d['article_id'],
+      refId: d['ref_id'],
+      timestamp: DateTime.tryParse(d['occurred_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
-        'userId': userId,
-        'type': type.name,
-        'source': _sourceKey(source),
-        'amount': amount,
-        'paperId': paperId,
-        'articleId': articleId,
-        'refId': refId,
-        'timestamp': Timestamp.fromDate(timestamp),
-      };
-
-  static String _sourceKey(XpSource s) {
+  static String sourceKey(XpSource s) {
     switch (s) {
       case XpSource.mcq:             return 'mcq';
       case XpSource.structural:      return 'structural';
@@ -246,21 +230,13 @@ class UnlockedPaper {
 
   String get docId => '${userId}_$paperId';
 
-  factory UnlockedPaper.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
+  factory UnlockedPaper.fromSupabase(Map<String, dynamic> d) {
     return UnlockedPaper(
-      userId: d['userId'] ?? '',
-      paperId: d['paperId'] ?? '',
-      unlockedVia: (d['unlockedVia'] == 'paid_subscription')
+      userId: d['user_id'] ?? '',
+      paperId: d['paper_id'] ?? '',
+      unlockedVia: (d['unlocked_via'] == 'paid_subscription')
           ? UnlockedVia.paidSubscription : UnlockedVia.xp,
-      unlockedAt: (d['unlockedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      unlockedAt: DateTime.tryParse(d['unlocked_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
-
-  Map<String, dynamic> toFirestore() => {
-        'userId': userId,
-        'paperId': paperId,
-        'unlockedVia': unlockedVia == UnlockedVia.paidSubscription ? 'paid_subscription' : 'xp',
-        'unlockedAt': Timestamp.fromDate(unlockedAt),
-      };
 }

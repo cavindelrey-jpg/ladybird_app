@@ -4,12 +4,11 @@
 // Logs to Firestore audit trail + console + real Firebase Analytics/Crashlytics.
 // Requires firebase_analytics and firebase_crashlytics in pubspec.yaml.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_user.dart';
-import '../core/constants.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Analytics Events
@@ -91,7 +90,7 @@ class AnalyticsService {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Audit Log — persisted to Firestore
+// Audit Log — persisted to Supabase (public.audit_log_entries)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Severity level for audit entries.
@@ -101,14 +100,26 @@ class AuditService {
   AuditService._();
   static final AuditService instance = AuditService._();
 
-  final _db = FirebaseFirestore.instance;
-
-  /// Write an audit entry to Firestore.
-  /// Collection: `audit_logs/{institutionId}/{entryId}`
+  /// Write an audit entry.
+  ///
+  /// [institutionId] and [actorId] are nullable uuid FKs on
+  /// `audit_log_entries` (see academia-cameroon's
+  /// 20260829120000_extended_schema.sql) — pass null rather than a
+  /// sentinel string like the old Firestore 'platform' bucket for
+  /// schoolless accounts, and null for [actorId] when the account isn't
+  /// known yet (e.g. a failed login before any uid exists); put anything
+  /// identifying in [metadata] instead (see auth_service.dart's
+  /// login_failed call, which records the attempted email there).
+  ///
+  /// RLS requires `auth.uid() is not null` to insert, same restriction
+  /// the original Firestore rule had (`allow create: if isSignedIn()`) —
+  /// an audit call made before any session exists (wrong-password on
+  /// sign-in) is a no-op under both, not a regression.
+  ///
   /// Falls back silently on failure — never throws.
   Future<void> log({
-    required String institutionId,
-    required String actorId,
+    String? institutionId,
+    String? actorId,
     required String actorRole,
     required String action,
     String? targetId,
@@ -117,24 +128,16 @@ class AuditService {
     AuditSeverity severity = AuditSeverity.info,
   }) async {
     try {
-      final entry = {
-        'institutionId': institutionId,
-        'actorId': actorId,
-        'actorRole': actorRole,
+      await Supabase.instance.client.from('audit_log_entries').insert({
+        'institution_id': institutionId,
+        'actor_id': actorId,
+        'actor_role': actorRole,
         'action': action,
-        'targetId': targetId,
-        'targetType': targetType,
+        'target_id': targetId,
+        'target_type': targetType,
         'metadata': metadata,
         'severity': severity.name,
-        'timestamp': FieldValue.serverTimestamp(),
-        'timestampIso': DateTime.now().toIso8601String(),
-      };
-
-      await _db
-          .collection(AppConstants.colAuditLogs)
-          .doc(institutionId)
-          .collection('entries')
-          .add(entry);
+      });
 
       debugPrint('[Audit] $severity | $actorRole $actorId → $action'
           '${targetId != null ? " ($targetType: $targetId)" : ""}');

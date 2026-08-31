@@ -60,7 +60,7 @@ class _ComposeAnnouncementPageState extends State<ComposeAnnouncementPage> {
     // A real id is needed BEFORE the image upload so the file can be
     // keyed to it (and so publish still works cleanly with no photo
     // attached, in which case the empty-id add() path below is used).
-    final id = _pickedImage != null ? repo.newId(widget.user.schoolId) : '';
+    final id = _pickedImage != null ? repo.newId() : '';
     String? imageUrl;
     if (_pickedImage != null) {
       setState(() => _uploadingImage = true);

@@ -19,13 +19,14 @@ dependencies:
   http: ^1.2.1
 
   # Firebase Ecosystem (NDK 27 compatible)
+  # Auth/Firestore/Storage/Functions migrated to Supabase — see
+  # supabase_flutter below. Kept for Analytics/Crashlytics only.
   firebase_core: ^3.6.0
-  firebase_auth: ^5.3.1
-  cloud_firestore: ^5.4.4
-  firebase_storage: ^12.3.2
-  cloud_functions: ^5.1.3
   firebase_analytics: ^11.3.3
   firebase_crashlytics: ^4.1.3
+
+  # Supabase (replaces firebase_auth, cloud_firestore, firebase_storage, cloud_functions)
+  supabase_flutter: ^2.8.0
 
   # UI, Styling & Icons
   cupertino_icons: ^1.0.8

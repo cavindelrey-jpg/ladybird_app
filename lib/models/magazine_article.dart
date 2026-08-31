@@ -10,7 +10,6 @@
 //            articles/{articleId}/likes/{uid}
 //            users/{uid}/bookmarks/{articleId}
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Predefined categories shown in the composer's picker.
 const List<String> kArticleCategories = [
@@ -52,9 +51,9 @@ class MagazineArticle {
 
   /// DEPRECATED — the old flat "2 XP per unique read, credited whenever
   /// the author's session next runs settlePendingXp()" mechanism. Kept on
-  /// the model so old documents still deserialize; nothing new writes to
-  /// it. Replaced by production_plan.md §4.5's formula-based, 24h-
-  /// delayed, once-per-article settlement — see [magazineXpSettled] and
+  /// the model so old rows still deserialize; nothing new writes to it.
+  /// Replaced by production_plan.md §4.5's formula-based, 24h-delayed,
+  /// once-per-article settlement — see [magazineXpSettled] and
   /// MagazineRepository.settleMagazineXpIfDue().
   int pendingAuthorXp;
 
@@ -112,56 +111,55 @@ class MagazineArticle {
         published: false,
       );
 
-  factory MagazineArticle.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
+  factory MagazineArticle.fromSupabase(Map<String, dynamic> d) {
     return MagazineArticle(
-      id: doc.id,
-      authorId: d['authorId'] ?? '',
-      authorName: d['authorName'] ?? 'Unknown',
-      authorPhotoUrl: d['authorPhotoUrl'],
-      schoolId: d['schoolId'],
+      id: d['id'] as String,
+      authorId: d['author_id'] ?? '',
+      authorName: d['author_name'] ?? 'Unknown',
+      authorPhotoUrl: d['author_photo_url'],
+      schoolId: d['institution_id'],
       title: d['title'] ?? '',
       description: d['description'] ?? '',
       body: d['body'] ?? '',
-      bodyDelta: d['bodyDelta'] ?? '',
+      bodyDelta: d['body_delta'] ?? '',
       category: d['category'] ?? 'Other',
       tags: List<String>.from(d['tags'] ?? []),
-      thumbnailUrl: d['thumbnailUrl'],
+      thumbnailUrl: d['thumbnail_url'],
       featured: d['featured'] ?? false,
-      readCount: (d['readCount'] as num?)?.toInt() ?? 0,
-      commentCount: (d['commentCount'] as num?)?.toInt() ?? 0,
-      likeCount: (d['likeCount'] as num?)?.toInt() ?? 0,
-      shareCount: (d['shareCount'] as num?)?.toInt() ?? 0,
-      pendingAuthorXp: (d['pendingAuthorXp'] as num?)?.toInt() ?? 0,
-      magazineXpSettled: d['magazineXpSettled'] ?? false,
+      readCount: (d['read_count'] as num?)?.toInt() ?? 0,
+      commentCount: (d['comment_count'] as num?)?.toInt() ?? 0,
+      likeCount: (d['like_count'] as num?)?.toInt() ?? 0,
+      shareCount: (d['share_count'] as num?)?.toInt() ?? 0,
+      pendingAuthorXp: (d['pending_author_xp'] as num?)?.toInt() ?? 0,
+      magazineXpSettled: d['magazine_xp_settled'] ?? false,
       published: d['published'] ?? true,
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(d['updated_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
-        'authorId': authorId,
-        'authorName': authorName,
-        'authorPhotoUrl': authorPhotoUrl,
-        'schoolId': schoolId,
+  Map<String, dynamic> toSupabase() => {
+        'author_id': authorId.isEmpty ? null : authorId,
+        'author_name': authorName,
+        'author_photo_url': authorPhotoUrl,
+        'institution_id': schoolId,
         'title': title,
         'description': description,
         'body': body,
-        'bodyDelta': bodyDelta,
+        'body_delta': bodyDelta,
         'category': category,
         'tags': tags,
-        'thumbnailUrl': thumbnailUrl,
+        'thumbnail_url': thumbnailUrl,
         'featured': featured,
-        'readCount': readCount,
-        'commentCount': commentCount,
-        'likeCount': likeCount,
-        'shareCount': shareCount,
-        'pendingAuthorXp': pendingAuthorXp,
-        'magazineXpSettled': magazineXpSettled,
+        'read_count': readCount,
+        'comment_count': commentCount,
+        'like_count': likeCount,
+        'share_count': shareCount,
+        'pending_author_xp': pendingAuthorXp,
+        'magazine_xp_settled': magazineXpSettled,
         'published': published,
-        'createdAt': Timestamp.fromDate(createdAt),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'created_at': createdAt.toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
       };
 }
 
@@ -186,29 +184,18 @@ class ArticleComment {
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  factory ArticleComment.fromFirestore(
-      DocumentSnapshot<Map<String, dynamic>> doc, String articleId) {
-    final d = doc.data() ?? {};
+  factory ArticleComment.fromSupabase(Map<String, dynamic> d) {
     return ArticleComment(
-      id: doc.id,
-      articleId: articleId,
-      authorId: d['authorId'] ?? '',
-      authorName: d['authorName'] ?? 'Unknown',
-      authorPhotoUrl: d['authorPhotoUrl'],
-      parentCommentId: d['parentCommentId'],
+      id: d['id'] as String,
+      articleId: d['article_id'] as String,
+      authorId: d['author_id'] ?? '',
+      authorName: d['author_name'] ?? 'Unknown',
+      authorPhotoUrl: d['author_photo_url'],
+      parentCommentId: d['parent_comment_id'],
       body: d['body'] ?? '',
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
-
-  Map<String, dynamic> toFirestore() => {
-        'authorId': authorId,
-        'authorName': authorName,
-        'authorPhotoUrl': authorPhotoUrl,
-        'parentCommentId': parentCommentId,
-        'body': body,
-        'createdAt': Timestamp.fromDate(createdAt),
-      };
 }
 
 /// One row in Home's "Top Writers" leaderboard.

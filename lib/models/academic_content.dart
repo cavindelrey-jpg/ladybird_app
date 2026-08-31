@@ -1,7 +1,9 @@
 // lib/models/academic_content.dart
 // Replaces LibraryItem. Unified model for all academic content types.
-
-import 'package:cloud_firestore/cloud_firestore.dart';
+// Backs the real Library tab (see AcademicContentRepository) — LibraryItem
+// (models/library_item.dart) is the actually-dead one, despite the
+// comment above having it backwards; see supabase/migrations/
+// 20260829180000_academic_content.sql for the correction.
 
 enum ContentType {
   note,
@@ -91,11 +93,11 @@ class AcademicContent {
   final String? fileUrl;
   final ContentType contentType;
   final String subject;
-  /// Level/Class — one of [kAcademicLevels], or '' for older docs uploaded
+  /// Level/Class — one of [kAcademicLevels], or '' for older rows uploaded
   /// before this field existed (treated as "unspecified", not a bug).
   final String level;
   /// Exam series — one of [kExamBoards], or '' for content this doesn't
-  /// apply to / older docs uploaded before this field existed.
+  /// apply to / older rows uploaded before this field existed.
   final String examBoard;
   /// Exam/publication year, e.g. 2024. Null when not applicable/unknown.
   final int? year;
@@ -129,50 +131,49 @@ class AcademicContent {
     this.downloads = 0,
   });
 
-  factory AcademicContent.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>? ?? {};
-    final typeStr = d['contentType'] as String? ?? 'note';
-    final ts = d['uploadDate'];
+  factory AcademicContent.fromSupabase(Map<String, dynamic> d) {
+    final typeStr = d['content_type'] as String? ?? 'note';
     return AcademicContent(
-      id: doc.id,
+      id: d['id'] as String,
       title: d['title'] ?? 'Untitled',
       description: d['description'] ?? '',
-      thumbnailUrl: d['thumbnailUrl'],
-      fileUrl: d['fileUrl'],
+      thumbnailUrl: d['thumbnail_url'],
+      fileUrl: d['file_url'],
       contentType: ContentType.values.firstWhere(
         (t) => t.name == typeStr, orElse: () => ContentType.note),
       subject: d['subject'] ?? '',
       level: d['level'] ?? '',
-      examBoard: d['examBoard'] ?? '',
+      examBoard: d['exam_board'] ?? '',
       year: (d['year'] as num?)?.toInt(),
-      institutionId: d['institutionId'] ?? '',
-      uploadedBy: d['uploadedBy'] ?? '',
-      uploaderName: d['uploaderName'] ?? 'Unknown',
-      fileSizeBytes: (d['fileSizeBytes'] as num?)?.toInt(),
-      uploadDate: ts is Timestamp
-          ? ts.toDate()
-          : DateTime.tryParse(ts?.toString() ?? '') ?? DateTime.now(),
+      institutionId: d['institution_id'] ?? '',
+      uploadedBy: d['uploaded_by'] ?? '',
+      uploaderName: d['uploader_name'] ?? 'Unknown',
+      fileSizeBytes: (d['file_size_bytes'] as num?)?.toInt(),
+      uploadDate: DateTime.tryParse(d['upload_date']?.toString() ?? '') ?? DateTime.now(),
       tags: List<String>.from(d['tags'] ?? []),
       views: (d['views'] as num?)?.toInt() ?? 0,
       downloads: (d['downloads'] as num?)?.toInt() ?? 0,
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
+  Map<String, dynamic> toSupabase() => {
     'title': title,
     'description': description,
-    'thumbnailUrl': thumbnailUrl,
-    'fileUrl': fileUrl,
-    'contentType': contentType.name,
+    'thumbnail_url': thumbnailUrl,
+    'file_url': fileUrl,
+    'content_type': contentType.name,
     'subject': subject,
     'level': level,
-    'examBoard': examBoard,
+    'exam_board': examBoard,
     'year': year,
-    'institutionId': institutionId,
-    'uploadedBy': uploadedBy,
-    'uploaderName': uploaderName,
-    'fileSizeBytes': fileSizeBytes,
-    'uploadDate': Timestamp.fromDate(uploadDate),
+    // institutionId is sometimes the 'independent' sentinel (see
+    // Institution.independentDefault) rather than a real institutions.id
+    // uuid — only pass through values that look like one.
+    'institution_id': RegExp(r'^[0-9a-f-]{36}$').hasMatch(institutionId) ? institutionId : null,
+    'uploaded_by': uploadedBy.isEmpty ? null : uploadedBy,
+    'uploader_name': uploaderName,
+    'file_size_bytes': fileSizeBytes,
+    'upload_date': uploadDate.toIso8601String(),
     'tags': tags,
     'views': views,
     'downloads': downloads,

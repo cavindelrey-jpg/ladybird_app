@@ -371,6 +371,100 @@ class AppUser {
         orElse: () => UserRole.student);
   }
 
+  /// Supabase equivalent of fromFirestore — reads a row from `public.users`
+  /// (see academia-cameroon's supabase/migrations — same shared table,
+  /// plus 20260829360000_users_entitlement_school_columns.sql for the
+  /// entitlement/school-membership columns this app adds on top).
+  factory AppUser.fromSupabase(Map<String, dynamic> d) => AppUser(
+    id: d['id'] as String,
+    name: d['name'] ?? '',
+    email: d['email'] ?? '',
+    photoUrl: d['photo_url'],
+    role: _parseRole(d['role']),
+    roleName: d['role_name'] ?? '',
+    accountType: AccountType.values.firstWhere(
+        (a) => a.name == d['account_type'], orElse: () => AccountType.independent),
+    status: AccountStatus.values.firstWhere(
+        (s) => s.name == d['status'], orElse: () => AccountStatus.active),
+    schoolId: d['institution_id'],
+    serialNumber: d['serial_number'],
+    departmentId: d['department_id'],
+    classLevel: d['class_level'] ?? '',
+    subject: d['subject'],
+    courseIds: List<String>.from(d['course_ids'] ?? []),
+    isFirstLogin: d['is_first_login'] ?? false,
+    adminAccessRevoked: d['admin_access_revoked'] ?? false,
+    isPremium: d['is_premium'] ?? false,
+    entitlement: Entitlement(
+      tier: EntitlementTier.values.firstWhere(
+          (t) => t.name == d['entitlement_tier'], orElse: () => EntitlementTier.free),
+      source: EntitlementSource.values.firstWhere(
+          (s) => s.name == d['entitlement_source'], orElse: () => EntitlementSource.none),
+      startAt: _dt(d['entitlement_start_at']),
+      expiresAt: _dt(d['entitlement_expires_at']),
+      sourceRef: d['entitlement_source_ref'],
+    ),
+    bio: d['bio'] ?? '',
+    educationLevel: d['education_level'] ?? '',
+    favoriteSubjects: List<String>.from(d['favorite_subjects'] ?? []),
+    quickAccessUsage: Map<String, int>.from(d['quick_access_usage'] ?? {}),
+    xpTotal: (d['xp_total'] as num?)?.toInt() ?? 0,
+    streakDays: (d['streak_days'] as num?)?.toInt() ?? 0,
+    lastActiveDate: d['last_active_date'],
+    weekActivityDates: List<String>.from(d['week_activity_dates'] ?? []),
+    continueReadingItemId: d['continue_reading_item_id'],
+    continueReadingTitle: d['continue_reading_title'],
+    continueReadingPage: (d['continue_reading_page'] as num?)?.toInt() ?? 1,
+    continueReadingTotalPages: (d['continue_reading_total_pages'] as num?)?.toInt(),
+    schoolRole: SchoolRoleX.fromName(d['school_role']?.toString() ?? ''),
+    teachingAssignments: (d['teaching_assignments'] as List<dynamic>? ?? [])
+        .map((m) => TeachingAssignment.fromMap(Map<String, dynamic>.from(m as Map)))
+        .toList(),
+    classMasterOfClass: d['class_master_of_class'],
+    schoolVoucherRef: d['school_voucher_ref'],
+  );
+
+  static DateTime? _dt(dynamic v) => v == null ? null : DateTime.tryParse(v.toString());
+
+  /// Supabase equivalent of toFirestore — a partial row suitable for
+  /// `.upsert()`/`.update()` against `public.users`. `id` is intentionally
+  /// excluded (it's the auth.users FK, set once at signup, never rewritten).
+  Map<String, dynamic> toSupabase() => {
+    'name': name, 'email': email, 'photo_url': photoUrl,
+    'role': role.name, 'role_name': roleName,
+    'account_type': accountType.name, 'status': status.name,
+    'institution_id': schoolId, 'serial_number': serialNumber, 'department_id': departmentId,
+    'class_level': classLevel, 'subject': subject,
+    'course_ids': courseIds,
+    'is_first_login': isFirstLogin,
+    'admin_access_revoked': adminAccessRevoked,
+    // Written as the DERIVED value, so the legacy column stays a truthful
+    // mirror of the entitlement for anything still reading it. The
+    // entitlement_* columns below are the source of truth.
+    'is_premium': isPremium,
+    'entitlement_tier': entitlement.tier.name,
+    'entitlement_source': entitlement.source.name,
+    'entitlement_start_at': entitlement.startAt?.toIso8601String(),
+    'entitlement_expires_at': entitlement.expiresAt?.toIso8601String(),
+    'entitlement_source_ref': entitlement.sourceRef,
+    'bio': bio,
+    'education_level': educationLevel,
+    'favorite_subjects': favoriteSubjects,
+    'quick_access_usage': quickAccessUsage,
+    'xp_total': xpTotal,
+    'streak_days': streakDays,
+    'last_active_date': lastActiveDate,
+    'week_activity_dates': weekActivityDates,
+    'continue_reading_item_id': continueReadingItemId,
+    'continue_reading_title': continueReadingTitle,
+    'continue_reading_page': continueReadingPage,
+    'continue_reading_total_pages': continueReadingTotalPages,
+    'school_role': schoolRole?.name,
+    'teaching_assignments': teachingAssignments.map((t) => t.toMap()).toList(),
+    'class_master_of_class': classMasterOfClass,
+    'school_voucher_ref': schoolVoucherRef,
+  };
+
   Map<String, dynamic> toFirestore() => {
     'name': name, 'email': email, 'photoUrl': photoUrl,
     'role': role.name, 'roleName': roleName,

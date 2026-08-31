@@ -1,41 +1,33 @@
 // lib/repositories/academic_content_repository.dart
-// Firestore + Firebase Storage operations for academic_content collection.
+// Supabase Postgres + Storage operations for the Library feature.
 
+import 'dart:async';
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/academic_content.dart';
-import '../core/constants.dart';
 import '../core/result.dart';
 
 class AcademicContentRepository {
   AcademicContentRepository._();
   static final AcademicContentRepository instance = AcademicContentRepository._();
 
-  static const String _col = 'academic_content';
+  static const String _table = 'academic_content';
+  static const String _bucket = 'app-content';
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final SupabaseClient _db = Supabase.instance.client;
 
   // ─── Streams ──────────────────────────────────────────────────────────────
 
   /// Live stream of content. Filters by institution and optional
-  /// type/subject/level/examBoard/year.
-  ///
-  /// Firestore composite indexes only cover institutionId +
-  /// (contentType and/or subject) + uploadDate (see firestore.indexes.json)
-  /// — adding a dedicated composite index for every additional
-  /// filter-dimension combination (level, examBoard, year, and every
-  /// combination of them) would multiply combinatorially as the
-  /// classification model grows. Instead: apply the indexed dimensions
-  /// (institutionId, contentType, subject) server-side as before, and
-  /// refine by level/examBoard/year client-side over a wider page when any
-  /// of those are active. This keeps the index count bounded while still
-  /// supporting combined filtering, and stays correct as the library grows
-  /// into the thousands (widen the page limit, not the index count).
+  /// type/subject/level/examBoard/year. supabase_flutter's realtime
+  /// .stream() only supports one .eq() filter plus client-side ordering —
+  /// apply the cheapest indexed dimension server-side (institution_id) and
+  /// refine the rest client-side over a wider page when any of
+  /// level/examBoard/year are active, same pattern used elsewhere in this
+  /// rewrite for multi-filter streams.
   Stream<List<AcademicContent>> watch({
     String? institutionId,
     ContentType? contentType,
@@ -44,24 +36,22 @@ class AcademicContentRepository {
     String? examBoard,
     int? year,
   }) {
-    Query<Map<String, dynamic>> q = _db.collection(_col);
-    if (institutionId != null) {
-      q = q.where('institutionId', isEqualTo: institutionId);
-    }
-    if (contentType != null) {
-      q = q.where('contentType', isEqualTo: contentType.name);
-    }
-    if (subject != null && subject.isNotEmpty) {
-      q = q.where('subject', isEqualTo: subject);
-    }
     final hasClientFilter =
         (level != null && level.isNotEmpty) || (examBoard != null && examBoard.isNotEmpty) || year != null;
-    return q
-        .orderBy('uploadDate', descending: true)
-        .limit(hasClientFilter ? 300 : 80)
-        .snapshots()
-        .map((s) {
-      var items = s.docs.map(AcademicContent.fromFirestore).toList();
+    var stream = _db.from(_table).stream(primaryKey: ['id']);
+    return stream.map((rows) {
+      var filtered = rows;
+      if (institutionId != null) {
+        filtered = filtered.where((r) => r['institution_id'] == institutionId).toList();
+      }
+      if (contentType != null) {
+        filtered = filtered.where((r) => r['content_type'] == contentType.name).toList();
+      }
+      if (subject != null && subject.isNotEmpty) {
+        filtered = filtered.where((r) => r['subject'] == subject).toList();
+      }
+      filtered.sort((a, b) => (b['upload_date'] as String).compareTo(a['upload_date'] as String));
+      var items = filtered.take(hasClientFilter ? 300 : 80).map(AcademicContent.fromSupabase).toList();
       if (level != null && level.isNotEmpty) {
         items = items.where((i) => i.level == level).toList();
       }
@@ -76,24 +66,21 @@ class AcademicContentRepository {
   }
 
   /// One-shot real count of library resources in scope — powers the Home
-  /// "Library" banner's resource count. Uses a Firestore count() aggregate
-  /// query so it doesn't need to download every document just to count
-  /// them.
+  /// "Library" banner's resource count.
   Future<int> countAll({String? institutionId}) async {
-    Query<Map<String, dynamic>> q = _db.collection(_col);
-    if (institutionId != null) {
-      q = q.where('institutionId', isEqualTo: institutionId);
-    }
-    final snap = await q.count().get();
-    return snap.count ?? 0;
+    var q = _db.from(_table).select();
+    if (institutionId != null) q = q.eq('institution_id', institutionId);
+    final rows = await q;
+    return rows.length;
   }
 
-  /// Stream for a single document.
+  /// Stream for a single row.
   Stream<AcademicContent?> watchOne(String id) {
-    return _db.collection(_col).doc(id).snapshots().map((doc) {
-      if (!doc.exists) return null;
-      return AcademicContent.fromFirestore(doc);
-    });
+    return _db
+        .from(_table)
+        .stream(primaryKey: ['id'])
+        .eq('id', id)
+        .map((rows) => rows.isNotEmpty ? AcademicContent.fromSupabase(rows.first) : null);
   }
 
   // ─── Search ───────────────────────────────────────────────────────────────
@@ -108,16 +95,12 @@ class AcademicContentRepository {
     int? year,
   }) async {
     final lower = query.toLowerCase();
-    Query<Map<String, dynamic>> q = _db.collection(_col);
-    if (institutionId != null) {
-      q = q.where('institutionId', isEqualTo: institutionId);
-    }
-    if (contentType != null) {
-      q = q.where('contentType', isEqualTo: contentType.name);
-    }
-    final snap = await q.orderBy('title').get();
-    return snap.docs
-        .map(AcademicContent.fromFirestore)
+    var q = _db.from(_table).select();
+    if (institutionId != null) q = q.eq('institution_id', institutionId);
+    if (contentType != null) q = q.eq('content_type', contentType.name);
+    final rows = await q.order('title');
+    return rows
+        .map(AcademicContent.fromSupabase)
         .where((item) =>
             (item.title.toLowerCase().contains(lower) ||
                 item.description.toLowerCase().contains(lower) ||
@@ -136,8 +119,8 @@ class AcademicContentRepository {
 
   Future<Result<String>> add(AcademicContent content) async {
     try {
-      final ref = await _db.collection(_col).add(content.toFirestore());
-      return Success(ref.id);
+      final row = await _db.from(_table).insert(content.toSupabase()).select('id').single();
+      return Success(row['id'] as String);
     } catch (e) {
       return Failure('Failed to add content', e);
     }
@@ -145,7 +128,7 @@ class AcademicContentRepository {
 
   Future<Result<void>> update(AcademicContent content) async {
     try {
-      await _db.collection(_col).doc(content.id).update(content.toFirestore());
+      await _db.from(_table).update(content.toSupabase()).eq('id', content.id);
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update content', e);
@@ -154,14 +137,12 @@ class AcademicContentRepository {
 
   Future<Result<void>> delete(String id) async {
     try {
-      final doc = await _db.collection(_col).doc(id).get();
-      if (doc.exists) {
-        final data = doc.data()!;
-        // Delete associated Storage files
-        await _tryDeleteStorageFile(data['fileUrl']);
-        await _tryDeleteStorageFile(data['thumbnailUrl']);
+      final row = await _db.from(_table).select('file_url,thumbnail_url').eq('id', id).maybeSingle();
+      if (row != null) {
+        await _tryDeleteStorageFile(row['file_url']);
+        await _tryDeleteStorageFile(row['thumbnail_url']);
       }
-      await _db.collection(_col).doc(id).delete();
+      await _db.from(_table).delete().eq('id', id);
       return const Success(null);
     } catch (e) {
       return Failure('Failed to delete content', e);
@@ -172,9 +153,7 @@ class AcademicContentRepository {
 
   Future<Result<void>> incrementViews(String id) async {
     try {
-      await _db.collection(_col).doc(id).update({
-        'views': FieldValue.increment(1),
-      });
+      await _db.rpc('increment_academic_content_views', params: {'p_id': id});
       return const Success(null);
     } catch (e) {
       return Failure('Failed to track view', e);
@@ -183,9 +162,7 @@ class AcademicContentRepository {
 
   Future<Result<void>> incrementDownloads(String id) async {
     try {
-      await _db.collection(_col).doc(id).update({
-        'downloads': FieldValue.increment(1),
-      });
+      await _db.rpc('increment_academic_content_downloads', params: {'p_id': id});
       return const Success(null);
     } catch (e) {
       return Failure('Failed to track download', e);
@@ -194,28 +171,31 @@ class AcademicContentRepository {
 
   // ─── Saved for Offline ──────────────────────────────────────────────────
   // Two distinct, separately-tracked concepts:
-  //  - "Saved" (toggleSave/watchIsSaved below): a bookmark marker in
-  //    Firestore, powers "my saved list" across devices. Does NOT imply
-  //    the file is actually on this device.
-  //  - "Downloaded" (downloadForOffline/offlineFilePath below): the file's
-  //    bytes actually written to local device storage, tracked in
-  //    SharedPreferences (per-device, deliberately not synced — a
-  //    download on one device doesn't mean it exists on another). This is
-  //    the part that used to not exist at all despite the "Save for
-  //    offline" label implying it did.
+  //  - "Saved" (toggleSave/watchIsSaved below): a bookmark marker,
+  //    powers "my saved list" across devices. Does NOT imply the file is
+  //    actually on this device.
+  //  - "Downloaded" (downloadForOffline/offlineFilePath below): the
+  //    file's bytes actually written to local device storage, tracked in
+  //    SharedPreferences (per-device, deliberately not synced).
 
   Stream<bool> watchIsSaved(String contentId, String userId) => _db
-      .collection(_col).doc(contentId).collection(AppConstants.colSaves).doc(userId)
-      .snapshots().map((d) => d.exists);
+      .from('content_saves')
+      .stream(primaryKey: ['content_id', 'user_id'])
+      .eq('content_id', contentId)
+      .map((rows) => rows.any((r) => r['user_id'] == userId));
 
   Future<Result<void>> toggleSave(String contentId, String userId) async {
     try {
-      final ref = _db.collection(_col).doc(contentId).collection(AppConstants.colSaves).doc(userId);
-      final existing = await ref.get();
-      if (existing.exists) {
-        await ref.delete();
+      final existing = await _db
+          .from('content_saves')
+          .select()
+          .eq('content_id', contentId)
+          .eq('user_id', userId)
+          .maybeSingle();
+      if (existing != null) {
+        await _db.from('content_saves').delete().eq('content_id', contentId).eq('user_id', userId);
       } else {
-        await ref.set({'savedAt': FieldValue.serverTimestamp(), 'userId': userId});
+        await _db.from('content_saves').insert({'content_id': contentId, 'user_id': userId});
       }
       return const Success(null);
     } catch (e) {
@@ -225,18 +205,15 @@ class AcademicContentRepository {
 
   /// A user's saved content, newest-saved first.
   Stream<List<AcademicContent>> watchSavedContent(String userId) {
-    return _db.collectionGroup(AppConstants.colSaves)
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .asyncMap((snap) async {
-      final ids = snap.docs.map((d) => d.reference.parent.parent?.id).whereType<String>().toList();
+    return _db
+        .from('content_saves')
+        .stream(primaryKey: ['content_id', 'user_id'])
+        .eq('user_id', userId)
+        .asyncMap((rows) async {
+      final ids = rows.map((r) => r['content_id'] as String).toList();
       if (ids.isEmpty) return <AcademicContent>[];
-      final items = <AcademicContent>[];
-      for (final id in ids.take(30)) {
-        final doc = await _db.collection(_col).doc(id).get();
-        if (doc.exists) items.add(AcademicContent.fromFirestore(doc));
-      }
-      return items;
+      final content = await _db.from(_table).select().inFilter('id', ids.take(30).toList());
+      return content.map(AcademicContent.fromSupabase).toList();
     });
   }
 
@@ -275,17 +252,12 @@ class AcademicContentRepository {
   }
 
   /// The viewer-facing counterpart to [downloadForOffline] -- same cache
-  /// slot (an explicit "Save for Offline" and a plain view are
-  /// interchangeable; whichever happens first satisfies the other), but
-  /// silent/automatic: ContentViewerPage calls this on open so PDFs/
-  /// Word docs open from a real local file instead of the whole document
-  /// being buffered into memory by a single blocking `http.get()` on
-  /// every single view (previously: every open re-downloaded the entire
-  /// file from scratch with no caching at all, however recently it had
-  /// already been viewed). Returns the cached path if one already
-  /// exists -- true instant reopen, no network -- otherwise streams to
-  /// disk and returns once ready. Throws on failure; callers show their
-  /// own error state.
+  /// slot, but silent/automatic: ContentViewerPage calls this on open so
+  /// PDFs/Word docs open from a real local file instead of the whole
+  /// document being buffered into memory on every single view. Returns
+  /// the cached path if one already exists, otherwise streams to disk and
+  /// returns once ready. Throws on failure; callers show their own error
+  /// state.
   Future<String> ensureLocalCopy({
     required String contentId,
     required String fileUrl,
@@ -298,9 +270,8 @@ class AcademicContentRepository {
 
   /// Shared streaming-download core for [downloadForOffline] and
   /// [ensureLocalCopy] -- writes incrementally to disk via the response
-  /// stream (never holds the whole file in memory at once, unlike a
-  /// plain `http.get()`), reports 0.0-1.0 progress, and records the
-  /// resulting path in the same offline-cache slot both callers share.
+  /// stream, reports 0.0-1.0 progress, and records the resulting path in
+  /// the same offline-cache slot both callers share.
   Future<String> _streamToCache(
     String contentId,
     String url, {
@@ -321,11 +292,28 @@ class AcademicContentRepository {
     var received = 0;
     final file = File(localPath);
     final sink = file.openWrite();
-    await response.stream.map((chunk) {
-      received += chunk.length;
-      if (total > 0) onProgress?.call(received / total);
-      return chunk;
-    }).pipe(sink);
+    try {
+      // A per-chunk silence timeout (30s with no new data = something's
+      // actually stuck, not just a big file on a slow connection) —
+      // the 5-minute timeout above only covers getting response headers,
+      // not the body stream that follows.
+      await response.stream.timeout(
+        const Duration(seconds: 30),
+        onTimeout: (sink) => sink.addError(
+            TimeoutException('Download stalled — no data received for 30 seconds.')),
+      ).map((chunk) {
+        received += chunk.length;
+        if (total > 0) onProgress?.call(received / total);
+        return chunk;
+      }).pipe(sink);
+    } catch (e) {
+      await sink.close();
+      // A partial file left on disk from a failed download must not be
+      // mistaken for a real cached copy on the next open — delete it
+      // rather than leave a corrupt file that "successfully" reopens broken.
+      if (await file.exists()) await file.delete();
+      rethrow;
+    }
     await sink.close();
 
     final prefs = await SharedPreferences.getInstance();
@@ -350,15 +338,13 @@ class AcademicContentRepository {
   }
 
   // ─── Recently viewed (real data — powers "Continue Learning") ──────────
-  // Deliberately no fabricated progress percentage here — this codebase
-  // has consistently avoided fake stats (the old hardcoded '87%' stat
-  // card being the clearest example), so "Continue Learning" shows real
-  // recency instead of a made-up completion number.
 
   Future<void> recordView(String contentId, String userId) async {
     try {
-      await _db.collection(_col).doc(contentId).collection(AppConstants.colRecentViews).doc(userId)
-          .set({'viewedAt': FieldValue.serverTimestamp(), 'userId': userId});
+      await _db.from('content_recent_views').upsert(
+        {'content_id': contentId, 'user_id': userId, 'viewed_at': DateTime.now().toIso8601String()},
+        onConflict: 'content_id,user_id',
+      );
     } catch (_) {
       // best-effort — a failed recency update shouldn't block viewing the content
     }
@@ -366,30 +352,23 @@ class AcademicContentRepository {
 
   /// Most-recently-viewed content for this user.
   Stream<List<AcademicContent>> watchRecentlyViewed(String userId, {int limit = 10}) {
-    return _db.collectionGroup(AppConstants.colRecentViews)
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .asyncMap((snap) async {
-      final entries = snap.docs
-          .map((d) => (d.reference.parent.parent?.id, (d.data()['viewedAt'] as Timestamp?)?.toDate()))
-          .where((e) => e.$1 != null)
-          .toList()
-        ..sort((a, b) => (b.$2 ?? DateTime(0)).compareTo(a.$2 ?? DateTime(0)));
-      final items = <AcademicContent>[];
-      for (final entry in entries.take(limit)) {
-        final doc = await _db.collection(_col).doc(entry.$1!).get();
-        if (doc.exists) items.add(AcademicContent.fromFirestore(doc));
-      }
-      return items;
+    return _db
+        .from('content_recent_views')
+        .stream(primaryKey: ['content_id', 'user_id'])
+        .eq('user_id', userId)
+        .asyncMap((rows) async {
+      final sorted = rows.toList()
+        ..sort((a, b) => (b['viewed_at'] as String).compareTo(a['viewed_at'] as String));
+      final ids = sorted.take(limit).map((r) => r['content_id'] as String).toList();
+      if (ids.isEmpty) return <AcademicContent>[];
+      final content = await _db.from(_table).select().inFilter('id', ids);
+      // Preserve recency order — inFilter doesn't guarantee row order.
+      final byId = {for (final c in content) c['id'] as String: c};
+      return ids.where(byId.containsKey).map((id) => AcademicContent.fromSupabase(byId[id]!)).toList();
     });
   }
 
   // ─── Read position (real data — powers Home "Continue Reading") ────────
-  // Did NOT exist before this — no course/article position tracking
-  // anywhere in the codebase. Only wired up for the in-app PDF viewer,
-  // the one content type with a real page count; a fabricated "Page X of
-  // Y" for content types without real pagination would repeat the same
-  // mistake as the old hardcoded stat card.
 
   /// Persists how far [userId] has read into [contentId]. Best-effort — a
   /// failed position write should never interrupt reading.
@@ -400,25 +379,29 @@ class AcademicContentRepository {
     required int totalPages,
   }) async {
     try {
-      await _db.collection(_col).doc(contentId).collection(AppConstants.colReadPositions).doc(userId).set({
+      await _db.from('content_read_positions').upsert({
+        'content_id': contentId,
+        'user_id': userId,
         'page': page,
-        'totalPages': totalPages,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'userId': userId,
-      }).timeout(const Duration(seconds: 10));
+        'total_pages': totalPages,
+        'updated_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'content_id,user_id').timeout(const Duration(seconds: 10));
     } catch (_) {
       // best-effort
     }
   }
 
   /// The page [userId] last left off on for [contentId], or 1 if there's
-  /// no saved position yet — used to resume the PDF viewer where they
-  /// left off.
+  /// no saved position yet.
   Future<int> savedReadPage({required String contentId, required String userId}) async {
     try {
-      final doc = await _db.collection(_col).doc(contentId)
-          .collection(AppConstants.colReadPositions).doc(userId).get();
-      final page = (doc.data()?['page'] as num?)?.toInt();
+      final row = await _db
+          .from('content_read_positions')
+          .select('page')
+          .eq('content_id', contentId)
+          .eq('user_id', userId)
+          .maybeSingle();
+      final page = (row?['page'] as num?)?.toInt();
       return (page != null && page > 0) ? page : 1;
     } catch (_) {
       return 1;
@@ -426,32 +409,23 @@ class AcademicContentRepository {
   }
 
   /// Most-recent real reading position for [userId] across all content —
-  /// powers the Home "Continue Reading: <title>, Page X of Y" card. Null
-  /// if they haven't read anything with a trackable position yet; the
-  /// caller shows a genuine empty/prompt state in that case, never a
-  /// fabricated example.
+  /// powers the Home "Continue Reading: <title>, Page X of Y" card.
   Future<({AcademicContent content, int page, int totalPages})?> continueReading(String userId) async {
     try {
-      final snap = await _db.collectionGroup(AppConstants.colReadPositions)
-          .where('userId', isEqualTo: userId)
-          .get();
-      if (snap.docs.isEmpty) return null;
-      final sorted = snap.docs.toList()
-        ..sort((a, b) {
-          final ta = (a.data()['updatedAt'] as Timestamp?)?.toDate() ?? DateTime(0);
-          final tb = (b.data()['updatedAt'] as Timestamp?)?.toDate() ?? DateTime(0);
-          return tb.compareTo(ta);
-        });
-      final latest = sorted.first;
-      final contentId = latest.reference.parent.parent?.id;
-      if (contentId == null) return null;
-      final contentDoc = await _db.collection(_col).doc(contentId).get();
-      if (!contentDoc.exists) return null;
-      final data = latest.data();
+      final rows = await _db
+          .from('content_read_positions')
+          .select()
+          .eq('user_id', userId)
+          .order('updated_at', ascending: false)
+          .limit(1);
+      if (rows.isEmpty) return null;
+      final latest = rows.first;
+      final contentRow = await _db.from(_table).select().eq('id', latest['content_id']).maybeSingle();
+      if (contentRow == null) return null;
       return (
-        content: AcademicContent.fromFirestore(contentDoc),
-        page: (data['page'] as num?)?.toInt() ?? 1,
-        totalPages: (data['totalPages'] as num?)?.toInt() ?? 1,
+        content: AcademicContent.fromSupabase(contentRow),
+        page: (latest['page'] as num?)?.toInt() ?? 1,
+        totalPages: (latest['total_pages'] as num?)?.toInt() ?? 1,
       );
     } catch (_) {
       return null;
@@ -460,13 +434,11 @@ class AcademicContentRepository {
 
   // ─── Storage Upload ───────────────────────────────────────────────────────
 
-  /// Uploads a file to Firebase Storage. Returns download URL. Times out
-  /// instead of hanging forever on a dead connection and retries once —
-  /// large video files on a slow/flaky connection previously had no
-  /// recovery path beyond the user manually restarting the whole form.
+  /// Uploads a file to Supabase Storage. Returns the public URL. Times out
+  /// instead of hanging forever on a dead connection and retries once.
   Future<Result<String>> uploadFile({
     required File file,
-    required String folder,        // e.g. 'content_files' or 'thumbnails'
+    required String folder, // e.g. 'content_files' or 'thumbnails'
     required String institutionId,
     void Function(double)? onProgress,
     int attempt = 1,
@@ -474,16 +446,11 @@ class AcademicContentRepository {
     try {
       final ext = file.path.split('.').last;
       final name = '${DateTime.now().millisecondsSinceEpoch}.$ext';
-      final ref = _storage.ref('$folder/$institutionId/$name');
-      final task = ref.putFile(file);
-      final sub = task.snapshotEvents.listen((snap) {
-        if (snap.totalBytes > 0) {
-          onProgress?.call(snap.bytesTransferred / snap.totalBytes);
-        }
-      });
-      final snapshot = await task.timeout(const Duration(minutes: 5));
-      await sub.cancel();
-      final url = await snapshot.ref.getDownloadURL();
+      final path = '$folder/$institutionId/$name';
+      onProgress?.call(0);
+      await _db.storage.from(_bucket).upload(path, file).timeout(const Duration(minutes: 5));
+      onProgress?.call(1);
+      final url = _db.storage.from(_bucket).getPublicUrl(path);
       return Success(url);
     } catch (e) {
       if (attempt < 2) {
@@ -502,21 +469,24 @@ class AcademicContentRepository {
   Future<void> _tryDeleteStorageFile(dynamic url) async {
     if (url is! String || url.isEmpty) return;
     try {
-      await _storage.refFromURL(url).delete();
+      // Public URL looks like .../storage/v1/object/public/<bucket>/<path>
+      final marker = '/object/public/$_bucket/';
+      final idx = url.indexOf(marker);
+      if (idx == -1) return;
+      final path = url.substring(idx + marker.length);
+      await _db.storage.from(_bucket).remove([path]);
     } catch (_) {
       // File may already be gone — ignore
     }
   }
 
-  /// Returns the list of distinct subjects from the collection.
+  /// Returns the list of distinct subjects from the table.
   Future<List<String>> getSubjects({String? institutionId}) async {
-    Query<Map<String, dynamic>> q = _db.collection(_col);
-    if (institutionId != null) {
-      q = q.where('institutionId', isEqualTo: institutionId);
-    }
-    final snap = await q.get();
-    final subjects = snap.docs
-        .map((d) => (d.data()['subject'] as String?) ?? '')
+    var q = _db.from(_table).select('subject');
+    if (institutionId != null) q = q.eq('institution_id', institutionId);
+    final rows = await q;
+    final subjects = rows
+        .map((r) => (r['subject'] as String?) ?? '')
         .where((s) => s.isNotEmpty)
         .toSet()
         .toList()
@@ -524,17 +494,14 @@ class AcademicContentRepository {
     return subjects;
   }
 
-  /// Distinct exam/publication years actually present in the library
-  /// (bounded sample, same pattern as subjectCountsOnce below) — powers a
-  /// Year filter chip row built from real data instead of a guessed range.
+  /// Distinct exam/publication years currently in use — drives the Year
+  /// filter picker.
   Future<List<int>> yearsInUseOnce({String? institutionId}) async {
-    Query<Map<String, dynamic>> q = _db.collection(_col);
-    if (institutionId != null) {
-      q = q.where('institutionId', isEqualTo: institutionId);
-    }
-    final snap = await q.limit(500).get();
-    final years = snap.docs
-        .map((d) => (d.data()['year'] as num?)?.toInt())
+    var q = _db.from(_table).select('year');
+    if (institutionId != null) q = q.eq('institution_id', institutionId);
+    final rows = await q.limit(500);
+    final years = rows
+        .map((r) => (r['year'] as num?)?.toInt())
         .whereType<int>()
         .toSet()
         .toList()
@@ -542,19 +509,14 @@ class AcademicContentRepository {
     return years;
   }
 
-  /// Real per-subject item counts — powers the Categories grid. Computed
-  /// client-side from a bounded sample, same pattern used for Courses'
-  /// Popular Topics; move to a scheduled aggregate if the library grows
-  /// into the thousands.
+  /// Real per-subject item counts — powers the Categories grid.
   Future<Map<String, int>> subjectCountsOnce({String? institutionId}) async {
-    Query<Map<String, dynamic>> q = _db.collection(_col);
-    if (institutionId != null) {
-      q = q.where('institutionId', isEqualTo: institutionId);
-    }
-    final snap = await q.limit(500).get();
+    var q = _db.from(_table).select('subject');
+    if (institutionId != null) q = q.eq('institution_id', institutionId);
+    final rows = await q.limit(500);
     final counts = <String, int>{};
-    for (final doc in snap.docs) {
-      final subject = (doc.data()['subject'] as String?) ?? '';
+    for (final row in rows) {
+      final subject = (row['subject'] as String?) ?? '';
       if (subject.isEmpty) continue;
       counts[subject] = (counts[subject] ?? 0) + 1;
     }

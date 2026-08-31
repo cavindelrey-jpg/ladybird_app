@@ -1,21 +1,22 @@
 // lib/repositories/public_course_repository.dart
 // All reads/writes for the marketplace Courses system. Fully separate
-// from CourseRepository (school-scoped) — different collection
-// (public_courses vs courses), different model, no shared code.
+// from CourseRepository (school-scoped) — different table (courses vs
+// the school-scoped one), different model, no shared code.
+//
+// Several operations (toggle like/bookmark, mark enrolled, rate, post
+// comment) are SECURITY DEFINER RPCs (see
+// supabase/migrations/20260829240000_course_engagement.sql) since they
+// pair a subtable write with a counter update on `courses` the way
+// Firestore batches used to.
 
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/public_course.dart';
-import '../core/constants.dart';
 import '../core/result.dart';
-import 'engagement_helper.dart';
 
 /// Result of [PublicCourseRepository.continueReadingFor] — previous/next
 /// lesson within the same topic sequence, plus the topic's full lesson
-/// list for a "more in this topic" rail. Any of the lesson fields can be
-/// null (e.g. this is the first/last lesson in the topic, or the course
-/// isn't placed in the curriculum tree at all).
+/// list for a "more in this topic" rail.
 class CourseSequenceContext {
   final PublicCourse? previous;
   final PublicCourse? next;
@@ -27,68 +28,45 @@ class PublicCourseRepository {
   PublicCourseRepository._();
   static final PublicCourseRepository instance = PublicCourseRepository._();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  CollectionReference<Map<String, dynamic>> get _courses =>
-      _db.collection(AppConstants.colPublicCourses);
-
-  // In-memory cache for the curriculum browse tree -- curriculumTreeOnce()
-  // downloads up to 1000 full course/lesson documents (bodies included) to
-  // build what's really just a category/subject/level/topic navigation
-  // tree, and CourseBrowsePage re-ran it on every single open. The tree
-  // changes rarely (only when content is published/edited), so a short
-  // TTL cache turns "Browse My Curriculum" from a full 1000-doc refetch
-  // into an instant repeat-open for the common case within a session.
-  Map<String, Map<String, Map<String, Map<String, List<PublicCourse>>>>>? _treeCache;
-  DateTime? _treeCacheAt;
-  Map<String, CurriculumIcon>? _iconsCache;
-  DateTime? _iconsCacheAt;
-  static const _cacheTtl = Duration(minutes: 5);
-
-  /// Drop the cached tree/icons immediately -- call after publishing,
-  /// editing, or re-placing a course so the browse view reflects it
-  /// without waiting out the TTL.
-  void invalidateCurriculumCache() {
-    _treeCache = null;
-    _iconsCache = null;
-  }
+  static const String _bucket = 'app-content';
+  final SupabaseClient _db = Supabase.instance.client;
+  SupabaseQueryBuilder get _courses => _db.from('courses');
 
   // ── Feed queries ─────────────────────────────────────────
 
   Stream<List<PublicCourse>> watchLatest({int limit = 30}) => _courses
-      .where('published', isEqualTo: true)
-      .orderBy('createdAt', descending: true)
+      .stream(primaryKey: ['id'])
+      .eq('published', true)
+      .order('created_at', ascending: false)
       .limit(limit)
-      .snapshots()
-      .map((s) => s.docs.map(PublicCourse.fromFirestore).toList());
+      .map((rows) => rows.map(PublicCourse.fromSupabase).toList());
 
   Stream<List<PublicCourse>> watchByCategory(String category, {int limit = 30}) => _courses
-      .where('published', isEqualTo: true)
-      .where('category', isEqualTo: category)
-      .orderBy('createdAt', descending: true)
+      .stream(primaryKey: ['id'])
+      .eq('category', category)
+      .order('created_at', ascending: false)
       .limit(limit)
-      .snapshots()
-      .map((s) => s.docs.map(PublicCourse.fromFirestore).toList());
+      .map((rows) => rows
+          .where((r) => r['published'] == true)
+          .map(PublicCourse.fromSupabase)
+          .toList());
 
   Stream<List<PublicCourse>> watchByCreator(String creatorId) => _courses
-      .where('creatorId', isEqualTo: creatorId)
-      .orderBy('createdAt', descending: true)
-      .snapshots()
-      .map((s) => s.docs.map(PublicCourse.fromFirestore).toList());
+      .stream(primaryKey: ['id'])
+      .eq('creator_id', creatorId)
+      .order('created_at', ascending: false)
+      .map((rows) => rows.map(PublicCourse.fromSupabase).toList());
 
   Stream<PublicCourse?> watchOne(String courseId) => _courses
-      .doc(courseId)
-      .snapshots()
-      .map((d) => d.exists ? PublicCourse.fromFirestore(d) : null);
+      .stream(primaryKey: ['id'])
+      .eq('id', courseId)
+      .map((rows) => rows.isNotEmpty ? PublicCourse.fromSupabase(rows.first) : null);
 
   /// Featured — top-rated among reasonably-enrolled courses. Computed,
-  /// not manually curated (same honesty principle as Magazine's Featured).
+  /// not manually curated.
   Future<List<PublicCourse>> watchFeaturedOnce({int count = 6}) async {
-    final snap = await _courses
-        .where('published', isEqualTo: true)
-        .orderBy('createdAt', descending: true)
-        .limit(60)
-        .get();
-    final courses = snap.docs.map(PublicCourse.fromFirestore).toList()
+    final rows = await _courses.select().eq('published', true).order('created_at', ascending: false).limit(60);
+    final courses = rows.map(PublicCourse.fromSupabase).toList()
       ..sort((a, b) {
         final scoreA = a.avgRating * 10 + a.enrolledCount * 0.1;
         final scoreB = b.avgRating * 10 + b.enrolledCount * 0.1;
@@ -98,25 +76,18 @@ class PublicCourseRepository {
   }
 
   /// Category counts for "Popular Topics" — computed client-side from a
-  /// bounded sample. Fine at this scale; move to a scheduled aggregate
-  /// if the catalogue grows into the thousands.
+  /// bounded sample.
   Future<Map<String, int>> categoryCountsOnce() async {
-    final snap = await _courses.where('published', isEqualTo: true).limit(500).get();
+    final rows = await _courses.select('category').eq('published', true).limit(500);
     final counts = <String, int>{};
-    for (final doc in snap.docs) {
-      final cat = doc.data()['category'] ?? 'Other';
+    for (final row in rows) {
+      final cat = row['category'] ?? 'Other';
       counts[cat] = (counts[cat] ?? 0) + 1;
     }
     return counts;
   }
 
   // ── Curriculum node icons ─────────────────────────────────────────
-  // Subject/Level/Topic aren't documents of their own — they're just
-  // distinct strings on courses — so an icon picked for one lives in
-  // its own small lookup collection, keyed by its place in the tree.
-  // Falls back to a generated letter-avatar wherever nothing was set
-  // (see HierarchyTile in the browse page), so this is enhancement,
-  // not a requirement.
 
   static String subjectIconKey(String category, String subject) => 'subject::$category::$subject';
   static String levelIconKey(String category, String subject, String level) =>
@@ -124,95 +95,65 @@ class PublicCourseRepository {
   static String topicIconKey(String category, String subject, String level, String topic) =>
       'topic::$category::$subject::$level::$topic';
 
-  CollectionReference<Map<String, dynamic>> get _curriculumIcons => _db.collection('curriculum_icons');
+  SupabaseQueryBuilder get _curriculumIcons => _db.from('curriculum_icons');
 
-  /// All node->look assignments made so far. Small, bounded collection
-  /// (one doc per unique subject/level/topic), safe to pull in full.
+  /// All node->look assignments made so far.
   Future<Map<String, CurriculumIcon>> curriculumIconsOnce() async {
-    if (_iconsCache != null && DateTime.now().difference(_iconsCacheAt!) < _cacheTtl) {
-      return _iconsCache!;
-    }
-    final snap = await _curriculumIcons.limit(2000).get();
-    final icons = {
-      for (final d in snap.docs)
-        d.id: CurriculumIcon(
-          emoji: d.data()['icon'] as String? ?? '',
-          imageUrl: d.data()['imageUrl'] as String? ?? '',
+    final rows = await _curriculumIcons.select().limit(2000);
+    return {
+      for (final r in rows)
+        r['key'] as String: CurriculumIcon(
+          emoji: r['emoji'] as String? ?? '',
+          imageUrl: r['image_url'] as String? ?? '',
         ),
     };
-    _iconsCache = icons;
-    _iconsCacheAt = DateTime.now();
-    return icons;
   }
 
   /// Assigns/updates the look for one tree node. Pass whichever of
   /// `emoji`/`imageUrl` the author picked; passing both empty clears
   /// the node back to the default letter-avatar.
   Future<void> setCurriculumIcon(String key, {String emoji = '', String imageUrl = ''}) async {
-    final docId = key.replaceAll('/', '-');
     if (emoji.isEmpty && imageUrl.isEmpty) {
-      await _curriculumIcons.doc(docId).delete().catchError((_) {});
+      await _curriculumIcons.delete().eq('key', key);
     } else {
-      await _curriculumIcons.doc(docId).set({'icon': emoji, 'imageUrl': imageUrl, 'key': key});
+      await _curriculumIcons.upsert({'key': key, 'emoji': emoji, 'image_url': imageUrl});
     }
   }
 
   /// Uploads a photo for one Subject/Level/Topic node, returning its
-  /// download URL. Storage path is derived from the same tree-path key
-  /// used for the Firestore lookup doc, so it's stable across renames
-  /// of the *category* (subject/level/topic strings are the identity).
+  /// public URL. Storage path derived from the same tree-path key.
   Future<Result<String>> uploadCurriculumNodeImage({required String key, required File imageFile}) async {
     try {
       final docId = key.replaceAll('/', '-');
-      final ref = FirebaseStorage.instance.ref('curriculum_icons/$docId.jpg');
-      await ref.putFile(imageFile).timeout(const Duration(seconds: 60), onTimeout: () => throw Exception(
+      final path = 'curriculum_icons/$docId.jpg';
+      await _db.storage.from(_bucket).upload(path, imageFile, fileOptions: const FileOptions(upsert: true))
+          .timeout(const Duration(seconds: 60), onTimeout: () => throw Exception(
               'Image upload is taking too long. Check your connection and try again.'));
-      return Success(await ref.getDownloadURL());
+      return Success(_db.storage.from(_bucket).getPublicUrl(path));
     } catch (e) {
       return Failure('Failed to upload image', e);
     }
   }
 
   // ── Curriculum hierarchy ─────────────────────────────────
-  // Category → Subject → Level → Topic → ordered lessons. Nothing here
-  // is a fixed taxonomy table — subject/level/topic are free text on
-  // each course, and these queries just derive the distinct values
-  // that already exist, the same "grow from real data" approach as
-  // categoryCountsOnce() above. Bounded client-side aggregation is
-  // fine at this scale; revisit with a scheduled aggregate if the
-  // catalogue grows into the thousands.
 
-  /// Distinct subjects that already exist under [category].
   Future<List<String>> subjectsIn(String category) async {
-    final snap = await _courses
-        .where('published', isEqualTo: true)
-        .where('category', isEqualTo: category)
-        .limit(500)
-        .get();
-    return _distinctNonEmpty(snap.docs.map((d) => d.data()['subject'] as String?));
+    final rows = await _courses.select('subject').eq('published', true).eq('category', category).limit(500);
+    return _distinctNonEmpty(rows.map((r) => r['subject'] as String?));
   }
 
-  /// Distinct curriculum/levels that already exist under [category] + [subject].
   Future<List<String>> levelsIn(String category, String subject) async {
-    final snap = await _courses
-        .where('published', isEqualTo: true)
-        .where('category', isEqualTo: category)
-        .where('subject', isEqualTo: subject)
-        .limit(500)
-        .get();
-    return _distinctNonEmpty(snap.docs.map((d) => d.data()['level'] as String?));
+    final rows = await _courses
+        .select('level').eq('published', true).eq('category', category).eq('subject', subject).limit(500);
+    return _distinctNonEmpty(rows.map((r) => r['level'] as String?));
   }
 
-  /// Distinct topics that already exist under category + subject + level.
   Future<List<String>> topicsIn(String category, String subject, String level) async {
-    final snap = await _courses
-        .where('published', isEqualTo: true)
-        .where('category', isEqualTo: category)
-        .where('subject', isEqualTo: subject)
-        .where('level', isEqualTo: level)
-        .limit(500)
-        .get();
-    return _distinctNonEmpty(snap.docs.map((d) => d.data()['topic'] as String?));
+    final rows = await _courses
+        .select('topic')
+        .eq('published', true).eq('category', category).eq('subject', subject).eq('level', level)
+        .limit(500);
+    return _distinctNonEmpty(rows.map((r) => r['topic'] as String?));
   }
 
   List<String> _distinctNonEmpty(Iterable<String?> values) {
@@ -224,34 +165,22 @@ class PublicCourseRepository {
     return list;
   }
 
-  /// The full, in-order lesson sequence for one topic — the "table of
-  /// contents" for e.g. Social Studies → History → GCE Advanced Level →
-  /// World War I in Cameroon. Ordered by the hidden `order` field.
+  /// The full, in-order lesson sequence for one topic.
   Future<List<PublicCourse>> topicSequence(String category, String subject, String level, String topic) async {
-    final snap = await _courses
-        .where('published', isEqualTo: true)
-        .where('category', isEqualTo: category)
-        .where('subject', isEqualTo: subject)
-        .where('level', isEqualTo: level)
-        .where('topic', isEqualTo: topic)
-        .orderBy('order')
-        .get();
-    return snap.docs.map(PublicCourse.fromFirestore).toList();
+    final rows = await _courses
+        .select()
+        .eq('published', true).eq('category', category).eq('subject', subject)
+        .eq('level', level).eq('topic', topic)
+        .order('sort_order');
+    return rows.map(PublicCourse.fromSupabase).toList();
   }
 
-  /// Courses grouped into the curriculum tree, for the browse page —
-  /// one query per distinct (category, subject, level, topic) isn't
-  /// practical, so this pulls a bounded published set once and buckets
-  /// it client-side. Courses missing any hierarchy field are omitted;
-  /// they only show in the flat marketplace feed.
+  /// Courses grouped into the curriculum tree, for the browse page.
   Future<Map<String, Map<String, Map<String, Map<String, List<PublicCourse>>>>>> curriculumTreeOnce() async {
-    if (_treeCache != null && DateTime.now().difference(_treeCacheAt!) < _cacheTtl) {
-      return _treeCache!;
-    }
-    final snap = await _courses.where('published', isEqualTo: true).limit(1000).get();
+    final rows = await _courses.select().eq('published', true).limit(1000);
     final tree = <String, Map<String, Map<String, Map<String, List<PublicCourse>>>>>{};
-    for (final doc in snap.docs) {
-      final course = PublicCourse.fromFirestore(doc);
+    for (final row in rows) {
+      final course = PublicCourse.fromSupabase(row);
       if (!course.hasCurriculumPlacement) continue;
       final byCategory = tree.putIfAbsent(course.category, () => {});
       final bySubject = byCategory.putIfAbsent(course.subject, () => {});
@@ -268,26 +197,17 @@ class PublicCourseRepository {
         }
       }
     }
-    _treeCache = tree;
-    _treeCacheAt = DateTime.now();
     return tree;
   }
 
-  // ── Course Navigation tree (Academic Section > Subject > Topic) ──────
-  // The redesigned top-level browse tree: Academic Section (a real,
-  // admin-managed, image-bearing AcademicSectionRepository doc — Primary
-  // School/JSS/SSS/High School/Undergraduate plus anything an admin has
-  // added, the SAME list Quizzes use) > Subject > Topic > ordered
-  // lessons. `category` (the Mathematics/Science/... domain tag) stays
-  // exactly as-is for the flat marketplace feed/chips above — it's just
-  // no longer a hierarchy tier here. A course's existing `level` field is
-  // reused, unchanged, as the section name: no schema migration, no
-  // duplicated data, and a course authored before this redesign (a free-
-  // text `level` like "GCE Advanced Level" that isn't one of the managed
-  // section names) still shows up, grouped under its own tree branch,
-  // rather than vanishing — same "grows from real data, blank field just
-  // means unplaced" honesty as [hasCurriculumPlacement] elsewhere in this
-  // file.
+  // ── Course Navigation ("Section" tree) ────────────────────
+  // Course Navigation unified onto the shared AcademicSection list (see
+  // models/academic_section.dart / repositories/academic_section_repository.dart)
+  // rather than growing its own separate tree — a course's [level] field
+  // holds the section NAME (e.g. "Senior Secondary School") instead of a
+  // free-text curriculum level, one tier shallower than the
+  // Category/Subject/Level/Topic tree above (no separate Level tier,
+  // since the section already IS that tier).
 
   static String navSubjectIconKey(String section, String subject) => 'navSubject::$section::$subject';
   static String navTopicIconKey(String section, String subject, String topic) =>
@@ -295,47 +215,35 @@ class PublicCourseRepository {
 
   /// Distinct subjects that already exist under [section].
   Future<List<String>> subjectsInSection(String section) async {
-    final snap = await _courses
-        .where('published', isEqualTo: true)
-        .where('level', isEqualTo: section)
-        .limit(500)
-        .get();
-    return _distinctNonEmpty(snap.docs.map((d) => d.data()['subject'] as String?));
+    final rows = await _courses.select('subject').eq('published', true).eq('level', section).limit(500);
+    return _distinctNonEmpty(rows.map((r) => r['subject'] as String?));
   }
 
   /// Distinct topics that already exist under [section] + [subject].
   Future<List<String>> topicsInSection(String section, String subject) async {
-    final snap = await _courses
-        .where('published', isEqualTo: true)
-        .where('level', isEqualTo: section)
-        .where('subject', isEqualTo: subject)
-        .limit(500)
-        .get();
-    return _distinctNonEmpty(snap.docs.map((d) => d.data()['topic'] as String?));
+    final rows = await _courses
+        .select('topic').eq('published', true).eq('level', section).eq('subject', subject).limit(500);
+    return _distinctNonEmpty(rows.map((r) => r['topic'] as String?));
   }
 
   /// The full, in-order lesson sequence for one topic within [section] —
   /// same shape as [topicSequence], scoped by section instead of
   /// category+level.
   Future<List<PublicCourse>> topicSequenceInSection(String section, String subject, String topic) async {
-    final snap = await _courses
-        .where('published', isEqualTo: true)
-        .where('level', isEqualTo: section)
-        .where('subject', isEqualTo: subject)
-        .where('topic', isEqualTo: topic)
-        .orderBy('order')
-        .get();
-    return snap.docs.map(PublicCourse.fromFirestore).toList();
+    final rows = await _courses
+        .select()
+        .eq('published', true).eq('level', section).eq('subject', subject).eq('topic', topic)
+        .order('sort_order');
+    return rows.map(PublicCourse.fromSupabase).toList();
   }
 
   /// Real per-section course counts — powers the Course Navigation top
-  /// grid's "N courses" line, computed client-side from a bounded sample
-  /// (same pattern as [categoryCountsOnce]).
+  /// grid's "N courses" line.
   Future<Map<String, int>> courseCountsBySection() async {
-    final snap = await _courses.where('published', isEqualTo: true).limit(1000).get();
+    final rows = await _courses.select('level').eq('published', true).limit(1000);
     final counts = <String, int>{};
-    for (final doc in snap.docs) {
-      final section = doc.data()['level'] as String? ?? '';
+    for (final row in rows) {
+      final section = (row['level'] as String?) ?? '';
       if (section.isEmpty) continue;
       counts[section] = (counts[section] ?? 0) + 1;
     }
@@ -345,14 +253,10 @@ class PublicCourseRepository {
   /// Real per-subject course counts within [section] — powers the
   /// Subject picker tier.
   Future<Map<String, int>> subjectCountsInSection(String section) async {
-    final snap = await _courses
-        .where('published', isEqualTo: true)
-        .where('level', isEqualTo: section)
-        .limit(500)
-        .get();
+    final rows = await _courses.select('subject').eq('published', true).eq('level', section).limit(500);
     final counts = <String, int>{};
-    for (final doc in snap.docs) {
-      final subject = doc.data()['subject'] as String? ?? '';
+    for (final row in rows) {
+      final subject = (row['subject'] as String?) ?? '';
       if (subject.isEmpty) continue;
       counts[subject] = (counts[subject] ?? 0) + 1;
     }
@@ -362,27 +266,18 @@ class PublicCourseRepository {
   /// Real per-topic course counts within [section] + [subject] — powers
   /// the Topic picker tier.
   Future<Map<String, int>> topicCountsInSection(String section, String subject) async {
-    final snap = await _courses
-        .where('published', isEqualTo: true)
-        .where('level', isEqualTo: section)
-        .where('subject', isEqualTo: subject)
-        .limit(500)
-        .get();
+    final rows = await _courses
+        .select('topic').eq('published', true).eq('level', section).eq('subject', subject).limit(500);
     final counts = <String, int>{};
-    for (final doc in snap.docs) {
-      final topic = doc.data()['topic'] as String? ?? '';
+    for (final row in rows) {
+      final topic = (row['topic'] as String?) ?? '';
       if (topic.isEmpty) continue;
       counts[topic] = (counts[topic] ?? 0) + 1;
     }
     return counts;
   }
 
-  // ── Sequence placement — "where does this lesson belong?" ────────
-  // Large gaps between positions (100, 200, 300…) so a new lesson can
-  // be slotted in anywhere later without renumbering existing ones.
-  // The composer never lets an author type a number directly — it
-  // offers Before/Between/After choices against the existing sequence
-  // and calls one of these to compute the hidden value.
+  // ── Sequence placement ────────────────────────────────────
 
   static const double _gap = 100;
 
@@ -395,9 +290,6 @@ class PublicCourseRepository {
   double positionBetween(PublicCourse before, PublicCourse after) =>
       (before.order + after.order) / 2;
 
-  /// Previous/next lesson relative to [course] within its own topic,
-  /// plus the topic's full sequence. Returns an empty context (all
-  /// nulls) if the course isn't placed in the curriculum tree.
   Future<CourseSequenceContext> continueReadingFor(PublicCourse course) async {
     if (!course.hasCurriculumPlacement) return const CourseSequenceContext();
     final sequence = await topicSequence(course.category, course.subject, course.level, course.topic);
@@ -414,11 +306,10 @@ class PublicCourseRepository {
 
   Future<Result<String>> create(PublicCourse course) async {
     try {
-      final ref = await _courses.add(course.toFirestore())
+      final row = await _courses.insert(course.toSupabase()).select('id').single()
           .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
               'Saving is taking too long. Check your connection and try again.'));
-      invalidateCurriculumCache();
-      return Success(ref.id);
+      return Success(row['id'] as String);
     } catch (e) {
       return Failure('Failed to create course', e);
     }
@@ -426,10 +317,9 @@ class PublicCourseRepository {
 
   Future<Result<void>> update(PublicCourse course) async {
     try {
-      await _courses.doc(course.id).set(course.toFirestore(), SetOptions(merge: true))
+      await _courses.update(course.toSupabase()).eq('id', course.id)
           .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
               'Saving is taking too long. Check your connection and try again.'));
-      invalidateCurriculumCache();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update course', e);
@@ -438,8 +328,7 @@ class PublicCourseRepository {
 
   Future<Result<void>> delete(String id) async {
     try {
-      await _courses.doc(id).delete();
-      invalidateCurriculumCache();
+      await _courses.delete().eq('id', id);
       return const Success(null);
     } catch (e) {
       return Failure('Failed to delete course', e);
@@ -448,36 +337,27 @@ class PublicCourseRepository {
 
   Future<Result<String>> uploadCover({required String courseId, required File imageFile}) async {
     try {
-      final ref = FirebaseStorage.instance.ref('course_covers/$courseId.jpg');
-      await ref.putFile(imageFile)
+      final path = 'course_covers/$courseId.jpg';
+      await _db.storage.from(_bucket).upload(path, imageFile, fileOptions: const FileOptions(upsert: true))
           .timeout(const Duration(seconds: 60), onTimeout: () => throw Exception(
               'Image upload is taking too long. Check your connection and try again.'));
-      return Success(await ref.getDownloadURL());
+      return Success(_db.storage.from(_bucket).getPublicUrl(path));
     } catch (e) {
       return Failure('Failed to upload cover image', e);
     }
   }
 
   // ── Enrollment (learner count) ────────────────────────────
-  // One doc per learner — existence prevents double-counting if someone
-  // opens the course multiple times.
 
-  Stream<bool> watchIsEnrolled(String courseId, String userId) => _courses
-      .doc(courseId)
-      .collection(AppConstants.colLearners)
-      .doc(userId)
-      .snapshots()
-      .map((d) => d.exists);
+  Stream<bool> watchIsEnrolled(String courseId, String userId) => _db
+      .from('course_learners')
+      .stream(primaryKey: ['course_id', 'user_id'])
+      .eq('course_id', courseId)
+      .map((rows) => rows.any((r) => r['user_id'] == userId));
 
   Future<Result<void>> markEnrolled(String courseId, String userId) async {
     try {
-      final ref = _courses.doc(courseId).collection(AppConstants.colLearners).doc(userId);
-      final existing = await ref.get();
-      if (existing.exists) return const Success(null); // already counted
-      final batch = _db.batch();
-      batch.set(ref, {'startedAt': FieldValue.serverTimestamp()});
-      batch.update(_courses.doc(courseId), {'enrolledCount': FieldValue.increment(1)});
-      await batch.commit();
+      await _db.rpc('mark_course_enrolled', params: {'p_course_id': courseId});
       return const Success(null);
     } catch (e) {
       return Failure('Failed to record enrollment', e);
@@ -485,88 +365,91 @@ class PublicCourseRepository {
   }
 
   // ── Ratings ──────────────────────────────────────────────
-  // One rating per user; avgRating/ratingCount recomputed from the
-  // ratings subcollection on every change (bounded, fine at this scale).
 
-  Stream<int?> watchMyRating(String courseId, String userId) => _courses
-      .doc(courseId)
-      .collection(AppConstants.colRatings)
-      .doc(userId)
-      .snapshots()
-      .map((d) => d.data()?['stars'] as int?);
+  Stream<int?> watchMyRating(String courseId, String userId) => _db
+      .from('course_ratings')
+      .stream(primaryKey: ['course_id', 'user_id'])
+      .eq('course_id', courseId)
+      .map((rows) {
+    final mine = rows.where((r) => r['user_id'] == userId);
+    return mine.isEmpty ? null : mine.first['rating'] as int?;
+  });
 
   Future<Result<void>> rate(String courseId, String userId, int stars) async {
     try {
-      final ratingsRef = _courses.doc(courseId).collection(AppConstants.colRatings);
-      await ratingsRef.doc(userId).set({'stars': stars, 'ratedAt': FieldValue.serverTimestamp()});
-      // Recompute the aggregate from all ratings — simple and correct,
-      // avoids drift from incremental running-average math.
-      final all = await ratingsRef.get();
-      final starsList = all.docs.map((d) => (d.data()['stars'] as num).toDouble()).toList();
-      final avg = starsList.isEmpty ? 0.0 : starsList.reduce((a, b) => a + b) / starsList.length;
-      await _courses.doc(courseId).update({'avgRating': avg, 'ratingCount': starsList.length});
+      await _db.rpc('rate_course', params: {'p_course_id': courseId, 'p_rating': stars});
       return const Success(null);
     } catch (e) {
       return Failure('Failed to submit rating', e);
     }
   }
 
-  // ── Bookmarks (save to my list — not offline caching, just a marker) ──
+  // ── Bookmarks ──────────────────────────────────────────────
 
-  Stream<bool> watchIsBookmarked(String courseId, String userId) => EngagementHelper.watchIsSet(
-      parentCollection: _courses, docId: courseId, subcollection: AppConstants.colBookmarks, userId: userId);
+  Stream<bool> watchIsBookmarked(String courseId, String userId) => _db
+      .from('course_bookmarks')
+      .stream(primaryKey: ['course_id', 'user_id'])
+      .eq('course_id', courseId)
+      .map((rows) => rows.any((r) => r['user_id'] == userId));
 
-  Future<Result<void>> toggleBookmark(String courseId, String userId) => EngagementHelper.togglePresence(
-      parentCollection: _courses, docId: courseId, subcollection: AppConstants.colBookmarks,
-      userId: userId, failureMessage: 'Failed to update bookmark');
+  Future<Result<void>> toggleBookmark(String courseId, String userId) async {
+    try {
+      await _db.rpc('toggle_course_bookmark', params: {'p_course_id': courseId});
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to update bookmark', e);
+    }
+  }
 
-  /// A user's bookmarked courses — powers "My Saved Courses". Uses a
-  /// collection-group query since bookmarks live per-course.
+  /// A user's bookmarked courses — powers "My Saved Courses".
   Stream<List<PublicCourse>> watchBookmarkedCourses(String userId) {
     return _db
-        .collectionGroup(AppConstants.colBookmarks)
-        .where('userId', isEqualTo: userId)
-        .snapshots()
-        .asyncMap((snap) async {
-      final courseIds = snap.docs
-          .map((d) => d.reference.parent.parent?.id)
-          .whereType<String>()
-          .toList();
-      if (courseIds.isEmpty) return <PublicCourse>[];
-      final courses = <PublicCourse>[];
-      for (final id in courseIds.take(30)) {
-        final doc = await _courses.doc(id).get();
-        if (doc.exists) courses.add(PublicCourse.fromFirestore(doc));
-      }
-      return courses;
+        .from('course_bookmarks')
+        .stream(primaryKey: ['course_id', 'user_id'])
+        .eq('user_id', userId)
+        .asyncMap((rows) async {
+      final ids = rows.map((r) => r['course_id'] as String).toList();
+      if (ids.isEmpty) return <PublicCourse>[];
+      final courses = await _courses.select().inFilter('id', ids.take(30).toList());
+      return courses.map(PublicCourse.fromSupabase).toList();
     });
   }
 
-  // ── Likes (same shape as Magazine's) ──────────────────────
+  // ── Likes ──────────────────────────────────────────────────
 
-  Stream<bool> watchIsLiked(String courseId, String userId) => EngagementHelper.watchIsSet(
-      parentCollection: _courses, docId: courseId, subcollection: AppConstants.colLikes, userId: userId);
+  Stream<bool> watchIsLiked(String courseId, String userId) => _db
+      .from('course_likes')
+      .stream(primaryKey: ['course_id', 'user_id'])
+      .eq('course_id', courseId)
+      .map((rows) => rows.any((r) => r['user_id'] == userId));
 
-  Future<Result<void>> toggleLike(String courseId, String userId) => EngagementHelper.toggleWithCounter(
-      db: _db, parentCollection: _courses, docId: courseId, subcollection: AppConstants.colLikes,
-      userId: userId, counterField: 'likeCount', failureMessage: 'Failed to update like');
+  Future<Result<void>> toggleLike(String courseId, String userId) async {
+    try {
+      await _db.rpc('toggle_course_like', params: {'p_course_id': courseId});
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to update like', e);
+    }
+  }
 
   // ── Comments ───────────────────────────────────────────────
 
-  Stream<List<CourseComment>> watchComments(String courseId) => _courses
-      .doc(courseId)
-      .collection('comments')
-      .orderBy('createdAt')
-      .snapshots()
-      .map((s) => s.docs.map((d) => CourseComment.fromFirestore(d, courseId)).toList());
+  Stream<List<CourseComment>> watchComments(String courseId) => _db
+      .from('course_comments')
+      .stream(primaryKey: ['id'])
+      .eq('course_id', courseId)
+      .order('created_at')
+      .map((rows) => rows.map(CourseComment.fromSupabase).toList());
 
   Future<Result<void>> postComment(CourseComment comment) async {
     try {
-      final batch = _db.batch();
-      final ref = _courses.doc(comment.courseId).collection('comments').doc();
-      batch.set(ref, comment.toFirestore());
-      batch.update(_courses.doc(comment.courseId), {'commentCount': FieldValue.increment(1)});
-      await batch.commit();
+      await _db.rpc('post_course_comment', params: {
+        'p_course_id': comment.courseId,
+        'p_author_id': comment.authorId,
+        'p_author_name': comment.authorName,
+        'p_author_photo_url': comment.authorPhotoUrl,
+        'p_body': comment.body,
+      });
       return const Success(null);
     } catch (e) {
       return Failure('Failed to post comment', e);

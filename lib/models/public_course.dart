@@ -15,7 +15,6 @@
 //            public_courses/{courseId}/bookmarks/{userId}
 //            public_courses/{courseId}/learners/{userId}
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class PublicCourse {
   final String id;
@@ -137,64 +136,58 @@ class PublicCourse {
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
-  factory PublicCourse.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
+  factory PublicCourse.fromSupabase(Map<String, dynamic> d) {
     return PublicCourse(
-      id: doc.id,
-      creatorId: d['creatorId'] ?? '',
-      creatorName: d['creatorName'] ?? 'Unknown',
-      creatorPhotoUrl: d['creatorPhotoUrl'],
+      id: d['id'] as String,
+      creatorId: d['creator_id'] ?? '',
+      creatorName: d['creator_name'] ?? 'Unknown',
+      creatorPhotoUrl: d['creator_photo_url'],
       title: d['title'] ?? '',
       description: d['description'] ?? '',
       body: d['body'] ?? '',
-      bodyDelta: d['bodyDelta'],
+      bodyDelta: d['body_delta'],
       category: d['category'] ?? 'Mathematics',
       tags: List<String>.from(d['tags'] ?? const []),
       subject: d['subject'] ?? '',
       level: d['level'] ?? '',
       topic: d['topic'] ?? '',
       difficulty: d['difficulty'] ?? '',
-      order: (d['order'] ?? 0).toDouble(),
-      prerequisiteIds: List<String>.from(d['prerequisiteIds'] ?? const []),
-      coverImageUrl: d['coverImageUrl'],
-      videoUrl: d['videoUrl'],
+      order: (d['sort_order'] ?? 0).toDouble(),
+      prerequisiteIds: List<String>.from(d['prerequisite_ids'] ?? const []),
+      coverImageUrl: d['cover_image_url'],
+      videoUrl: d['video_url'],
       published: d['published'] ?? true,
-      enrolledCount: d['enrolledCount'] ?? 0,
-      avgRating: (d['avgRating'] ?? 0).toDouble(),
-      ratingCount: d['ratingCount'] ?? 0,
-      likeCount: d['likeCount'] ?? 0,
-      commentCount: d['commentCount'] ?? 0,
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      enrolledCount: d['enrolled_count'] ?? 0,
+      avgRating: (d['avg_rating'] ?? 0).toDouble(),
+      ratingCount: d['rating_count'] ?? 0,
+      likeCount: d['like_count'] ?? 0,
+      commentCount: d['comment_count'] ?? 0,
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(d['updated_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
-        'creatorId': creatorId,
-        'creatorName': creatorName,
-        'creatorPhotoUrl': creatorPhotoUrl,
+  Map<String, dynamic> toSupabase() => {
+        'creator_id': creatorId.isEmpty ? null : creatorId,
+        'creator_name': creatorName,
+        'creator_photo_url': creatorPhotoUrl,
         'title': title,
         'description': description,
         'body': body,
-        'bodyDelta': bodyDelta,
+        'body_delta': bodyDelta,
         'category': category,
         'tags': tags,
         'subject': subject,
         'level': level,
         'topic': topic,
         'difficulty': difficulty,
-        'order': order,
-        'prerequisiteIds': prerequisiteIds,
-        'coverImageUrl': coverImageUrl,
-        'videoUrl': videoUrl,
+        'sort_order': order,
+        'prerequisite_ids': prerequisiteIds,
+        'cover_image_url': coverImageUrl,
+        'video_url': videoUrl,
         'published': published,
-        'enrolledCount': enrolledCount,
-        'avgRating': avgRating,
-        'ratingCount': ratingCount,
-        'likeCount': likeCount,
-        'commentCount': commentCount,
-        'createdAt': Timestamp.fromDate(createdAt),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'created_at': createdAt.toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
       };
 }
 
@@ -243,25 +236,15 @@ class CourseComment {
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  factory CourseComment.fromFirestore(
-      DocumentSnapshot<Map<String, dynamic>> doc, String courseId) {
-    final d = doc.data() ?? {};
+  factory CourseComment.fromSupabase(Map<String, dynamic> d) {
     return CourseComment(
-      id: doc.id,
-      courseId: courseId,
-      authorId: d['authorId'] ?? '',
-      authorName: d['authorName'] ?? 'Unknown',
-      authorPhotoUrl: d['authorPhotoUrl'],
+      id: d['id'] as String,
+      courseId: d['course_id'] as String,
+      authorId: d['author_id'] ?? '',
+      authorName: d['author_name'] ?? 'Unknown',
+      authorPhotoUrl: d['author_photo_url'],
       body: d['body'] ?? '',
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
-
-  Map<String, dynamic> toFirestore() => {
-        'authorId': authorId,
-        'authorName': authorName,
-        'authorPhotoUrl': authorPhotoUrl,
-        'body': body,
-        'createdAt': Timestamp.fromDate(createdAt),
-      };
 }

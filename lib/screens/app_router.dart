@@ -7,7 +7,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show User;
 import '../models/models.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
@@ -39,7 +39,7 @@ class AppRouter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+      stream: AuthService.instance.authStateChanges,
       builder: (ctx, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -177,7 +177,7 @@ class _AppUserGate extends StatelessWidget {
         }
         final user = snap.data;
         if (user == null) {
-          FirebaseAuth.instance.signOut();
+          AuthService.instance.signOut();
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
         if (user.status == AccountStatus.suspended) return _SuspendedScreen(user: user);

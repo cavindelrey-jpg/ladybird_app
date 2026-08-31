@@ -155,9 +155,9 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
       itemBuilder: (context, i) {
         final u = _users[i];
         return ListTile(
-          leading: UserAvatar(initials: u['name'][0], photoUrl: u['photoUrl'], radius: 18),
+          leading: UserAvatar(initials: u['name'][0], photoUrl: u['photo_url'], radius: 18),
           title: Text(u['name']),
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfilePage(user: AppUser.fromFirestore(u['id'], u)))),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfilePage(user: AppUser.fromSupabase(u)))),
         );
       },
     );

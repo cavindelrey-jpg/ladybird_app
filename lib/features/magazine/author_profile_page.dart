@@ -3,10 +3,9 @@
 // (with a DRAFT badge) alongside published work; viewing someone else's
 // profile shows only what's published.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../core/constants.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/app_user.dart';
 import '../../models/magazine_article.dart';
 import '../../repositories/magazine_repository.dart';
@@ -19,14 +18,14 @@ import '../../widgets/app_background.dart';
 import 'article_reader_page.dart';
 import 'article_composer_page.dart';
 
-/// One-time-ish lookup of the full user profile (for bio/institution) —
-/// the article-derived header fields (name/photo) already come from
-/// MagazineArticle, so this only backs the extra stat fields.
-Stream<AppUser?> _watchAuthorUser(String authorId) => FirebaseFirestore.instance
-    .collection(AppConstants.colUsers)
-    .doc(authorId)
-    .snapshots()
-    .map((d) => d.exists ? AppUser.fromFirestore(d.id, d.data()!) : null);
+/// One-time-ish lookup of the full user profile (for bio) — the
+/// article-derived header fields (name/photo) already come from
+/// MagazineArticle, so this only backs the extra bio field.
+Stream<AppUser?> _watchAuthorUser(String authorId) => Supabase.instance.client
+    .from('users')
+    .stream(primaryKey: ['id'])
+    .eq('id', authorId)
+    .map((rows) => rows.isNotEmpty ? AppUser.fromSupabase(rows.first) : null);
 
 class AuthorProfilePage extends StatelessWidget {
   final String authorId;

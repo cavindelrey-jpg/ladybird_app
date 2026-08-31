@@ -97,11 +97,16 @@ class _CourseNavigationPageState extends State<CourseNavigationPage> {
         if (image != null) {
           final upload =
               await AcademicSectionRepository.instance.uploadSectionImage(sectionId: s.id, imageFile: image);
-          if (upload is Success<String>) imageUrl = upload.value;
+          switch (upload) {
+            case Success(:final value): imageUrl = value;
+            case Failure(:final message): throw Exception(message);
+          }
         } else {
           imageUrl = '';
         }
-        await AcademicSectionRepository.instance.updateSectionIcon(s.id, emoji: emoji, imageUrl: imageUrl);
+        final result =
+            await AcademicSectionRepository.instance.updateSectionIcon(s.id, emoji: emoji, imageUrl: imageUrl);
+        if (result case Failure(:final message)) throw Exception(message);
       },
     );
     _load();

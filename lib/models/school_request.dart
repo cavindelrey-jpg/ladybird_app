@@ -1,14 +1,9 @@
 // lib/models/school_request.dart
 // School Connect's five request types (Report an Issue, Leave Request,
-// Fee Inquiry, School Request, Give Feedback) modeled as ONE collection
-// with a `type` field, not five separate collections/pages -- they share
-// the exact same shape (a student writes a message, staff sees and
-// responds to it), so five collections would just be the same rule and
-// the same UI five times over.
-//
-// Firestore: school_requests/{id}
-
-import 'package:cloud_firestore/cloud_firestore.dart';
+// Fee Inquiry, School Request, Give Feedback) modeled as ONE type with a
+// `type` field, not five separate models/pages. No Postgres table yet —
+// zero real data at migration time; SchoolRequestRepository below is an
+// honest stub.
 
 enum SchoolRequestType { issue, leave, feeInquiry, general, feedback }
 
@@ -62,35 +57,4 @@ class SchoolRequest {
     this.createdAt,
     this.respondedAt,
   });
-
-  factory SchoolRequest.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>? ?? {};
-    return SchoolRequest(
-      id: doc.id,
-      schoolId: d['schoolId'] ?? '',
-      studentId: d['studentId'] ?? '',
-      studentName: d['studentName'] ?? '',
-      classLevel: d['classLevel'] ?? '',
-      type: SchoolRequestType.values.firstWhere(
-          (t) => t.name == d['type'], orElse: () => SchoolRequestType.general),
-      message: d['message'] ?? '',
-      status: SchoolRequestStatus.values.firstWhere(
-          (s) => s.name == d['status'], orElse: () => SchoolRequestStatus.pending),
-      staffResponse: d['staffResponse'],
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
-      respondedAt: (d['respondedAt'] as Timestamp?)?.toDate(),
-    );
-  }
-
-  Map<String, dynamic> toFirestore() => {
-        'schoolId': schoolId,
-        'studentId': studentId,
-        'studentName': studentName,
-        'classLevel': classLevel,
-        'type': type.name,
-        'message': message,
-        'status': status.name,
-        'staffResponse': staffResponse,
-        'createdAt': FieldValue.serverTimestamp(),
-      };
 }

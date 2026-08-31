@@ -68,10 +68,34 @@ class _QuizIconEditorSheetState extends State<_QuizIconEditorSheet> {
     });
   }
 
+  Future<void> _clear() async {
+    setState(() { _emoji = ''; _image = null; _saving = true; });
+    try {
+      await widget.onSave('', null);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      showToast(context, 'Could not clear: $e', isError: true);
+    }
+  }
+
   Future<void> _save() async {
     setState(() => _saving = true);
-    await widget.onSave(_emoji, _image);
-    if (mounted) Navigator.of(context).pop();
+    // Every onSave callback now throws on a failed upload/write (rather
+    // than silently doing nothing, which is the real bug this used to
+    // have) -- this is the one place that catches it and tells the user
+    // instead of leaving the Save button spinning forever with no
+    // explanation, which is indistinguishable from "the button just
+    // doesn't work".
+    try {
+      await widget.onSave(_emoji, _image);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      showToast(context, 'Could not save: $e', isError: true);
+    }
   }
 
   @override
@@ -130,12 +154,7 @@ class _QuizIconEditorSheetState extends State<_QuizIconEditorSheet> {
               Expanded(
                 child: SecondaryBtn(
                   label: 'Clear',
-                  onTap: _saving ? () {} : () {
-                    setState(() { _emoji = ''; _image = null; });
-                    widget.onSave('', null).then((_) {
-                      if (mounted) Navigator.of(context).pop();
-                    });
-                  },
+                  onTap: _saving ? () {} : _clear,
                 ),
               ),
             if (_emoji.isNotEmpty || _image != null || widget.currentImageUrl.isNotEmpty)

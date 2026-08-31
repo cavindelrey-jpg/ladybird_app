@@ -58,13 +58,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/app_user.dart';
 import '../../models/magazine_article.dart';
 import '../../models/magazine_gallery_post.dart';
 import '../../models/magazine_video_post.dart';
 import '../../models/club.dart';
-import '../../core/constants.dart';
 import '../../repositories/magazine_repository.dart';
 import '../../repositories/follow_repository.dart';
 import '../../repositories/recommendation_repository.dart';
@@ -833,19 +832,8 @@ class _FollowingAuthorsSection extends StatelessWidget {
 
   Future<List<AppUser>> _loadAuthors(List<String> ids) async {
     if (ids.isEmpty) return [];
-    final chunks = <List<String>>[];
-    for (var i = 0; i < ids.length; i += 30) {
-      chunks.add(ids.sublist(i, i + 30 > ids.length ? ids.length : i + 30));
-    }
-    final users = <AppUser>[];
-    for (final chunk in chunks) {
-      final snap = await FirebaseFirestore.instance
-          .collection(AppConstants.colUsers)
-          .where(FieldPath.documentId, whereIn: chunk)
-          .get();
-      users.addAll(snap.docs.map((d) => AppUser.fromFirestore(d.id, d.data())));
-    }
-    return users;
+    final rows = await Supabase.instance.client.from('users').select().inFilter('id', ids);
+    return rows.map(AppUser.fromSupabase).toList();
   }
 
   @override

@@ -1,15 +1,15 @@
 // lib/pages/profile_edit_page.dart
 // Lets any signed-in user (school-linked or independent) update their own
-// photo, ~100-word bio, and education level. Photo uploads to Firebase
-// Storage and is mirrored to a local file so it paints instantly next time
-// (Firebase + local cache, per your call).
+// photo, ~100-word bio, education level, and favorite subjects. Photo
+// uploads to Supabase Storage and is mirrored to a local file so it
+// paints instantly next time.
 
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 import '../models/app_user.dart';
@@ -74,9 +74,11 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     setState(() => _uploadingPhoto = true);
     try {
       final uid = widget.user.id;
-      final ref = FirebaseStorage.instance.ref('avatars/$uid.jpg');
-      await ref.putFile(_localPickedFile!);
-      final url = await ref.getDownloadURL();
+      final path = 'avatars/$uid.jpg';
+      final db = Supabase.instance.client;
+      await db.storage.from('app-content').upload(
+          path, _localPickedFile!, fileOptions: const FileOptions(upsert: true));
+      final url = db.storage.from('app-content').getPublicUrl(path);
 
       // Mirror to local cache so the avatar paints instantly next launch.
       final dir = await getApplicationDocumentsDirectory();
@@ -102,9 +104,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
       await AuthService.instance.updateUser(widget.user, {
         'name': _nameCtrl.text.trim(),
         'bio': _bioCtrl.text.trim(),
-        'educationLevel': _educationLevel,
-        'favoriteSubjects': _favoriteSubjects,
-        if (_photoUrl != null) 'photoUrl': _photoUrl,
+        'education_level': _educationLevel,
+        'favorite_subjects': _favoriteSubjects,
+        if (_photoUrl != null) 'photo_url': _photoUrl,
       });
       if (!mounted) return;
       showToast(context, 'Profile updated.');

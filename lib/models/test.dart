@@ -14,6 +14,10 @@
 // discriminated by `type`. This keeps grading, scoring, and XP math in
 // one place (see core/xp_rules.dart) regardless of the mix.
 //
+// Every question format auto-grades — see core/essay_matching.dart for
+// how structured/long-form answers are matched against [expectedPoints]/
+// [keyPoints]. There is no manual-grading path in this app.
+//
 // Firestore: tests/{testId}
 // Questions are embedded (denormalized), not a subcollection — mirrors
 // the existing DailyChallenge pattern (models/daily_challenge.dart).
@@ -23,7 +27,7 @@
 // tests") comes from having many small `tests` docs, not from splitting
 // one test's own questions further.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'essay_key_point.dart';
 import 'academic_section.dart';
 
 export 'academic_section.dart' show AcademicSection, kDefaultAcademicSections;
@@ -39,8 +43,13 @@ extension QuestionTypeExt on QuestionType {
     }
   }
 
-  static QuestionType fromKey(String? key) => QuestionType.values
-      .firstWhere((t) => t.name == key, orElse: () => QuestionType.mcq);
+  static QuestionType fromKey(String? key) {
+    // 'long_form' is what the Supabase migration import wrote into
+    // existing jsonb rows (snake_case, matching the Postgres question_type
+    // enum used elsewhere) — accept both so old and new data parse the same.
+    if (key == 'long_form') return QuestionType.longForm;
+    return QuestionType.values.firstWhere((t) => t.name == key, orElse: () => QuestionType.mcq);
+  }
 }
 
 enum TestDifficulty { easy, medium, hard }
@@ -58,77 +67,16 @@ extension TestDifficultyExt on TestDifficulty {
       .firstWhere((d) => d.name == key, orElse: () => TestDifficulty.medium);
 }
 
-// ── Essay key points (production_plan.md §3, "Quiz Type 3 — Essay") ──────
-// The plan is explicit that an Essay question is NOT "type two pages of
-// prose into the app". It is: the author names the 7–9 essential points a
-// strong answer must contain, the student states the points they'd
-// include, and the score is simply how many of those essential points
-// they captured. So an Essay question's authored payload is a LIST OF KEY
-// POINTS, not a list of prose section headings (which is what the first
-// cut of this model shipped — see AUTOPILOT_LOG for the swap).
-
-/// The spec's stated range for "the essential points a strong answer
-/// should contain". Enforced in the authoring UI (TestComposerPage), not
-/// in this constructor — a malformed document read back from Firestore
-/// should still parse rather than throw in a fromMap.
-const int kMinEssayKeyPoints = 7;
-const int kMaxEssayKeyPoints = 9;
-
-/// One essential point of a strong essay answer. [text] is deliberately a
-/// short phrase/sentence ("Photosynthesis converts light energy to
-/// chemical energy"), never a paragraph — it is the unit the student's
-/// own submitted points get matched against.
-///
-/// [keywords] are OPTIONAL alternate phrasings the author can add for the
-/// same idea ("light reaction", "converts sunlight"). They exist purely
-/// to make the offline matcher (core/essay_matching.dart) fairer to a
-/// student who used different words for the right idea — each keyword is
-/// scored as an ALTERNATIVE to [text], never as an extra requirement on
-/// top of it.
-class EssayKeyPoint {
-  final String id;
-  final String text;
-  final List<String> keywords;
-
-  const EssayKeyPoint({
-    required this.id,
-    required this.text,
-    this.keywords = const [],
-  });
-
-  factory EssayKeyPoint.fromMap(Map<String, dynamic> m) => EssayKeyPoint(
-        id: m['id'] ?? '',
-        text: m['text'] ?? '',
-        keywords: List<String>.from(m['keywords'] ?? const []),
-      );
-
-  Map<String, dynamic> toMap() => {
-        'id': id,
-        'text': text,
-        'keywords': keywords,
-      };
-}
-
 /// One question inside a Test. Which fields are meaningful depends on
 /// [type]:
 ///  - mcq: uses [options] + [correctIndex]. Auto-graded instantly.
-///  - structured (production_plan.md §3, "Quiz Type 2 — Short Answer /
-///    Structural"): uses [lineCount] (how many ruled answer-lines to
-///    render), optional [expectedPoints] — the author's expected
-///    answer/key points, SAME shape as an Essay's [EssayKeyPoint] and
-///    matched the same way by core/essay_matching.dart — and optional
-///    [rubricGuidance] (free-text guidance shown to whoever grades it).
-///    Unlike Essay, the spec does not mandate a point count for
-///    Structural, so [expectedPoints] is genuinely optional: a question
-///    authored WITH expected points auto-grades (mirrors Essay exactly,
-///    including routing individually-uncertain points to a human); a
-///    question authored WITHOUT any (the pre-existing shape, or a
-///    genuinely rubric-only question with no discrete expected answer)
-///    still goes to a human grader in full, exactly as before.
-///  - longForm (the plan's "Essay"): uses [keyPoints] — the 7–9 essential
-///    points. Scored out of the NUMBER of key points, not out of [points]
-///    (see [maxPoints]), because the plan defines the essay score as
-///    "how many essential points the student captured".
+///  - structured: uses [lineCount] (how many ruled answer-lines to render),
+///    optional [rubricGuidance] (shown alongside the correction, not used
+///    for grading itself), and [expectedPoints] — the key points the
+///    answer is auto-graded against (core/essay_matching.dart).
+///  - longForm (AC): a single free-text essay box, auto-graded against
+///    [keyPoints] the same way as structured's [expectedPoints], just
+///    with more of them (7-9 — see kMinEssayKeyPoints/kMaxEssayKeyPoints).
 class TestQuestion {
   final String id;
   final QuestionType type;
@@ -142,12 +90,6 @@ class TestQuestion {
   // Structured only
   final int lineCount;
   final String? rubricGuidance;
-  /// The author's expected answer/key points for a Structured question —
-  /// optional (see class doc). Reuses [EssayKeyPoint] rather than a new
-  /// type: an expected point is the exact same shape as an essential
-  /// essay point (a short phrase plus optional alternate-wording
-  /// keywords), and core/essay_matching.dart's matcher is already generic
-  /// lexical matching, not Essay-specific in its logic.
   final List<EssayKeyPoint> expectedPoints;
 
   // Essay (longForm) only
@@ -156,7 +98,7 @@ class TestQuestion {
   /// Architecture brief item 9: real photos/diagrams a question can show
   /// or ask the learner to analyse, not emoji decoration. Optional and
   /// type-independent -- any of the three formats can attach one image.
-  /// A real Firebase Storage download URL, same pick -> upload -> preview
+  /// A real Supabase Storage download URL, same pick -> upload -> preview
   /// pattern as every other image attachment in this app.
   final String? imageUrl;
 
@@ -202,11 +144,11 @@ class TestQuestion {
         correctIndex: (m['correctIndex'] as num?)?.toInt() ?? 0,
         lineCount: (m['lineCount'] as num?)?.toInt() ?? 4,
         rubricGuidance: m['rubricGuidance'],
-        expectedPoints: (m['expectedPoints'] as List<dynamic>? ?? [])
-            .map((k) => EssayKeyPoint.fromMap(Map<String, dynamic>.from(k)))
+        expectedPoints: (m['expectedPoints'] as List<dynamic>? ?? const [])
+            .map((p) => EssayKeyPoint.fromMap(Map<String, dynamic>.from(p)))
             .toList(),
-        keyPoints: (m['keyPoints'] as List<dynamic>? ?? [])
-            .map((k) => EssayKeyPoint.fromMap(Map<String, dynamic>.from(k)))
+        keyPoints: (m['keyPoints'] as List<dynamic>? ?? const [])
+            .map((p) => EssayKeyPoint.fromMap(Map<String, dynamic>.from(p)))
             .toList(),
         imageUrl: m['imageUrl'],
       );
@@ -220,11 +162,17 @@ class TestQuestion {
         'correctIndex': correctIndex,
         'lineCount': lineCount,
         'rubricGuidance': rubricGuidance,
+        'expectedPoints': expectedPoints.map((p) => p.toMap()).toList(),
+        'keyPoints': keyPoints.map((p) => p.toMap()).toList(),
         'imageUrl': imageUrl,
-        'expectedPoints': expectedPoints.map((k) => k.toMap()).toList(),
-        'keyPoints': keyPoints.map((k) => k.toMap()).toList(),
       };
 }
+
+/// longForm (AC) key-point count bounds — mirrors
+/// academia_compiler/compile-quiz.js's MIN/MAX_ESSAY_KEY_POINTS; keep the
+/// two in sync if this range ever changes.
+const int kMinEssayKeyPoints = 7;
+const int kMaxEssayKeyPoints = 9;
 
 class Test {
   final String id;
@@ -250,7 +198,7 @@ class Test {
   // "blank = not placed in the tree yet, still reachable other ways"
   // honesty as PublicCourse.hasCurriculumPlacement.
 
-  /// Name of a QuizCategory doc (education level) — e.g. "Senior
+  /// Name of a QuizCategory row (education level) — e.g. "Senior
   /// Secondary School". Free text so it survives a category being
   /// renamed without a foreign-key migration; TestsQuizCategoriesPage
   /// is the source of truth for which names currently exist.
@@ -299,14 +247,7 @@ class Test {
   /// might still flag an individual uncertain point after the fact); one
   /// with none has no expected answer to match against at all and is
   /// ALWAYS fully human-graded, which — unlike Essay's uncertainty — IS
-  /// knowable before any attempt exists. So this flag now means "at least
-  /// one Structured question has no expected points authored", not "this
-  /// test has structured questions". It still under-promises in one way,
-  /// honestly: an expectedPoints-authored Structured or an Essay question
-  /// can ALSO land an individual point in the human queue after the
-  /// student answers, and that case is deliberately not reflected here for
-  /// the same "don't promise a review that usually won't happen" reason
-  /// Essay was excluded for.
+  /// knowable before any attempt exists.
   bool get hasManualGrading => questions.any(
       (q) => q.type == QuestionType.structured && q.expectedPoints.isEmpty);
 
@@ -321,11 +262,9 @@ class Test {
   bool get hasAutoGradedStructuredQuestions => questions.any((q) =>
       q.type == QuestionType.structured && q.expectedPoints.isNotEmpty);
 
-  factory Test.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
-    final ts = d['createdAt'];
+  factory Test.fromSupabase(Map<String, dynamic> d) {
     return Test(
-      id: doc.id,
+      id: d['id'] as String,
       subject: d['subject'] ?? '',
       title: d['title'] ?? 'Untitled Test',
       description: d['description'] ?? '',
@@ -333,48 +272,48 @@ class Test {
       questions: (d['questions'] as List<dynamic>? ?? [])
           .map((q) => TestQuestion.fromMap(Map<String, dynamic>.from(q)))
           .toList(),
-      createdBy: d['createdBy'] ?? '',
-      createdByName: d['createdByName'] ?? '',
-      institutionId: d['institutionId'],
+      createdBy: d['created_by'] ?? '',
+      createdByName: d['created_by_name'] ?? '',
+      institutionId: d['institution_id'],
       published: d['published'] ?? true,
-      createdAt: ts is Timestamp ? ts.toDate() : DateTime.now(),
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
       category: d['category'] ?? '',
       topic: d['topic'] ?? '',
-      thumbnailUrl: d['thumbnailUrl'],
+      thumbnailUrl: d['thumbnail_url'],
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
+  Map<String, dynamic> toSupabase() => {
         'subject': subject,
         'title': title,
         'description': description,
         'difficulty': difficulty.name,
         'questions': questions.map((q) => q.toMap()).toList(),
-        'createdBy': createdBy,
-        'createdByName': createdByName,
-        'institutionId': institutionId,
+        'created_by': createdBy.isEmpty ? null : createdBy,
+        'created_by_name': createdByName,
+        'institution_id': institutionId,
         'published': published,
-        'createdAt': Timestamp.fromDate(createdAt),
+        'created_at': createdAt.toIso8601String(),
         'category': category,
         'topic': topic,
-        'thumbnailUrl': thumbnailUrl,
+        'thumbnail_url': thumbnailUrl,
       };
 }
 
 /// The Quiz page's top-level tier — an education level like "Senior
 /// Secondary School". Unlike Subject/Topic (free text derived from
-/// whatever's on existing Test docs, see PublicCourse's identical
-/// choice for its own tree), a category is a real Firestore doc: the
-/// user asked to be able to add whole new sections (e.g. "Nursery",
-/// "Master's") from the Quiz page itself, independent of whether any
-/// quiz has been placed under it yet — a derived-string tier can't
-/// exist before its first quiz does, a real doc can.
+/// whatever's on existing Test rows, see PublicCourse's identical choice
+/// for its own tree), a category is a real Postgres row: the user asked
+/// to be able to add whole new sections (e.g. "Nursery", "Master's") from
+/// the Quiz page itself, independent of whether any quiz has been placed
+/// under it yet — a derived-string tier can't exist before its first
+/// quiz does, a real row can.
 ///
 /// [QuizCategory] is now just this Quiz feature's name for the shared
 /// [AcademicSection] model (see models/academic_section.dart) — the same
 /// admin-managed section list also drives Course Navigation and the
 /// Library, rather than each feature growing its own separate tree of
-/// near-identical "Primary School/JSS/SSS/..." docs. Kept as a type
+/// near-identical "Primary School/JSS/SSS/..." rows. Kept as a type
 /// alias (not a straight rename) so every existing Quiz call site
 /// (QuizCategoriesPage, TestComposerPage, TestRepository, ...) keeps
 /// compiling unchanged.

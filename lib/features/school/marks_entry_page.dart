@@ -92,7 +92,7 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
       showToast(context, 'Pick a student first.', isError: true);
       return;
     }
-    final classLevel = (student['classLevel'] as String?) ?? '';
+    final classLevel = (student['class_level'] as String?) ?? '';
     // Client-side mirror of the real enforcement in firestore.rules'
     // canRecordMarksFor() -- catches the mistake before a wasted round
     // trip, but the rule itself is the actual boundary (item 25: never
@@ -170,12 +170,12 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
           for (final r in _results)
             ListTile(
               title: Text(r['name'] ?? '', style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
-              subtitle: Text(r['classLevel'] ?? '', style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
+              subtitle: Text(r['class_level'] ?? '', style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
               onTap: () => setState(() {
                 _selectedStudent = r;
                 _results = [];
                 _searchCtrl.text = r['name'] ?? '';
-                final allowed = _allowedSubjectsFor((r['classLevel'] as String?) ?? '');
+                final allowed = _allowedSubjectsFor((r['class_level'] as String?) ?? '');
                 _subject = allowed.isNotEmpty ? allowed.first : '';
               }),
             ),
@@ -187,7 +187,7 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
               child: Row(children: [
                 Icon(Icons.person_rounded, color: ac.primary, size: 18),
                 const SizedBox(width: 8),
-                Expanded(child: Text('${_selectedStudent!['name']} · ${_selectedStudent!['classLevel'] ?? 'No class'}',
+                Expanded(child: Text('${_selectedStudent!['name']} · ${_selectedStudent!['class_level'] ?? 'No class'}',
                     style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: ac.primary))),
               ]),
             ),
@@ -199,12 +199,12 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
               onChanged: (v) => setState(() => _sequence = v ?? _sequence),
             ),
             Builder(builder: (_) {
-              final allowedSubjects = _allowedSubjectsFor((_selectedStudent!['classLevel'] as String?) ?? '');
+              final allowedSubjects = _allowedSubjectsFor((_selectedStudent!['class_level'] as String?) ?? '');
               if (allowedSubjects.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Text(
-                    'You have no teaching assignment for ${_selectedStudent!['classLevel'] ?? 'this class'}.',
+                    'You have no teaching assignment for ${_selectedStudent!['class_level'] ?? 'this class'}.',
                     style: GoogleFonts.inter(fontSize: 12.5, color: ac.red),
                   ),
                 );

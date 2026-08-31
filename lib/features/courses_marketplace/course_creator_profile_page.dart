@@ -1,9 +1,8 @@
 // lib/features/courses_marketplace/course_creator_profile_page.dart
 // A course creator's published (and, on your own profile, draft) courses.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import '../../core/constants.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/app_user.dart';
 import '../../models/public_course.dart';
 import '../../repositories/follow_repository.dart';
@@ -16,14 +15,14 @@ import '../../widgets/app_background.dart';
 import 'course_reader_page.dart';
 import 'course_composer_page.dart';
 
-/// One-time-ish lookup of the full user profile (for bio/institution) —
-/// the header's name/photo already come from PublicCourse, so this only
-/// backs the extra stat fields.
-Stream<AppUser?> _watchCreatorUser(String creatorId) => FirebaseFirestore.instance
-    .collection(AppConstants.colUsers)
-    .doc(creatorId)
-    .snapshots()
-    .map((d) => d.exists ? AppUser.fromFirestore(d.id, d.data()!) : null);
+/// One-time-ish lookup of the full user profile (for bio) — the header's
+/// name/photo already come from PublicCourse, so this only backs the
+/// extra bio field.
+Stream<AppUser?> _watchCreatorUser(String creatorId) => Supabase.instance.client
+    .from('users')
+    .stream(primaryKey: ['id'])
+    .eq('id', creatorId)
+    .map((rows) => rows.isNotEmpty ? AppUser.fromSupabase(rows.first) : null);
 
 class CourseCreatorProfilePage extends StatelessWidget {
   final String creatorId;
@@ -111,7 +110,7 @@ class CourseCreatorProfilePage extends StatelessWidget {
                   onTap: () {
                     if (c.published || _isOwnProfile) {
                       Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => 
+                          builder: (_) =>
                               CourseReaderPage(course: c, currentUser: currentUser)));
                     }
                   },

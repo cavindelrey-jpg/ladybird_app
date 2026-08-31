@@ -234,8 +234,8 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
     final candidates = await MessagingRepository.instance.searchUsers(studentName);
     final matches = candidates.where((c) =>
         (c['name'] as String? ?? '').trim().toLowerCase() == studentName.trim().toLowerCase() &&
-        (c['schoolId'] as String? ?? '') == (widget.staff.schoolId ?? '') &&
-        (c['classLevel'] as String? ?? '') == classLevel).toList();
+        (c['institution_id'] as String? ?? '') == (widget.staff.schoolId ?? '') &&
+        (c['class_level'] as String? ?? '') == classLevel).toList();
     if (matches.isEmpty) {
       row.error = 'No student named "$studentName" found in $classLevel at your school.';
       return row;

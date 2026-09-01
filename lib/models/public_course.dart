@@ -15,6 +15,7 @@
 //            public_courses/{courseId}/bookmarks/{userId}
 //            public_courses/{courseId}/learners/{userId}
 
+import 'dart:convert';
 
 class PublicCourse {
   final String id;
@@ -145,7 +146,15 @@ class PublicCourse {
       title: d['title'] ?? '',
       description: d['description'] ?? '',
       body: d['body'] ?? '',
-      bodyDelta: d['body_delta'],
+      // Some legacy/bulk-imported rows have this jsonb column holding the
+      // decoded Quill Delta (a JSON array) rather than the app's own
+      // convention of a jsonEncode'd string -- postgrest then hands back
+      // a native List, which crashes a plain `as String?` read. Re-encode
+      // it back into the string form the reader (jsonDecode(bodyDelta!))
+      // expects either way.
+      bodyDelta: d['body_delta'] == null || d['body_delta'] is String
+          ? d['body_delta'] as String?
+          : jsonEncode(d['body_delta']),
       category: d['category'] ?? 'Mathematics',
       tags: List<String>.from(d['tags'] ?? const []),
       subject: d['subject'] ?? '',

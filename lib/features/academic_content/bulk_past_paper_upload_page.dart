@@ -49,7 +49,6 @@ class _BatchItem {
     required this.paperNumber,
     required this.title,
     this.status = _BatchItemStatus.ready,
-    this.error,
   });
 
   bool get isComplete => discipline.trim().isNotEmpty && year != null && paperNumber != null;
@@ -87,15 +86,22 @@ class _BulkPastPaperUploadPageState extends State<BulkPastPaperUploadPage> {
     for (final f in result.files) {
       if (f.path == null) continue;
       final parsed = parsePastPaperFilename(f.name);
+      final discipline = parsed?.discipline ?? '';
+      final year = parsed?.year;
+      final paperNumber = parsed?.paperNumber;
+      // A partial parse (e.g. year found but no paper number) still needs
+      // fixing -- checking isComplete's own condition here, not just
+      // whether parsing found *something*.
+      final isComplete = discipline.trim().isNotEmpty && year != null && paperNumber != null;
       newItems.add(_BatchItem(
         file: File(f.path!),
         originalName: f.name,
-        discipline: parsed?.discipline ?? '',
+        discipline: discipline,
         examBoard: parsed?.examBoard ?? 'N/A',
-        year: parsed?.year,
-        paperNumber: parsed?.paperNumber,
+        year: year,
+        paperNumber: paperNumber,
         title: parsed?.title ?? f.name.replaceAll(RegExp(r'\.[^.]+$'), ''),
-        status: parsed == null ? _BatchItemStatus.needsInfo : _BatchItemStatus.ready,
+        status: isComplete ? _BatchItemStatus.ready : _BatchItemStatus.needsInfo,
       ));
     }
     setState(() => _items.addAll(newItems));

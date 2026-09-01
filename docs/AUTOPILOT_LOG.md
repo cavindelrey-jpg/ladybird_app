@@ -5232,3 +5232,17 @@ fix renders correctly -- reviewed the XML/storyboard changes by hand
 (constraint/attribute correctness) and tested the sed pattern in
 isolation. Should be verified on a real device via the next Codemagic
 build.
+- 2026-09-01: CI Analyze step failed (unused_element_parameter warning
+  for `error` in _BatchItem ctor, bulk_past_paper_upload_page.dart:52) —
+  same root cause and fix already applied to the sibling greenhills_app
+  repo (same shared codebase, white-labeled per school). Ported all 3
+  fixes verified there: removed the dead ctor param; rewrote
+  past_paper_filename_parser.dart to tokenize on any separator and
+  consume year/paper-number/exam-level regardless of position (real
+  filenames off a phone rarely match a fixed left-to-right shape); made
+  PublicCourse.fromSupabase tolerate body_delta coming back as a decoded
+  List (legacy/bulk-imported jsonb rows) instead of a jsonEncode'd
+  string. This app shares the same Supabase project (ccumxxysaaphhgdzlagk)
+  as greenhills_app, so the personal_study_slots table / club_* realtime
+  publication / app-content storage bucket fixes already applied there
+  cover this app too — no DB changes needed here.

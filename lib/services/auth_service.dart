@@ -23,10 +23,12 @@
 import 'dart:async';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../config/branding.dart';
 import '../models/models.dart';
 import '../models/xp_transaction.dart';
 import '../core/xp_rules.dart';
 import '../core/result.dart';
+import '../repositories/school_repository.dart';
 import '../repositories/xp_repository.dart';
 import 'analytics_service.dart' show AuditService, AuditSeverity;
 import 'app_user_cache_service.dart';
@@ -123,6 +125,37 @@ class AuthService {
     return controller.stream;
   }
 
+  /// All three white-label apps (Green Hills, Ladybird, Academia) share
+  /// one Supabase project/auth.users table, so credentials that are
+  /// valid for one are valid for all of them unless the CLIENT enforces
+  /// a brand check — Supabase Auth itself has no concept of "which app"
+  /// a session came from. Voucher *redemption* already tenant-checks
+  /// this way (SchoolAccessRepository.redeemSchoolVoucher passing
+  /// Branding.current.voucherPrefix) — this is the same check applied
+  /// at LOGIN, so an account already linked to Green Hills can't sign
+  /// into the Ladybird app (or vice versa) just because both sit on the
+  /// same backend. Academia is the shared, brand-agnostic hub (open to
+  /// any paying account, including school-linked ones), so it's exempt.
+  /// superAdmin always bypasses, matching the platform-owner role's
+  /// existing "sees everything" contract everywhere else in the app.
+  Future<void> _assertBelongsToThisBrand(AppUser user) async {
+    if (Branding.current.brandId == 'academia' || user.isSuperAdmin) return;
+    final mismatch = user.schoolId == null
+        ? true
+        : (await SchoolRepository.instance.getByIdOnce(user.schoolId!))?.code !=
+            Branding.current.voucherPrefix;
+    if (mismatch) {
+      await _supabase.auth.signOut();
+      unawaited(AuditService.instance.log(
+        institutionId: user.schoolId, actorId: user.id, actorRole: user.roleLabel,
+        action: 'login_blocked_wrong_brand', severity: AuditSeverity.warning,
+      ));
+      throw Exception(
+          'This account isn\'t linked to ${Branding.current.appName}. '
+          'Sign in from the app your school gave you a code for.');
+    }
+  }
+
   // Pre-launch audit: real login attempts (success, suspended-account
   // block, and failure) were not logged anywhere -- fire-and-forget
   // (unawaited, best-effort per AuditService.log's own contract) so a
@@ -152,6 +185,7 @@ class AuthService {
         ));
         throw Exception('This account has been suspended. Contact administration.');
       }
+      await _assertBelongsToThisBrand(user);
       unawaited(AuditService.instance.log(
         institutionId: user.schoolId, actorId: uid, actorRole: user.roleLabel,
         action: 'login_success',
@@ -207,7 +241,11 @@ class AuthService {
     final u = res.user!;
     final uid = u.id;
     final row = await _supabase.from('users').select().eq('id', uid).maybeSingle();
-    if (row != null) return AppUser.fromSupabase(row);
+    if (row != null) {
+      final user = AppUser.fromSupabase(row);
+      await _assertBelongsToThisBrand(user);
+      return user;
+    }
     // handle_new_user inserted a bare row already — fill in the Google
     // profile fields the trigger doesn't know about.
     final user = AppUser(
@@ -216,6 +254,7 @@ class AuthService {
       role: UserRole.student, accountType: AccountType.independent, status: AccountStatus.active,
     );
     await _supabase.from('users').update(user.toSupabase()).eq('id', uid);
+    await _assertBelongsToThisBrand(user);
     return user;
   }
 

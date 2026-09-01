@@ -33,10 +33,12 @@
 //     (`AppUser.classLevel`); the academic-year half is computed from
 //     today's date (Sept-Aug convention), since no academic-session
 //     field exists anywhere in this app's data model.
-// "School Connect"/"Marks"/"Calendar" Quick Access tiles from the mockup
-// pointed at dead or nonexistent pages -- swapped for real destinations
-// (Magazine, Daily Challenge, Announcements) that this app actually has.
-// See docs/AUTOPILOT_LOG.md for the full mapping.
+// "School Connect"/"Marks" from the mockup originally pointed at dead or
+// nonexistent pages and were swapped out for Magazine/Daily
+// Challenge/Announcements (see docs/AUTOPILOT_LOG.md) -- both since got
+// built for real (features/school/) and are back in the row, gated on
+// isSchoolMember same as their existing Profile/drawer entries. "Calendar"
+// still has no real page and stays out.
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -71,6 +73,8 @@ import '../announcements/announcements_page.dart';
 import '../messages/messages_home_page.dart';
 import '../timetable/personal_study_page.dart';
 import '../../pages/profile_page.dart';
+import '../school/school_connect_page.dart';
+import '../school/marks_page.dart';
 
 /// Card shadow used throughout this page -- a bit more present than the
 /// app-wide Shad tokens, matching the mockup's soft-but-visible elevation.
@@ -645,29 +649,36 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   // grid -- matched that shape here as a horizontal scroll (same pattern
   // Today's Schedule already used) instead of a fixed grid, which lets
   // every real destination stay reachable rather than needing to cut some
-  // into a "More" bucket with its own new page. "School Connect", "Marks",
-  // and "Calendar" from the mockup have no real page in this app (School
-  // Connect/Calendar were deliberately removed as dead code referencing a
-  // deleted Institution model; there's no student "my marks" list, only
-  // per-attempt results). Swapped for Magazine, Daily Challenge, and
-  // Announcements -- real features that otherwise had no other Home entry
-  // point (Daily Challenge in particular has NO other entry point
-  // anywhere in the app).
+  // into a "More" bucket with its own new page. School Connect/Marks are
+  // conditional on isSchoolMember (same gate as their existing
+  // Profile/drawer entries: a school's private features must never
+  // surface for every signed-in account, only ones that actually
+  // redeemed that school's voucher) -- a horizontal scroll handles a
+  // per-user item count naturally, unlike a fixed grid. "Calendar" from
+  // the mockup still has no real page in this app and stays out.
   Widget _quickAccessRow(BuildContext context) {
+    final isSchoolMember = !_isGuest && _u!.isSchoolMember;
     final items = <(String, IconData, Color, VoidCallback)>[
       ('Academia Library', Icons.menu_book_rounded, ac.primary,
           () => _open(context, AcademicContentPage(user: _userOrGuest))),
       ('Past Questions', Icons.description_rounded, ac.grn,
           () => _open(context, AcademicContentPage(user: _userOrGuest, initialTypeFilter: ContentType.pastPaper))),
-      ('Academia Quizzes', Icons.help_outline_rounded, ac.gold,
-          () => _open(context, QuizCategoriesPage(user: _userOrGuest))),
-      // Same browse tree as Quizzes -- this codebase doesn't model
+      // Covers both Quizzes and Tests -- this codebase doesn't model
       // "Tests" as a separate system from Quizzes (see
-      // tests_subject_picker_page.dart's own file comment).
-      ('Academia Tests', Icons.assignment_rounded, ac.primary,
+      // tests_subject_picker_page.dart's own file comment), so a second
+      // "Academia Tests" tile here would just be a dead duplicate of
+      // this one (still deliberately kept as two entries in the drawer,
+      // see app_drawer.dart's own comment on that).
+      ('Academia Quizzes', Icons.help_outline_rounded, ac.gold,
           () => _open(context, QuizCategoriesPage(user: _userOrGuest))),
       ('Clubs', Icons.groups_rounded, ac.grn,
           () => _open(context, ClubsPage(user: _userOrGuest))),
+      if (isSchoolMember)
+        ('School Connect', Icons.forum_outlined, ac.pur,
+            () => _open(context, SchoolConnectPage(user: _u!))),
+      if (isSchoolMember)
+        ('Marks', Icons.assessment_outlined, ac.navy,
+            () => _open(context, MarksPage(user: _u!))),
       ('Magazine', Icons.auto_stories_rounded, ac.grn,
           () => _open(context, MagazineFeedPage(user: _userOrGuest))),
       ('Timetable', Icons.calendar_month_rounded, ac.gold,

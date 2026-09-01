@@ -39,6 +39,55 @@ workflows:
         script: |
           flutter pub run flutter_launcher_icons
           flutter pub run flutter_native_splash:create
+      - name: Re-apply Android 12 splash crop fix (regeneration overwrites it)
+        # flutter_native_splash:create above just regenerated
+        # values-v31/styles.xml and values-night-v31/styles.xml pointing
+        # windowSplashScreenAnimatedIcon straight at the raw, unpadded
+        # @drawable/android12splash -- which Android's SplashScreen API
+        # crops into (no safe-zone margin on the source logo). The fix is
+        # @drawable/android12splash_inset (a committed, hand-written file
+        # the generator doesn't know about and won't delete/regenerate) --
+        # this step just re-points the two regenerated styles.xml files at
+        # it, every build, since the generator has no config knob for this.
+        # See android/app/src/main/res/drawable/android12splash_inset.xml's
+        # own header comment for the full explanation.
+        script: |
+          # -i '' (with the explicit empty-string argument), not bare -i:
+          # this workflow runs on mac_mini_m2, i.e. BSD sed, which treats
+          # -i's very next argument as a backup-file suffix -- without the
+          # empty string there, BSD sed swallowed the s/// script as that
+          # suffix and tried to parse the first file PATH as the sed
+          # script instead, failing with "command a expects \ followed by
+          # text" (a path fragment happened to look like a broken `a`
+          # command). GNU sed (Linux) would need bare -i instead; this
+          # script only ever runs on Codemagic's mac_mini_m2, so no
+          # cross-platform branch is needed here.
+          sed -i '' 's|@drawable/android12splash</item>|@drawable/android12splash_inset</item>|' \
+            android/app/src/main/res/values-v31/styles.xml \
+            android/app/src/main/res/values-night-v31/styles.xml
+
+          # flutter_native_splash's own regenerated comment text contains a
+          # bare "--" mid-comment (e.g. "...raw, unpadded @drawable/
+          # android12splash -- which Android's..."), which the Android
+          # resource merger's stricter-than-browsers XML parser rejects
+          # outright ("The string "--" is not permitted within comments.") --
+          # a real build failure, not a lint. Comments are inert at
+          # runtime, so the robust fix is to strip every XML comment from
+          # these two regenerated files outright rather than trying to
+          # patch specific wording that's controlled by the plugin, not us,
+          # and could change on any flutter_native_splash version bump.
+          python3 - <<'PY'
+          import re
+          for f in [
+              "android/app/src/main/res/values-v31/styles.xml",
+              "android/app/src/main/res/values-night-v31/styles.xml",
+          ]:
+              with open(f) as fh:
+                  content = fh.read()
+              content = re.sub(r"<!--.*?-->", "", content, flags=re.DOTALL)
+              with open(f, "w") as fh:
+                  fh.write(content)
+          PY
       - name: Analyze
         # --no-fatal-infos: flutter analyze exits 1 on ANY finding,
         # including plain style infos (unnecessary_const, prefer_const_

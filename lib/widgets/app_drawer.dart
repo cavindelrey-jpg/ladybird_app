@@ -31,6 +31,9 @@ import '../pages/help_support_page.dart';
 import '../features/testing/quiz_categories_page.dart';
 import '../features/testing/grading_page.dart';
 import '../features/testing/test_composer_page.dart';
+import '../features/school/school_connect_page.dart';
+import '../features/school/marks_page.dart';
+import '../features/school/timetable_page.dart';
 
 class AppDrawer extends StatelessWidget {
   final AppUser? user;
@@ -107,6 +110,27 @@ class AppDrawer extends StatelessWidget {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => TestComposerPage(author: user!)));
                   }),
+
+                // School Connect/Marks/Timetable already existed but were
+                // only reachable buried in Profile's "School Navigation"
+                // section -- surfaced here too, since the drawer is the
+                // one navigation surface open from anywhere in the app,
+                // not just after scrolling into Profile.
+                if (!_isGuest && user!.isSchoolMember) ...[
+                  _sectionLabel(ac, 'My School'),
+                  _item(context, ac, Icons.forum_outlined, 'School Connect', () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => SchoolConnectPage(user: user!)));
+                  }),
+                  _item(context, ac, Icons.assessment_outlined, 'Marks', () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => MarksPage(user: user!)));
+                  }),
+                  _item(context, ac, Icons.calendar_month_outlined, 'Timetable', () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => TimetablePage(user: user!)));
+                  }),
+                ],
 
                 _sectionLabel(ac, 'Communication'),
                 _item(context, ac, Icons.menu_book_rounded, 'Magazine', () {

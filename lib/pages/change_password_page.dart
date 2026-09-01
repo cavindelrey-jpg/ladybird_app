@@ -1,10 +1,9 @@
 // lib/pages/change_password_page.dart
-// Replaces the ComingSoonPage stub. Real Firebase Auth flow: reauthenticate
-// with current password, then set the new one.
+// Real Supabase Auth flow: reauthenticate with current password, then
+// set the new one.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:firebase_auth/firebase_auth.dart' as fb;
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 import '../services/auth_service.dart';
@@ -47,28 +46,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       if (!mounted) return;
       showToast(context, 'Password updated.');
       Navigator.of(context).pop();
-    } on fb.FirebaseAuthException catch (e) {
-      setState(() => _error = _friendlyError(e.code));
     } catch (e) {
       setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  String _friendlyError(String code) {
-    switch (code) {
-      case 'wrong-password':
-      case 'invalid-credential':
-        return 'Your current password is incorrect.';
-      case 'weak-password':
-        return 'New password is too weak — use at least 6 characters.';
-      case 'requires-recent-login':
-        return 'Please sign out and back in, then try again.';
-      case 'too-many-requests':
-        return 'Too many attempts. Please wait a moment and try again.';
-      default:
-        return 'Could not update password ($code).';
     }
   }
 
@@ -95,16 +76,15 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 style: GoogleFonts.inter(fontSize: 13, color: ac.txt2)),
             const SizedBox(height: 24),
             _field(
-              ac: ac,
               controller: _currentCtrl,
               label: 'Current Password',
               obscure: _obscureCurrent,
               onToggleObscure: () => setState(() => _obscureCurrent = !_obscureCurrent),
               validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
+              ac: ac,
             ),
             const SizedBox(height: 14),
             _field(
-              ac: ac,
               controller: _newCtrl,
               label: 'New Password',
               obscure: _obscureNew,
@@ -113,10 +93,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 if (v == null || v.length < 6) return 'At least 6 characters';
                 return null;
               },
+              ac: ac,
             ),
             const SizedBox(height: 14),
             _field(
-              ac: ac,
               controller: _confirmCtrl,
               label: 'Confirm New Password',
               obscure: _obscureConfirm,
@@ -125,6 +105,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 if (v != _newCtrl.text) return 'Passwords do not match';
                 return null;
               },
+              ac: ac,
             ),
             if (_error != null) ...[
               const SizedBox(height: 16),
@@ -144,12 +125,12 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   }
 
   Widget _field({
-    required AppColors ac,
     required TextEditingController controller,
     required String label,
     required bool obscure,
     required VoidCallback onToggleObscure,
     required String? Function(String?) validator,
+    required AppColors ac,
   }) {
     return TextFormField(
       controller: controller,

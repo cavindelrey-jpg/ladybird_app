@@ -17,4 +17,5 @@ export 'test.dart';
 export 'test_attempt.dart';
 export 'school.dart';
 export 'school_voucher.dart';
+export 'academia_voucher.dart';
 export 'teaching_assignment.dart';

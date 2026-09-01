@@ -12,29 +12,7 @@
 //   friendships/{uidA_uidB}           — sorted-pair doc id, existence == friends
 //   conversations/{id}                — one per friend pair (or future group chat)
 //   conversations/{id}/messages/{id}  — the actual messages
-//
-// ── 2024 remake additions ──────────────────────────────────────────────
-// 1. Cache-safe (de)serialization (`toCacheJson`/`fromCacheJson`) so
-//    MessageCacheService can persist conversations/messages to disk
-//    (SharedPreferences) between app launches. This is a PARALLEL
-//    representation to `toFirestore`/`fromFirestore`, not a replacement:
-//    Firestore keeps using Timestamp, the cache uses plain epoch-ms ints
-//    so it round-trips through JSON without a Firestore dependency.
-// 2. `activeAt` on Conversation — a real (not faked) "has this person
-//    had this specific chat open in the last couple minutes" signal,
-//    built the exact same way `typingAt` already was: a cheap merged
-//    field write, no new collection, no realtime-presence
-//    infrastructure. This deliberately stays OUT of the cache
-//    serialization below — a stale "online" reading from yesterday's
-//    cache would be actively misleading, which is worse than showing
-//    nothing while the live stream reconnects.
-// 3. `sharedThumbnailUrl` on ChatMessage — Course/Note/Article shares
-//    already denormalize a title+subtitle onto the message at send
-//    time; this adds the same treatment for the content's cover image
-//    so the shared-content card can show a real thumbnail instead of
-//    just a generic icon tile.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum FriendRequestStatus { pending, accepted, declined }
 
@@ -59,29 +37,27 @@ class FriendRequest {
     required this.createdAt,
   });
 
-  factory FriendRequest.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
+  factory FriendRequest.fromSupabase(Map<String, dynamic> d) {
     return FriendRequest(
-      id: doc.id,
-      fromUserId: d['fromUserId'] ?? '',
-      fromUserName: d['fromUserName'] ?? 'Unknown',
-      fromUserPhotoUrl: d['fromUserPhotoUrl'],
-      fromUserRoleLabel: d['fromUserRoleLabel'] ?? '',
-      toUserId: d['toUserId'] ?? '',
+      id: d['id'] as String,
+      fromUserId: d['from_user_id'] ?? '',
+      fromUserName: d['from_user_name'] ?? 'Unknown',
+      fromUserPhotoUrl: d['from_user_photo_url'],
+      fromUserRoleLabel: d['from_user_role_label'] ?? '',
+      toUserId: d['to_user_id'] ?? '',
       status: FriendRequestStatus.values.firstWhere(
           (s) => s.name == d['status'], orElse: () => FriendRequestStatus.pending),
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
-        'fromUserId': fromUserId,
-        'fromUserName': fromUserName,
-        'fromUserPhotoUrl': fromUserPhotoUrl,
-        'fromUserRoleLabel': fromUserRoleLabel,
-        'toUserId': toUserId,
+  Map<String, dynamic> toSupabase() => {
+        'from_user_id': fromUserId,
+        'from_user_name': fromUserName,
+        'from_user_photo_url': fromUserPhotoUrl,
+        'from_user_role_label': fromUserRoleLabel,
+        'to_user_id': toUserId,
         'status': status.name,
-        'createdAt': Timestamp.fromDate(createdAt),
       };
 }
 
@@ -106,17 +82,16 @@ class Conversation {
   final Map<String, DateTime> typingAt;
 
   /// userId -> last time that user had this conversation's screen open.
-  /// Same mechanism as [typingAt] (a merged field write, no new
-  /// collection), read the same way (anything older than a couple
-  /// minutes is stale). This is real, scoped presence — "were they
-  /// looking at this thread recently" — not a faked always-on global
-  /// "online" dot, which is why it lives per-conversation instead of on
-  /// the user profile.
+  /// Same mechanism as [typingAt] (a merged field write, no new table),
+  /// read the same way (anything older than a couple minutes is stale).
+  /// This is real, scoped presence — "were they looking at this thread
+  /// recently" — not a faked always-on global "online" dot, which is why
+  /// it lives per-conversation instead of on the user profile.
   final Map<String, DateTime> activeAt;
 
-  /// Per-user "pin to top" — a personal view preference (mirrors the
-  /// mockup's Pinned/Recent split), not a shared conversation property,
-  /// so it's a list of user ids rather than a single bool.
+  /// Per-user "pin to top" — a personal view preference, not a shared
+  /// conversation property, so it's a list of user ids rather than a
+  /// single bool.
   final List<String> pinnedBy;
 
   const Conversation({
@@ -133,40 +108,41 @@ class Conversation {
     this.pinnedBy = const [],
   });
 
-  factory Conversation.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
+  factory Conversation.fromSupabase(Map<String, dynamic> d) {
     final typing = <String, DateTime>{};
-    (d['typingAt'] as Map<String, dynamic>? ?? {}).forEach((uid, ts) {
-      if (ts is Timestamp) typing[uid] = ts.toDate();
+    (d['typing_at'] as Map<String, dynamic>? ?? {}).forEach((uid, ts) {
+      final parsed = DateTime.tryParse(ts?.toString() ?? '');
+      if (parsed != null) typing[uid] = parsed;
     });
     final active = <String, DateTime>{};
-    (d['activeAt'] as Map<String, dynamic>? ?? {}).forEach((uid, ts) {
-      if (ts is Timestamp) active[uid] = ts.toDate();
+    (d['active_at'] as Map<String, dynamic>? ?? {}).forEach((uid, ts) {
+      final parsed = DateTime.tryParse(ts?.toString() ?? '');
+      if (parsed != null) active[uid] = parsed;
     });
     return Conversation(
-      id: doc.id,
-      participantIds: List<String>.from(d['participantIds'] ?? []),
-      participantNames: Map<String, String>.from(d['participantNames'] ?? {}),
-      participantPhotos: Map<String, String?>.from(d['participantPhotos'] ?? {}),
-      lastMessageText: d['lastMessageText'] ?? '',
-      lastMessageSenderId: d['lastMessageSenderId'],
-      lastMessageAt: (d['lastMessageAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      unreadCount: Map<String, int>.from(d['unreadCount'] ?? {}),
+      id: d['id'] as String,
+      participantIds: List<String>.from(d['participant_ids'] ?? []),
+      participantNames: Map<String, String>.from(d['participant_names'] ?? {}),
+      participantPhotos: Map<String, String?>.from(d['participant_photos'] ?? {}),
+      lastMessageText: d['last_message_text'] ?? '',
+      lastMessageSenderId: d['last_message_sender_id'],
+      lastMessageAt: DateTime.tryParse(d['last_message_at']?.toString() ?? '') ?? DateTime.now(),
+      unreadCount: Map<String, int>.from(d['unread_count'] ?? {}),
       typingAt: typing,
       activeAt: active,
-      pinnedBy: List<String>.from(d['pinnedBy'] ?? []),
+      pinnedBy: List<String>.from(d['pinned_by'] ?? []),
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
-        'participantIds': participantIds,
-        'participantNames': participantNames,
-        'participantPhotos': participantPhotos,
-        'lastMessageText': lastMessageText,
-        'lastMessageSenderId': lastMessageSenderId,
-        'lastMessageAt': Timestamp.fromDate(lastMessageAt),
-        'unreadCount': unreadCount,
-        'pinnedBy': pinnedBy,
+  Map<String, dynamic> toSupabase() => {
+        'participant_ids': participantIds,
+        'participant_names': participantNames,
+        'participant_photos': participantPhotos,
+        'last_message_text': lastMessageText,
+        'last_message_sender_id': lastMessageSenderId,
+        'last_message_at': lastMessageAt.toIso8601String(),
+        'unread_count': unreadCount,
+        'pinned_by': pinnedBy,
       };
 
   String otherParticipantId(String myId) =>
@@ -182,9 +158,11 @@ class Conversation {
   }
 
   // ── Local disk cache (SharedPreferences via MessageCacheService) ──────
-  // Deliberately excludes typingAt/activeAt — see file header. Epoch-ms
-  // ints instead of Timestamp so this survives a plain jsonEncode/decode
-  // round trip with zero Firestore dependency.
+  // Deliberately excludes typingAt/activeAt — a stale "online" reading
+  // from yesterday's cache would be actively misleading, worse than
+  // showing nothing while the live stream reconnects. Epoch-ms ints
+  // instead of ISO strings so this survives a plain jsonEncode/decode
+  // round trip with zero backend dependency.
 
   Map<String, dynamic> toCacheJson() => {
         'id': id,
@@ -213,10 +191,6 @@ class Conversation {
 }
 
 /// What kind of real Academia content a shared-content message points at.
-/// note/pastPaper both resolve to real AcademicContent items (ContentType
-/// .note / .pastPaper) — added once that content type existed with real
-/// pricing (production_plan.md §4.6/§4.7), matching the Messaging
-/// mockup's full five-icon attach row (Note/Course/Quiz/Article/Past Paper).
 enum SharedContentType { note, course, quiz, article, pastPaper }
 
 extension SharedContentTypeExt on SharedContentType {
@@ -251,29 +225,22 @@ class ChatMessage {
   final List<String> readBy;
   final bool deleted;
 
-  /// Shared-content attachment (Course/Quiz/Article) — see
-  /// [SharedContentType]. Type/id/title/subtitle are set together or not
-  /// at all; thumbnail is best-effort (some content, e.g. a Quiz, has no
-  /// cover image) so it stays independently nullable.
+  /// Shared-content attachment (Course/Quiz/Article/Note/Past Paper).
+  /// Type/id/title/subtitle are set together or not at all; thumbnail is
+  /// best-effort (some content, e.g. a Quiz, has no cover image) so it
+  /// stays independently nullable.
   final SharedContentType? sharedType;
   final String? sharedId;
   final String? sharedTitle;
   final String? sharedSubtitle;
   final String? sharedThumbnailUrl;
 
-  /// True while this message only exists in Firestore's LOCAL write
-  /// cache and hasn't been acknowledged by the server yet — sourced
-  /// from `DocumentSnapshot.metadata.hasPendingWrites`, not stored in
-  /// Firestore itself (there's no field for it; it's per-read metadata).
-  /// This is what actually powers the chat bubble's "sending…" clock
-  /// instead of a hand-rolled optimistic-message list: Firestore's own
-  /// listener already reflects a just-sent message instantly from local
-  /// cache, before the server round-trip completes, for exactly the
-  /// live-query pattern MessagingRepository.watchMessages uses — this
-  /// field just surfaces that existing signal to the UI. Always false
-  /// for a message loaded from the local disk cache (MessageCacheService)
-  /// or reconstructed via [fromCacheJson], since "pending" is only ever
-  /// true in the instant after sending within the same live session.
+  /// True while this message only exists in the client's local optimistic
+  /// state and hasn't been acknowledged by the server yet. Always false
+  /// for a message loaded from Supabase or the local disk cache
+  /// (MessageCacheService) — "pending" only ever applies in the instant
+  /// after sending within the same live session; see
+  /// MessagingRepository.sendMessage for where this actually gets set.
   final bool isPending;
 
   const ChatMessage({
@@ -297,45 +264,44 @@ class ChatMessage {
     this.isPending = false,
   });
 
-  factory ChatMessage.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc, String conversationId) {
-    final d = doc.data() ?? {};
+  factory ChatMessage.fromSupabase(Map<String, dynamic> d) {
     return ChatMessage(
-      id: doc.id,
-      conversationId: conversationId,
-      senderId: d['senderId'] ?? '',
-      senderName: d['senderName'] ?? '',
-      text: d['text'] ?? '',
-      imageUrl: d['imageUrl'],
-      videoUrl: d['videoUrl'],
-      fileUrl: d['fileUrl'],
-      fileName: d['fileName'],
-      sentAt: (d['sentAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      readBy: List<String>.from(d['readBy'] ?? []),
+      id: d['id'] as String,
+      conversationId: d['conversation_id'] as String,
+      senderId: d['sender_id'] ?? '',
+      senderName: d['sender_name'] ?? '',
+      text: d['body'] ?? '',
+      imageUrl: d['image_url'],
+      videoUrl: d['video_url'],
+      fileUrl: d['file_url'],
+      fileName: d['file_name'],
+      sentAt: DateTime.tryParse(d['sent_at']?.toString() ?? '') ?? DateTime.now(),
+      readBy: List<String>.from(d['read_by'] ?? []),
       deleted: d['deleted'] ?? false,
-      sharedType: SharedContentTypeExt.fromKey(d['sharedType']),
-      sharedId: d['sharedId'],
-      sharedTitle: d['sharedTitle'],
-      sharedSubtitle: d['sharedSubtitle'],
-      sharedThumbnailUrl: d['sharedThumbnailUrl'],
-      isPending: doc.metadata.hasPendingWrites,
+      sharedType: SharedContentTypeExt.fromKey(d['shared_type']),
+      sharedId: d['shared_id'],
+      sharedTitle: d['shared_title'],
+      sharedSubtitle: d['shared_subtitle'],
+      sharedThumbnailUrl: d['shared_thumbnail_url'],
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
-        'senderId': senderId,
-        'senderName': senderName,
-        'text': text,
-        'imageUrl': imageUrl,
-        'videoUrl': videoUrl,
-        'fileUrl': fileUrl,
-        'fileName': fileName,
-        'sentAt': Timestamp.fromDate(sentAt),
-        'readBy': readBy,
-        'sharedType': sharedType?.name,
-        'sharedId': sharedId,
-        'sharedTitle': sharedTitle,
-        'sharedSubtitle': sharedSubtitle,
-        'sharedThumbnailUrl': sharedThumbnailUrl,
+  Map<String, dynamic> toSupabase() => {
+        'sender_id': senderId,
+        'sender_name': senderName,
+        'body': text,
+        'image_url': imageUrl,
+        'video_url': videoUrl,
+        'file_url': fileUrl,
+        'file_name': fileName,
+        'sent_at': sentAt.toIso8601String(),
+        'read_by': readBy,
+        'deleted': deleted,
+        'shared_type': sharedType?.name,
+        'shared_id': sharedId,
+        'shared_title': sharedTitle,
+        'shared_subtitle': sharedSubtitle,
+        'shared_thumbnail_url': sharedThumbnailUrl,
       };
 
   // ── Local disk cache ───────────────────────────────────────────────

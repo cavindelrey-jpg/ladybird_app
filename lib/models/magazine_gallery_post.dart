@@ -1,9 +1,10 @@
 // lib/models/magazine_gallery_post.dart
 // "Student Gallery" — production_plan.md's academia_fix Magazine mockup
 // shows a real photo-gallery section on the For You tab (thumbnail grid,
-// "16 Photos" style counts). Firestore: magazine_gallery/{id}.
-
-import 'package:cloud_firestore/cloud_firestore.dart';
+// "16 Photos" style counts). No Postgres table exists yet — zero real
+// data at migration time, same "stub with an honest empty state" call as
+// magazine_media.dart's other non-article content types. Add a table +
+// fromSupabase()/toSupabase() here if real content shows up.
 
 class MagazineGalleryPost {
   final String id;
@@ -25,28 +26,4 @@ class MagazineGalleryPost {
     this.likeCount = 0,
     required this.createdAt,
   });
-
-  factory MagazineGalleryPost.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
-    return MagazineGalleryPost(
-      id: doc.id,
-      authorId: d['authorId'] ?? '',
-      authorName: d['authorName'] ?? 'Unknown',
-      authorPhotoUrl: d['authorPhotoUrl'],
-      caption: d['caption'] ?? '',
-      imageUrls: List<String>.from(d['imageUrls'] ?? const []),
-      likeCount: (d['likeCount'] as num?)?.toInt() ?? 0,
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
-
-  Map<String, dynamic> toFirestore() => {
-        'authorId': authorId,
-        'authorName': authorName,
-        'authorPhotoUrl': authorPhotoUrl,
-        'caption': caption,
-        'imageUrls': imageUrls,
-        'likeCount': likeCount,
-        'createdAt': FieldValue.serverTimestamp(),
-      };
 }

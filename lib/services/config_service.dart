@@ -1,11 +1,11 @@
 // lib/services/config_service.dart
-// Runtime configuration management via Firestore remote config.
-// Provides feature flags, app-wide toggles, and environment-specific values
-// without requiring an app update.
-//
-// Structure: Firestore collection 'app_config/{key}' documents.
+// Runtime configuration management. No Postgres table exists for
+// app_config yet — it had zero real Firestore documents at migration
+// time, so every session was already running purely on _defaults below
+// in practice. initialize()/refresh() are now no-ops rather than
+// pointing at a table that doesn't exist; add a real `app_config` table
+// and wire these back up if remote-configurable values are ever needed.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
 /// Well-known configuration keys. Never use raw strings in feature code.
@@ -38,7 +38,6 @@ class ConfigService {
   ConfigService._();
   static final ConfigService instance = ConfigService._();
 
-  final _db = FirebaseFirestore.instance;
   final Map<String, dynamic> _cache = {};
 
   // ── Default values (app works offline or before Firestore responds) ──────
@@ -56,19 +55,10 @@ class ConfigService {
     ConfigKey.proMonthlyFcfa:      15000,
   };
 
-  /// Fetch and cache all config values from Firestore.
-  /// Call once at app start; uses cached values for the session.
+  /// No-op — see file header. Kept as a method (rather than removed) so
+  /// main.dart's call site doesn't need to change.
   Future<void> initialize() async {
-    try {
-      final snap = await _db.collection('app_config').get();
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        _cache[doc.id] = data['value'] ?? data;
-      }
-      debugPrint('[Config] Loaded ${_cache.length} config keys');
-    } catch (e) {
-      debugPrint('[Config] Using defaults — Firestore error: $e');
-    }
+    debugPrint('[Config] No app_config table yet — using defaults');
   }
 
   /// Get a typed bool config value.

@@ -64,7 +64,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
       TextInput.finishAutofillContext();
 
       if (widget.isPremium) {
-        final uid = AuthService.instance.firebaseUser?.uid ?? '';
+        final uid = AuthService.instance.firebaseUser?.id ?? '';
         final ac = AppColors.of(context);
         await showModalBottomSheet(
           context: context,

@@ -1,25 +1,22 @@
 // lib/models/school.dart
-// The school registry this app never actually had. `schoolId` has existed
-// on AppUser since long before this session, and content models
-// (Announcement/Club/MagazineArticle/SchoolMark/SchoolRequest) all carry a
-// schoolId for scoping — but nothing ever wrote a `schools/{schoolId}`
-// document itself, and no user account has ever had schoolId set anywhere
-// in this codebase (verified by grep before writing this). This is the
-// generic, multi-school registry item 4 of the architecture brief asks
-// for: "Do not hard-code Green Hills as the only possible school."
+// The school registry — architecture brief item 4: "Do not hard-code
+// Green Hills as the only possible school."
 //
-// Firestore: schools/{schoolId}
-
-import 'package:cloud_firestore/cloud_firestore.dart';
+// Supabase: this is NOT a new table. It's public.institutions, the same
+// table academia-cameroon's Institution model reads (id, school_code,
+// school_name, created_at — see supabase/migrations/20260828060000
+// and .../20260829160000_institutions_branding_columns.sql). Reusing it
+// keeps one school-identity table in this shared multi-tenant database;
+// see supabase/migrations/20260829370000_school_vouchers.sql's header
+// for the reasoning.
 
 class School {
   final String id;
 
   /// Short, human-typed prefix used inside every voucher code for this
   /// school (e.g. "GH" for Green Hills) — see school_voucher.dart. Stored
-  /// uppercase; unique across the schools collection (enforced at
-  /// creation time by SchoolRepository, not by a Firestore constraint —
-  /// Firestore has none).
+  /// uppercase; unique across institutions (institutions.school_code has
+  /// a unique constraint).
   final String code;
 
   final String name;
@@ -32,20 +29,17 @@ class School {
     required this.createdAt,
   });
 
-  factory School.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
-    final ts = d['createdAt'];
-    return School(
-      id: doc.id,
-      code: (d['code'] ?? '').toString().toUpperCase(),
-      name: d['name'] ?? '',
-      createdAt: ts is Timestamp ? ts.toDate() : DateTime.now(),
-    );
-  }
+  factory School.fromSupabase(Map<String, dynamic> d) => School(
+        id: d['id'] as String,
+        code: (d['school_code'] ?? '').toString().toUpperCase(),
+        name: d['school_name'] ?? '',
+        createdAt: d['created_at'] != null
+            ? DateTime.tryParse(d['created_at'].toString()) ?? DateTime.now()
+            : DateTime.now(),
+      );
 
-  Map<String, dynamic> toFirestore() => {
-        'code': code.toUpperCase(),
-        'name': name,
-        'createdAt': FieldValue.serverTimestamp(),
+  Map<String, dynamic> toSupabase() => {
+        'school_code': code.toUpperCase(),
+        'school_name': name,
       };
 }

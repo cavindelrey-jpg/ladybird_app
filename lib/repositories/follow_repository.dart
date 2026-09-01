@@ -1,40 +1,27 @@
 // lib/repositories/follow_repository.dart
 // One-way follow relationships — following someone gets you their new
 // Magazine articles in your Following tab and a notification when they
-// publish. This is separate from Messages' friend-request system: you
-// can follow a writer without ever being able to message them, and vice
-// versa.
+// publish. Separate from Messages' friend-request system.
 //
-// Firestore: follows/{followerId}_{followedId}
-// Deliberately a flat top-level collection with a composite doc ID
-// (rather than a subcollection under users) so both directions —
-// "who do I follow" and "who follows me" — are simple single-field
-// queries with no composite index required.
+// Postgres: follows (follower_id, followed_id) composite primary key —
+// same "no extra index needed for either direction" reasoning the
+// Firestore composite-doc-id design had.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../core/constants.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/result.dart';
 
 class FollowRepository {
   FollowRepository._();
   static final FollowRepository instance = FollowRepository._();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  CollectionReference<Map<String, dynamic>> get _follows =>
-      _db.collection(AppConstants.colFollows);
-
-  String _docId(String followerId, String followedId) => '${followerId}_$followedId';
+  SupabaseQueryBuilder get _follows => Supabase.instance.client.from('follows');
 
   Future<Result<void>> follow(String followerId, String followedId) async {
     if (followerId == followedId) {
       return const Failure('You can\'t follow yourself', null);
     }
     try {
-      await _follows.doc(_docId(followerId, followedId)).set({
-        'followerId': followerId,
-        'followedId': followedId,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await _follows.upsert({'follower_id': followerId, 'followed_id': followedId});
       return const Success(null);
     } catch (e) {
       return Failure('Failed to follow', e);
@@ -43,7 +30,7 @@ class FollowRepository {
 
   Future<Result<void>> unfollow(String followerId, String followedId) async {
     try {
-      await _follows.doc(_docId(followerId, followedId)).delete();
+      await _follows.delete().eq('follower_id', followerId).eq('followed_id', followedId);
       return const Success(null);
     } catch (e) {
       return Failure('Failed to unfollow', e);
@@ -51,30 +38,30 @@ class FollowRepository {
   }
 
   Stream<bool> watchIsFollowing(String followerId, String followedId) => _follows
-      .doc(_docId(followerId, followedId))
-      .snapshots()
-      .map((d) => d.exists);
+      .stream(primaryKey: ['follower_id', 'followed_id'])
+      .eq('follower_id', followerId)
+      .map((rows) => rows.any((r) => r['followed_id'] == followedId));
 
   /// IDs of everyone [userId] follows — feeds the Magazine "Following" tab.
   Stream<List<String>> watchFollowingIds(String userId) => _follows
-      .where('followerId', isEqualTo: userId)
-      .snapshots()
-      .map((s) => s.docs.map((d) => d.data()['followedId'] as String).toList());
+      .stream(primaryKey: ['follower_id', 'followed_id'])
+      .eq('follower_id', userId)
+      .map((rows) => rows.map((r) => r['followed_id'] as String).toList());
 
   Stream<int> watchFollowerCount(String userId) => _follows
-      .where('followedId', isEqualTo: userId)
-      .snapshots()
-      .map((s) => s.docs.length);
+      .stream(primaryKey: ['follower_id', 'followed_id'])
+      .eq('followed_id', userId)
+      .map((rows) => rows.length);
 
   /// IDs of everyone who follows [userId] — used to fan out "new article"
   /// notifications when they publish.
   Stream<List<String>> watchFollowerIds(String userId) => _follows
-      .where('followedId', isEqualTo: userId)
-      .snapshots()
-      .map((s) => s.docs.map((d) => d.data()['followerId'] as String).toList());
+      .stream(primaryKey: ['follower_id', 'followed_id'])
+      .eq('followed_id', userId)
+      .map((rows) => rows.map((r) => r['follower_id'] as String).toList());
 
   Stream<int> watchFollowingCount(String userId) => _follows
-      .where('followerId', isEqualTo: userId)
-      .snapshots()
-      .map((s) => s.docs.length);
+      .stream(primaryKey: ['follower_id', 'followed_id'])
+      .eq('follower_id', userId)
+      .map((rows) => rows.length);
 }

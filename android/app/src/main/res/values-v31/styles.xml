@@ -7,7 +7,14 @@
         <item name="android:windowDrawsSystemBarBackgrounds">false</item>
         <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
         <item name="android:windowSplashScreenBackground">#FFFFFF</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/android12splash</item>
+        <!-- Was @drawable/android12splash directly — that's a raw,
+             unpadded copy of the logo, which Android's SplashScreen API
+             crops into (no safe-zone margin). @drawable/android12splash_inset
+             wraps it with padding so the complete logo renders instead.
+             See that file's own header comment for the full explanation
+             and the caveat about `flutter_native_splash:create` reverting
+             this on regeneration. -->
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/android12splash_inset</item>
     </style>
     <!-- Theme applied to the Android Window as soon as the process has started.
          This theme determines the color of the Android Window while your

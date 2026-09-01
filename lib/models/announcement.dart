@@ -3,8 +3,6 @@
 // optional scope (kept for a future institution/org context), the default
 // unscoped collection is what independent/guest accounts read from.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class Announcement {
   final String id;
   final String title;
@@ -22,10 +20,8 @@ class Announcement {
   final String sourceType;
   final String? referenceId; // articleId / paperId / clubId
 
-  /// Real Firebase Storage download URL -- was a free-text URL field the
-  /// composer never even wired into this constructor (filling it in did
-  /// nothing). Now populated by uploading a device photo, same
-  /// pick-then-upload pattern as hero slides/article thumbnails.
+  /// Composer-uploaded photo — populated by uploading a device photo,
+  /// pick-then-upload pattern shared with hero slides/article thumbnails.
   final String? imageUrl;
 
   const Announcement({
@@ -43,36 +39,34 @@ class Announcement {
     this.imageUrl,
   });
 
-  factory Announcement.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
+  factory Announcement.fromSupabase(Map<String, dynamic> d) {
     return Announcement(
-      id: doc.id,
+      id: d['id'] as String,
       title: d['title'] ?? '',
       body: d['body'] ?? '',
       tag: d['tag'] ?? '',
-      authorName: d['authorName'] ?? '',
-      authorId: d['authorId'] ?? '',
-      date: (d['date'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      authorName: d['author_name'] ?? '',
+      authorId: d['author_id'] ?? '',
+      date: DateTime.tryParse(d['occurred_at']?.toString() ?? '') ?? DateTime.now(),
       urgent: d['urgent'] ?? false,
-      schoolId: d['schoolId'],
-      sourceType: d['sourceType'] ?? 'general',
-      referenceId: d['referenceId'],
-      imageUrl: d['imageUrl'],
+      schoolId: d['institution_id'],
+      sourceType: d['source_type'] ?? 'general',
+      referenceId: d['reference_id'],
+      imageUrl: d['image_url'],
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
+  Map<String, dynamic> toSupabase() => {
     'title': title,
     'body': body,
     'tag': tag,
-    'authorName': authorName,
-    'authorId': authorId,
-    'date': Timestamp.fromDate(date),
+    'author_name': authorName,
+    'author_id': authorId.isEmpty ? null : authorId,
+    'occurred_at': date.toIso8601String(),
     'urgent': urgent,
-    'schoolId': schoolId,
-    'sourceType': sourceType,
-    'referenceId': referenceId,
-    'imageUrl': imageUrl,
-    'createdAt': FieldValue.serverTimestamp(),
+    'institution_id': schoolId,
+    'source_type': sourceType,
+    'reference_id': referenceId,
+    'image_url': imageUrl,
   };
 }

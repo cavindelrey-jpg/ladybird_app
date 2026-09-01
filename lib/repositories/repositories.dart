@@ -12,3 +12,4 @@ export 'public_course_repository.dart';
 export 'academic_section_repository.dart';
 export 'school_repository.dart';
 export 'school_access_repository.dart';
+export 'academia_voucher_repository.dart';

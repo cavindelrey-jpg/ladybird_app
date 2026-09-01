@@ -31,6 +31,7 @@ class SchoolAdminPage extends StatefulWidget {
 class _SchoolAdminPageState extends State<SchoolAdminPage> {
   School? _selectedSchool;
   SchoolRole _role = SchoolRole.student;
+  VoucherPremiumTier _premiumTier = VoucherPremiumTier.silver;
   int _count = 1;
   bool _issuing = false;
   String? _error;
@@ -86,6 +87,7 @@ class _SchoolAdminPageState extends State<SchoolAdminPage> {
       role: _role,
       issuedByUid: widget.user.id,
       count: _count,
+      premiumTier: _premiumTier,
     );
     if (!mounted) return;
     setState(() => _issuing = false);
@@ -192,9 +194,34 @@ class _SchoolAdminPageState extends State<SchoolAdminPage> {
                 filled: true, fillColor: ac.surf3,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
               ),
-              items: SchoolRole.values.map((r) => DropdownMenuItem(value: r, child: Text(r.label))).toList(),
+              // Parent isn't independently issuable — a linked parent code
+              // is generated automatically alongside every student code
+              // (School -> Student -> Parent, see issueVouchers()).
+              items: SchoolRole.values
+                  .where((r) => r != SchoolRole.parent)
+                  .map((r) => DropdownMenuItem(value: r, child: Text(r.label)))
+                  .toList(),
               onChanged: (v) => setState(() => _role = v ?? SchoolRole.student),
             ),
+            const SizedBox(height: 10),
+
+            if (_role == SchoolRole.student)
+              DropdownButtonFormField<VoucherPremiumTier>(
+                initialValue: _premiumTier,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: 'Premium tier',
+                  filled: true, fillColor: ac.surf3,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
+                ),
+                items: VoucherPremiumTier.values
+                    .map((t) => DropdownMenuItem(value: t, child: Text(t.label)))
+                    .toList(),
+                onChanged: (v) => setState(() => _premiumTier = v ?? VoucherPremiumTier.silver),
+              )
+            else
+              Text('Premium tier: Gold (fixed for this role)',
+                  style: AppText.bodySm.copyWith(color: ac.txt2)),
             const SizedBox(height: 10),
             TextField(
               controller: _countCtrl,
@@ -227,7 +254,10 @@ class _SchoolAdminPageState extends State<SchoolAdminPage> {
                     margin: const EdgeInsets.only(bottom: 6),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(color: ac.grnBg, borderRadius: BorderRadius.circular(Rad.sm)),
-                    child: Text(v.code, style: AppText.body.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1)),
+                    child: Row(children: [
+                      Expanded(child: Text(v.code, style: AppText.body.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1))),
+                      Text(v.role.label, style: AppText.bodySm.copyWith(color: ac.txt2)),
+                    ]),
                   )),
             ],
           ],

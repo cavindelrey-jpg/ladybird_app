@@ -1,65 +1,77 @@
 // lib/repositories/personal_study_repository.dart
-// CRUD for production_plan.md §5's Personal Study Timetable — owner-only,
-// stored at users/{uid}/study_timetable/{id}. Separate collection from
-// TimetableRepository (the school-authored, institution-scoped timetable).
+// production_plan.md §5's Personal Study Timetable — owner-only, per-user
+// data. Backed by public.personal_study_slots (see
+// supabase/migrations/20260901000000_personal_study_slots.sql) — a plain
+// auth.uid() = user_id RLS check on every op, no security-definer RPC
+// needed since there's no cross-user access at all.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/personal_study_slot.dart';
-import '../core/constants.dart';
 import '../core/result.dart';
 
 class PersonalStudyRepository {
   PersonalStudyRepository._();
   static final PersonalStudyRepository instance = PersonalStudyRepository._();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final SupabaseClient _db = Supabase.instance.client;
+  SupabaseQueryBuilder get _slots => _db.from('personal_study_slots');
 
-  CollectionReference<Map<String, dynamic>> _col(String userId) =>
-      _db.collection(AppConstants.colUsers).doc(userId).collection('study_timetable');
+  Stream<List<PersonalStudySlot>> watchAll(String userId) => _slots
+      .stream(primaryKey: ['id'])
+      .eq('user_id', userId)
+      .order('day_of_week')
+      .map((rows) => rows.map(_fromRow).toList());
 
-  Stream<List<PersonalStudySlot>> watchAll(String userId) => _col(userId)
-      .orderBy('dayOfWeek')
-      .snapshots()
-      .map((s) => s.docs.map((d) => PersonalStudySlot.fromFirestore(d, userId)).toList());
-
-  /// Today's slots only, ordered by start time — powers the "Today's
-  /// Study Program" Home section (see universal_home_page.dart).
+  /// Today's slots only — powers the "Today's Study Program" Home section.
+  /// DateTime.weekday is already 1=Mon..7=Sun, matching PersonalStudySlot.dayOfWeek.
   Stream<List<PersonalStudySlot>> watchToday(String userId) {
-    final today = DateTime.now().weekday; // 1=Mon…7=Sun, matches dayOfWeek
-    return _col(userId)
-        .where('dayOfWeek', isEqualTo: today)
-        .snapshots()
-        .map((s) {
-      final slots = s.docs.map((d) => PersonalStudySlot.fromFirestore(d, userId)).toList()
-        ..sort((a, b) => a.startTime.compareTo(b.startTime));
-      return slots;
-    });
+    final today = DateTime.now().weekday;
+    return watchAll(userId).map((all) => all.where((s) => s.dayOfWeek == today).toList());
   }
 
   Future<Result<void>> add(PersonalStudySlot slot) async {
     try {
-      await _col(slot.userId).add(slot.toFirestore());
+      await _slots.insert(_toRow(slot));
       return const Success(null);
     } catch (e) {
-      return Failure('Failed to add study slot', e);
+      return Failure('Couldn\'t save that study slot', e);
     }
   }
 
   Future<Result<void>> update(PersonalStudySlot slot) async {
     try {
-      await _col(slot.userId).doc(slot.id).set(slot.toFirestore(), SetOptions(merge: true));
+      await _slots.update(_toRow(slot)).eq('id', slot.id);
       return const Success(null);
     } catch (e) {
-      return Failure('Failed to update study slot', e);
+      return Failure('Couldn\'t update that study slot', e);
     }
   }
 
   Future<Result<void>> delete(String userId, String slotId) async {
     try {
-      await _col(userId).doc(slotId).delete();
+      await _slots.delete().eq('id', slotId).eq('user_id', userId);
       return const Success(null);
     } catch (e) {
-      return Failure('Failed to delete study slot', e);
+      return Failure('Couldn\'t delete that study slot', e);
     }
   }
+
+  Map<String, dynamic> _toRow(PersonalStudySlot slot) => {
+        'user_id': slot.userId,
+        'day_of_week': slot.dayOfWeek,
+        'start_time': slot.startTime,
+        'end_time': slot.endTime,
+        'activity': slot.activity,
+        'subject': slot.subject,
+      };
+
+  PersonalStudySlot _fromRow(Map<String, dynamic> row) => PersonalStudySlot(
+        id: row['id']?.toString() ?? '',
+        userId: row['user_id']?.toString() ?? '',
+        dayOfWeek: (row['day_of_week'] as num?)?.toInt() ?? 1,
+        startTime: row['start_time']?.toString() ?? '',
+        endTime: row['end_time']?.toString() ?? '',
+        activity: row['activity']?.toString() ?? '',
+        subject: row['subject']?.toString(),
+      );
 }

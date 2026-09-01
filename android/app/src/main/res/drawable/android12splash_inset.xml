@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Wraps @drawable/android12splash with explicit padding on every side.
+
+  Why this exists: android12splash.png is a raw, edge-to-edge copy of the
+  brand logo (flutter_native_splash's generated Android 12+ SplashScreen
+  icon) with no internal margin. Android's SplashScreen API
+  (windowSplashScreenAnimatedIcon, see styles-v31.xml/styles-night-v31.xml)
+  enforces its own icon safe-zone on whatever it's given — content that
+  isn't already padded to roughly the same ~66% "safe area" convention
+  adaptive icons use gets cropped by the OS at render time. That's what
+  was cutting off Ladybird's outer ring text, Academia's "A", and Green
+  Hill's shield/motto: none of the source logos have that margin baked in.
+
+  This <inset> shrinks the drawable within its allotted space instead,
+  so the OS has room to apply its safe-zone treatment without cutting
+  into real content — the complete logo stays visible, just smaller.
+  The inset area itself renders as whatever's behind it, which is
+  windowSplashScreenBackground (#FFFFFF, matches the splash background).
+
+  NOT a substitute for a properly padded/transparent source logo — see
+  docs/AUTOPILOT_LOG.md. It also does NOT survive a future
+  `flutter pub run flutter_native_splash:create` run (Codemagic's build
+  script runs this on every CI build): that command regenerates
+  styles-v31.xml/styles-night-v31.xml from pubspec.yaml and will point
+  windowSplashScreenAnimatedIcon straight back at the raw
+  @drawable/android12splash, silently reverting this fix. Redo this (or
+  better, replace it with a real padded source asset in pubspec.yaml's
+  flutter_native_splash.android_12.image) after any native-splash
+  regeneration.
+-->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/android12splash"
+    android:insetLeft="20%"
+    android:insetTop="20%"
+    android:insetRight="20%"
+    android:insetBottom="20%" />

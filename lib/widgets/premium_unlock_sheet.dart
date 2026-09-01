@@ -1,20 +1,30 @@
 // lib/widgets/premium_unlock_sheet.dart
-// MoMo / Orange Money direct-payment sheet — the app's own in-app funding
-// path for Premium Silver/Gold (the other path is an Academia vendor
-// voucher, see features/entitlements/redeem_voucher_page.dart). Writes a
-// pending payment record to Firestore; a Cloud Function (not part of this
-// client) should listen on `payments/{id}` and, once the provider
-// confirms the transaction, grant the entitlement server-side via
-// EntitlementRepository-equivalent logic. This sheet does not grant
-// premium access itself — see the file's own `status: 'pending'` write.
+// "Create Premium Account" — the ordinary premium purchase options
+// (MoMo/Orange Money direct payment) PLUS, at the bottom, an optional
+// voucher code field (2026-08-31 redesign, item 5: the voucher is never
+// a first-screen obstacle — it's entered from here, after the user has
+// already chosen to go premium). Direct payment writes a pending payment
+// record (see supabase/migrations/20260829340000_payments.sql,
+// 20260829500000_payments_tier_package.sql) that nothing currently
+// processes — no backend integration exists to actually launch the
+// MoMo/Orange Money USSD prompt yet. A voucher code, by contrast, grants
+// the entitlement immediately and for real: entering a valid one skips
+// tier/duration/payment selection entirely (the code is the authority —
+// item 6) and calls the matching redeem RPC server-side.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/result.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 import '../models/entitlement.dart';
 import '../models/purchase.dart';
+import '../models/academia_voucher.dart';
+import '../models/school_voucher.dart';
+import '../repositories/academia_voucher_repository.dart';
+import '../repositories/school_access_repository.dart';
+import 'widgets.dart' show showToast;
 
 class PremiumUnlockSheet extends StatefulWidget {
   final String userId;
@@ -39,6 +49,7 @@ class PremiumUnlockSheet extends StatefulWidget {
 
 class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
   final _phoneController = TextEditingController();
+  final _voucherController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   String _selectedProvider = 'mtn'; // default
@@ -48,6 +59,10 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
   int _months = 1; // 1 / 3 / 6 / 12
   bool _isLoading = false;
   String? _errorMessage;
+
+  bool _showVoucherField = false;
+  bool _redeemingVoucher = false;
+  String? _voucherError;
 
   EntitlementPackage get _package {
     switch ((_tier, _months)) {
@@ -66,7 +81,62 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
   @override
   void dispose() {
     _phoneController.dispose();
+    _voucherController.dispose();
     super.dispose();
+  }
+
+  /// A code's own prefix determines which table/RPC it belongs to
+  /// (redesign item 7): 'AC' is Academia, anything else is a school
+  /// code. This build's [Branding.current.voucherPrefix] is what the
+  /// server-side tenant check actually enforces — this local branch is
+  /// just choosing which client call to make, not a security boundary.
+  Future<void> _redeemVoucher() async {
+    FocusScope.of(context).unfocus();
+    final raw = _voucherController.text;
+    setState(() {
+      _redeemingVoucher = true;
+      _voucherError = null;
+    });
+
+    final normalized = raw.toUpperCase().trim();
+    final isAcademiaCode = normalized.startsWith('AC-');
+
+    if (isAcademiaCode) {
+      final result = await AcademiaVoucherRepository.instance.redeemVoucher(
+        userId: widget.userId,
+        rawCode: raw,
+      );
+      if (!mounted) return;
+      setState(() => _redeemingVoucher = false);
+      switch (result) {
+        case Success(:final value):
+          HapticFeedback.mediumImpact();
+          showToast(context, '${value.premiumTier.label} unlocked — welcome, ${value.role.label}');
+          widget.onUnlockSuccess();
+          if (mounted) Navigator.of(context).pop();
+        case Failure(:final message):
+          setState(() => _voucherError = message);
+      }
+      return;
+    }
+
+    final result = await SchoolAccessRepository.instance.redeemSchoolVoucher(
+      userId: widget.userId,
+      rawCode: raw,
+    );
+    if (!mounted) return;
+    setState(() => _redeemingVoucher = false);
+    switch (result) {
+      case Success(:final value):
+        HapticFeedback.mediumImpact();
+        final premiumLabel = value.premiumTier?.label ?? 'Free';
+        showToast(context,
+            'Connected to ${value.school.name} as a ${value.role.label} — $premiumLabel unlocked');
+        widget.onUnlockSuccess();
+        if (mounted) Navigator.of(context).pop();
+      case Failure(:final message):
+        setState(() => _voucherError = message);
+    }
   }
 
   Future<void> _handlePayment() async {
@@ -78,25 +148,17 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
     });
 
     try {
-      // No cloud_functions dependency here — a pending payment record is
-      // written to Firestore, which a backend trigger picks up to launch
-      // the actual MoMo/Orange Money USSD prompt, confirm the result, and
-      // grant the entitlement server-side.
-      final paymentRef = FirebaseFirestore.instance.collection('payments').doc();
       final package = _package;
-
-      await paymentRef.set({
-        'id': paymentRef.id,
-        'phoneNumber': _phoneController.text.trim(),
+      await Supabase.instance.client.from('payments').insert({
+        'user_id': widget.userId,
+        'phone_number': _phoneController.text.trim(),
         'provider': _selectedProvider,
-        'userId': widget.userId,
         'tier': package.tier.name,
         'package': package.name,
-        'durationDays': package.durationDays,
+        'duration_days': package.durationDays,
         'amount': package.suggestedPriceFcfa,
         'currency': 'XAF',
         'status': 'pending',
-        'createdAt': FieldValue.serverTimestamp(),
       });
 
       if (!mounted) return;
@@ -273,6 +335,51 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
                     : Text('Pay Now', style: AppText.button),
               ),
             ),
+            const SizedBox(height: 16),
+            Divider(color: ac.bdr),
+            const SizedBox(height: 12),
+
+            if (!_showVoucherField)
+              Center(
+                child: TextButton(
+                  onPressed: () => setState(() => _showVoucherField = true),
+                  child: Text('Have a voucher code? Enter voucher code',
+                      style: AppText.subtitle.copyWith(fontSize: 13)),
+                ),
+              )
+            else ...[
+              Text('VOUCHER CODE', style: AppText.label.copyWith(letterSpacing: 1)),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _voucherController,
+                autocorrect: false,
+                enableSuggestions: false,
+                textCapitalization: TextCapitalization.characters,
+                style: AppText.body.copyWith(fontSize: 16, letterSpacing: 1.5, fontWeight: FontWeight.w700),
+                textAlign: TextAlign.center,
+                decoration: InputDecoration(
+                  hintText: 'GH-T-XXXXXX-G',
+                  hintStyle: AppText.body.copyWith(fontSize: 16, letterSpacing: 1.5, color: ac.muted),
+                  filled: true, fillColor: ac.surf3,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md), borderSide: BorderSide.none),
+                ),
+              ),
+              if (_voucherError != null) ...[
+                const SizedBox(height: 8),
+                Text(_voucherError!, style: AppText.bodySm.copyWith(color: ac.red), textAlign: TextAlign.center),
+              ],
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 48,
+                child: OutlinedButton(
+                  onPressed: _redeemingVoucher ? null : _redeemVoucher,
+                  child: _redeemingVoucher
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.5))
+                      : const Text('Redeem code'),
+                ),
+              ),
+            ],
+
             const SizedBox(height: 10),
             Center(
               child: TextButton(

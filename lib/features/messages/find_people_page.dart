@@ -384,8 +384,8 @@ class _PersonRowState extends State<_PersonRow> {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     final name = widget.person['name'] ?? 'Unknown';
-    final photoUrl = widget.person['photoUrl'];
-    final roleLabel = widget.person['roleName'] ?? '';
+    final photoUrl = widget.person['photo_url'];
+    final roleLabel = widget.person['role_name'] ?? '';
     final personId = widget.person['id'] as String;
 
     return ACard(

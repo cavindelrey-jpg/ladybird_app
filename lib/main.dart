@@ -10,6 +10,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'core/supabase_config.dart';
 import 'theme/app_theme.dart';
 import 'theme/app_colors.dart';
 import 'providers/theme_provider.dart';
@@ -32,8 +34,13 @@ Future<void> main() async {
     // every rebuild of the app).
     ErrorWidget.builder = (details) => _ErrorFallback(details: details);
 
-    // Firebase init
-await Firebase.initializeApp(); // Ensure no secrets in client bundle
+    // Firebase init — kept for Crashlytics/Analytics only (no Supabase
+    // equivalent); Auth/Firestore/Storage now live on Supabase below.
+    await Firebase.initializeApp();
+
+    // Supabase init — auth/data/storage. Same shared project as
+    // academia-cameroon (see core/supabase_config.dart's header).
+    await Supabase.initialize(url: SupabaseConfig.url, anonKey: SupabaseConfig.anonKey);
 
     // Route Flutter framework errors (build/layout/paint) to Crashlytics as
     // fatal, instead of just printing to console and moving on.

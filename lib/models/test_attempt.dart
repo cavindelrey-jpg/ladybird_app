@@ -5,38 +5,21 @@
 // `where(userId==...).orderBy(submittedAt)` regardless of which subject
 // or test each attempt belongs to — same shape as xpTransactions.
 //
-// Grading framework:
-//   - mcq responses are graded the instant the attempt is submitted
-//     (TestRepository.submitAttempt) — deterministic, no human needed.
-//   - longForm (Essay) responses are matched against the question's
-//     essential key points at submit time by core/essay_matching.dart,
-//     entirely offline. When the matcher is confident about every key
-//     point — the common case — the response is graded immediately too,
-//     scored as "captured N of the 7–9 essential points". Only when it
-//     is genuinely undecided about one or more points does the response
-//     stay ungraded and enter the human queue, and even then the human
-//     is deciding a handful of specific flagged points rather than
-//     reading prose from scratch.
-//   - structured responses (production_plan.md §3 Quiz Type 2) follow the
-//     identical rule to Essay whenever the question was authored with
-//     TestQuestion.expectedPoints: matched the same way, at submit time,
-//     by the same core/essay_matching.dart matcher, with only genuinely
-//     undecided points reaching the human queue. A structured question
-//     authored with NO expected points (the pre-existing shape, or a
-//     genuinely rubric-only question) always starts ungraded
-//     (pointsAwarded: null, graded: false) and waits for
-//     TestRepository.gradeResponse(), called today by a lecturer/admin
-//     from the grading queue. That method is the seam an AI grader would
-//     plug into later (call it with a model-suggested score instead of a
-//     human-typed one) — nothing about the data model or XP math changes
-//     if the grader on the other end becomes automated, which is the
-//     "future AI evaluation" the spec asks to leave room for. No AI
-//     grading call is wired up yet — flagging that honestly rather than
-//     pretending it's live.
+// Grading framework: every question type is graded the instant the
+// attempt is submitted (TestRepository.submitAttempt) — mcq by exact
+// match, structured/longForm by core/essay_matching.dart's key-point
+// matcher. There is no manual grading queue; [AttemptStatus.submitted]
+// only exists for attempts written before this became true.
+//
+// Each response denormalizes enough of its question (prompt, mcq
+// options/correct answer, or key-point match results) that the results
+// page can render a full correction — right/wrong per question — from
+// the attempt alone, without a second read of the (possibly since
+// edited or deleted) Test document. Same "denormalize, don't join"
+// reasoning as embedding questions on Test itself.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../core/essay_matching.dart';
 import 'test.dart';
+import '../core/essay_matching.dart';
 
 enum AttemptStatus { submitted, graded }
 
@@ -72,7 +55,7 @@ class KeyPointOutcome {
 
   final KeyPointVerdict verdict;
 
-  /// Set only when a human resolved an [KeyPointVerdict.uncertain] point
+  /// Set only when a human resolved a [KeyPointVerdict.uncertain] point
   /// in the grading queue: true = the grader allowed it, false = the
   /// grader rejected it. Null means no human ever touched this point.
   final bool? humanDecision;
@@ -123,18 +106,17 @@ class KeyPointOutcome {
 class QuestionResponse {
   final String questionId;
   final QuestionType type;
+  final String prompt;
   final int maxPoints;
 
-  // mcq
+  // mcq — denormalized so the correction view can show the right answer
+  // even if the Test's own options are edited/removed later.
   final int? selectedIndex;
+  final List<String> options;
+  final int? correctIndex;
 
-  // structured — raw text, one entry per answered line (whether or not
-  // the question was authored with expectedPoints — this is always what
-  // the student actually typed).
-  // longForm (Essay) — the student's OWN short key points, one entry
-  // each, in the order they entered them. Never a full essay: §3 is
-  // explicit that the student states the essential points rather than
-  // reproducing a two-page essay in the app.
+  // structured / longForm — raw text, one entry per line (structured) or
+  // a single full-essay entry (longForm), same order as submitted.
   final List<String> textAnswer;
 
   /// One entry per authored expected/key point, in the author's order —
@@ -155,8 +137,11 @@ class QuestionResponse {
   const QuestionResponse({
     required this.questionId,
     required this.type,
+    this.prompt = '',
     required this.maxPoints,
     this.selectedIndex,
+    this.options = const [],
+    this.correctIndex,
     this.textAnswer = const [],
     this.keyPointOutcomes = const [],
     this.pointsAwarded,
@@ -164,6 +149,63 @@ class QuestionResponse {
     this.feedback,
     this.xpEarned = 0,
   });
+
+  QuestionResponse copyWith({
+    int? pointsAwarded,
+    bool? graded,
+    String? feedback,
+    int? xpEarned,
+    List<KeyPointOutcome>? keyPointOutcomes,
+  }) =>
+      QuestionResponse(
+        questionId: questionId,
+        type: type,
+        prompt: prompt,
+        maxPoints: maxPoints,
+        selectedIndex: selectedIndex,
+        options: options,
+        correctIndex: correctIndex,
+        textAnswer: textAnswer,
+        keyPointOutcomes: keyPointOutcomes ?? this.keyPointOutcomes,
+        pointsAwarded: pointsAwarded ?? this.pointsAwarded,
+        graded: graded ?? this.graded,
+        feedback: feedback ?? this.feedback,
+        xpEarned: xpEarned ?? this.xpEarned,
+      );
+
+  factory QuestionResponse.fromMap(Map<String, dynamic> m) => QuestionResponse(
+        questionId: m['questionId'] ?? '',
+        type: QuestionTypeExt.fromKey(m['type']),
+        prompt: m['prompt'] ?? '',
+        maxPoints: (m['maxPoints'] as num?)?.toInt() ?? 0,
+        selectedIndex: (m['selectedIndex'] as num?)?.toInt(),
+        options: List<String>.from(m['options'] ?? const []),
+        correctIndex: (m['correctIndex'] as num?)?.toInt(),
+        textAnswer: List<String>.from(m['textAnswer'] ?? const []),
+        keyPointOutcomes: (m['keyPointOutcomes'] as List<dynamic>? ?? const [])
+            .map((k) => KeyPointOutcome.fromMap(Map<String, dynamic>.from(k)))
+            .toList(),
+        pointsAwarded: (m['pointsAwarded'] as num?)?.toInt(),
+        graded: m['graded'] ?? false,
+        feedback: m['feedback'],
+        xpEarned: (m['xpEarned'] as num?)?.toInt() ?? 0,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'questionId': questionId,
+        'type': type.name,
+        'prompt': prompt,
+        'maxPoints': maxPoints,
+        'selectedIndex': selectedIndex,
+        'options': options,
+        'correctIndex': correctIndex,
+        'textAnswer': textAnswer,
+        'keyPointOutcomes': keyPointOutcomes.map((k) => k.toMap()).toList(),
+        'pointsAwarded': pointsAwarded,
+        'graded': graded,
+        'feedback': feedback,
+        'xpEarned': xpEarned,
+      };
 
   /// Key points still awaiting a human's final call.
   List<KeyPointOutcome> get uncertainOutcomes => keyPointOutcomes
@@ -176,54 +218,6 @@ class QuestionResponse {
   /// "evaluate automatically where possible" wording for each format.
   int get capturedKeyPointCount =>
       keyPointOutcomes.where((o) => o.counted).length;
-
-  QuestionResponse copyWith({
-    int? pointsAwarded,
-    bool? graded,
-    String? feedback,
-    int? xpEarned,
-    List<KeyPointOutcome>? keyPointOutcomes,
-  }) =>
-      QuestionResponse(
-        questionId: questionId,
-        type: type,
-        maxPoints: maxPoints,
-        selectedIndex: selectedIndex,
-        textAnswer: textAnswer,
-        keyPointOutcomes: keyPointOutcomes ?? this.keyPointOutcomes,
-        pointsAwarded: pointsAwarded ?? this.pointsAwarded,
-        graded: graded ?? this.graded,
-        feedback: feedback ?? this.feedback,
-        xpEarned: xpEarned ?? this.xpEarned,
-      );
-
-  factory QuestionResponse.fromMap(Map<String, dynamic> m) => QuestionResponse(
-        questionId: m['questionId'] ?? '',
-        type: QuestionTypeExt.fromKey(m['type']),
-        maxPoints: (m['maxPoints'] as num?)?.toInt() ?? 0,
-        selectedIndex: (m['selectedIndex'] as num?)?.toInt(),
-        textAnswer: List<String>.from(m['textAnswer'] ?? const []),
-        keyPointOutcomes: (m['keyPointOutcomes'] as List<dynamic>? ?? [])
-            .map((o) => KeyPointOutcome.fromMap(Map<String, dynamic>.from(o)))
-            .toList(),
-        pointsAwarded: (m['pointsAwarded'] as num?)?.toInt(),
-        graded: m['graded'] ?? false,
-        feedback: m['feedback'],
-        xpEarned: (m['xpEarned'] as num?)?.toInt() ?? 0,
-      );
-
-  Map<String, dynamic> toMap() => {
-        'questionId': questionId,
-        'type': type.name,
-        'maxPoints': maxPoints,
-        'selectedIndex': selectedIndex,
-        'textAnswer': textAnswer,
-        'keyPointOutcomes': keyPointOutcomes.map((o) => o.toMap()).toList(),
-        'pointsAwarded': pointsAwarded,
-        'graded': graded,
-        'feedback': feedback,
-        'xpEarned': xpEarned,
-      };
 }
 
 class TestAttempt {
@@ -291,45 +285,42 @@ class TestAttempt {
   bool get fullyGraded => responses.every((r) => r.graded);
   bool get hasPendingGrading => !fullyGraded;
 
-  factory TestAttempt.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
-    final submitted = d['submittedAt'];
-    final graded = d['gradedAt'];
+  factory TestAttempt.fromSupabase(Map<String, dynamic> d) {
     return TestAttempt(
-      id: doc.id,
-      testId: d['testId'] ?? '',
-      testTitle: d['testTitle'] ?? '',
+      id: d['id'] as String,
+      testId: d['test_id'] ?? '',
+      testTitle: d['test_title'] ?? '',
       subject: d['subject'] ?? '',
       difficulty: TestDifficultyExt.fromKey(d['difficulty']),
-      userId: d['userId'] ?? '',
-      userName: d['userName'] ?? '',
+      userId: d['user_id'] ?? '',
+      userName: d['user_name'] ?? '',
       responses: (d['responses'] as List<dynamic>? ?? [])
           .map((r) => QuestionResponse.fromMap(Map<String, dynamic>.from(r)))
           .toList(),
-      totalPossiblePoints: (d['totalPossiblePoints'] as num?)?.toInt() ?? 0,
+      totalPossiblePoints: (d['total_possible_points'] as num?)?.toInt() ?? 0,
       status: AttemptStatusExt.fromKey(d['status']),
-      totalXpAwarded: (d['totalXpAwarded'] as num?)?.toInt() ?? 0,
-      submittedAt: submitted is Timestamp ? submitted.toDate() : DateTime.now(),
-      gradedAt: graded is Timestamp ? graded.toDate() : null,
-      levelMultiplier: (d['levelMultiplier'] as num?)?.toDouble() ?? 1.0,
-      attemptMultiplier: (d['attemptMultiplier'] as num?)?.toDouble() ?? 1.0,
+      totalXpAwarded: (d['total_xp_awarded'] as num?)?.toInt() ?? 0,
+      submittedAt: DateTime.tryParse(d['submitted_at']?.toString() ?? '') ?? DateTime.now(),
+      gradedAt: d['graded_at'] == null ? null : DateTime.tryParse(d['graded_at'].toString()),
+      levelMultiplier: (d['level_multiplier'] as num?)?.toDouble() ?? 1.0,
+      attemptMultiplier: (d['attempt_multiplier'] as num?)?.toDouble() ?? 1.0,
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
-        'testId': testId,
-        'testTitle': testTitle,
+  Map<String, dynamic> toSupabase() => {
+        'test_id': testId.isEmpty ? null : testId,
+        'test_title': testTitle,
         'subject': subject,
         'difficulty': difficulty.name,
-        'userId': userId,
-        'userName': userName,
+        'user_id': userId.isEmpty ? null : userId,
+        'user_name': userName,
         'responses': responses.map((r) => r.toMap()).toList(),
-        'totalPossiblePoints': totalPossiblePoints,
+        'total_possible_points': totalPossiblePoints,
         'status': status.name,
-        'totalXpAwarded': totalXpAwarded,
-        'submittedAt': Timestamp.fromDate(submittedAt),
-        'gradedAt': gradedAt == null ? null : Timestamp.fromDate(gradedAt!),
-        'levelMultiplier': levelMultiplier,
-        'attemptMultiplier': attemptMultiplier,
+        'total_xp_awarded': totalXpAwarded,
+        'submitted_at': submittedAt.toIso8601String(),
+        'graded_at': gradedAt?.toIso8601String(),
+        'level_multiplier': levelMultiplier,
+        'attempt_multiplier': attemptMultiplier,
       };
 }

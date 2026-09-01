@@ -181,12 +181,24 @@ class _CourseBrowsePageState extends State<CourseBrowsePage> {
       currentEmoji: current.emoji,
       currentImageUrl: current.imageUrl,
       onSave: (emoji, image) async {
-        String imageUrl = '';
+        // Was `String imageUrl = ''` unconditionally -- on a FAILED
+        // upload this fell through and saved an empty imageUrl anyway,
+        // silently clearing whatever photo was already set instead of
+        // leaving it alone. Now only actually clears when the user chose
+        // an emoji or explicitly cleared (image == null), same as the
+        // other 4 editors using this shared sheet.
+        String imageUrl = current.imageUrl;
         if (image != null) {
           final upload = await repo.uploadCurriculumNodeImage(key: key, imageFile: image);
-          if (upload is Success<String>) imageUrl = upload.value;
+          switch (upload) {
+            case Success(:final value): imageUrl = value;
+            case Failure(:final message): throw Exception(message);
+          }
+        } else {
+          imageUrl = '';
         }
-        await repo.setCurriculumIcon(key, emoji: emoji, imageUrl: imageUrl);
+        final result = await repo.setCurriculumIcon(key, emoji: emoji, imageUrl: imageUrl);
+        if (result case Failure(:final message)) throw Exception(message);
       },
     );
     _load();

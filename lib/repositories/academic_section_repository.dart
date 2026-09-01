@@ -7,73 +7,78 @@
 // (features/courses_marketplace/course_navigation_page.dart), and the
 // Library (features/academic_content, cross-linked by subject). One
 // shared list so an admin manages a single set of sections/images
-// instead of a separate one per feature, and so "Senior Secondary
-// School" means the same thing — and shows the same photo — everywhere
-// in the app.
+// instead of a separate one per feature.
 //
-// Firestore: quiz_categories/{sectionId} — kept under its original
-// collection name (this started as Quiz-only) rather than migrating
-// existing documents to a new collection name; nothing about the name is
-// quiz-specific anymore. TestRepository's own
+// Supabase: public.academic_sections. TestRepository's own
 // quizCategoriesOnce()/addQuizCategory()/updateQuizCategoryIcon()/
-// uploadQuizCategoryImage() now just delegate here instead of owning
-// this collection directly, so every existing Quiz call site keeps
-// working unchanged.
+// uploadQuizCategoryImage() delegate here instead of owning this table
+// directly, so every existing Quiz call site keeps working unchanged.
 
+import 'dart:async';
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/result.dart';
 import '../models/academic_section.dart';
+import '../services/content_cache_service.dart';
 
 class AcademicSectionRepository {
   AcademicSectionRepository._();
   static final AcademicSectionRepository instance = AcademicSectionRepository._();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-  CollectionReference<Map<String, dynamic>> get _sections =>
-      _db.collection('quiz_categories');
-
-  static String _slug(String s) =>
-      s.toLowerCase().trim().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+  static const String _bucket = 'app-content';
+  static const String _cacheKey = 'academic_sections';
+  final SupabaseClient _db = Supabase.instance.client;
+  SupabaseQueryBuilder get _sections => _db.from('academic_sections');
 
   /// All sections, ordered for the grid. Seeds [kDefaultAcademicSections]
-  /// the first time this collection is ever read empty — a fresh install
-  /// still shows the 5 sections asked for at launch instead of a blank
-  /// page. Uses a stable slug doc-id per default name so two clients
-  /// racing this on first load both just re-set the same 5 docs rather
-  /// than creating duplicates.
+  /// the first time this table is ever read empty — a fresh install still
+  /// shows the 5 sections asked for at launch instead of a blank page.
+  ///
+  /// This is the top of the browse tree for Quizzes/Course Navigation/
+  /// Library — offline (or a flaky reconnect), a failure here used to
+  /// throw straight out to the caller with nothing to fall back on.
+  /// Now falls back to the last cached list first; only rethrows (real
+  /// error state, not a silent blank page — see QuizCategoriesPage) if
+  /// there's no cache to fall back on either.
   Future<List<AcademicSection>> sectionsOnce() async {
-    final snap = await _sections.orderBy('order').get();
-    if (snap.docs.isEmpty) {
-      await _seedDefaults();
-      final reSnap = await _sections.orderBy('order').get();
-      return reSnap.docs.map(AcademicSection.fromFirestore).toList();
+    try {
+      final rows = await _sections.select().order('sort_order');
+      if (rows.isEmpty) {
+        await _seedDefaults();
+        final reRows = await _sections.select().order('sort_order');
+        final list = List<Map<String, dynamic>>.from(reRows);
+        unawaited(ContentCacheService.instance.putList(_cacheKey, list));
+        return list.map(AcademicSection.fromSupabase).toList();
+      }
+      final list = List<Map<String, dynamic>>.from(rows);
+      unawaited(ContentCacheService.instance.putList(_cacheKey, list));
+      return list.map(AcademicSection.fromSupabase).toList();
+    } catch (e) {
+      final cached = await ContentCacheService.instance.getList(_cacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        return cached.map(AcademicSection.fromSupabase).toList();
+      }
+      rethrow;
     }
-    return snap.docs.map(AcademicSection.fromFirestore).toList();
   }
 
   Future<void> _seedDefaults() async {
-    final batch = _db.batch();
-    for (var i = 0; i < kDefaultAcademicSections.length; i++) {
-      final name = kDefaultAcademicSections[i];
-      batch.set(_sections.doc(_slug(name)), {
-        'name': name,
-        'icon': '',
-        'imageUrl': '',
-        'order': (i * 100).toDouble(),
-        'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+    try {
+      await _sections.insert([
+        for (var i = 0; i < kDefaultAcademicSections.length; i++)
+          {'name': kDefaultAcademicSections[i], 'sort_order': (i * 100).toDouble()},
+      ]);
+    } catch (_) {
+      // Two clients racing this on first load: the loser's insert is
+      // harmless to lose (the winner's rows are what sectionsOnce() then
+      // re-reads) — no unique constraint to violate, just redundant rows
+      // to avoid, so best-effort is fine here.
     }
-    await batch.commit();
   }
 
   /// Adds a brand-new section (e.g. "Nursery"/"Master's"/"PhD") — the
   /// extensibility point every hierarchical browser's "+ New section"
-  /// tile calls into. Sorts to the end by passing the current list's
-  /// length * 100 as [order], the same large-gap spacing the seeded
-  /// defaults use, leaving room for a future reorder feature without
-  /// renumbering everything.
+  /// tile calls into.
   Future<Result<String>> addSection({
     required String name,
     required double order,
@@ -81,14 +86,13 @@ class AcademicSectionRepository {
     String imageUrl = '',
   }) async {
     try {
-      final ref = await _sections.add({
+      final row = await _sections.insert({
         'name': name.trim(),
-        'icon': emoji,
-        'imageUrl': imageUrl,
-        'order': order,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      return Success(ref.id);
+        'emoji': emoji,
+        'image_url': imageUrl,
+        'sort_order': order,
+      }).select('id').single();
+      return Success(row['id'] as String);
     } catch (e) {
       return Failure('Failed to add section', e);
     }
@@ -98,7 +102,7 @@ class AcademicSectionRepository {
   /// back to the letter-avatar fallback.
   Future<Result<void>> updateSectionIcon(String id, {String emoji = '', String imageUrl = ''}) async {
     try {
-      await _sections.doc(id).update({'icon': emoji, 'imageUrl': imageUrl});
+      await _sections.update({'emoji': emoji, 'image_url': imageUrl}).eq('id', id);
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update section', e);
@@ -107,11 +111,9 @@ class AcademicSectionRepository {
 
   Future<Result<String>> uploadSectionImage({required String sectionId, required File imageFile}) async {
     try {
-      final ref = FirebaseStorage.instance.ref('quiz_categories/$sectionId.jpg');
-      await ref.putFile(imageFile).timeout(const Duration(seconds: 60),
-          onTimeout: () => throw Exception(
-              'Image upload is taking too long. Check your connection and try again.'));
-      return Success(await ref.getDownloadURL());
+      final path = 'quiz_categories/$sectionId.jpg';
+      await _db.storage.from(_bucket).upload(path, imageFile, fileOptions: const FileOptions(upsert: true));
+      return Success(_db.storage.from(_bucket).getPublicUrl(path));
     } catch (e) {
       return Failure('Failed to upload image', e);
     }

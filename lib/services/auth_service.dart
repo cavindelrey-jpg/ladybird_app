@@ -1,82 +1,172 @@
 // lib/services/auth_service.dart
+//
+// Supabase Auth + Postgres version — same public API (method names/
+// signatures) as the pre-migration Firebase version so screens/pages
+// didn't need to change. Ported from academia-cameroon's rewrite (same
+// shared Supabase project/database — see AUTH_MIGRATION.md there).
+//
+// One forced behavioral difference from the Firebase version: no
+// client-side self-account-deletion API exists in Supabase (that's an
+// admin-only operation). This app never called that path anyway (no
+// serial/seat-claim flow exists here), so it doesn't come up.
+//
+// Two real logic differences from academia-cameroon's own auth_service.dart,
+// both preserved from this app's original Firebase version:
+//   1. Audit logging on every login attempt (success / no-profile /
+//      suspended / failed) — ported to AuditService.log() writing to
+//      Supabase's audit_log_entries table (see analytics_service.dart).
+//   2. recordDailyActivity() closes a real race condition (two
+//      near-simultaneous calls both awarding streak XP) — ported to the
+//      record_daily_activity() Postgres RPC (`select ... for update`),
+//      same pattern as XpRepository's award_xp/spend_xp.
+
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
 import '../models/xp_transaction.dart';
-import '../core/constants.dart';
 import '../core/xp_rules.dart';
 import '../core/result.dart';
 import '../repositories/xp_repository.dart';
 import 'analytics_service.dart' show AuditService, AuditSeverity;
+import 'app_user_cache_service.dart';
 
 class AuthService {
   AuthService._();
   static final AuthService instance = AuthService._();
 
-  final fb.FirebaseAuth _auth = fb.FirebaseAuth.instance;
-  final FirebaseFirestore _db  = FirebaseFirestore.instance;
+  final SupabaseClient _supabase = Supabase.instance.client;
   final GoogleSignIn _google = GoogleSignIn(scopes: ['email', 'profile']);
 
-  fb.User? get firebaseUser   => _auth.currentUser;
-  Stream<fb.User?> get authStateChanges => _auth.authStateChanges();
+  User? get firebaseUser => _supabase.auth.currentUser;
+  Stream<User?> get authStateChanges =>
+      _supabase.auth.onAuthStateChange.map((state) => state.session?.user);
 
   Future<AppUser?> currentAppUser() async {
-    final u = _auth.currentUser;
+    final u = _supabase.auth.currentUser;
     if (u == null) return null;
-    final doc = await _db.collection(AppConstants.colUsers).doc(u.uid).get();
-    if (!doc.exists) return null;
-    return AppUser.fromFirestore(u.uid, doc.data()!);
+    final row = await _supabase.from('users').select().eq('id', u.id).maybeSingle();
+    if (row == null) return null;
+    return AppUser.fromSupabase(row);
   }
 
+  /// Live-updates whenever the user's row changes (XP awarded, streak
+  /// recorded, profile edited, etc.) — the underlying Realtime `.stream()`
+  /// requires an active websocket, which offline or a flaky reconnect
+  /// breaks. This must NEVER be read as "this account doesn't exist" —
+  /// _AppUserGate (screens/app_router.dart) treats a null emission from
+  /// this stream as a reason to sign out, so a network hiccup must not
+  /// produce one. Strategy: paint the cached row instantly (if any),
+  /// replace it with a fresh one-time fetch as soon as that succeeds,
+  /// then layer live Realtime updates on top — but a Realtime error is
+  /// swallowed (logged only), never forwarded, so it can't blank out an
+  /// already-known-good user. The only way this stream legitimately
+  /// emits null is a *successful* fetch that finds no row at all (e.g.
+  /// the account was really deleted server-side).
   Stream<AppUser?> currentAppUserStream() {
-    final u = _auth.currentUser;
+    final u = _supabase.auth.currentUser;
     if (u == null) return Stream.value(null);
-    return _db.collection(AppConstants.colUsers).doc(u.uid).snapshots().map(
-        (doc) => doc.exists ? AppUser.fromFirestore(u.uid, doc.data()!) : null);
+    final uid = u.id;
+    final controller = StreamController<AppUser?>();
+
+    Future<void> emitCacheThenFetch() async {
+      final cached = await AppUserCacheService.instance.getUser(uid);
+      if (cached != null && !controller.isClosed) {
+        controller.add(cached);
+      }
+      try {
+        final fresh = await currentAppUser();
+        if (controller.isClosed) return;
+        if (fresh != null) {
+          unawaited(AppUserCacheService.instance.putUser(fresh));
+          controller.add(fresh);
+        } else if (cached == null) {
+          // A real, successful "no row" result with nothing cached to
+          // fall back on -- the only legitimate null emission.
+          controller.add(null);
+        }
+        // fresh == null but cached != null: leave the cached value
+        // showing rather than overwrite it with an absence we can't
+        // yet distinguish from a transient blip.
+      } catch (_) {
+        // Network/REST failure -- keep showing whatever we already
+        // emitted (cache or nothing yet); never emit null for this.
+      }
+    }
+
+    unawaited(emitCacheThenFetch());
+
+    final sub = _supabase
+        .from('users')
+        .stream(primaryKey: ['id'])
+        .eq('id', uid)
+        .listen(
+          (rows) {
+            if (controller.isClosed) return;
+            if (rows.isNotEmpty) {
+              final user = AppUser.fromSupabase(rows.first);
+              unawaited(AppUserCacheService.instance.putUser(user));
+              controller.add(user);
+            }
+            // An empty row list from a live update is far more likely a
+            // transient resync than a genuine deletion (that already
+            // went through the one-time-fetch "no row" path above) --
+            // ignored rather than emitted as null.
+          },
+          onError: (_) {
+            // Realtime disconnected/errored (offline, etc.) -- keep
+            // showing whatever was last emitted, don't propagate.
+          },
+        );
+
+    controller.onCancel = sub.cancel;
+    return controller.stream;
   }
 
   // Pre-launch audit: real login attempts (success, suspended-account
   // block, and failure) were not logged anywhere -- fire-and-forget
   // (unawaited, best-effort per AuditService.log's own contract) so a
   // slow/failed audit write never blocks or breaks the actual sign-in
-  // flow. 'platform' is the bucket for accounts with no schoolId (this
+  // flow. institutionId is left null for accounts with no schoolId (this
   // app's single-account model means that's most of them) rather than
-  // making institutionId nullable throughout AuditService.
+  // the old Firestore 'platform' string sentinel, since audit_log_entries
+  // .institution_id is a nullable uuid FK, not a free-text bucket.
   Future<AppUser?> signIn({required String email, required String password}) async {
     try {
-      final cred = await _auth.signInWithEmailAndPassword(email: email, password: password);
-      final uid  = cred.user!.uid;
-      final doc  = await _db.collection(AppConstants.colUsers).doc(uid).get();
-      if (!doc.exists) {
+      final res = await _supabase.auth.signInWithPassword(email: email, password: password);
+      final uid = res.user!.id;
+      final row = await _supabase.from('users').select().eq('id', uid).maybeSingle();
+      if (row == null) {
         unawaited(AuditService.instance.log(
-          institutionId: 'platform', actorId: uid, actorRole: 'unknown',
+          actorId: uid, actorRole: 'unknown',
           action: 'login_failed_no_profile', severity: AuditSeverity.warning,
         ));
         return null;
       }
-      final user = AppUser.fromFirestore(uid, doc.data()!);
+      final user = AppUser.fromSupabase(row);
       if (user.status == AccountStatus.suspended) {
-        await _auth.signOut();
+        await _supabase.auth.signOut();
         unawaited(AuditService.instance.log(
-          institutionId: user.schoolId ?? 'platform', actorId: uid, actorRole: user.roleLabel,
+          institutionId: user.schoolId, actorId: uid, actorRole: user.roleLabel,
           action: 'login_blocked_suspended', severity: AuditSeverity.warning,
         ));
         throw Exception('This account has been suspended. Contact administration.');
       }
       unawaited(AuditService.instance.log(
-        institutionId: user.schoolId ?? 'platform', actorId: uid, actorRole: user.roleLabel,
+        institutionId: user.schoolId, actorId: uid, actorRole: user.roleLabel,
         action: 'login_success',
       ));
       return user;
-    } on fb.FirebaseAuthException catch (e) {
-      // Deliberately logs the email + error CODE, never the password --
+    } on AuthException catch (e) {
+      // Deliberately logs the email + error message, never the password --
       // useful for spotting a brute-force pattern against one account
-      // without recording anything sensitive.
+      // without recording anything sensitive. actorId is left null here
+      // (no uid exists yet for a failed sign-in) — the email goes in
+      // metadata instead.
       unawaited(AuditService.instance.log(
-        institutionId: 'platform', actorId: email, actorRole: 'unknown',
-        action: 'login_failed', metadata: {'code': e.code}, severity: AuditSeverity.warning,
+        actorRole: 'unknown',
+        action: 'login_failed', metadata: {'email': email, 'message': e.message},
+        severity: AuditSeverity.warning,
       ));
       rethrow;
     }
@@ -86,14 +176,15 @@ class AuthService {
     required String email, required String password, required String name,
     UserRole role = UserRole.student,
   }) async {
-    final cred = await _auth.createUserWithEmailAndPassword(email: email, password: password);
-    final uid  = cred.user!.uid;
-    await cred.user!.getIdToken(true); // avoid auth-token propagation race, see note above
+    final res = await _supabase.auth.signUp(email: email, password: password);
+    final uid = res.user!.id;
     final user = AppUser(
       id: uid, name: name, email: email,
       role: role, accountType: AccountType.independent, status: AccountStatus.active,
     );
-    await _db.collection(AppConstants.colUsers).doc(uid).set(user.toFirestore());
+    // handle_new_user (Postgres trigger) already inserted a bare row on
+    // signUp — update it with the real profile fields rather than insert.
+    await _supabase.from('users').update(user.toSupabase()).eq('id', uid);
     return user;
   }
 
@@ -103,43 +194,46 @@ class AuthService {
     final googleUser = await _google.signIn();
     if (googleUser == null) return null;
     final googleAuth = await googleUser.authentication;
-    final credential = fb.GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-    return signInWithGoogleCredential(credential);
+    if (googleAuth.idToken == null) {
+      throw Exception('Google sign-in did not return an ID token.');
+    }
+    return signInWithGoogleTokens(idToken: googleAuth.idToken!, accessToken: googleAuth.accessToken);
   }
 
-  Future<AppUser> signInWithGoogleCredential(fb.AuthCredential credential) async {
-    final cred = await _auth.signInWithCredential(credential);
-    final uid  = cred.user!.uid;
-    await cred.user!.getIdToken(true); // avoid auth-token propagation race, see note above
-    final doc  = await _db.collection(AppConstants.colUsers).doc(uid).get();
-    if (doc.exists) return AppUser.fromFirestore(uid, doc.data()!);
+  Future<AppUser> signInWithGoogleTokens({required String idToken, String? accessToken}) async {
+    final res = await _supabase.auth.signInWithIdToken(
+      provider: OAuthProvider.google, idToken: idToken, accessToken: accessToken,
+    );
+    final u = res.user!;
+    final uid = u.id;
+    final row = await _supabase.from('users').select().eq('id', uid).maybeSingle();
+    if (row != null) return AppUser.fromSupabase(row);
+    // handle_new_user inserted a bare row already — fill in the Google
+    // profile fields the trigger doesn't know about.
     final user = AppUser(
-      id: uid, name: cred.user?.displayName ?? 'Student',
-      email: cred.user?.email ?? '', photoUrl: cred.user?.photoURL,
+      id: uid, name: (u.userMetadata?['full_name'] as String?) ?? 'Student',
+      email: u.email ?? '', photoUrl: u.userMetadata?['avatar_url'] as String?,
       role: UserRole.student, accountType: AccountType.independent, status: AccountStatus.active,
     );
-    await _db.collection(AppConstants.colUsers).doc(uid).set(user.toFirestore());
+    await _supabase.from('users').update(user.toSupabase()).eq('id', uid);
     return user;
   }
 
   // ── Admin operations ───────────────────────────────────────────────────────
   Future<void> changeUserRole(String userId, UserRole newRole) =>
-      _db.collection(AppConstants.colUsers).doc(userId).update({'role': newRole.name});
+      _supabase.from('users').update({'role': newRole.pgValue}).eq('id', userId);
 
   Future<void> suspendUser(String userId) =>
-      _db.collection(AppConstants.colUsers).doc(userId)
-          .update({'status': AccountStatus.suspended.name});
+      _supabase.from('users').update({'status': AccountStatus.suspended.name}).eq('id', userId);
 
   Future<void> reactivateUser(String userId) =>
-      _db.collection(AppConstants.colUsers).doc(userId)
-          .update({'status': AccountStatus.active.name});
+      _supabase.from('users').update({'status': AccountStatus.active.name}).eq('id', userId);
 
   Future<void> signOut() async {
+    final uid = _supabase.auth.currentUser?.id;
+    if (uid != null) unawaited(AppUserCacheService.instance.clear(uid));
     await _google.signOut();
-    await _auth.signOut();
+    await _supabase.auth.signOut();
   }
 
   /// Re-authenticates with the current password, then sets the new one.
@@ -148,38 +242,40 @@ class AuthService {
     required String currentPassword,
     required String newPassword,
   }) async {
-    final user = _auth.currentUser;
+    final user = _supabase.auth.currentUser;
     if (user == null || user.email == null) {
       throw Exception('You must be signed in with an email account to change your password.');
     }
-    final cred = fb.EmailAuthProvider.credential(email: user.email!, password: currentPassword);
     try {
-      await user.reauthenticateWithCredential(cred);
-      await user.updatePassword(newPassword);
-    } on fb.FirebaseAuthException catch (e) {
-      if (e.code == 'wrong-password') throw Exception('Current password is incorrect.');
-      if (e.code == 'weak-password') throw Exception('New password is too weak.');
-      throw Exception(e.message ?? 'Failed to change password.');
+      // Supabase has no separate reauthenticate step — signInWithPassword
+      // with the current password IS the reauth check (fails with
+      // AuthApiException if wrong), then updateUser sets the new one.
+      await _supabase.auth.signInWithPassword(email: user.email!, password: currentPassword);
+      await _supabase.auth.updateUser(UserAttributes(password: newPassword));
+    } on AuthException catch (e) {
+      if (e.message.toLowerCase().contains('invalid')) throw Exception('Current password is incorrect.');
+      if (e.message.toLowerCase().contains('weak') || e.message.toLowerCase().contains('short')) {
+        throw Exception('New password is too weak.');
+      }
+      throw Exception(e.message);
     }
   }
 
   Future<void> sendPasswordResetEmail(String email) async {
     try {
-      await _auth.sendPasswordResetEmail(email: email);
-    } on fb.FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') throw Exception('No account found for that email.');
-      throw Exception(e.message ?? 'Failed to send reset email.');
+      await _supabase.auth.resetPasswordForEmail(email);
+    } on AuthException catch (e) {
+      throw Exception(e.message);
     }
   }
 
   Future<void> updateUser(AppUser user, Map<String, dynamic> fields) async {
     if (user.id.isEmpty) return;
-    await _db.collection(AppConstants.colUsers).doc(user.id).update(fields);
+    await _supabase.from('users').update(fields).eq('id', user.id);
   }
 
   static Future<void> markFirstLoginComplete(String userId) async =>
-      FirebaseFirestore.instance.collection(AppConstants.colUsers)
-          .doc(userId).update({'isFirstLogin': false});
+      Supabase.instance.client.from('users').update({'is_first_login': false}).eq('id', userId);
 
   // ── Gamification (real, minimal) ───────────────────────────────────────
   // Called once per Home page load. Decides — from the user's OWN last
@@ -187,58 +283,27 @@ class AuthService {
   // for today. Never fabricates a number; every value here traces back to
   // an actual recorded day of app use.
 
-  static String _dateKey(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-
-  /// The 7 date keys (Mon..Sun) for the calendar week containing [d].
-  static List<String> _weekKeys(DateTime d) {
-    final monday = d.subtract(Duration(days: d.weekday - 1));
-    return List.generate(7, (i) => _dateKey(monday.add(Duration(days: i))));
-  }
-
   Future<void> recordDailyActivity(AppUser user) async {
     if (user.id.isEmpty) return; // guest — nothing to record
-    final now = DateTime.now();
-    final today = _dateKey(now);
-    final userRef = _db.collection(AppConstants.colUsers).doc(user.id);
 
-    // The guard-then-write used to check the caller's in-memory `user`
-    // snapshot (possibly stale) and write separately — two near-
-    // simultaneous calls (e.g. app resume racing a background refresh)
-    // could both read "not recorded yet" and both write/award. Reading
-    // fresh server state and writing inside one transaction closes that:
-    // only the call that actually wins the transaction gets `shouldAward
-    // = true`, so at most one of any concurrent pair awards streak XP.
-    var newStreak = 0;
-    var shouldAward = false;
-    await _db.runTransaction((tx) async {
-      final snap = await tx.get(userRef);
-      final data = snap.data() ?? {};
-      final lastActiveDate = data['lastActiveDate'] as String?;
-      if (lastActiveDate == today) return; // another call already won today
+    // The old Firestore version wrapped this in a transaction specifically
+    // to close a race (two near-simultaneous calls both reading "not
+    // recorded yet" and both awarding streak XP). record_daily_activity()
+    // is the same guarantee via `select ... for update` server-side —
+    // only the caller that actually wins the row lock gets
+    // should_award = true.
+    final rows = await _supabase.rpc('record_daily_activity', params: {
+      'p_user_id': user.id,
+    }) as List;
+    if (rows.isEmpty) return;
+    final result = rows.first as Map<String, dynamic>;
+    if (result['should_award'] != true) return;
+    final newStreak = (result['new_streak'] as num?)?.toInt() ?? 0;
 
-      final yesterday = _dateKey(now.subtract(const Duration(days: 1)));
-      final currentStreak = (data['streakDays'] as num?)?.toInt() ?? 0;
-      newStreak = (lastActiveDate == yesterday) ? currentStreak + 1 : 1;
-
-      final thisWeek = _weekKeys(now).toSet();
-      final existingWeekDates = List<String>.from(data['weekActivityDates'] ?? const []);
-      final carriedOver = existingWeekDates.where(thisWeek.contains);
-      final newWeekDates = {...carriedOver, today}.toList()..sort();
-
-      tx.set(userRef, {
-        'lastActiveDate': today,
-        'streakDays': newStreak,
-        'weekActivityDates': newWeekDates,
-      }, SetOptions(merge: true));
-      shouldAward = true;
-    });
-
-    if (!shouldAward) return;
-
-    // Real streak XP — the transaction above guarantees this runs at
-    // most once per calendar day per user. Best-effort: a failed XP
-    // award should never block Home from loading.
+    // Real streak XP — the RPC's row lock means this whole block runs at
+    // most once per calendar day per user, so there's no separate de-dup
+    // check needed here. Best-effort: a failed XP award should never
+    // block Home from loading.
     try {
       await XpRepository.instance.awardXp(
         user.id, XpSource.streakDaily, kStreakDailyXp,
@@ -257,7 +322,7 @@ class AuthService {
   /// Awards XP for a decided source (quiz answer, magazine read, daily
   /// challenge, test — never an arbitrary bonus). Delegates to
   /// XpRepository.awardXp() so every XP source shares the same capped,
-  /// logged ledger (xpBalance/lifetimeXP + xpTransactions) instead of
+  /// logged ledger (xpBalance/lifetimeXP + xp_transactions) instead of
   /// writing a separate, cap-less `xpTotal` field the way this method
   /// used to. Returns the amount actually awarded (may be less than
   /// [amount] if the daily cap was hit) so callers can show an honest
@@ -269,7 +334,7 @@ class AuthService {
   }
 
   /// Real, user-driven "Continue Reading" position — set by
-  /// LibraryReaderPage whenever the person turns a page.
+  /// the content viewer page whenever the person turns a page.
   Future<void> setContinueReading(
     String userId, {
     required String itemId,
@@ -278,11 +343,11 @@ class AuthService {
     int? totalPages,
   }) async {
     if (userId.isEmpty) return;
-    await _db.collection(AppConstants.colUsers).doc(userId).set({
-      'continueReadingItemId': itemId,
-      'continueReadingTitle': title,
-      'continueReadingPage': page,
-      'continueReadingTotalPages': totalPages,
-    }, SetOptions(merge: true));
+    await _supabase.from('users').update({
+      'continue_reading_item_id': itemId,
+      'continue_reading_title': title,
+      'continue_reading_page': page,
+      'continue_reading_total_pages': totalPages,
+    }).eq('id', userId);
   }
 }

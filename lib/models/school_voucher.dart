@@ -1,33 +1,43 @@
 // lib/models/school_voucher.dart
-// Architecture brief items 2-6: school access is granted through a
-// voucher, never by simply holding any signed-in account. Deliberately a
-// SEPARATE model from lib/models/voucher.dart -- that one grants a
-// content ENTITLEMENT (Silver/Gold premium) to any account and is keyed
-// by an opaque random code by design (nothing about it should be
-// guessable). This one grants SCHOOL MEMBERSHIP + ROLE, and item 4
-// explicitly asks the code to be self-describing on its face:
+// 2026-08-31 voucher redesign: a school voucher is no longer just a
+// membership grant, it's a compact AUTHORIZATION TOKEN. Every code
+// carries four delimited segments (delimited, not concatenated-and-
+// inferred -- explicit '-' boundaries make generation/validation/
+// revocation/lookup unambiguous):
 //
-//   [SCHOOL CODE][ROLE CODE][UNIQUE IDENTIFIER]   e.g. GHS-4K9QX7M2
+//   {SCHOOL}-{ROLE}-{RANDOM6}-{PREMIUM}    e.g. GH-T-6X8294-G
 //
-// The prefix is for humans (printed on an enrollment slip, readable at a
-// glance), not the security boundary -- the security boundary is the
-// same one lib/models/voucher.dart already uses: the full code is the
-// Firestore document id, redemption is a single transaction keyed off
-// that id, and the random suffix is long enough (8 chars from a 31-char
-// alphabet, ~1.4e11 possibilities per school+role prefix) that guessing
-// one is not practical even knowing the prefix. See
-// SchoolAccessRepository.redeemSchoolVoucher for the transaction itself
-// and firestore.rules' `school_vouchers/{code}` match for the
-// server-side half.
+// which tells the backend, in one lookup: which school/tenant this
+// account may belong to, what role they hold there, and what premium
+// entitlement tier comes with it -- see redeem_school_voucher() in
+// supabase/migrations/20260831000000_unified_voucher_authorization.sql
+// for the server-side authority (the actual security boundary; this
+// model's parsing is a client-side convenience/UX layer only).
+//
+// Deliberately still a SEPARATE model from lib/models/academia_voucher.dart
+// (the AC-prefixed equivalent for the school-less Academia brand) and from
+// lib/models/voucher.dart (the older opaque-code content-only voucher,
+// kept only for any already-issued codes still outstanding).
 
 import 'dart:math';
 import 'app_user.dart';
 
-/// A user's role WITHIN their school, orthogonal to [UserRole] (which is
-/// Academia's platform-wide content-authoring privilege axis and stays
-/// unchanged by this feature). Stored on AppUser.schoolRole; null means
-/// "not part of any school's app experience yet".
-enum SchoolRole { student, parent, teacher, classMaster, admin }
+/// A user's role WITHIN their school, orthogonal to [UserRole] (Academia's
+/// platform-wide content-authoring privilege axis). Stored on
+/// AppUser.schoolRole; null means "not part of any school's app experience
+/// yet". `itSupport`'s code/label were repointed to 'I'/"Super Admin" in
+/// the 2026-08-31 redesign (product spec's school role list is
+/// Student/Teacher/Class Master/Administrator/Super Admin) -- its
+/// [contentRole] ceiling stays `schoolAdmin`, same as `admin`, NOT the
+/// platform-wide `UserRole.superAdmin`: that ceiling is a deliberate
+/// security boundary documented in
+/// supabase/migrations/20260829530000_super_admin_vouchers.sql (granting
+/// real platform superAdmin only ever happens through that separate,
+/// super_admin-only-mintable flow, never through an institution-scoped
+/// school voucher). The enum member keeps its original Dart name
+/// (`itSupport`) to avoid an exhaustive-switch rename sweep across the
+/// codebase; only its user-facing code/label/privilege changed.
+enum SchoolRole { student, parent, teacher, classMaster, admin, itSupport }
 
 extension SchoolRoleX on SchoolRole {
   /// The prefix segment used inside voucher codes — kept short since it's
@@ -39,6 +49,7 @@ extension SchoolRoleX on SchoolRole {
       case SchoolRole.teacher:     return 'T';
       case SchoolRole.classMaster: return 'CM';
       case SchoolRole.admin:       return 'A';
+      case SchoolRole.itSupport:   return 'I';
     }
   }
 
@@ -49,17 +60,17 @@ extension SchoolRoleX on SchoolRole {
       case SchoolRole.teacher:     return 'Teacher';
       case SchoolRole.classMaster: return 'Class Master';
       case SchoolRole.admin:       return 'Administrator';
+      case SchoolRole.itSupport:   return 'Super Admin';
     }
   }
 
   /// Every SchoolRole maps to a real [UserRole] so the existing
-  /// content-privilege axis (canUploadContent/canPostAnnouncement/
-  /// canManageUsers/canManageSchool) stays meaningful for school staff
-  /// without inventing a second privilege system. A class master is also
-  /// a teacher for content purposes, so both map to `lecturer`. Parent
-  /// deliberately maps to `guest` (no content-authoring rights) —
-  /// matching the mapping AppUser._parseRole already used for the legacy
-  /// 'parent' string, so this isn't a new convention.
+  /// content-privilege axis stays meaningful for school staff. Parent
+  /// deliberately maps to `guest` (no content-authoring rights). `admin`
+  /// and `itSupport` share the same `schoolAdmin` ceiling — see the enum
+  /// doc comment for why `itSupport`/"Super Admin" does NOT reach
+  /// `UserRole.superAdmin`. Mirrored server-side in
+  /// redeem_school_voucher() — keep both in sync.
   UserRole get contentRole {
     switch (this) {
       case SchoolRole.student:     return UserRole.student;
@@ -67,8 +78,16 @@ extension SchoolRoleX on SchoolRole {
       case SchoolRole.teacher:     return UserRole.lecturer;
       case SchoolRole.classMaster: return UserRole.lecturer;
       case SchoolRole.admin:       return UserRole.schoolAdmin;
+      case SchoolRole.itSupport:   return UserRole.schoolAdmin;
     }
   }
+
+  /// Fixed premium rule (redesign item 6): true for every role EXCEPT
+  /// student, whose issuer picks Silver or Gold, and parent, who never
+  /// gets a content-premium tier (functional parent access instead).
+  bool get isAlwaysGold =>
+      this == SchoolRole.teacher || this == SchoolRole.classMaster ||
+      this == SchoolRole.admin || this == SchoolRole.itSupport;
 
   static SchoolRole? fromCode(String code) {
     switch (code.toUpperCase()) {
@@ -77,6 +96,7 @@ extension SchoolRoleX on SchoolRole {
       case 'T':  return SchoolRole.teacher;
       case 'CM': return SchoolRole.classMaster;
       case 'A':  return SchoolRole.admin;
+      case 'I':  return SchoolRole.itSupport;
       default:   return null;
     }
   }
@@ -89,21 +109,59 @@ extension SchoolRoleX on SchoolRole {
   }
 }
 
+/// The premium content-entitlement tier a voucher's final segment
+/// encodes. `null` on [SchoolVoucher.premiumTier] means the 'N' (none)
+/// segment — only ever used for an auto-issued parent-role code, which
+/// grants functional parent access without a content-premium perk.
+enum VoucherPremiumTier { silver, gold }
+
+extension VoucherPremiumTierX on VoucherPremiumTier {
+  String get code => this == VoucherPremiumTier.gold ? 'G' : 'S';
+  String get label => this == VoucherPremiumTier.gold ? 'Gold' : 'Silver';
+
+  static VoucherPremiumTier? fromCode(String c) {
+    switch (c.toUpperCase()) {
+      case 'G': return VoucherPremiumTier.gold;
+      case 'S': return VoucherPremiumTier.silver;
+      default:  return null;
+    }
+  }
+}
+
 enum SchoolVoucherStatus { unused, redeemed, revoked }
 
+/// Parsed shape of a school voucher code — returned by [SchoolVoucher.parse]
+/// for validation/generation without needing a full [SchoolVoucher] row.
+typedef ParsedSchoolVoucherCode = ({
+  String schoolCode,
+  SchoolRole role,
+  String random,
+  VoucherPremiumTier? premium,
+});
+
 class SchoolVoucher {
-  /// Firestore document id AND the full code the user types in —
-  /// normalized (uppercase, dash stripped for the id; display form below
-  /// keeps a dash for readability). Same "id IS the code" reasoning as
-  /// lib/models/voucher.dart: atomic redemption needs a direct document
-  /// read, and the client SDK cannot query inside a transaction.
+  /// The row id AND the full code the user types in — the dashed display
+  /// form itself (e.g. `GH-T-6X8294-G`) IS the id now: the '-' delimiters
+  /// are load-bearing for parsing, not merely decorative, so there's no
+  /// separate "strip dashes for storage" step anymore. Same "id IS the
+  /// code" reasoning as before: atomic redemption needs a direct row read
+  /// under a lock, and RLS deliberately doesn't expose a client-side
+  /// query path for this table.
   final String id;
-  final String code;
+  String get code => id;
 
   final String schoolId;
   final String schoolCode;
   final SchoolRole role;
+
+  /// Null only for an auto-issued parent-role voucher (the 'N' segment).
+  final VoucherPremiumTier? premiumTier;
+
   final SchoolVoucherStatus status;
+
+  /// Set only on a parent-role row: the id of the student voucher it was
+  /// issued alongside (redesign item 4 — School -> Student -> Parent).
+  final String? linkedStudentVoucherId;
 
   final DateTime createdAt;
   final DateTime? redeemedAt;
@@ -112,11 +170,12 @@ class SchoolVoucher {
 
   const SchoolVoucher({
     required this.id,
-    required this.code,
     required this.schoolId,
     required this.schoolCode,
     required this.role,
+    this.premiumTier,
     this.status = SchoolVoucherStatus.unused,
+    this.linkedStudentVoucherId,
     required this.createdAt,
     this.redeemedAt,
     this.redeemedByUserId,
@@ -126,77 +185,115 @@ class SchoolVoucher {
   bool get isRedeemable => status == SchoolVoucherStatus.unused;
 
   static const String _alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no O/0, I/1/L — same as Voucher
-  static const int _suffixLen = 8;
+  static const int _randomLen = 6;
 
   /// [schoolCode] e.g. "GH", already validated against School.code by the
-  /// caller (SchoolAccessRepository). Uses [Random.secure] for the same
-  /// reason lib/models/voucher.dart does — a predictable PRNG would let
-  /// someone who's seen one code derive others issued around it.
-  static String generateCode({required String schoolCode, required SchoolRole role}) {
+  /// caller (SchoolAccessRepository). [premiumTier] is null only when
+  /// issuing an auto-generated parent code (item 4); every other role
+  /// must pass one (student: issuer's choice; every staff role: forced
+  /// Gold — see [SchoolRoleX.isAlwaysGold] and issueVouchers()). Uses
+  /// [Random.secure] so a predictable PRNG can't let someone who's seen
+  /// one code derive others issued around it.
+  static String generateCode({
+    required String schoolCode,
+    required SchoolRole role,
+    VoucherPremiumTier? premiumTier,
+  }) {
     final rnd = Random.secure();
-    final suffix = List.generate(_suffixLen, (_) => _alphabet[rnd.nextInt(_alphabet.length)]).join();
-    return '${schoolCode.toUpperCase()}${role.code}$suffix';
+    final random = List.generate(_randomLen, (_) => _alphabet[rnd.nextInt(_alphabet.length)]).join();
+    final premiumSeg = premiumTier?.code ?? 'N';
+    return '${schoolCode.toUpperCase()}-${role.code}-$random-$premiumSeg';
   }
 
-  /// Uppercases and strips everything outside the alphabet (plus digits
-  /// already in it) so `gh s-4k9q x7m2` still resolves to the same code —
-  /// same forgiving-input reasoning as Voucher.normalizeCode.
+  /// Uppercases and strips everything outside A-Z/0-9/dash so
+  /// `gh-t 6x8294-g` still resolves to the same code. Deliberately NOT
+  /// filtered against [_alphabet] here — that confusable-free 31-char
+  /// set only constrains what [generateCode] puts in the RANDOM segment;
+  /// the school prefix and role segments are real letters chosen for
+  /// meaning, not randomness, and legitimately include characters
+  /// [_alphabet] excludes (e.g. Ladybird's "LB" prefix has an L, the
+  /// itSupport/"Super Admin" role code is "I" — both would silently get
+  /// stripped by an [_alphabet]-only filter, corrupting the code before
+  /// [parse] ever sees it).
   static String normalizeCode(String raw) {
-    final upper = raw.toUpperCase();
+    // Whitespace -> dash BEFORE filtering, not just dropped: with real
+    // delimiters now load-bearing, a typo'd space in place of a dash
+    // (mobile autocorrect does this) must still land on a segment
+    // boundary, not silently glue two segments together.
+    final upper = raw.toUpperCase().trim().replaceAll(RegExp(r'\s+'), '-');
     final buf = StringBuffer();
     for (final ch in upper.split('')) {
-      if (_alphabet.contains(ch)) buf.write(ch);
+      if (RegExp(r'[A-Z0-9-]').hasMatch(ch)) buf.write(ch);
     }
-    return buf.toString();
+    // Collapses any run of dashes into one -- e.g. a space typed right
+    // next to an already-present dash would otherwise produce "--" and
+    // throw off parse()'s exact 4-segment split.
+    return buf.toString().replaceAll(RegExp(r'-+'), '-');
   }
 
-  /// Display form with a dash before the random suffix: GHS4K9QX7M2 ->
-  /// GHS-4K9QX7M2. The prefix length is variable (school code + role
-  /// code), so this just inserts a dash [_suffixLen] characters from the
-  /// end rather than assuming a fixed split point.
-  static String formatCode(String normalized) {
-    if (normalized.length <= _suffixLen) return normalized;
-    final split = normalized.length - _suffixLen;
-    return '${normalized.substring(0, split)}-${normalized.substring(split)}';
+  /// Splits a normalized code into its four explicit segments. Returns
+  /// null for anything that isn't exactly {SCHOOL}-{ROLE}-{RANDOM6}-
+  /// {PREMIUM} shaped — explicit delimiters mean this is a real parse,
+  /// not a length-inference guess.
+  static ParsedSchoolVoucherCode? parse(String normalized) {
+    final parts = normalized.split('-');
+    if (parts.length != 4) return null;
+    final schoolCode = parts[0];
+    if (schoolCode.isEmpty) return null;
+    final role = SchoolRoleX.fromCode(parts[1]);
+    if (role == null) return null;
+    final random = parts[2];
+    if (random.length != _randomLen) return null;
+    final premiumSeg = parts[3];
+    VoucherPremiumTier? premium;
+    if (premiumSeg == 'N') {
+      premium = null;
+    } else {
+      premium = VoucherPremiumTierX.fromCode(premiumSeg);
+      if (premium == null) return null;
+    }
+    return (schoolCode: schoolCode, role: role, random: random, premium: premium);
   }
 
-  static bool isPlausibleCode(String raw) => normalizeCode(raw).length > _suffixLen;
+  static bool isPlausibleCode(String raw) => parse(normalizeCode(raw)) != null;
 
-  factory SchoolVoucher.fromFirestore(String id, Map<String, dynamic> d) => SchoolVoucher(
-        id: id,
-        code: d['code']?.toString() ?? formatCode(id),
-        schoolId: d['schoolId']?.toString() ?? '',
-        schoolCode: d['schoolCode']?.toString() ?? '',
+  /// The code is already the display form (dashed) — kept as a named
+  /// static so call sites that used to reformat an id don't need to
+  /// change shape, but it's now the identity function.
+  static String formatCode(String normalized) => normalized;
+
+  factory SchoolVoucher.fromSupabase(Map<String, dynamic> d) => SchoolVoucher(
+        id: d['id']?.toString() ?? '',
+        schoolId: d['school_id']?.toString() ?? '',
+        schoolCode: d['school_code']?.toString() ?? '',
         role: SchoolRoleX.fromName(d['role']?.toString() ?? '') ?? SchoolRole.student,
+        premiumTier: _premiumFromColumn(d['premium_tier']?.toString()),
         status: SchoolVoucherStatus.values.firstWhere(
             (s) => s.name == d['status']?.toString(),
             orElse: () => SchoolVoucherStatus.unused),
-        createdAt: _dt(d['createdAt']) ?? DateTime.now(),
-        redeemedAt: _dt(d['redeemedAt']),
-        redeemedByUserId: d['redeemedByUserId']?.toString(),
-        createdByUid: d['createdByUid']?.toString() ?? '',
+        linkedStudentVoucherId: d['linked_student_voucher_id']?.toString(),
+        createdAt: _dt(d['created_at']) ?? DateTime.now(),
+        redeemedAt: _dt(d['redeemed_at']),
+        redeemedByUserId: d['redeemed_by_user_id']?.toString(),
+        createdByUid: d['created_by_uid']?.toString() ?? '',
       );
 
-  Map<String, dynamic> toFirestore() => {
+  Map<String, dynamic> toSupabase() => {
+        'id': id,
         'code': code,
-        'schoolId': schoolId,
-        'schoolCode': schoolCode,
+        'school_id': schoolId,
+        'school_code': schoolCode,
         'role': role.name,
+        'premium_tier': premiumTier == null ? 'none' : premiumTier!.name,
         'status': status.name,
-        'createdAt': createdAt.toIso8601String(),
-        'redeemedAt': redeemedAt?.toIso8601String(),
-        'redeemedByUserId': redeemedByUserId,
-        'createdByUid': createdByUid,
+        'linked_student_voucher_id': linkedStudentVoucherId,
+        'created_by_uid': createdByUid,
       };
 
-  static DateTime? _dt(dynamic v) {
-    if (v == null) return null;
-    if (v is DateTime) return v;
-    if (v is String) return DateTime.tryParse(v);
-    try {
-      return (v as dynamic).toDate() as DateTime?;
-    } catch (_) {
-      return null;
-    }
+  static VoucherPremiumTier? _premiumFromColumn(String? v) {
+    if (v == null || v == 'none') return null;
+    return VoucherPremiumTier.values.firstWhere((t) => t.name == v, orElse: () => VoucherPremiumTier.silver);
   }
+
+  static DateTime? _dt(dynamic v) => v == null ? null : DateTime.tryParse(v.toString());
 }

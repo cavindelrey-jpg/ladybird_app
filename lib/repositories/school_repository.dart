@@ -1,11 +1,11 @@
 // lib/repositories/school_repository.dart
-// CRUD for the schools/{schoolId} registry (see models/school.dart).
-// Creating a school is a platform-level action (same tier as issuing the
-// first voucher for it) — mirrors how "Register a School" is already
-// documented as superAdmin-only in this codebase's history.
+// CRUD for the school registry (see models/school.dart — backed by
+// public.institutions, the same table academia-cameroon's Institution
+// model uses). Creating a school is a platform-level action — RLS
+// (institutions_write_super_admin) restricts inserts to super_admin,
+// same tier "Register a School" was already documented at.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../core/constants.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/result.dart';
 import '../models/school.dart';
 
@@ -13,9 +13,7 @@ class SchoolRepository {
   SchoolRepository._();
   static final SchoolRepository instance = SchoolRepository._();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-
-  CollectionReference<Map<String, dynamic>> get _col => _db.collection(AppConstants.colSchools);
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   Future<Result<School>> registerSchool({
     required String name,
@@ -26,14 +24,20 @@ class SchoolRepository {
       return const Failure('School name and code are required', null);
     }
     try {
-      final existing = await _col.where('code', isEqualTo: normalizedCode).limit(1).get();
-      if (existing.docs.isNotEmpty) {
+      final existing = await _supabase
+          .from('institutions')
+          .select('id')
+          .eq('school_code', normalizedCode)
+          .maybeSingle();
+      if (existing != null) {
         return Failure('School code "$normalizedCode" is already in use', null);
       }
-      final doc = _col.doc();
-      final school = School(id: doc.id, code: normalizedCode, name: name.trim(), createdAt: DateTime.now());
-      await doc.set(school.toFirestore());
-      return Success(school);
+      final row = await _supabase
+          .from('institutions')
+          .insert({'school_code': normalizedCode, 'school_name': name.trim()})
+          .select()
+          .single();
+      return Success(School.fromSupabase(row));
     } catch (e) {
       return Failure('Failed to register school', e);
     }
@@ -42,18 +46,23 @@ class SchoolRepository {
   Future<School?> getByCodeOnce(String code) async {
     final normalizedCode = code.trim().toUpperCase();
     if (normalizedCode.isEmpty) return null;
-    final snap = await _col.where('code', isEqualTo: normalizedCode).limit(1).get();
-    if (snap.docs.isEmpty) return null;
-    return School.fromFirestore(snap.docs.first);
+    final row = await _supabase
+        .from('institutions')
+        .select()
+        .eq('school_code', normalizedCode)
+        .maybeSingle();
+    return row == null ? null : School.fromSupabase(row);
   }
 
   Future<School?> getByIdOnce(String schoolId) async {
     if (schoolId.isEmpty) return null;
-    final doc = await _col.doc(schoolId).get();
-    if (!doc.exists) return null;
-    return School.fromFirestore(doc);
+    final row = await _supabase.from('institutions').select().eq('id', schoolId).maybeSingle();
+    return row == null ? null : School.fromSupabase(row);
   }
 
-  Stream<List<School>> watchAll() =>
-      _col.orderBy('name').snapshots().map((s) => s.docs.map(School.fromFirestore).toList());
+  Stream<List<School>> watchAll() => _supabase
+      .from('institutions')
+      .stream(primaryKey: ['id'])
+      .order('school_name')
+      .map((rows) => rows.map(School.fromSupabase).toList());
 }

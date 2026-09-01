@@ -19,6 +19,14 @@ class Branding {
   final String logoAssetPath;
   final String splashAssetPath;
 
+  /// The tenant prefix a school/Academia voucher code must start with to
+  /// be accepted by THIS build (2026-08-31 voucher redesign, item 7:
+  /// server-side app-context validation). Read from branding.json's
+  /// `voucherPrefix` when present; falls back to a hardcoded per-brand
+  /// table below for brands whose json predates this field, so a stale
+  /// asset never silently disables the tenant check.
+  final String voucherPrefix;
+
   const Branding({
     required this.brandId,
     required this.appName,
@@ -28,7 +36,17 @@ class Branding {
     required this.accentColor,
     required this.logoAssetPath,
     required this.splashAssetPath,
+    required this.voucherPrefix,
   });
+
+  static String _fallbackPrefix(String brandId) {
+    switch (brandId) {
+      case 'green_hill': return 'GH';
+      case 'ladybird':   return 'LB';
+      case 'academia':   return 'AC';
+      default:           return brandId.toUpperCase();
+    }
+  }
 
   // This repo is the Ladybird fork of the Green Hills app (see
   // docs/AUTOPILOT_LOG.md for the fork record) -- it ships as Ladybird
@@ -58,6 +76,7 @@ class Branding {
     accentColor: const Color(0xFFF4B400),
     logoAssetPath: 'assets/branding/ladybird_logo.jpg',
     splashAssetPath: 'assets/branding/ladybird_logo.jpg',
+    voucherPrefix: 'LB',
   );
 
   static Branding get current => _current;
@@ -86,6 +105,7 @@ class Branding {
         accentColor: _parseColor(m['accentColor'], _current.accentColor),
         logoAssetPath: m['logoAssetPath'] ?? _current.logoAssetPath,
         splashAssetPath: m['splashAssetPath'] ?? _current.splashAssetPath,
+        voucherPrefix: m['voucherPrefix'] ?? _fallbackPrefix(_envBrandId),
       );
     } catch (e, st) {
       // Keep the hardcoded Academia fallback -- a missing/broken

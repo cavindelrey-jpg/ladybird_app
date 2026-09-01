@@ -78,12 +78,20 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
       currentEmoji: current.emoji,
       currentImageUrl: current.imageUrl,
       onSave: (emoji, image) async {
-        String imageUrl = '';
+        // Was unconditionally blank -- a failed upload silently wiped
+        // whatever image was already set instead of leaving it alone.
+        String imageUrl = current.imageUrl;
         if (image != null) {
           final upload = await TestRepository.instance.uploadQuizNodeImage(key: key, imageFile: image);
-          if (upload is Success<String>) imageUrl = upload.value;
+          switch (upload) {
+            case Success(:final value): imageUrl = value;
+            case Failure(:final message): throw Exception(message);
+          }
+        } else {
+          imageUrl = '';
         }
-        await TestRepository.instance.setQuizNodeIcon(key, emoji: emoji, imageUrl: imageUrl);
+        final result = await TestRepository.instance.setQuizNodeIcon(key, emoji: emoji, imageUrl: imageUrl);
+        if (result case Failure(:final message)) throw Exception(message);
       },
     );
     _load();

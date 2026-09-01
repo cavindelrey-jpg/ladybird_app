@@ -1,19 +1,7 @@
 // lib/models/school_mark.dart
-// A single subject mark for one student in one term/sequence.
-//
-// Deliberately NOT the existing marks/{schoolId}/{studentId}/sequences/
-// {sequenceId}/{markId} schema -- that one encodes studentId and
-// sequenceId as Firestore COLLECTION ids, which firestore.rules' own
-// comment on that block admits makes "a student may read their own
-// marks" inexpressible (a security rule can't bind a wildcard to a
-// collection id the way it can a document field). This model stores
-// studentId as a plain FIELD on the existing flat marks/{id} collection
-// instead -- firestore.rules already has a correct, field-based rule
-// for exactly that path (`resource.data.studentId == request.auth.uid
-// || staff`), just sitting unused. Same shape attendance/{id} already
-// uses correctly. No firestore.rules changes needed.
-
-import 'package:cloud_firestore/cloud_firestore.dart';
+// A single subject mark for one student in one term/sequence. No
+// Postgres table yet — zero real data at migration time;
+// SchoolMarksRepository below is an honest stub.
 
 /// The six-sequence academic year (Cameroon GCE structure: 3 terms of 2
 /// sequences each). A fixed, ordered list rather than free text so
@@ -76,12 +64,8 @@ class SchoolMark {
   final String teacherName;
   final AcademicSequence sequence;
 
-  /// e.g. "2026" -- was entirely absent before the CSV import feature
-  /// (architecture brief item 21) needed it: without a year, marks from
-  /// different academic years for the same student/subject/sequence are
-  /// indistinguishable. Defaults to the current calendar year for any
-  /// mark written without one, including every pre-existing document
-  /// read back before this field existed.
+  /// e.g. "2026" -- distinguishes marks from different academic years for
+  /// the same student/subject/sequence.
   final String academicYear;
 
   final double score;
@@ -126,38 +110,4 @@ class SchoolMark {
     if (p >= 40) return 'E';
     return 'F';
   }
-
-  factory SchoolMark.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>? ?? {};
-    return SchoolMark(
-      id: doc.id,
-      schoolId: d['schoolId'] ?? '',
-      studentId: d['studentId'] ?? '',
-      classLevel: d['classLevel'] ?? '',
-      subject: d['subject'] ?? '',
-      teacherName: d['teacherName'] ?? '',
-      sequence: AcademicSequence.fromKey(d['sequence'] ?? '') ?? AcademicSequence.t1s1,
-      academicYear: (d['academicYear'] as String?)?.isNotEmpty == true
-          ? d['academicYear'] as String
-          : DateTime.now().year.toString(),
-      score: (d['score'] as num?)?.toDouble() ?? 0,
-      maxScore: (d['maxScore'] as num?)?.toDouble() ?? 20,
-      gradedAt: (d['gradedAt'] as Timestamp?)?.toDate(),
-      gradedBy: d['gradedBy'],
-    );
-  }
-
-  Map<String, dynamic> toFirestore() => {
-        'schoolId': schoolId,
-        'studentId': studentId,
-        'classLevel': classLevel,
-        'subject': subject,
-        'teacherName': teacherName,
-        'sequence': sequence.name,
-        'academicYear': academicYear,
-        'score': score,
-        'maxScore': maxScore,
-        'gradedAt': FieldValue.serverTimestamp(),
-        'gradedBy': gradedBy,
-      };
 }

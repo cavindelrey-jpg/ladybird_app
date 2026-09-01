@@ -11,8 +11,10 @@
 // picker UI for it anymore; see theme/club_visuals.dart's `ClubLogo`
 // widget for how the two combine, and create_club_page.dart /
 // club_settings_page.dart for the actual photo-upload flow.
-
-import 'package:cloud_firestore/cloud_firestore.dart';
+//
+// Supabase: public.clubs plus one table per feature area (club_posts,
+// club_discussions/_replies, club_resources, club_events) — see
+// supabase/migrations/20260829450000_clubs_remake.sql.
 
 /// True when there's chat activity the caller hasn't seen yet — no
 /// activity ever (`lastMessageAt` null) is never unread; activity with no
@@ -82,53 +84,48 @@ class Club {
     this.lastMessageAt,
   });
 
-  factory Club.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>? ?? {};
+  factory Club.fromSupabase(Map<String, dynamic> d) {
     return Club(
-      id: doc.id,
+      id: d['id'] as String,
       name: d['name'] ?? '',
       emoji: d['emoji'] ?? '🎓',
       description: d['description'] ?? '',
-      moderatorName: d['moderatorName'] ?? '',
-      moderatorId: d['moderatorId'] ?? '',
+      moderatorName: d['moderator_name'] ?? '',
+      moderatorId: d['moderator_id'] ?? '',
       category: d['category'] ?? 'General',
-      bannerUrl: d['bannerUrl'],
-      thumbnailUrl: d['thumbnailUrl'],
-      memberCount: (d['memberCount'] as num?)?.toInt() ?? 0,
-      schoolId: d['schoolId'],
-      requiresApproval: d['requiresApproval'] ?? false,
-      lastMessageText: d['lastMessageText'] ?? '',
-      lastMessageSenderId: d['lastMessageSenderId'],
-      lastMessageAt: (d['lastMessageAt'] as Timestamp?)?.toDate(),
+      bannerUrl: d['banner_url'],
+      thumbnailUrl: d['thumbnail_url'],
+      memberCount: (d['member_count'] as num?)?.toInt() ?? 0,
+      schoolId: d['institution_id'],
+      requiresApproval: d['requires_approval'] ?? false,
+      lastMessageText: d['last_message_text'] ?? '',
+      lastMessageSenderId: d['last_message_sender_id'],
+      lastMessageAt: DateTime.tryParse(d['last_message_at']?.toString() ?? ''),
     );
   }
 
   /// For CREATE only — see [toUpdateMap] for editing an existing club
-  /// without clobbering its real `createdAt`, the same createdAt-on-
-  /// update bug this session already fixed for CourseRepository/
-  /// PublicCourseRepository.
-  Map<String, dynamic> toFirestore() => {
-    ...toUpdateMap(),
-    'createdAt': FieldValue.serverTimestamp(),
-  };
+  /// without clobbering its real `created_at`.
+  Map<String, dynamic> toSupabase() => toUpdateMap();
 
-  /// Every field EXCEPT createdAt — safe to use for both create (spread
-  /// into toFirestore() above) and update (ClubRepository.updateClub()).
+  /// Every field safe to use for both create and update
+  /// (ClubRepository.updateClub()) — `created_at` has a database default
+  /// and is never touched by either.
   Map<String, dynamic> toUpdateMap() => {
     'name': name,
     'emoji': emoji,
     'description': description,
-    'moderatorName': moderatorName,
-    'moderatorId': moderatorId,
+    'moderator_name': moderatorName,
+    'moderator_id': moderatorId.isEmpty ? null : moderatorId,
     'category': category,
-    'bannerUrl': bannerUrl,
-    'thumbnailUrl': thumbnailUrl,
-    'memberCount': memberCount,
-    'schoolId': schoolId,
-    'requiresApproval': requiresApproval,
-    'lastMessageText': lastMessageText,
-    'lastMessageSenderId': lastMessageSenderId,
-    'lastMessageAt': lastMessageAt == null ? null : Timestamp.fromDate(lastMessageAt!),
+    'banner_url': bannerUrl,
+    'thumbnail_url': thumbnailUrl,
+    'member_count': memberCount,
+    'institution_id': schoolId,
+    'requires_approval': requiresApproval,
+    'last_message_text': lastMessageText,
+    'last_message_sender_id': lastMessageSenderId,
+    'last_message_at': lastMessageAt?.toIso8601String(),
   };
 }
 
@@ -158,29 +155,27 @@ class ClubJoinRequest {
     required this.createdAt,
   });
 
-  factory ClubJoinRequest.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>? ?? {};
+  factory ClubJoinRequest.fromSupabase(Map<String, dynamic> d) {
     return ClubJoinRequest(
-      id: doc.id,
-      clubId: d['clubId'] ?? '',
-      clubName: d['clubName'] ?? '',
-      userId: d['userId'] ?? '',
-      userName: d['userName'] ?? '',
-      userPhotoUrl: d['userPhotoUrl'],
+      id: d['id'] as String,
+      clubId: d['club_id'] ?? '',
+      clubName: d['club_name'] ?? '',
+      userId: d['user_id'] ?? '',
+      userName: d['user_name'] ?? '',
+      userPhotoUrl: d['user_photo_url'],
       status: ClubJoinRequestStatus.values.firstWhere(
           (s) => s.name == d['status'], orElse: () => ClubJoinRequestStatus.pending),
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
-    'clubId': clubId,
-    'clubName': clubName,
-    'userId': userId,
-    'userName': userName,
-    'userPhotoUrl': userPhotoUrl,
+  Map<String, dynamic> toSupabase() => {
+    'club_id': clubId,
+    'club_name': clubName,
+    'user_id': userId,
+    'user_name': userName,
+    'user_photo_url': userPhotoUrl,
     'status': status.name,
-    'createdAt': Timestamp.fromDate(createdAt),
   };
 }
 
@@ -203,32 +198,28 @@ class ClubMessage {
     this.deleted = false,
   });
 
-  factory ClubMessage.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>? ?? {};
+  factory ClubMessage.fromSupabase(Map<String, dynamic> d) {
     return ClubMessage(
-      id: doc.id,
-      senderId: d['senderId'] ?? '',
-      senderName: d['senderName'] ?? '',
-      senderInitials: d['senderInitials'] ?? '',
-      text: d['text'] ?? '',
-      time: (d['time'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      id: d['id'] as String,
+      senderId: d['sender_id'] ?? '',
+      senderName: d['sender_name'] ?? '',
+      senderInitials: d['sender_initials'] ?? '',
+      text: d['body'] ?? '',
+      time: DateTime.tryParse(d['sent_at']?.toString() ?? '') ?? DateTime.now(),
       deleted: d['deleted'] ?? false,
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
-    'senderId': senderId,
-    'senderName': senderName,
-    'senderInitials': senderInitials,
-    'text': text,
-    'time': Timestamp.fromDate(time),
+  Map<String, dynamic> toSupabase() => {
+    'sender_id': senderId,
+    'sender_name': senderName,
+    'sender_initials': senderInitials,
+    'body': text,
+    'deleted': deleted,
   };
 }
 
-/// A post in a club's Feed tab — replaces the old dead `_AnnTab`
-/// placeholder. Stored at clubs/{clubId}/posts/{postId}, matching a
-/// firestore.rules shape that already existed (authorId-owner rule) but
-/// had no real model/repository writing to it until now.
+/// A post in a club's Feed tab. Stored in club_posts.
 class ClubPost {
   final String id;
   final String clubId;
@@ -258,35 +249,32 @@ class ClubPost {
     this.commentCount = 0,
   });
 
-  factory ClubPost.fromFirestore(DocumentSnapshot doc, String clubId) {
-    final d = doc.data() as Map<String, dynamic>? ?? {};
+  factory ClubPost.fromSupabase(Map<String, dynamic> d) {
     return ClubPost(
-      id: doc.id,
-      clubId: clubId,
-      authorId: d['authorId'] ?? '',
-      authorName: d['authorName'] ?? 'Member',
-      authorPhotoUrl: d['authorPhotoUrl'],
-      isAnnouncement: d['isAnnouncement'] ?? false,
+      id: d['id'] as String,
+      clubId: d['club_id'] ?? '',
+      authorId: d['author_id'] ?? '',
+      authorName: d['author_name'] ?? 'Member',
+      authorPhotoUrl: d['author_photo_url'],
+      isAnnouncement: d['is_announcement'] ?? false,
       title: d['title'] ?? '',
       body: d['body'] ?? '',
-      imageUrl: d['imageUrl'],
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      likeCount: (d['likeCount'] as num?)?.toInt() ?? 0,
-      commentCount: (d['commentCount'] as num?)?.toInt() ?? 0,
+      imageUrl: d['image_url'],
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
+      likeCount: (d['like_count'] as num?)?.toInt() ?? 0,
+      commentCount: (d['comment_count'] as num?)?.toInt() ?? 0,
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
-    'authorId': authorId,
-    'authorName': authorName,
-    'authorPhotoUrl': authorPhotoUrl,
-    'isAnnouncement': isAnnouncement,
+  Map<String, dynamic> toSupabase() => {
+    'club_id': clubId,
+    'author_id': authorId.isEmpty ? null : authorId,
+    'author_name': authorName,
+    'author_photo_url': authorPhotoUrl,
+    'is_announcement': isAnnouncement,
     'title': title,
     'body': body,
-    'imageUrl': imageUrl,
-    'createdAt': FieldValue.serverTimestamp(),
-    'likeCount': 0,
-    'commentCount': 0,
+    'image_url': imageUrl,
   };
 }
 
@@ -307,31 +295,22 @@ class ClubPostComment {
     required this.createdAt,
   });
 
-  factory ClubPostComment.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>? ?? {};
+  factory ClubPostComment.fromSupabase(Map<String, dynamic> d) {
     return ClubPostComment(
-      id: doc.id,
-      authorId: d['authorId'] ?? '',
-      authorName: d['authorName'] ?? 'Member',
-      authorPhotoUrl: d['authorPhotoUrl'],
+      id: d['id'] as String,
+      authorId: d['author_id'] ?? '',
+      authorName: d['author_name'] ?? 'Member',
+      authorPhotoUrl: d['author_photo_url'],
       text: d['text'] ?? '',
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
-
-  Map<String, dynamic> toFirestore() => {
-    'authorId': authorId,
-    'authorName': authorName,
-    'authorPhotoUrl': authorPhotoUrl,
-    'text': text,
-    'createdAt': FieldValue.serverTimestamp(),
-  };
 }
 
 /// A Q&A thread in a club's Discussions tab (see the Physics Society
 /// mockup) — a question with a "best answer" a moderator/admin or the
 /// original poster can mark, which awards the answerer bonus XP
-/// (XpSource.clubBestAnswer). Stored at clubs/{clubId}/discussions/{id}.
+/// (XpSource.clubBestAnswer). Stored in club_discussions.
 class ClubDiscussion {
   final String id;
   final String clubId;
@@ -363,37 +342,32 @@ class ClubDiscussion {
     this.bestAnswerReplyId,
   });
 
-  factory ClubDiscussion.fromFirestore(DocumentSnapshot doc, String clubId) {
-    final d = doc.data() as Map<String, dynamic>? ?? {};
+  factory ClubDiscussion.fromSupabase(Map<String, dynamic> d) {
     return ClubDiscussion(
-      id: doc.id,
-      clubId: clubId,
-      authorId: d['authorId'] ?? '',
-      authorName: d['authorName'] ?? 'Member',
-      authorPhotoUrl: d['authorPhotoUrl'],
+      id: d['id'] as String,
+      clubId: d['club_id'] ?? '',
+      authorId: d['author_id'] ?? '',
+      authorName: d['author_name'] ?? 'Member',
+      authorPhotoUrl: d['author_photo_url'],
       title: d['title'] ?? '',
       body: d['body'] ?? '',
       tag: d['tag'],
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      replyCount: (d['replyCount'] as num?)?.toInt() ?? 0,
-      viewCount: (d['viewCount'] as num?)?.toInt() ?? 0,
-      likeCount: (d['likeCount'] as num?)?.toInt() ?? 0,
-      bestAnswerReplyId: d['bestAnswerReplyId'],
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
+      replyCount: (d['reply_count'] as num?)?.toInt() ?? 0,
+      viewCount: (d['view_count'] as num?)?.toInt() ?? 0,
+      likeCount: (d['like_count'] as num?)?.toInt() ?? 0,
+      bestAnswerReplyId: d['best_answer_reply_id'],
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
-    'authorId': authorId,
-    'authorName': authorName,
-    'authorPhotoUrl': authorPhotoUrl,
+  Map<String, dynamic> toSupabase() => {
+    'club_id': clubId,
+    'author_id': authorId.isEmpty ? null : authorId,
+    'author_name': authorName,
+    'author_photo_url': authorPhotoUrl,
     'title': title,
     'body': body,
     'tag': tag,
-    'createdAt': FieldValue.serverTimestamp(),
-    'replyCount': 0,
-    'viewCount': 0,
-    'likeCount': 0,
-    'bestAnswerReplyId': null,
   };
 }
 
@@ -409,10 +383,8 @@ class ClubDiscussionReply {
   final bool isBestAnswer;
 
   /// Optional attached resource — the reply-composer's "Resource" action
-  /// (see club_discussion_page.dart) lets you point a reply at an
-  /// existing ClubResource instead of only free text, denormalized the
-  /// same way ChatMessage's sharedTitle/sharedThumbnailUrl already are
-  /// for Messages. All three are set together or not at all.
+  /// lets you point a reply at an existing ClubResource instead of only
+  /// free text. All three are set together or not at all.
   final String? attachedResourceId;
   final String? attachedResourceTitle;
   final String? attachedResourceUrl;
@@ -432,41 +404,25 @@ class ClubDiscussionReply {
     this.attachedResourceUrl,
   });
 
-  factory ClubDiscussionReply.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>? ?? {};
+  factory ClubDiscussionReply.fromSupabase(Map<String, dynamic> d) {
     return ClubDiscussionReply(
-      id: doc.id,
-      authorId: d['authorId'] ?? '',
-      authorName: d['authorName'] ?? 'Member',
-      authorPhotoUrl: d['authorPhotoUrl'],
-      authorIsStaff: d['authorIsStaff'] ?? false,
+      id: d['id'] as String,
+      authorId: d['author_id'] ?? '',
+      authorName: d['author_name'] ?? 'Member',
+      authorPhotoUrl: d['author_photo_url'],
+      authorIsStaff: d['author_is_staff'] ?? false,
       body: d['body'] ?? '',
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      likeCount: (d['likeCount'] as num?)?.toInt() ?? 0,
-      isBestAnswer: d['isBestAnswer'] ?? false,
-      attachedResourceId: d['attachedResourceId'],
-      attachedResourceTitle: d['attachedResourceTitle'],
-      attachedResourceUrl: d['attachedResourceUrl'],
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
+      likeCount: (d['like_count'] as num?)?.toInt() ?? 0,
+      isBestAnswer: d['is_best_answer'] ?? false,
+      attachedResourceId: d['attached_resource_id'],
+      attachedResourceTitle: d['attached_resource_title'],
+      attachedResourceUrl: d['attached_resource_url'],
     );
   }
-
-  Map<String, dynamic> toFirestore() => {
-    'authorId': authorId,
-    'authorName': authorName,
-    'authorPhotoUrl': authorPhotoUrl,
-    'authorIsStaff': authorIsStaff,
-    'body': body,
-    'createdAt': FieldValue.serverTimestamp(),
-    'likeCount': 0,
-    'isBestAnswer': false,
-    'attachedResourceId': attachedResourceId,
-    'attachedResourceTitle': attachedResourceTitle,
-    'attachedResourceUrl': attachedResourceUrl,
-  };
 }
 
-/// A shared link/file in a club's Resources tab. Stored at
-/// clubs/{clubId}/resources/{id}.
+/// A shared link/file in a club's Resources tab. Stored in club_resources.
 class ClubResource {
   final String id;
   final String clubId;
@@ -492,38 +448,34 @@ class ClubResource {
     required this.createdAt,
   });
 
-  factory ClubResource.fromFirestore(DocumentSnapshot doc, String clubId) {
-    final d = doc.data() as Map<String, dynamic>? ?? {};
+  factory ClubResource.fromSupabase(Map<String, dynamic> d) {
     return ClubResource(
-      id: doc.id,
-      clubId: clubId,
+      id: d['id'] as String,
+      clubId: d['club_id'] ?? '',
       title: d['title'] ?? '',
       description: d['description'],
       url: d['url'] ?? '',
-      isFile: d['isFile'] ?? false,
-      uploaderId: d['uploaderId'] ?? '',
-      uploaderName: d['uploaderName'] ?? 'Member',
-      uploaderPhotoUrl: d['uploaderPhotoUrl'],
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      isFile: d['is_file'] ?? false,
+      uploaderId: d['uploader_id'] ?? '',
+      uploaderName: d['uploader_name'] ?? 'Member',
+      uploaderPhotoUrl: d['uploader_photo_url'],
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
+  Map<String, dynamic> toSupabase() => {
+    'club_id': clubId,
     'title': title,
     'description': description,
     'url': url,
-    'isFile': isFile,
-    'uploaderId': uploaderId,
-    'uploaderName': uploaderName,
-    'uploaderPhotoUrl': uploaderPhotoUrl,
-    'createdAt': FieldValue.serverTimestamp(),
+    'is_file': isFile,
+    'uploader_id': uploaderId.isEmpty ? null : uploaderId,
+    'uploader_name': uploaderName,
+    'uploader_photo_url': uploaderPhotoUrl,
   };
 }
 
-/// An upcoming club event. Stored at clubs/{clubId}/events/{id} — the
-/// firestore.rules path for this already existed (school-staff-only,
-/// pre-dating this model); loosened alongside this model landing so a
-/// club's own admins/moderators can create events too, not just staff.
+/// An upcoming club event. Stored in club_events.
 class ClubEvent {
   final String id;
   final String clubId;
@@ -547,35 +499,33 @@ class ClubEvent {
     this.rsvpCount = 0,
   });
 
-  factory ClubEvent.fromFirestore(DocumentSnapshot doc, String clubId) {
-    final d = doc.data() as Map<String, dynamic>? ?? {};
+  factory ClubEvent.fromSupabase(Map<String, dynamic> d) {
     return ClubEvent(
-      id: doc.id,
-      clubId: clubId,
+      id: d['id'] as String,
+      clubId: d['club_id'] ?? '',
       title: d['title'] ?? '',
       description: d['description'],
-      startAt: (d['startAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      startAt: DateTime.tryParse(d['start_at']?.toString() ?? '') ?? DateTime.now(),
       location: d['location'],
-      creatorId: d['creatorId'] ?? '',
-      creatorName: d['creatorName'] ?? 'Member',
-      rsvpCount: (d['rsvpCount'] as num?)?.toInt() ?? 0,
+      creatorId: d['creator_id'] ?? '',
+      creatorName: d['creator_name'] ?? 'Member',
+      rsvpCount: (d['rsvp_count'] as num?)?.toInt() ?? 0,
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
+  Map<String, dynamic> toSupabase() => {
+    'club_id': clubId,
     'title': title,
     'description': description,
-    'startAt': Timestamp.fromDate(startAt),
+    'start_at': startAt.toIso8601String(),
     'location': location,
-    'creatorId': creatorId,
-    'creatorName': creatorName,
-    'rsvpCount': rsvpCount,
-    'createdAt': FieldValue.serverTimestamp(),
+    'creator_id': creatorId.isEmpty ? null : creatorId,
+    'creator_name': creatorName,
   };
 }
 
-/// One row in a club's member-management list. Stored at
-/// clubs/{clubId}/members/{userId} alongside the role.
+/// One row in a club's member-management list. Stored in club_members,
+/// keyed by (club_id, user_id).
 class ClubMember {
   final String userId;
   final String name;
@@ -591,15 +541,14 @@ class ClubMember {
     required this.joinedAt,
   });
 
-  factory ClubMember.fromFirestore(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>? ?? {};
+  factory ClubMember.fromSupabase(Map<String, dynamic> d) {
     return ClubMember(
-      userId: doc.id,
+      userId: d['user_id'] as String,
       name: d['name'] ?? 'Member',
-      photoUrl: d['photoUrl'],
+      photoUrl: d['photo_url'],
       role: ClubRole.values.firstWhere(
           (r) => r.name == d['role'], orElse: () => ClubRole.member),
-      joinedAt: (d['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      joinedAt: DateTime.tryParse(d['joined_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 }

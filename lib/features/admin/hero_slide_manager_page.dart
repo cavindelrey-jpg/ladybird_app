@@ -5,7 +5,6 @@
 // superAdmin nudge shown when the carousel is empty.
 
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -131,14 +130,14 @@ class _HeroSlideManagerPageState extends State<HeroSlideManagerPage> {
   }
 
   Widget _legacyList(BuildContext context) {
-    return StreamBuilder<List<QueryDocumentSnapshot<Map<String, dynamic>>>>(
+    return StreamBuilder<List<Map<String, dynamic>>>(
       stream: HeroSlideRepository.instance.watchOrphaned(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const LoadingView();
         }
-        final docs = snap.data ?? const [];
-        if (docs.isEmpty) {
+        final rows = snap.data ?? const [];
+        if (rows.isEmpty) {
           return const EmptyState(
             icon: Icons.image_outlined,
             title: 'No legacy banners',
@@ -147,15 +146,14 @@ class _HeroSlideManagerPageState extends State<HeroSlideManagerPage> {
         }
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: docs.length,
+          itemCount: rows.length,
           itemBuilder: (context, i) {
-            final doc = docs[i];
-            final data = doc.data();
+            final data = rows[i];
             return _LegacySlideCard(
               headline: (data['headline'] as String?) ?? '(untitled)',
               rawPlacement: (data['placement'] as String?) ?? '(none)',
-              imageUrl: data['imageUrl'] as String?,
-              onDelete: () => _confirmDelete(context, doc.id,
+              imageUrl: data['image_url'] as String?,
+              onDelete: () => _confirmDelete(context, data['id'] as String,
                   (data['headline'] as String?) ?? '(untitled)'),
             );
           },

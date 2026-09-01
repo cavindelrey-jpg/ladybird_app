@@ -1,12 +1,9 @@
 // lib/models/app_notification.dart
 // Backs the Notifications feed (bell icon on Home, drawer entry, and the
-// Settings > Notification Preferences screen). Each row lives under the
-// recipient's own subcollection so a user only ever reads their own feed —
-// no cross-user query is possible even before Firestore rules are checked.
-//
-// Firestore: users/{uid}/notifications/{notificationId}
+// Settings > Notification Preferences screen). RLS on `notifications`
+// restricts rows to their own user_id (see schema.sql), same isolation
+// guarantee the Firestore subcollection-per-user layout gave.
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../config/branding.dart';
 
 enum NotificationType {
@@ -46,32 +43,34 @@ class AppNotification {
     required this.createdAt,
   });
 
-  factory AppNotification.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
+  factory AppNotification.fromSupabase(Map<String, dynamic> d) {
+    const typeMap = {
+      'announcement': NotificationType.announcement, 'comment': NotificationType.comment,
+      'reply': NotificationType.reply, 'article_published': NotificationType.articlePublished,
+      'system': NotificationType.system,
+    };
     return AppNotification(
-      id: doc.id,
-      type: NotificationType.values.firstWhere(
-          (t) => t.name == d['type'], orElse: () => NotificationType.system),
+      id: d['id'] as String,
+      type: typeMap[d['type']] ?? NotificationType.system,
       title: d['title'] ?? '',
       body: d['body'] ?? '',
-      deepLinkId: d['deepLinkId'],
+      deepLinkId: d['deep_link_id'],
       read: d['read'] ?? false,
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
-        'type': type.name,
+  Map<String, dynamic> toSupabase() => {
+        'type': type == NotificationType.articlePublished ? 'article_published' : type.name,
         'title': title,
         'body': body,
-        'deepLinkId': deepLinkId,
+        'deep_link_id': deepLinkId,
         'read': read,
-        'createdAt': Timestamp.fromDate(createdAt),
       };
 }
 
-/// Per-user toggle preferences, stored as a single doc so reads/writes are
-/// one round trip instead of N. Firestore: users/{uid}/settings/notifications
+/// Per-user toggle preferences, stored as a single row so reads/writes
+/// are one round trip instead of N.
 class NotificationPreferences {
   final bool announcements;
   final bool comments;
@@ -85,21 +84,21 @@ class NotificationPreferences {
     this.newArticles = true,
   });
 
-  factory NotificationPreferences.fromFirestore(Map<String, dynamic>? d) {
+  factory NotificationPreferences.fromSupabase(Map<String, dynamic>? d) {
     if (d == null) return const NotificationPreferences();
     return NotificationPreferences(
       announcements: d['announcements'] ?? true,
       comments: d['comments'] ?? true,
       replies: d['replies'] ?? true,
-      newArticles: d['newArticles'] ?? true,
+      newArticles: d['new_articles'] ?? true,
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
+  Map<String, dynamic> toSupabase() => {
         'announcements': announcements,
         'comments': comments,
         'replies': replies,
-        'newArticles': newArticles,
+        'new_articles': newArticles,
       };
 
   NotificationPreferences copyWith({

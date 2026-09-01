@@ -3,9 +3,9 @@
 // gradient + title/subtitle/stat line/CTA" card. Content-wise, it's a real,
 // admin-editable, swipeable set of slides — not a single hardcoded banner.
 //
-// Firestore: heroSlides/{slideId}   Storage: hero_slides/{slideId}.jpg
-
-import 'package:cloud_firestore/cloud_firestore.dart';
+// Supabase: public.hero_slides (shared table with academia-cameroon — see
+// supabase/migrations/20260829390000_hero_slides_greenhills_extensions.sql
+// for the messages/section destinations and placement column this app adds).
 
 enum HeroDestination {
   library('Library'),
@@ -32,8 +32,8 @@ enum HeroDestination {
 /// Library, Past Questions, Clubs and Messages banners were replaced by
 /// automatic, context-aware content recommendations instead (see
 /// RecommendationRepository) and so lost their [HeroPlacement] entries.
-/// Any pre-existing Firestore doc still stamped with one of those retired
-/// placement strings is not deleted -- it becomes "orphaned" (see
+/// Any pre-existing row still stamped with one of those retired placement
+/// strings is not deleted -- it becomes "orphaned" (see
 /// HeroSlideRepository.watchOrphaned) and surfaces read-only under the
 /// admin manager's "Legacy" tab for cleanup, rather than silently
 /// vanishing.
@@ -57,7 +57,7 @@ class HeroSlide {
   String statLine;      // e.g. "4,521 Resources Available"
   HeroDestination destination;
   String? customRoute;
-  String? imageUrl;      // Firebase Storage download URL
+  String? imageUrl;
   int order;
   bool active;
   HeroPlacement placement;
@@ -80,39 +80,42 @@ class HeroSlide {
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  factory HeroSlide.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final d = doc.data() ?? {};
+  factory HeroSlide.fromSupabase(Map<String, dynamic> d) {
+    const destMap = {
+      'library': HeroDestination.library, 'clubs': HeroDestination.clubs,
+      'past_questions': HeroDestination.pastQuestions, 'magazine': HeroDestination.magazine,
+      'courses': HeroDestination.courses, 'messages': HeroDestination.messages,
+      'section': HeroDestination.section, 'custom': HeroDestination.custom,
+    };
     return HeroSlide(
-      id: doc.id,
+      id: d['id'] as String,
       headline: d['headline'] ?? '',
       subtext: d['subtext'] ?? '',
-      ctaLabel: d['ctaLabel'] ?? 'Explore Now',
-      statLine: d['statLine'] ?? '',
-      destination: HeroDestination.values.firstWhere(
-          (v) => v.name == d['destination'], orElse: () => HeroDestination.custom),
-      customRoute: d['customRoute'],
-      imageUrl: d['imageUrl'],
-      order: d['order'] ?? 0,
+      ctaLabel: d['cta_label'] ?? 'Explore Now',
+      statLine: d['stat_line'] ?? '',
+      destination: destMap[d['destination']] ?? HeroDestination.custom,
+      customRoute: d['custom_route'],
+      imageUrl: d['image_url'],
+      order: d['sort_order'] ?? 0,
       active: d['active'] ?? true,
       placement: HeroPlacement.values.firstWhere(
           (v) => v.name == d['placement'], orElse: () => HeroPlacement.home),
-      createdBy: d['createdBy'] ?? '',
-      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdBy: d['created_by'] ?? '',
+      createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 
-  Map<String, dynamic> toFirestore() => {
+  Map<String, dynamic> toSupabase() => {
         'headline': headline,
         'subtext': subtext,
-        'ctaLabel': ctaLabel,
-        'statLine': statLine,
-        'destination': destination.name,
-        'customRoute': customRoute,
-        'imageUrl': imageUrl,
-        'order': order,
+        'cta_label': ctaLabel,
+        'stat_line': statLine,
+        'destination': destination.name == 'pastQuestions' ? 'past_questions' : destination.name,
+        'custom_route': customRoute,
+        'image_url': imageUrl,
+        'sort_order': order,
         'active': active,
         'placement': placement.name,
-        'createdBy': createdBy,
-        'createdAt': Timestamp.fromDate(createdAt),
+        'created_by': createdBy.isEmpty ? null : createdBy,
       };
 }

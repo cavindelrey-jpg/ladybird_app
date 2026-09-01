@@ -62,9 +62,20 @@ class PublicCourseRepository {
         final list = List<Map<String, dynamic>>.from(rows);
         unawaited(ContentCacheService.instance.putList(cacheKey, list));
         controller.add(list.map(PublicCourse.fromSupabase).toList());
-      } catch (_) {
-        // Network failure -- keep showing whatever cache/nothing was
-        // already emitted; never emit an empty list for this.
+      } catch (e, st) {
+        if (controller.isClosed) return;
+        if (cached != null) {
+          // Already showing something real (offline/flaky reconnect) --
+          // keep it, don't replace a good state with an error.
+          return;
+        }
+        // No cache to fall back on: this is the FIRST fetch ever failing
+        // (RLS denial, wrong query, genuine outage) -- forwarding it as a
+        // real stream error, instead of silently doing nothing, is what
+        // lets CoursesMarketplacePage's own snap.hasError branch show
+        // "Failed to load: ..." instead of an infinite loading shimmer
+        // that looks identical to "nothing happens when I open Courses".
+        controller.addError(e, st);
       }
     }
 

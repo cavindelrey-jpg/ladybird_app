@@ -25,10 +25,15 @@ jobs:
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release
+        # This project defines 3 Gradle product flavors (academia/greenhill/
+        # ladybird) under the "brand" dimension for the shared white-label
+        # codebase -- without --flavor, Gradle builds all three sequentially
+        # (~20min instead of ~5) and the plain app-release.apk this workflow
+        # expects never gets produced, only the per-flavor ones.
+        run: flutter build apk --release --flavor ladybird
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ladybird-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: build/app/outputs/flutter-apk/app-ladybird-release.apk

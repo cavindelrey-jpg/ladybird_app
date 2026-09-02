@@ -104,14 +104,7 @@ class _TopicTile extends StatelessWidget {
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: icon.imageUrl.isNotEmpty
-                      ? Image.network(icon.imageUrl, fit: BoxFit.cover, width: double.infinity,
-                          errorBuilder: (_, __, ___) => HierarchyAvatar(label: topic, icon: icon.emoji, size: 48))
-                      : SizedBox(width: double.infinity,
-                          child: HierarchyAvatar(label: topic, icon: icon.emoji, size: 48)),
-                ),
+                child: HierarchyAvatar(label: topic, icon: icon.emoji, imageUrl: icon.imageUrl, fill: true),
               ),
               const SizedBox(height: 6),
               Text(topic, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5),

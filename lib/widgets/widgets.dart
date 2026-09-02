@@ -1134,8 +1134,19 @@ class HierarchyAvatar extends StatelessWidget {
   final String? imageUrl;
   final File? localImage;
   final double size;
+
+  /// When true, this fills whatever box its parent gives it (e.g. the
+  /// full square of a grid tile) instead of rendering at a small fixed
+  /// [size] — used for every full-width thumbnail slot from Subject
+  /// level down (and now Level cards too), so a node without an
+  /// uploaded photo yet still reads as "the whole card's visual", not a
+  /// small icon floating in an otherwise-empty box. [size] is ignored
+  /// when [fill] is true.
+  final bool fill;
+
   const HierarchyAvatar({
     super.key, required this.label, this.icon, this.imageUrl, this.localImage, this.size = 44,
+    this.fill = false,
   });
 
   static const _palette = [0xFF3B5BA9, 0xFF2E8B57, 0xFFB2531D, 0xFF7A4FB5, 0xFFB0446E, 0xFF1F8A8A];
@@ -1143,33 +1154,36 @@ class HierarchyAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasImage = localImage != null || (imageUrl != null && imageUrl!.isNotEmpty);
+    final radius = BorderRadius.circular(fill ? 12 : size * 0.28);
     if (hasImage) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(size * 0.28),
-        child: localImage != null
-            ? Image.file(localImage!, width: size, height: size, fit: BoxFit.cover)
-            : Image.network(imageUrl!, width: size, height: size, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _fallback()),
-      );
+      final image = localImage != null
+          ? Image.file(localImage!, fit: BoxFit.cover,
+              width: fill ? double.infinity : size, height: fill ? double.infinity : size)
+          : Image.network(imageUrl!, fit: BoxFit.cover,
+              width: fill ? double.infinity : size, height: fill ? double.infinity : size,
+              errorBuilder: (_, __, ___) => _fallback(radius));
+      return ClipRRect(borderRadius: radius, child: image);
     }
-    return _fallback();
+    return _fallback(radius);
   }
 
-  Widget _fallback() {
+  Widget _fallback(BorderRadius radius) {
     final hasIcon = icon != null && icon!.isNotEmpty;
     final colorSeed = label.isEmpty ? 0 : label.codeUnitAt(0);
     final color = Color(_palette[colorSeed % _palette.length]);
+    final letterOrIcon = hasIcon
+        ? Text(icon!, style: TextStyle(fontSize: fill ? 34 : size * 0.5))
+        : Text(label.isEmpty ? '?' : label[0].toUpperCase(),
+            style: TextStyle(fontSize: fill ? 30 : size * 0.42, fontWeight: FontWeight.w800, color: Colors.white));
     return Container(
-      width: size, height: size,
+      width: fill ? double.infinity : size,
+      height: fill ? double.infinity : size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: hasIcon ? color.withOpacity(0.12) : color,
-        borderRadius: BorderRadius.circular(size * 0.28),
+        color: hasIcon ? color.withValues(alpha: .12) : color,
+        borderRadius: radius,
       ),
-      child: hasIcon
-          ? Text(icon!, style: TextStyle(fontSize: size * 0.5))
-          : Text(label.isEmpty ? '?' : label[0].toUpperCase(),
-              style: TextStyle(fontSize: size * 0.42, fontWeight: FontWeight.w800, color: Colors.white)),
+      child: letterOrIcon,
     );
   }
 }

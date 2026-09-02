@@ -341,8 +341,10 @@ class _LevelCard extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            HierarchyAvatar(label: level.name, icon: icon.emoji, imageUrl: icon.imageUrl, size: 40),
-            const Spacer(),
+            Expanded(
+              child: HierarchyAvatar(label: level.name, icon: icon.emoji, imageUrl: icon.imageUrl, fill: true),
+            ),
+            const SizedBox(height: 6),
             Text(level.name, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5),
                 maxLines: 2, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 2),

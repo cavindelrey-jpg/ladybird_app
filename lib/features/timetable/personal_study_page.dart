@@ -189,6 +189,12 @@ class _SlotFormSheetState extends State<_SlotFormSheet> {
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
       child: SafeArea(
+        // The Save/Delete row previously fell outside the visible area
+        // whenever the keyboard was open and pushed this un-scrollable
+        // Column taller than what was left of the screen -- no way to
+        // reach it, which read as "there's no save button" even though
+        // one was always there.
+        child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(widget.existing == null ? 'New Study Session' : 'Edit Study Session',
               style: AppText.title.copyWith(fontSize: 16)),
@@ -256,6 +262,7 @@ class _SlotFormSheetState extends State<_SlotFormSheet> {
             ),
           ]),
         ]),
+        ),
       ),
     );
   }

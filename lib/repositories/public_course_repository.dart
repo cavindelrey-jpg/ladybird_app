@@ -11,19 +11,19 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/public_course.dart';
 import '../core/result.dart';
 import '../services/content_cache_service.dart';
 
-/// Result of [PublicCourseRepository.continueReadingFor] — previous/next
-/// lesson within the same topic sequence, plus the topic's full lesson
-/// list for a "more in this topic" rail.
-class CourseSequenceContext {
-  final PublicCourse? previous;
-  final PublicCourse? next;
-  final List<PublicCourse> topicLessons;
-  const CourseSequenceContext({this.previous, this.next, this.topicLessons = const []});
+/// One row of [PublicCourseRepository.levelsOnce] — a canonical education
+/// level plus its live course count. Never hardcoded: `name` comes from
+/// the `course_levels` table, `courseCount` from a real query.
+class CourseLevelInfo {
+  final String name;
+  final int courseCount;
+  const CourseLevelInfo({required this.name, required this.courseCount});
 }
 
 class PublicCourseRepository {
@@ -150,12 +150,9 @@ class PublicCourseRepository {
   }
 
   // ── Curriculum node icons ─────────────────────────────────────────
-
-  static String subjectIconKey(String category, String subject) => 'subject::$category::$subject';
-  static String levelIconKey(String category, String subject, String level) =>
-      'level::$category::$subject::$level';
-  static String topicIconKey(String category, String subject, String level, String topic) =>
-      'topic::$category::$subject::$level::$topic';
+  // Key formats for the Level -> Subject -> Topic hierarchy live further
+  // down, under "Information architecture node icons" —
+  // eduLevelIconKey/eduSubjectIconKey/eduTopicIconKey.
 
   SupabaseQueryBuilder get _curriculumIcons => _db.from('curriculum_icons');
 
@@ -197,25 +194,72 @@ class PublicCourseRepository {
     }
   }
 
-  // ── Curriculum hierarchy ─────────────────────────────────
+  // ── Information architecture: Level -> Subject -> Topic -> Course ──
+  // Level = courses.level, Subject = courses.category, Topic = courses.topic.
+  // Level already held the AcademicSection name here (Course Navigation's
+  // old scheme) — this migration just gives it a canonical, ordered source
+  // table (course_levels) instead of ad hoc section names. The old
+  // `subject` field (Category -> Subject -> Level -> Topic) and the
+  // Section-based methods that powered course_navigation_page.dart (now
+  // removed) are no longer part of the browse hierarchy.
 
-  Future<List<String>> subjectsIn(String category) async {
-    final rows = await _courses.select('subject').eq('published', true).eq('category', category).limit(500);
-    return _distinctNonEmpty(rows.map((r) => r['subject'] as String?));
+  SupabaseQueryBuilder get _courseLevels => _db.from('course_levels');
+
+  /// The 5 canonical levels in order, each with its live course count.
+  /// Never a hardcoded list — reads whatever admins have configured.
+  Future<List<CourseLevelInfo>> levelsOnce() async {
+    final results = await Future.wait([
+      _courseLevels.select().order('sort_order'),
+      _courses.select('level').eq('published', true).limit(5000),
+    ]);
+    final levelRows = results[0] as List<Map<String, dynamic>>;
+    final courseRows = results[1] as List<Map<String, dynamic>>;
+    final counts = <String, int>{};
+    for (final row in courseRows) {
+      final level = row['level'] as String?;
+      if (level != null && level.trim().isNotEmpty) counts[level] = (counts[level] ?? 0) + 1;
+    }
+    return levelRows
+        .map((r) => CourseLevelInfo(name: r['name'] as String, courseCount: counts[r['name']] ?? 0))
+        .toList();
   }
 
-  Future<List<String>> levelsIn(String category, String subject) async {
-    final rows = await _courses
-        .select('level').eq('published', true).eq('category', category).eq('subject', subject).limit(500);
-    return _distinctNonEmpty(rows.map((r) => r['level'] as String?));
+  Future<List<String>> subjectsInLevel(String level) async {
+    final rows = await _courses.select('category').eq('published', true).eq('level', level).limit(500);
+    return _distinctNonEmpty(rows.map((r) => r['category'] as String?));
   }
 
-  Future<List<String>> topicsIn(String category, String subject, String level) async {
+  Future<Map<String, int>> subjectCountsInLevel(String level) async {
+    final rows = await _courses.select('category').eq('published', true).eq('level', level).limit(5000);
+    return _countBy(rows.map((r) => r['category'] as String?));
+  }
+
+  Future<List<String>> topicsInSubject(String level, String subject) async {
     final rows = await _courses
-        .select('topic')
-        .eq('published', true).eq('category', category).eq('subject', subject).eq('level', level)
-        .limit(500);
+        .select('topic').eq('published', true).eq('level', level).eq('category', subject).limit(500);
     return _distinctNonEmpty(rows.map((r) => r['topic'] as String?));
+  }
+
+  Future<Map<String, int>> topicCountsInSubject(String level, String subject) async {
+    final rows = await _courses
+        .select('topic').eq('published', true).eq('level', level).eq('category', subject).limit(5000);
+    return _countBy(rows.map((r) => r['topic'] as String?));
+  }
+
+  Future<List<PublicCourse>> coursesInTopic(String level, String subject, String topic) async {
+    final rows = await _courses
+        .select()
+        .eq('published', true).eq('level', level).eq('category', subject).eq('topic', topic)
+        .order('sort_order');
+    return rows.map(PublicCourse.fromSupabase).toList();
+  }
+
+  Map<String, int> _countBy(Iterable<String?> values) {
+    final counts = <String, int>{};
+    for (final v in values) {
+      if (v != null && v.trim().isNotEmpty) counts[v] = (counts[v] ?? 0) + 1;
+    }
+    return counts;
   }
 
   List<String> _distinctNonEmpty(Iterable<String?> values) {
@@ -227,116 +271,84 @@ class PublicCourseRepository {
     return list;
   }
 
-  /// The full, in-order lesson sequence for one topic.
-  Future<List<PublicCourse>> topicSequence(String category, String subject, String level, String topic) async {
-    final rows = await _courses
-        .select()
-        .eq('published', true).eq('category', category).eq('subject', subject)
-        .eq('level', level).eq('topic', topic)
-        .order('sort_order');
-    return rows.map(PublicCourse.fromSupabase).toList();
-  }
+  // ── Information architecture node icons ─────────────────────────────
+  // Reuses the existing curriculum_icons lookup with new key formats for
+  // the new 3-tier hierarchy — distinct prefixes from the old
+  // navSubjectIconKey/navTopicIconKey so old and new rows can never
+  // collide even though both live in the same table.
 
-  /// Courses grouped into the curriculum tree, for the browse page.
-  Future<Map<String, Map<String, Map<String, Map<String, List<PublicCourse>>>>>> curriculumTreeOnce() async {
-    final rows = await _courses.select().eq('published', true).limit(1000);
-    final tree = <String, Map<String, Map<String, Map<String, List<PublicCourse>>>>>{};
-    for (final row in rows) {
-      final course = PublicCourse.fromSupabase(row);
-      if (!course.hasCurriculumPlacement) continue;
-      final byCategory = tree.putIfAbsent(course.category, () => {});
-      final bySubject = byCategory.putIfAbsent(course.subject, () => {});
-      final byLevel = bySubject.putIfAbsent(course.level, () => {});
-      final byTopic = byLevel.putIfAbsent(course.topic, () => []);
-      byTopic.add(course);
+  static String eduLevelIconKey(String level) => 'edu_level::$level';
+  static String eduSubjectIconKey(String level, String subject) => 'edu_subject::$level::$subject';
+  static String eduTopicIconKey(String level, String subject, String topic) =>
+      'edu_topic::$level::$subject::$topic';
+
+  // ── Recommendations & recent reads ──────────────────────────────────
+
+  Future<void> recordCourseView(String courseId, String userId) async {
+    try {
+      await _db.from('course_recent_views').upsert(
+        {'course_id': courseId, 'user_id': userId, 'viewed_at': DateTime.now().toIso8601String()},
+        onConflict: 'course_id,user_id',
+      );
+    } catch (_) {
+      // best-effort — a failed recency update shouldn't block viewing the course
     }
-    for (final byCategory in tree.values) {
-      for (final bySubject in byCategory.values) {
-        for (final byLevel in bySubject.values) {
-          for (final lessons in byLevel.values) {
-            lessons.sort((a, b) => a.order.compareTo(b.order));
-          }
-        }
-      }
+  }
+
+  /// Most-recently-opened courses for this user — powers Courses Home
+  /// "Recent Reads".
+  Stream<List<PublicCourse>> watchRecentlyViewedCourses(String userId, {int limit = 10}) {
+    return _db
+        .from('course_recent_views')
+        .stream(primaryKey: ['course_id', 'user_id'])
+        .eq('user_id', userId)
+        .asyncMap((rows) async {
+      final sorted = rows.toList()
+        ..sort((a, b) => (b['viewed_at'] as String).compareTo(a['viewed_at'] as String));
+      final ids = sorted.take(limit).map((r) => r['course_id'] as String).toList();
+      if (ids.isEmpty) return <PublicCourse>[];
+      final courses = await _courses.select().inFilter('id', ids);
+      final byId = {for (final c in courses) c['id'] as String: c};
+      return ids.where(byId.containsKey).map((id) => PublicCourse.fromSupabase(byId[id]!)).toList();
+    });
+  }
+
+  /// Courses matching the subjects/topics this user has actually engaged
+  /// with, ranked by rating/enrollment, then rotated with a date-seeded
+  /// shuffle so the set visibly changes day to day without being random
+  /// noise. Falls back to latest/most-enrolled for guests or users with no
+  /// history yet — never a fabricated or hardcoded list.
+  Future<List<PublicCourse>> recommendedForUser(String? userId, {int limit = 5}) async {
+    final pool = await _courses.select().eq('published', true).order('created_at', ascending: false).limit(200);
+    var courses = pool.map(PublicCourse.fromSupabase).toList();
+    if (courses.isEmpty) return const [];
+
+    Set<String> subjects = {};
+    if (userId != null) {
+      final recentRows = await _db
+          .from('course_recent_views')
+          .select('course_id')
+          .eq('user_id', userId)
+          .order('viewed_at', ascending: false)
+          .limit(20);
+      final recentIds = recentRows.map((r) => r['course_id'] as String).toSet();
+      subjects = courses.where((c) => recentIds.contains(c.id) && c.category.isNotEmpty)
+          .map((c) => c.category).toSet();
     }
-    return tree;
-  }
 
-  // ── Course Navigation ("Section" tree) ────────────────────
-  // Course Navigation unified onto the shared AcademicSection list (see
-  // models/academic_section.dart / repositories/academic_section_repository.dart)
-  // rather than growing its own separate tree — a course's [level] field
-  // holds the section NAME (e.g. "Senior Secondary School") instead of a
-  // free-text curriculum level, one tier shallower than the
-  // Category/Subject/Level/Topic tree above (no separate Level tier,
-  // since the section already IS that tier).
-
-  static String navSubjectIconKey(String section, String subject) => 'navSubject::$section::$subject';
-  static String navTopicIconKey(String section, String subject, String topic) =>
-      'navTopic::$section::$subject::$topic';
-
-  /// Distinct subjects that already exist under [section].
-  Future<List<String>> subjectsInSection(String section) async {
-    final rows = await _courses.select('subject').eq('published', true).eq('level', section).limit(500);
-    return _distinctNonEmpty(rows.map((r) => r['subject'] as String?));
-  }
-
-  /// Distinct topics that already exist under [section] + [subject].
-  Future<List<String>> topicsInSection(String section, String subject) async {
-    final rows = await _courses
-        .select('topic').eq('published', true).eq('level', section).eq('subject', subject).limit(500);
-    return _distinctNonEmpty(rows.map((r) => r['topic'] as String?));
-  }
-
-  /// The full, in-order lesson sequence for one topic within [section] —
-  /// same shape as [topicSequence], scoped by section instead of
-  /// category+level.
-  Future<List<PublicCourse>> topicSequenceInSection(String section, String subject, String topic) async {
-    final rows = await _courses
-        .select()
-        .eq('published', true).eq('level', section).eq('subject', subject).eq('topic', topic)
-        .order('sort_order');
-    return rows.map(PublicCourse.fromSupabase).toList();
-  }
-
-  /// Real per-section course counts — powers the Course Navigation top
-  /// grid's "N courses" line.
-  Future<Map<String, int>> courseCountsBySection() async {
-    final rows = await _courses.select('level').eq('published', true).limit(1000);
-    final counts = <String, int>{};
-    for (final row in rows) {
-      final section = (row['level'] as String?) ?? '';
-      if (section.isEmpty) continue;
-      counts[section] = (counts[section] ?? 0) + 1;
-    }
-    return counts;
-  }
-
-  /// Real per-subject course counts within [section] — powers the
-  /// Subject picker tier.
-  Future<Map<String, int>> subjectCountsInSection(String section) async {
-    final rows = await _courses.select('subject').eq('published', true).eq('level', section).limit(500);
-    final counts = <String, int>{};
-    for (final row in rows) {
-      final subject = (row['subject'] as String?) ?? '';
-      if (subject.isEmpty) continue;
-      counts[subject] = (counts[subject] ?? 0) + 1;
-    }
-    return counts;
-  }
-
-  /// Real per-topic course counts within [section] + [subject] — powers
-  /// the Topic picker tier.
-  Future<Map<String, int>> topicCountsInSection(String section, String subject) async {
-    final rows = await _courses
-        .select('topic').eq('published', true).eq('level', section).eq('subject', subject).limit(500);
-    final counts = <String, int>{};
-    for (final row in rows) {
-      final topic = (row['topic'] as String?) ?? '';
-      if (topic.isEmpty) continue;
-      counts[topic] = (counts[topic] ?? 0) + 1;
-    }
-    return counts;
+    final scored = courses.where((c) => subjects.isEmpty || subjects.contains(c.category)).toList();
+    final candidates = scored.length >= limit ? scored : courses;
+    candidates.sort((a, b) {
+      final scoreA = a.avgRating * 10 + a.enrolledCount * 0.1;
+      final scoreB = b.avgRating * 10 + b.enrolledCount * 0.1;
+      return scoreB.compareTo(scoreA);
+    });
+    final top = candidates.take(limit * 3).toList();
+    // Date-seeded shuffle: same order all day for a given user, different
+    // the next day — a real rotation, not per-refresh randomness.
+    final seed = DateTime.now().difference(DateTime(2020)).inDays + (userId?.hashCode ?? 0);
+    top.shuffle(Random(seed));
+    return top.take(limit).toList();
   }
 
   // ── Sequence placement ────────────────────────────────────
@@ -351,18 +363,6 @@ class PublicCourseRepository {
 
   double positionBetween(PublicCourse before, PublicCourse after) =>
       (before.order + after.order) / 2;
-
-  Future<CourseSequenceContext> continueReadingFor(PublicCourse course) async {
-    if (!course.hasCurriculumPlacement) return const CourseSequenceContext();
-    final sequence = await topicSequence(course.category, course.subject, course.level, course.topic);
-    final index = sequence.indexWhere((c) => c.id == course.id);
-    if (index == -1) return CourseSequenceContext(topicLessons: sequence);
-    return CourseSequenceContext(
-      previous: index > 0 ? sequence[index - 1] : null,
-      next: index < sequence.length - 1 ? sequence[index + 1] : null,
-      topicLessons: sequence,
-    );
-  }
 
   // ── CRUD ─────────────────────────────────────────────────
 

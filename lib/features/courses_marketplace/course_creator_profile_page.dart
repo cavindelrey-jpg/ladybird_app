@@ -12,7 +12,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
-import 'course_reader_page.dart';
+import 'course_lessons_page.dart';
 import 'course_composer_page.dart';
 
 /// One-time-ish lookup of the full user profile (for bio) — the header's
@@ -111,7 +111,7 @@ class CourseCreatorProfilePage extends StatelessWidget {
                     if (c.published || _isOwnProfile) {
                       Navigator.of(context).push(MaterialPageRoute(
                           builder: (_) =>
-                              CourseReaderPage(course: c, currentUser: currentUser)));
+                              CourseLessonsPage(course: c, currentUser: currentUser)));
                     }
                   },
                   child: Row(children: [

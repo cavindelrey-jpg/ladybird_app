@@ -77,13 +77,13 @@ class PublicCourse {
   /// shown as links on the reader page, not enforced.
   List<String> prerequisiteIds;
 
-  /// True once this course has been placed somewhere in the curriculum
-  /// tree (subject/level/topic all set). Courses created before this
-  /// feature, or ones an author skips placement for, fall back to
-  /// showing only in the flat marketplace feed, not the hierarchy
-  /// browser.
+  /// True once this course has been placed in the Level -> Subject ->
+  /// Topic hierarchy (level/category/topic all set — category is the
+  /// "Subject" tier; see PublicCourseRepository's IA methods). A course an
+  /// author skips placement for still exists but won't appear under any
+  /// Level/Subject/Topic browse screen.
   bool get hasCurriculumPlacement =>
-      subject.trim().isNotEmpty && level.trim().isNotEmpty && topic.trim().isNotEmpty;
+      level.trim().isNotEmpty && category.trim().isNotEmpty && topic.trim().isNotEmpty;
 
   String? coverImageUrl;
 

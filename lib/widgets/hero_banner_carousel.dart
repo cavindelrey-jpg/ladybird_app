@@ -28,7 +28,7 @@ import '../features/admin/hero_slide_manager_page.dart';
 import '../features/academic_content/academic_content_page.dart';
 import '../features/clubs/clubs_page.dart';
 import '../features/magazine/magazine_feed_page.dart';
-import '../features/courses_marketplace/courses_marketplace_page.dart';
+import '../features/courses_marketplace/courses_home_page.dart';
 import '../features/messages/messages_home_page.dart';
 
 class HeroBannerCarousel extends StatefulWidget {
@@ -211,7 +211,7 @@ class _HeroBannerCarouselState extends State<HeroBannerCarousel> {
         _open(context, MagazineFeedPage(user: user));
         break;
       case HeroDestination.courses:
-        _open(context, CoursesMarketplacePage(user: user));
+        _open(context, CoursesHomePage(user: user));
         break;
       case HeroDestination.messages:
         _open(context, MessagesHomePage(user: user));

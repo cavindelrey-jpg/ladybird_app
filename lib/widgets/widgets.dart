@@ -1173,3 +1173,47 @@ class HierarchyAvatar extends StatelessWidget {
     );
   }
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// HIERARCHY VIEW TOGGLE — grid/list switch for the Courses browse screens
+// ════════════════════════════════════════════════════════════════════════════
+
+/// A two-way grid/list switch — the selection itself is owned by the
+/// caller (backed by CoursesViewModeService so it persists and stays
+/// consistent across pushed pages); this widget is purely the control.
+class HierarchyViewToggle extends StatelessWidget {
+  final bool isGrid;
+  final ValueChanged<bool> onChanged;
+  const HierarchyViewToggle({super.key, required this.isGrid, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(color: ac.surf2, borderRadius: BorderRadius.circular(10), border: Border.all(color: ac.bdr)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        _segment(ac, icon: Icons.grid_view_rounded, active: isGrid, onTap: () => onChanged(true)),
+        _segment(ac, icon: Icons.view_list_rounded, active: !isGrid, onTap: () => onChanged(false)),
+      ]),
+    );
+  }
+
+  Widget _segment(AppColors ac, {required IconData icon, required bool active, required VoidCallback onTap}) {
+    return Material(
+      color: active ? ac.surf : Colors.transparent,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, size: 18, color: active ? ac.primary : ac.muted),
+        ),
+      ),
+    );
+  }
+}

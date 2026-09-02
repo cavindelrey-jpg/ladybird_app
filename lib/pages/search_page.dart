@@ -11,7 +11,7 @@ import '../widgets/widgets.dart';
 import '../widgets/app_background.dart';
 import '../features/clubs/clubs_page.dart';
 import '../features/academic_content/content_details_page.dart';
-import '../features/courses_marketplace/course_reader_page.dart';
+import '../features/courses_marketplace/course_lessons_page.dart';
 import 'profile_page.dart';
 
 class SearchPage extends StatefulWidget {
@@ -171,7 +171,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
       itemBuilder: (context, i) => ListTile(
         title: Text(_courses[i].title),
         subtitle: Text(_courses[i].creatorName),
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CourseReaderPage(course: _courses[i], currentUser: widget.user))),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CourseLessonsPage(course: _courses[i], currentUser: widget.user))),
       ),
     );
   }

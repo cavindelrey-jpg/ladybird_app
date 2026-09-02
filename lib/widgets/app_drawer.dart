@@ -20,7 +20,7 @@ import '../pages/profile_page.dart';
 import '../pages/settings_page.dart';
 import '../features/onboarding/account_choice_screen.dart';
 import '../screens/login_screen.dart';
-import '../features/courses_marketplace/courses_marketplace_page.dart';
+import '../features/courses_marketplace/courses_home_page.dart';
 import '../features/clubs/clubs_page.dart';
 import '../features/academic_content/academic_content_page.dart';
 import '../features/messages/messages_home_page.dart';
@@ -67,7 +67,7 @@ class AppDrawer extends StatelessWidget {
                 // duplicate rather than keep both.
                 _item(context, ac, Icons.school_rounded, 'Academia Courses', () {
                   Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => CoursesMarketplacePage(user: user)));
+                      builder: (_) => CoursesHomePage(user: user)));
                 }),
                 _item(context, ac, Icons.folder_copy_rounded, 'Academia Library', () {
                   if (_isGuest) {

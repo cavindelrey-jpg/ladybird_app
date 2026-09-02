@@ -12,7 +12,7 @@ import '../repositories/public_course_repository.dart';
 import '../repositories/magazine_repository.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
-import '../features/courses_marketplace/course_reader_page.dart';
+import '../features/courses_marketplace/course_lessons_page.dart';
 import '../features/magazine/article_reader_page.dart';
 
 import '../widgets/app_background.dart';
@@ -58,7 +58,7 @@ class _BookmarksPageState extends State<BookmarksPage> with SingleTickerProvider
                 return _BookmarkTile(
                   title: c.title, subtitle: c.creatorName, imageUrl: c.coverImageUrl,
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => CourseReaderPage(course: c, currentUser: widget.user))),
+                      builder: (_) => CourseLessonsPage(course: c, currentUser: widget.user))),
                 );
               },
             );

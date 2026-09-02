@@ -68,7 +68,7 @@ import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import '../../widgets/chat_media_widgets.dart';
 import '../../widgets/media_players.dart' show ArticleVideoPlayer;
-import '../courses_marketplace/course_reader_page.dart';
+import '../courses_marketplace/course_lessons_page.dart';
 import '../testing/test_taking_page.dart';
 import '../magazine/article_reader_page.dart';
 import '../academic_content/content_details_page.dart';
@@ -902,7 +902,7 @@ class _SharedContentCardState extends State<_SharedContentCard> {
           final course = await PublicCourseRepository.instance.watchOne(id).first;
           if (course != null && mounted) {
             Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => CourseReaderPage(course: course, currentUser: widget.currentUser)));
+                builder: (_) => CourseLessonsPage(course: course, currentUser: widget.currentUser)));
           } else if (mounted) {
             showToast(context, 'This course is no longer available.');
           }

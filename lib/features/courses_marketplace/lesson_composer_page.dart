@@ -54,7 +54,7 @@ class _LessonComposerPageState extends State<LessonComposerPage> {
   late final quill.QuillController _quillCtrl = _initQuillController();
 
   File? _pickedCover;
-  String? _existingCoverUrl = widget.existing?.coverImageUrl;
+  late String? _existingCoverUrl = widget.existing?.coverImageUrl;
 
   late List<CourseLesson> _sequence = List<CourseLesson>.from(widget.existingSequence)
     ..removeWhere((l) => l.id == widget.existing?.id);

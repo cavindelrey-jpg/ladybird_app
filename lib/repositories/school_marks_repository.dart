@@ -61,6 +61,16 @@ class SchoolMarksRepository {
     return rows.map(_fromRow).toList();
   }
 
+  /// Every mark this student has ever been given, any sequence -- powers
+  /// the Home dashboard's "My Marks" preview, which shows whichever
+  /// sequence actually has data rather than defaulting to Term 1 ·
+  /// Sequence 1 like the full Marks page does.
+  Future<List<SchoolMark>> allMarksOnce(String studentId) async {
+    if (studentId.isEmpty) return const [];
+    final rows = await _marks.select().eq('student_id', studentId);
+    return rows.map(_fromRow).toList();
+  }
+
   /// The full 6-sequence history for one subject, in chronological order.
   Future<Map<AcademicSequence, SchoolMark>> subjectHistory(String studentId, String subject) async {
     if (studentId.isEmpty) return {};

@@ -41,22 +41,28 @@
 // still has no real page and stays out.
 
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../config/branding.dart';
 import '../../models/app_user.dart';
-import '../../models/announcement.dart';
 import '../../models/academic_content.dart';
 import '../../models/personal_study_slot.dart';
 import '../../models/messaging.dart';
+import '../../models/school_mark.dart';
+import '../../models/club.dart';
 import '../../repositories/personal_study_repository.dart';
-import '../../repositories/announcement_repository.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../repositories/test_repository.dart';
 import '../../repositories/messaging_repository.dart';
+import '../../repositories/school_marks_repository.dart';
+import '../../repositories/home_hero_repository.dart';
+import '../../repositories/club_repository.dart';
 import '../../services/auth_service.dart';
 import '../../repositories/xp_repository.dart';
 import '../../widgets/widgets.dart';
@@ -75,6 +81,8 @@ import '../timetable/personal_study_page.dart';
 import '../../pages/profile_page.dart';
 import '../school/school_connect_page.dart';
 import '../school/marks_page.dart';
+import '../school/timetable_page.dart';
+import '../courses_marketplace/courses_home_page.dart';
 
 /// Card shadow used throughout this page -- a bit more present than the
 /// app-wide Shad tokens, matching the mockup's soft-but-visible elevation.
@@ -149,6 +157,10 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             _topBar(context),
             const SizedBox(height: 14),
             _heroAndStats(context),
+            const SizedBox(height: 20),
+            _marksAndCoursesRow(context),
+            const SizedBox(height: 20),
+            _campusInformationCard(context),
             const SizedBox(height: 24),
             _sectionHeader('Quick Access'),
             const SizedBox(height: 12),
@@ -156,7 +168,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             const SizedBox(height: 20),
             _scheduleAndTasksRow(context),
             const SizedBox(height: 20),
-            _eventsAndAnnouncementsRow(context),
+            _upcomingAndClubRow(context),
             const SizedBox(height: 20),
             _motivationBanner(context),
             const SizedBox(height: 24),
@@ -232,59 +244,125 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return '$startYear/${startYear + 1}';
   }
 
-  /// Mockup has the stat/class-info box living INSIDE the blue hero card,
-  /// to the right of the greeting text -- not as a separate card
-  /// overlapping the bottom edge (that was this file's first attempt at
-  /// this layout and was wrong; corrected after the user pointed at the
-  /// mockup's top-right white box directly).
+  bool get _canManageHeroBanner => !_isGuest && _u!.canManageSchool;
+
+  Future<void> _pickHeroBanner(BuildContext context) async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null) return;
+    final upload = await HomeHeroRepository.instance.uploadImage(File(picked.path));
+    if (!context.mounted) return;
+    switch (upload) {
+      case Success(:final value):
+        final result = await HomeHeroRepository.instance.setImage(value);
+        if (!context.mounted) return;
+        if (result case Failure(:final message)) {
+          showToast(context, 'Could not save banner: $message', isError: true);
+        } else {
+          showToast(context, 'Banner updated');
+        }
+      case Failure(:final message):
+        showToast(context, 'Could not upload banner: $message', isError: true);
+    }
+  }
+
+  /// Mockup has the stat/class-info box living INSIDE the hero card, to
+  /// the right of the greeting text -- not as a separate card overlapping
+  /// the bottom edge (that was this file's first attempt at this layout
+  /// and was wrong; corrected after the user pointed at the mockup's
+  /// top-right white box directly). The newest mockup replaces the flat
+  /// navy gradient with a real admin-uploaded campus photo (same
+  /// HomeHeroRepository pattern greenhills_app uses, keyed to a different
+  /// row so the two apps' banners never collide) -- everything else in
+  /// this card (greeting, Resume Learning button, stat box) is unchanged.
   Widget _heroAndStats(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        width: double.infinity,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft, end: Alignment.bottomRight,
-            colors: [ac.navy, ac.navy2],
-          ),
-          borderRadius: BorderRadius.circular(Rad.lg),
-        ),
-        child: Stack(children: [
-          Positioned(
-            right: -16, top: 4,
-            child: Icon(Icons.auto_stories_rounded, size: 120, color: Colors.white.withValues(alpha: .06)),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(
-                flex: 5,
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('$_timeGreeting,',
-                      style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: .85))),
-                  const SizedBox(height: 2),
-                  Text.rich(
-                    TextSpan(children: [
-                      TextSpan(text: _isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name.split(' ').first)),
-                      const TextSpan(text: ' \u{1F44B}'),
+      child: StreamBuilder<String>(
+        stream: HomeHeroRepository.instance.watchImageUrl(),
+        builder: (context, snap) {
+          final imageUrl = snap.data ?? '';
+          final hasImage = imageUrl.isNotEmpty;
+          return Container(
+            width: double.infinity,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              gradient: hasImage ? null : LinearGradient(
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+                colors: [ac.navy, ac.navy2],
+              ),
+              borderRadius: BorderRadius.circular(Rad.lg),
+            ),
+            child: Stack(children: [
+              if (hasImage)
+                Positioned.fill(
+                  child: Image.network(imageUrl, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        decoration: BoxDecoration(gradient: LinearGradient(
+                            begin: Alignment.topLeft, end: Alignment.bottomRight,
+                            colors: [ac.navy, ac.navy2])),
+                      )),
+                )
+              else
+                Positioned(
+                  right: -16, top: 4,
+                  child: Icon(Icons.auto_stories_rounded, size: 120, color: Colors.white.withValues(alpha: .06)),
+                ),
+              if (hasImage)
+                // A real photo needs a dark scrim behind it for the white
+                // greeting text and stat box to stay legible regardless of
+                // what the uploaded photo looks like.
+                Positioned.fill(
+                  child: DecoratedBox(decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                          begin: Alignment.topLeft, end: Alignment.bottomRight,
+                          colors: [Colors.black.withValues(alpha: .4), Colors.black.withValues(alpha: .2)]))),
+                ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                    flex: 5,
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('$_timeGreeting,',
+                          style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: .85))),
+                      const SizedBox(height: 2),
+                      Text.rich(
+                        TextSpan(children: [
+                          TextSpan(text: _isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name.split(' ').first)),
+                          const TextSpan(text: ' \u{1F44B}'),
+                        ]),
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.sora(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white),
+                      ),
+                      const SizedBox(height: 10),
+                      Text('"${Branding.current.tagline}"',
+                          style: GoogleFonts.inter(fontSize: 11.5, fontStyle: FontStyle.italic,
+                              color: Colors.white.withValues(alpha: .8), height: 1.3)),
+                      const SizedBox(height: 16),
+                      _resumeLearningButton(context),
                     ]),
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.sora(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white),
                   ),
-                  const SizedBox(height: 10),
-                  Text('"${Branding.current.tagline}"',
-                      style: GoogleFonts.inter(fontSize: 11.5, fontStyle: FontStyle.italic,
-                          color: Colors.white.withValues(alpha: .8), height: 1.3)),
-                  const SizedBox(height: 16),
-                  _resumeLearningButton(context),
+                  const SizedBox(width: 12),
+                  Expanded(flex: 6, child: _statCard()),
                 ]),
               ),
-              const SizedBox(width: 12),
-              Expanded(flex: 6, child: _statCard()),
+              if (_canManageHeroBanner)
+                Positioned(
+                  bottom: 10, right: 10,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () => _pickHeroBanner(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(color: Colors.black.withValues(alpha: .35), shape: BoxShape.circle),
+                      child: Icon(hasImage ? Icons.edit_rounded : Icons.add_photo_alternate_outlined,
+                          size: 16, color: Colors.white),
+                    ),
+                  ),
+                ),
             ]),
-          ),
-        ]),
+          );
+        },
       ),
     );
   }
@@ -439,6 +517,223 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         ]),
       ),
     ]);
+  }
+
+  // -- My Marks + Academia Courses -----------------------------------------
+  Widget _marksAndCoursesRow(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: IntrinsicHeight(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Expanded(child: _myMarksCard(context)),
+          const SizedBox(width: 12),
+          Expanded(child: _academiaCoursesCard(context)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _cardShell({required String title, required VoidCallback onViewAll, required String viewAllLabel, required Widget child}) {
+    final radius = BorderRadius.circular(Rad.md);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: ac.surf, borderRadius: radius, boxShadow: _glow),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text(title, style: GoogleFonts.sora(fontSize: 13.5, fontWeight: FontWeight.w800, color: ac.txt))),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(Rad.xs),
+              onTap: onViewAll,
+              child: Text(viewAllLabel, style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: ac.primary)),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        child,
+      ]),
+    );
+  }
+
+  /// Whichever real academic sequence this student's most recent marks
+  /// belong to -- not always Term 1 · Sequence 1, unlike the full Marks
+  /// page's default selector. Null/empty when the student has no marks
+  /// recorded anywhere yet.
+  Future<({double average, List<SchoolMark> subjects})?> _latestMarksSummary() async {
+    if (_isGuest || !_u!.isSchoolMember) return null;
+    final all = await SchoolMarksRepository.instance.allMarksOnce(_u!.id);
+    if (all.isEmpty) return null;
+    AcademicSequence? latest;
+    for (final m in all) {
+      if (latest == null || AcademicSequence.values.indexOf(m.sequence) > AcademicSequence.values.indexOf(latest)) {
+        latest = m.sequence;
+      }
+    }
+    final subjects = all.where((m) => m.sequence == latest).toList()
+      ..sort((a, b) => a.subject.compareTo(b.subject));
+    return (average: averagePercentage(subjects), subjects: subjects);
+  }
+
+  Widget _myMarksCard(BuildContext context) {
+    return _cardShell(
+      title: 'My Marks',
+      viewAllLabel: 'View all',
+      onViewAll: _isGuest ? () => showToast(context, 'Sign in to see your marks.')
+                           : () => _open(context, MarksPage(user: _u!)),
+      child: FutureBuilder<({double average, List<SchoolMark> subjects})?>(
+        future: _latestMarksSummary(),
+        builder: (context, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const SizedBox(height: 90, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+          }
+          final data = snap.data;
+          if (data == null || data.subjects.isEmpty) {
+            return SizedBox(
+              height: 90,
+              child: Center(
+                child: Text(_isGuest || !_u!.isSchoolMember ? 'Join your school to see marks here.' : 'No marks recorded yet.',
+                    textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 11, color: ac.muted, height: 1.3)),
+              ),
+            );
+          }
+          final shown = data.subjects.take(4).toList();
+          return Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            SizedBox(
+              width: 56, height: 56,
+              child: Stack(alignment: Alignment.center, children: [
+                CircularProgressIndicator(
+                  value: (data.average / 100).clamp(0.0, 1.0),
+                  strokeWidth: 5, backgroundColor: ac.bdr2,
+                  valueColor: AlwaysStoppedAnimation(ac.primary),
+                ),
+                Text('${data.average.round()}%', style: GoogleFonts.sora(fontSize: 11.5, fontWeight: FontWeight.w800, color: ac.txt)),
+              ]),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                for (final m in shown)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(children: [
+                      Expanded(child: Text(m.subject, maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(fontSize: 10, color: ac.txt2))),
+                      Text('${m.score.toStringAsFixed(0)}/${m.maxScore.toStringAsFixed(0)}',
+                          style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: ac.txt)),
+                    ]),
+                  ),
+              ]),
+            ),
+          ]);
+        },
+      ),
+    );
+  }
+
+  /// "Academia Courses" preview -- a CTA card, not an icon-shortcut grid
+  /// (that's what the mockup's Academic Library-equivalent card shows for
+  /// Green Hills; here the mockup shows an illustration + "Continue your
+  /// learning" + Browse Courses button instead), opening the real
+  /// CoursesHomePage from the Courses IA redesign.
+  Widget _academiaCoursesCard(BuildContext context) {
+    return _cardShell(
+      title: 'Academia Courses',
+      viewAllLabel: 'View all',
+      onViewAll: () => _open(context, CoursesHomePage(user: _u)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Center(child: Icon(Icons.school_rounded, size: 40, color: ac.primary)),
+        const SizedBox(height: 8),
+        Text('Continue your learning', style: GoogleFonts.sora(fontSize: 12, fontWeight: FontWeight.w800, color: ac.txt)),
+        const SizedBox(height: 2),
+        Text('Access all your courses, materials and resources in one place.',
+            maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(fontSize: 9.5, color: ac.txt2, height: 1.25)),
+        const SizedBox(height: 8),
+        Material(
+          color: ac.primaryBg,
+          borderRadius: BorderRadius.circular(Rad.xs),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(Rad.xs),
+            onTap: () => _open(context, CoursesHomePage(user: _u)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Center(child: Text('Browse Courses',
+                  style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: ac.primary))),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  // -- Campus Information -------------------------------------------------
+  Widget _campusInformationCard(BuildContext context) {
+    final isSchoolMember = !_isGuest && _u!.isSchoolMember;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), boxShadow: _glow),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Campus Information', style: GoogleFonts.sora(fontSize: 13.5, fontWeight: FontWeight.w800, color: ac.txt)),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: _campusInfoTile(
+              icon: Icons.calendar_month_rounded, color: ac.grn,
+              label: 'Timetable', sublabel: 'View your class schedule',
+              onTap: isSchoolMember
+                  ? () => _open(context, TimetablePage(user: _u!))
+                  : () => showToast(context, 'Join your school to see your class timetable.'),
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: _campusInfoTile(
+              icon: Icons.chat_bubble_outline_rounded, color: ac.primary,
+              label: 'Messages', sublabel: 'Chat with teachers and students',
+              badge: (!_isGuest) ? _messagesUnreadBadge() : null,
+              onTap: _isGuest
+                  ? () => showToast(context, 'Sign in to message other members.')
+                  : () => _open(context, MessagesHomePage(user: _u!)),
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: _campusInfoTile(
+              icon: Icons.campaign_outlined, color: ac.pur,
+              label: 'Announcements', sublabel: 'Stay updated with latest news',
+              onTap: () => _open(context, AnnouncementsPage(
+                  user: _userOrGuest, canPost: !_isGuest && _u!.canPostAnnouncement)),
+            )),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  Widget _campusInfoTile({
+    required IconData icon, required Color color, required String label, required String sublabel,
+    required VoidCallback onTap, Widget? badge,
+  }) {
+    return Material(
+      color: color.withValues(alpha: .08),
+      borderRadius: BorderRadius.circular(Rad.sm),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Rad.sm),
+        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Stack(clipBehavior: Clip.none, children: [
+              Icon(icon, color: color, size: 20),
+              if (badge != null) badge,
+            ]),
+            const SizedBox(height: 8),
+            Text(label, style: GoogleFonts.sora(fontSize: 11.5, fontWeight: FontWeight.w700, color: ac.txt)),
+            const SizedBox(height: 2),
+            Text(sublabel, maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(fontSize: 8.5, color: ac.txt2, height: 1.2)),
+          ]),
+        ),
+      ),
+    );
   }
 
   Widget _sectionHeader(String title, {VoidCallback? onViewAll, String viewAllLabel = 'View all'}) {
@@ -658,6 +953,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   // the mockup still has no real page in this app and stays out.
   Widget _quickAccessRow(BuildContext context) {
     final isSchoolMember = !_isGuest && _u!.isSchoolMember;
+    // Marks, Announcements and Messages have their own dedicated cards
+    // higher up the page now (see _marksAndCoursesRow / _campusInformationCard)
+    // -- kept out of here to avoid duplicate entries to the same destination.
     final items = <(String, IconData, Color, VoidCallback)>[
       ('Academia Library', Icons.menu_book_rounded, ac.primary,
           () => _open(context, AcademicContentPage(user: _userOrGuest))),
@@ -676,9 +974,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       if (isSchoolMember)
         ('School Connect', Icons.forum_outlined, ac.pur,
             () => _open(context, SchoolConnectPage(user: _u!))),
-      if (isSchoolMember)
-        ('Marks', Icons.assessment_outlined, ac.navy,
-            () => _open(context, MarksPage(user: _u!))),
       ('Magazine', Icons.auto_stories_rounded, ac.grn,
           () => _open(context, MagazineFeedPage(user: _userOrGuest))),
       ('Timetable', Icons.calendar_month_rounded, ac.gold,
@@ -687,11 +982,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       ('Challenge', Icons.local_fire_department_rounded, ac.org,
           _isGuest ? () => showToast(context, "Sign in to take today's challenge.")
                    : () => _open(context, DailyLearningHubPage(user: _u!))),
-      ('Announcements', Icons.campaign_rounded, ac.pur,
-          () => _open(context, AnnouncementsPage(user: _userOrGuest, canPost: !_isGuest && _u!.canPostAnnouncement))),
-      ('Messages', Icons.mail_outline_rounded, ac.primary,
-          _isGuest ? () => showToast(context, 'Sign in to message other members.')
-                   : () => _open(context, MessagesHomePage(user: _u!))),
     ];
     return SizedBox(
       height: 84,
@@ -757,7 +1047,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   // -- Upcoming Events + Announcements -------------------------------------
-  Widget _eventsAndAnnouncementsRow(BuildContext context) {
+  Widget _upcomingAndClubRow(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: IntrinsicHeight(
@@ -765,13 +1055,94 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           Expanded(child: _panel(title: 'Upcoming Events', child: _upcomingEventsContent())),
           const SizedBox(width: 12),
           Expanded(child: _panel(
-              title: 'Announcements',
-              onTap: () => _open(context, AnnouncementsPage(
-                  user: _userOrGuest, canPost: !_isGuest && _u!.canPostAnnouncement)),
-              child: _announcementsContent())),
+              title: 'My Club',
+              onTap: _isGuest ? null : () => _open(context, ClubsPage(user: _u!)),
+              child: _myClubContent(context))),
         ]),
       ),
     );
+  }
+
+  /// Real upcoming events from the clubs this user has actually joined
+  /// (ClubRepository.watchMyClubIds -> ClubEvent.watchEvents, filtered to
+  /// the future) -- not the mockup's specific example meetings, which
+  /// this app has no backing to reproduce for an arbitrary user. Honest
+  /// "no upcoming meetings" state when the user has no clubs or none of
+  /// their clubs have a future event scheduled.
+  Future<List<({String clubName, ClubEvent event})>> _upcomingClubEvents() async {
+    if (_isGuest) return const [];
+    final clubIds = await ClubRepository.instance.watchMyClubIds(_u!.id).first
+        .timeout(const Duration(seconds: 5), onTimeout: () => const <String>[]);
+    if (clubIds.isEmpty) return const [];
+    final clubs = await ClubRepository.instance.watchMyClubs(_u!.id).first
+        .timeout(const Duration(seconds: 5), onTimeout: () => const <Club>[]);
+    final nameById = {for (final c in clubs) c.id: c.name};
+    final out = <({String clubName, ClubEvent event})>[];
+    for (final id in clubIds.take(3)) {
+      final events = await ClubRepository.instance.watchEvents(id).first
+          .timeout(const Duration(seconds: 5), onTimeout: () => const <ClubEvent>[]);
+      for (final e in events) {
+        if (e.startAt.isAfter(DateTime.now())) out.add((clubName: nameById[id] ?? '', event: e));
+      }
+    }
+    out.sort((a, b) => a.event.startAt.compareTo(b.event.startAt));
+    return out.take(2).toList();
+  }
+
+  Widget _myClubContent(BuildContext context) {
+    if (_isGuest) {
+      return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(Icons.groups_outlined, color: ac.muted, size: 18),
+        const SizedBox(width: 8),
+        Expanded(child: Text('Sign in to see your clubs.',
+            style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted, height: 1.3))),
+      ]);
+    }
+    return FutureBuilder<List<({String clubName, ClubEvent event})>>(
+      future: _upcomingClubEvents(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const SizedBox(height: 40, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+        }
+        final items = snap.data ?? const [];
+        if (items.isEmpty) {
+          return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.groups_outlined, color: ac.muted, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text('No upcoming club meetings.',
+                style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted, height: 1.3))),
+          ]);
+        }
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 6, height: 6, margin: const EdgeInsets.only(top: 5),
+                decoration: BoxDecoration(color: ac.primary, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(items[i].clubName.isNotEmpty ? '${items[i].clubName}: ${items[i].event.title}' : items[i].event.title,
+                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.sora(fontSize: 10, fontWeight: FontWeight.w700, color: ac.txt, height: 1.3)),
+                  const SizedBox(height: 2),
+                  Text(_eventTimeLabel(items[i].event.startAt), style: GoogleFonts.inter(fontSize: 9, color: ac.muted)),
+                ]),
+              ),
+            ]),
+          ],
+        ]);
+      },
+    );
+  }
+
+  String _eventTimeLabel(DateTime d) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final ampm = d.hour < 12 ? 'AM' : 'PM';
+    return '${days[d.weekday - 1]}, ${h.toString()}:${d.minute.toString().padLeft(2, '0')} $ampm';
   }
 
   Widget _panel({required String title, required Widget child, VoidCallback? onTap}) {
@@ -871,47 +1242,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       Expanded(child: Text('No upcoming events yet.',
           style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted, height: 1.3))),
     ]);
-  }
-
-  Widget _announcementsContent() {
-    return StreamBuilder<List<Announcement>>(
-      stream: AnnouncementRepository.instance.watchAnnouncements(schoolId: _u?.schoolId),
-      builder: (context, snap) {
-        final items = (snap.data ?? const <Announcement>[]);
-        if (items.isEmpty) {
-          return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.campaign_rounded, color: ac.primary, size: 18),
-            const SizedBox(width: 8),
-            Expanded(child: Text('No announcements yet.',
-                style: GoogleFonts.inter(fontSize: 9, color: ac.muted, height: 1.3))),
-          ]);
-        }
-        final a = items.first;
-        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            width: 6, height: 6, margin: const EdgeInsets.only(top: 5),
-            decoration: BoxDecoration(color: ac.grn, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(a.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.sora(fontSize: 10.5, fontWeight: FontWeight.w700, color: ac.txt, height: 1.3)),
-              const SizedBox(height: 3),
-              Text(_timeAgo(a.date), style: GoogleFonts.inter(fontSize: 9, color: ac.muted)),
-            ]),
-          ),
-        ]);
-      },
-    );
-  }
-
-  String _timeAgo(DateTime date) {
-    final diff = DateTime.now().difference(date);
-    if (diff.inMinutes < 60) return '${diff.inMinutes.clamp(1, 59)} min ago';
-    if (diff.inHours < 24) return '${diff.inHours} hours ago';
-    if (diff.inDays < 7) return '${diff.inDays} day${diff.inDays == 1 ? '' : 's'} ago';
-    return '${date.day}/${date.month}/${date.year}';
   }
 
   // -- Recommended for You -- mix of Library + Courses --------------------

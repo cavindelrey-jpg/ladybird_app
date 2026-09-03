@@ -11,7 +11,9 @@ enum NotificationType {
   comment,
   reply,
   articlePublished,
-  system;
+  system,
+  homework,
+  dailyProgram;
 
   String get label {
     switch (this) {
@@ -20,6 +22,8 @@ enum NotificationType {
       case NotificationType.reply:            return 'Reply';
       case NotificationType.articlePublished: return 'New Article';
       case NotificationType.system:           return Branding.current.appName;
+      case NotificationType.homework:         return 'Homework';
+      case NotificationType.dailyProgram:     return "Tomorrow's Program";
     }
   }
 }
@@ -47,7 +51,8 @@ class AppNotification {
     const typeMap = {
       'announcement': NotificationType.announcement, 'comment': NotificationType.comment,
       'reply': NotificationType.reply, 'article_published': NotificationType.articlePublished,
-      'system': NotificationType.system,
+      'system': NotificationType.system, 'homework': NotificationType.homework,
+      'daily_program': NotificationType.dailyProgram,
     };
     return AppNotification(
       id: d['id'] as String,
@@ -61,7 +66,11 @@ class AppNotification {
   }
 
   Map<String, dynamic> toSupabase() => {
-        'type': type == NotificationType.articlePublished ? 'article_published' : type.name,
+        'type': switch (type) {
+          NotificationType.articlePublished => 'article_published',
+          NotificationType.dailyProgram => 'daily_program',
+          _ => type.name,
+        },
         'title': title,
         'body': body,
         'deep_link_id': deepLinkId,

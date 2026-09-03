@@ -22,6 +22,8 @@ class NotificationsPage extends StatelessWidget {
       case NotificationType.reply:            return Icons.reply_outlined;
       case NotificationType.articlePublished: return Icons.auto_stories_outlined;
       case NotificationType.system:           return Icons.info_outline_rounded;
+      case NotificationType.homework:         return Icons.menu_book_rounded;
+      case NotificationType.dailyProgram:     return Icons.today_rounded;
     }
   }
 

@@ -300,6 +300,27 @@ class AppUser {
   bool get canRecordAnyMarks =>
       isSchoolMember && (hasMinRole(UserRole.schoolAdmin) || isSchoolClassMaster || teachingAssignments.isNotEmpty);
 
+  /// Whether this account can create/manage homework for this specific
+  /// (subject, classLevel) pair. Deliberately does NOT mirror
+  /// canRecordMarksFor's class-master bypass: the homework RLS policy
+  /// (supabase/migrations/20260903160000_homework_and_calendar_events.sql)
+  /// only allows school_admin+ or a matching teachingAssignments entry --
+  /// granting a class-master bypass here without a matching DB policy
+  /// would show a working "Add Homework" button that silently fails on
+  /// submit.
+  bool canManageHomeworkFor({required String subject, required String classLevel}) {
+    if (!isSchoolMember) return false;
+    if (hasMinRole(UserRole.schoolAdmin)) return true;
+    return teachingAssignments.contains(TeachingAssignment(subject: subject, classLevel: classLevel));
+  }
+
+  /// Whether this account can manage homework for ANY (subject, classLevel)
+  /// at all -- the UI-visibility check for the Homework Management entry
+  /// point, mirroring [canRecordAnyMarks]'s shape (minus the class-master
+  /// bypass, for the same reason as [canManageHomeworkFor]).
+  bool get canManageHomework =>
+      isSchoolMember && (hasMinRole(UserRole.schoolAdmin) || teachingAssignments.isNotEmpty);
+
   // ── Privilege system ───────────────────────────────────────────────────────
   int get privilegeLevel {
     switch (role) {

@@ -5246,3 +5246,72 @@ build.
   as greenhills_app, so the personal_study_slots table / club_* realtime
   publication / app-content storage bucket fixes already applied there
   cover this app too — no DB changes needed here.
+
+## 2026-09-04 — Full-spec session kickoff: 15-item audit+build (marks/homework/quiz/notifications/XP/leaderboards/permissions/dark-mode/branding/study-plan bug)
+
+User pasted a large numbered spec (items 1-15) covering: Super Admin
+teacher assignment, Admin timetable management, Teacher Marks Entry,
+Teacher Homework System (normal + quiz-as-homework with server-side
+expiry), Student/Parent experience, the long-standing Study Plan
+"Add Session doesn't save" bug (HIGH-PRIORITY), a dark-mode readability
+audit (all pages, not just Magazine), Magazine branding consistency
+("Academia Magazine" everywhere), a full Notification system
+(announcements/messages/next-day timetable/recommendations/daily
+challenge), an XP economy transactional-integrity bug (CRITICAL —
+purchases not actually deducting XP), XP scoped ONLY to the public
+Academia app (never Green Hills/Legitbell white-labels, which must
+have all content auto-unlocked with no paywall), XP leaderboards
+(per-school + global Academia), a Permission model audit (Super
+Admin/Admin/Teacher/Class Master/Student/Parent + teacher authorization
+scopes, server-enforced not just route-hidden), and end-to-end testing
+of all of the above.
+
+**Assumption logged**: the pasted spec text was truncated at the start in
+what reached me — it began mid-sentence ("...arks-entry screen. The
+marks entered must actually persist..."), meaning items 1, 2, and the
+start of item 3 never arrived. Inferred their likely content from item
+14's own end-to-end test list (which independently describes "Super
+Admin: add teacher / assign to class / assign subjects / assign Class
+Master" and "Admin: create weekly + yearly timetable" and "Teacher:
+open authorized subject / select student / enter marks / save / verify
+persist") — proceeding on that inference rather than blocking to ask,
+per this file's own rule. Will revise if the user's next message shows
+the real items 1-2 differ from this inference.
+
+**Starting state found (not blank — this is a continuation of prior
+sessions' work on the same spec)**: git log already shows "Add Homework
+Management, Teacher Management, and School Calendar screens", "Add
+Homework/Teacher Management/Calendar data layer", "Wrap Marks/Timetable
+management pages in ManagementScaffold", "Fix critical cross-tenant RLS
+leak in school_marks/school_timetable_slots" as recent commits. Working
+tree additionally had, uncommitted: (a) two untracked migrations dated
+today (`20260904000000_teacher_authorization_enforcement.sql`,
+`20260904000001_homework_quizzes_and_extensions.sql`) that look like an
+interrupted attempt at items 3/4B/13 — need to verify Dart actually
+calls the new `is_teacher_authorized()`/`get_effective_homework_due_at()`
+before trusting them as done; (b) 4 modified Dart files already fixing
+Magazine branding text -> "Academia Magazine" (item 8) and Study Plan
+Add-Session validation (item 6) — confirmed via grep that no stale
+"Ladybird Magazine"/"Green Hills Magazine" strings remain in lib/**.dart,
+and confirmed `personal_study_slots` table + RLS + realtime publication
+already exist (migration `20260901000000`) with a real (non-mocked)
+Supabase-backed repository — so item 6's original root cause (missing
+table) looks already fixed by an even earlier session.
+
+**Environment note (recurring across sessions per this log's own
+history)**: this sandbox has no reliable network — `supabase migration
+list` and even a plain `ls` hung past 120s this session. Cannot run
+`supabase` CLI or confirm which migrations are actually applied to the
+live DB, or run `flutter analyze`/`flutter test`. Proceeding on static
+code reading; flagging every migration as "written, unverified-applied"
+rather than claiming it's live.
+
+**Process**: created `feature/spec-2026-09-04-full-audit` off `main`
+(main had no protection but this file's own "never work directly on
+main" rule applies) and carried the pre-existing uncommitted changes
+onto it. Dispatched a fork to build a full DONE/PARTIAL/MISSING/BROKEN
+inventory across all 15 items with file:line evidence before writing
+any more code, specifically hunting for item 15's "no mock data/fake
+success/frontend-only state" violations. Will prioritize CRITICAL/
+HIGH-PRIORITY items (6 - already appears largely fixed, 10 - XP
+transactional bug, unstarted) first once inventory returns.

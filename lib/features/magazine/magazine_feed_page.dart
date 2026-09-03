@@ -309,7 +309,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
           const SizedBox(width: 8),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Ladybird Magazine', style: AppText.h1.copyWith(fontSize: 20)),
+            Text('Academia Magazine', style: AppText.h1.copyWith(fontSize: 20)),
             Text('Write. Share. Inspire.', style: AppText.caption.copyWith(fontSize: 12)),
           ]),
         ),
@@ -466,8 +466,8 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
       case _FeedTab.following: subtitle = 'Follow a writer to see their articles here.'; break;
       case _FeedTab.local:     subtitle = 'No articles from your school yet.'; break;
       default:                 subtitle = _canCompose
-          ? 'Be the first to write for the Ladybird Magazine.'
-          : 'Sign in to be the first to write for the Ladybird Magazine.';
+          ? 'Be the first to write for the Academia Magazine.'
+          : 'Sign in to be the first to write for the Academia Magazine.';
     }
     return Center(
       child: Padding(

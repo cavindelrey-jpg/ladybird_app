@@ -158,6 +158,14 @@ class _SlotFormSheetState extends State<_SlotFormSheet> {
       showToast(context, 'Add what you\'ll be studying.');
       return;
     }
+
+    final startMin = _start.hour * 60 + _start.minute;
+    final endMin = _end.hour * 60 + _end.minute;
+    if (startMin >= endMin) {
+      showToast(context, 'End time must be after start time.');
+      return;
+    }
+
     setState(() => _saving = true);
     final slot = PersonalStudySlot(
       id: widget.existing?.id ?? '', userId: widget.user.id,
@@ -170,7 +178,7 @@ class _SlotFormSheetState extends State<_SlotFormSheet> {
     if (!mounted) return;
     setState(() => _saving = false);
     if (result is Success) {
-      Navigator.pop(context);
+      Navigator.of(context).pop();
     } else {
       showToast(context, (result as Failure).message, isError: true);
     }

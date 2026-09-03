@@ -351,7 +351,7 @@ class _ActionRow extends StatelessWidget {
         icon: Icons.share_outlined, color: ac.txt2, label: 'Share',
         onTap: () {
           HapticFeedback.selectionClick();
-          Share.share('${article.title}\n\nRead it on Ladybird Magazine.');
+          Share.share('${article.title}\n\nRead it on Academia Magazine.');
           if (u != null) repo.recordShare(article.id, u.id);
         },
       ),

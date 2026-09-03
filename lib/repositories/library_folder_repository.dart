@@ -6,6 +6,7 @@
 // .sql for the schema and why this shape was chosen over reusing the
 // Courses Level/Subject/Topic hierarchy.
 
+import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/library_folder.dart';
 import '../models/academic_content.dart';
@@ -27,6 +28,8 @@ String rootFolderNameForContentType(ContentType type) {
 class LibraryFolderRepository {
   LibraryFolderRepository._();
   static final LibraryFolderRepository instance = LibraryFolderRepository._();
+
+  static const String _bucket = 'app-content';
 
   final SupabaseClient _db = Supabase.instance.client;
   SupabaseQueryBuilder get _folders => _db.from('library_folders');
@@ -125,6 +128,30 @@ class LibraryFolderRepository {
       return const Success(null);
     } catch (e) {
       return Failure('Failed to delete folder', e);
+    }
+  }
+
+  /// Uploads a custom thumbnail image for a folder. Overwrites any
+  /// previous thumbnail at the same path (upsert), so re-editing a
+  /// folder's image doesn't leave orphaned files behind.
+  Future<Result<String>> uploadFolderImage({required String folderId, required File imageFile}) async {
+    try {
+      final path = 'library_folder_thumbnails/$folderId.jpg';
+      await _db.storage.from(_bucket).upload(path, imageFile, fileOptions: const FileOptions(upsert: true))
+          .timeout(const Duration(seconds: 60), onTimeout: () => throw Exception(
+              'Image upload is taking too long. Check your connection and try again.'));
+      return Success(_db.storage.from(_bucket).getPublicUrl(path));
+    } catch (e) {
+      return Failure('Failed to upload image', e);
+    }
+  }
+
+  Future<Result<void>> setFolderImage(String folderId, String imageUrl) async {
+    try {
+      await _folders.update({'image_url': imageUrl, 'updated_at': DateTime.now().toIso8601String()}).eq('id', folderId);
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to set folder thumbnail', e);
     }
   }
 

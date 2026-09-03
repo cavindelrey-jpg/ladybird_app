@@ -18,6 +18,8 @@ import '../../pages/profile_page.dart';
 import 'level_subjects_page.dart';
 import 'course_lessons_page.dart';
 import 'course_search_page.dart';
+import 'recommended_courses_page.dart';
+import 'curriculum_icon_editor.dart';
 
 class CoursesHomePage extends StatefulWidget {
   final AppUser? user;
@@ -33,7 +35,7 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
   int _recommendedPageCount = 1;
   late final Future<List<PublicCourse>> _recommendedFuture =
       PublicCourseRepository.instance.recommendedForUser(widget.user?.id, limit: 5);
-  late final Future<Map<String, CurriculumIcon>> _iconsFuture =
+  Future<Map<String, CurriculumIcon>> _iconsFuture =
       PublicCourseRepository.instance.curriculumIconsOnce();
 
   @override
@@ -44,6 +46,11 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
       if (mounted) setState(() => _recommendedPageCount = courses.length.clamp(1, 999));
     });
   }
+
+  /// Refetches curriculum icons after an admin edits a Level tile's
+  /// thumbnail — this page loads icons once rather than via a live
+  /// stream, so a change needs an explicit refresh to show immediately.
+  void _reloadIcons() => setState(() => _iconsFuture = PublicCourseRepository.instance.curriculumIconsOnce());
 
   @override
   void dispose() {
@@ -73,7 +80,9 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
             const SizedBox(height: 18),
             _levelRow(context, ac),
             const SizedBox(height: 26),
-            _sectionHeader('Recommended for You', ac, showNav: true),
+            _sectionHeader('Recommended for You', ac, showNav: true,
+                onSeeAll: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => RecommendedCoursesPage(user: widget.user)))),
             const SizedBox(height: 12),
             _recommendedRow(context, ac),
             const SizedBox(height: 24),
@@ -175,11 +184,13 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
                 itemBuilder: (context, i) => _LevelCard(
                   level: levels[i],
                   icon: icons[PublicCourseRepository.eduLevelIconKey(levels[i].name)] ?? CurriculumIcon.none,
+                  canManage: widget.user?.canUploadContent ?? false,
                   onTap: () {
                     HapticFeedback.selectionClick();
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => LevelSubjectsPage(level: levels[i].name, user: widget.user)));
                   },
+                  onChanged: _reloadIcons,
                 ),
               ),
             );
@@ -189,7 +200,7 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
     );
   }
 
-  Widget _sectionHeader(String title, AppColors ac, {bool showNav = false}) {
+  Widget _sectionHeader(String title, AppColors ac, {bool showNav = false, VoidCallback? onSeeAll}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(children: [
@@ -200,7 +211,20 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
           _navArrow(ac, Icons.chevron_left_rounded, () => _scrollRecommended(-1)),
           const SizedBox(width: 6),
           _navArrow(ac, Icons.chevron_right_rounded, () => _scrollRecommended(1)),
+          const SizedBox(width: 10),
         ],
+        if (onSeeAll != null)
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(Rad.xs),
+              onTap: onSeeAll,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: Text('See all', style: AppText.subtitle.copyWith(color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+              ),
+            ),
+          ),
       ]),
     );
   }
@@ -324,8 +348,15 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
 class _LevelCard extends StatelessWidget {
   final CourseLevelInfo level;
   final CurriculumIcon icon;
+  final bool canManage;
   final VoidCallback onTap;
-  const _LevelCard({required this.level, required this.icon, required this.onTap});
+  final VoidCallback onChanged;
+  const _LevelCard({
+    required this.level, required this.icon, required this.canManage,
+    required this.onTap, required this.onChanged,
+  });
+
+  String get _iconKey => PublicCourseRepository.eduLevelIconKey(level.name);
 
   @override
   Widget build(BuildContext context) {
@@ -336,6 +367,7 @@ class _LevelCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(Rad.md),
         onTap: onTap,
+        onLongPress: canManage ? () => _showMenu(context) : null,
         child: Container(
           width: 108,
           padding: const EdgeInsets.all(12),
@@ -352,6 +384,31 @@ class _LevelCard extends StatelessWidget {
                 style: AppText.caption.copyWith(fontSize: 10.5)),
           ]),
         ),
+      ),
+    );
+  }
+
+  void _showMenu(BuildContext context) {
+    final ac = AppColors.of(context);
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: ac.surf,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: Icon(Icons.image_outlined, color: ac.primary),
+            title: const Text('Edit thumbnail'),
+            onTap: () { Navigator.pop(sheetContext); editCurriculumThumbnail(context, iconKey: _iconKey, onChanged: onChanged); },
+          ),
+          if (icon.imageUrl.isNotEmpty)
+            ListTile(
+              leading: Icon(Icons.close_rounded, color: ac.muted),
+              title: const Text('Remove thumbnail'),
+              onTap: () { Navigator.pop(sheetContext); removeCurriculumThumbnail(context, iconKey: _iconKey, emoji: icon.emoji, onChanged: onChanged); },
+            ),
+        ]),
       ),
     );
   }

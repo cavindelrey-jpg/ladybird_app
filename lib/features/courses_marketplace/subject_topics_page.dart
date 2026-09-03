@@ -12,6 +12,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import 'hierarchy_browse_scaffold.dart';
 import 'topic_courses_page.dart';
+import 'curriculum_icon_editor.dart';
 
 class SubjectTopicsPage extends StatefulWidget {
   final String level;
@@ -60,14 +61,16 @@ class _SubjectTopicsPageState extends State<SubjectTopicsPage> {
       searchableText: (t) => t,
       emptyMessage: 'No topics have courses placed under this subject yet.',
       gridTileBuilder: (context, topic) => _TopicTile(
-        topic: topic, count: _counts[topic] ?? 0,
+        level: widget.level, subject: widget.subject, topic: topic, count: _counts[topic] ?? 0,
         icon: _icons[PublicCourseRepository.eduTopicIconKey(widget.level, widget.subject, topic)] ?? CurriculumIcon.none,
-        isGrid: true, onTap: () => _open(context, topic),
+        isGrid: true, canManage: widget.user?.canUploadContent ?? false,
+        onTap: () => _open(context, topic), onChanged: _load,
       ),
       listTileBuilder: (context, topic) => _TopicTile(
-        topic: topic, count: _counts[topic] ?? 0,
+        level: widget.level, subject: widget.subject, topic: topic, count: _counts[topic] ?? 0,
         icon: _icons[PublicCourseRepository.eduTopicIconKey(widget.level, widget.subject, topic)] ?? CurriculumIcon.none,
-        isGrid: false, onTap: () => _open(context, topic),
+        isGrid: false, canManage: widget.user?.canUploadContent ?? false,
+        onTap: () => _open(context, topic), onChanged: _load,
       ),
     );
   }
@@ -80,14 +83,46 @@ class _SubjectTopicsPageState extends State<SubjectTopicsPage> {
 }
 
 class _TopicTile extends StatelessWidget {
+  final String level;
+  final String subject;
   final String topic;
   final int count;
   final CurriculumIcon icon;
   final bool isGrid;
+  final bool canManage;
   final VoidCallback onTap;
+  final VoidCallback onChanged;
   const _TopicTile({
-    required this.topic, required this.count, required this.icon, required this.isGrid, required this.onTap,
+    required this.level, required this.subject, required this.topic, required this.count, required this.icon,
+    required this.isGrid, required this.canManage, required this.onTap, required this.onChanged,
   });
+
+  String get _iconKey => PublicCourseRepository.eduTopicIconKey(level, subject, topic);
+
+  void _showMenu(BuildContext context) {
+    final ac = AppColors.of(context);
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: ac.surf,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: Icon(Icons.image_outlined, color: ac.primary),
+            title: const Text('Edit thumbnail'),
+            onTap: () { Navigator.pop(sheetContext); editCurriculumThumbnail(context, iconKey: _iconKey, onChanged: onChanged); },
+          ),
+          if (icon.imageUrl.isNotEmpty)
+            ListTile(
+              leading: Icon(Icons.close_rounded, color: ac.muted),
+              title: const Text('Remove thumbnail'),
+              onTap: () { Navigator.pop(sheetContext); removeCurriculumThumbnail(context, iconKey: _iconKey, emoji: icon.emoji, onChanged: onChanged); },
+            ),
+        ]),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,6 +134,7 @@ class _TopicTile extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(Rad.md),
           onTap: onTap,
+          onLongPress: canManage ? () => _showMenu(context) : null,
           child: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
@@ -121,6 +157,7 @@ class _TopicTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(Rad.md),
         onTap: onTap,
+        onLongPress: canManage ? () => _showMenu(context) : null,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),

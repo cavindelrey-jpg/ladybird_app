@@ -14,6 +14,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import 'hierarchy_browse_scaffold.dart';
 import 'subject_topics_page.dart';
+import 'curriculum_icon_editor.dart';
 
 class LevelSubjectsPage extends StatefulWidget {
   final String level;
@@ -61,14 +62,16 @@ class _LevelSubjectsPageState extends State<LevelSubjectsPage> {
       searchableText: (s) => s,
       emptyMessage: 'No subjects have courses placed under this level yet.',
       gridTileBuilder: (context, subject) => _SubjectTile(
-        subject: subject, count: _counts[subject] ?? 0,
+        level: widget.level, subject: subject, count: _counts[subject] ?? 0,
         icon: _icons[PublicCourseRepository.eduSubjectIconKey(widget.level, subject)] ?? CurriculumIcon.none,
-        isGrid: true, onTap: () => _open(context, subject),
+        isGrid: true, canManage: widget.user?.canUploadContent ?? false,
+        onTap: () => _open(context, subject), onChanged: _load,
       ),
       listTileBuilder: (context, subject) => _SubjectTile(
-        subject: subject, count: _counts[subject] ?? 0,
+        level: widget.level, subject: subject, count: _counts[subject] ?? 0,
         icon: _icons[PublicCourseRepository.eduSubjectIconKey(widget.level, subject)] ?? CurriculumIcon.none,
-        isGrid: false, onTap: () => _open(context, subject),
+        isGrid: false, canManage: widget.user?.canUploadContent ?? false,
+        onTap: () => _open(context, subject), onChanged: _load,
       ),
     );
   }
@@ -81,14 +84,45 @@ class _LevelSubjectsPageState extends State<LevelSubjectsPage> {
 }
 
 class _SubjectTile extends StatelessWidget {
+  final String level;
   final String subject;
   final int count;
   final CurriculumIcon icon;
   final bool isGrid;
+  final bool canManage;
   final VoidCallback onTap;
+  final VoidCallback onChanged;
   const _SubjectTile({
-    required this.subject, required this.count, required this.icon, required this.isGrid, required this.onTap,
+    required this.level, required this.subject, required this.count, required this.icon, required this.isGrid,
+    required this.canManage, required this.onTap, required this.onChanged,
   });
+
+  String get _iconKey => PublicCourseRepository.eduSubjectIconKey(level, subject);
+
+  void _showMenu(BuildContext context) {
+    final ac = AppColors.of(context);
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: ac.surf,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: Icon(Icons.image_outlined, color: ac.primary),
+            title: const Text('Edit thumbnail'),
+            onTap: () { Navigator.pop(sheetContext); editCurriculumThumbnail(context, iconKey: _iconKey, onChanged: onChanged); },
+          ),
+          if (icon.imageUrl.isNotEmpty)
+            ListTile(
+              leading: Icon(Icons.close_rounded, color: ac.muted),
+              title: const Text('Remove thumbnail'),
+              onTap: () { Navigator.pop(sheetContext); removeCurriculumThumbnail(context, iconKey: _iconKey, emoji: icon.emoji, onChanged: onChanged); },
+            ),
+        ]),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +134,7 @@ class _SubjectTile extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(Rad.md),
           onTap: onTap,
+          onLongPress: canManage ? () => _showMenu(context) : null,
           child: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
@@ -122,6 +157,7 @@ class _SubjectTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(Rad.md),
         onTap: onTap,
+        onLongPress: canManage ? () => _showMenu(context) : null,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),

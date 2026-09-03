@@ -20,6 +20,7 @@ import '../courses_marketplace/hierarchy_browse_scaffold.dart';
 import 'content_details_page.dart';
 import 'content_upload_page.dart';
 import 'library_folder_picker_page.dart';
+import 'folder_thumbnail_editor.dart';
 
 class LibraryFolderPage extends StatefulWidget {
   final String folderId;
@@ -269,7 +270,7 @@ class _EntryTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(Rad.md),
         onTap: onOpen,
-        onLongPress: canManage ? () => _showFolderMenu(context) : null,
+        onLongPress: canManage ? () => _showFolderMenu(context, folder) : null,
         child: Container(
           padding: EdgeInsets.all(isGrid ? 10 : 12),
           decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
@@ -279,7 +280,7 @@ class _EntryTile extends StatelessWidget {
     );
   }
 
-  void _showFolderMenu(BuildContext context) {
+  void _showFolderMenu(BuildContext context, LibraryFolder folder) {
     final ac = AppColors.of(context);
     HapticFeedback.mediumImpact();
     showModalBottomSheet(
@@ -288,6 +289,17 @@ class _EntryTile extends StatelessWidget {
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (sheetContext) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: Icon(Icons.image_outlined, color: ac.primary),
+            title: const Text('Edit thumbnail'),
+            onTap: () { Navigator.pop(sheetContext); editFolderThumbnail(context, folder); },
+          ),
+          if ((folder.imageUrl ?? '').isNotEmpty)
+            ListTile(
+              leading: Icon(Icons.close_rounded, color: ac.muted),
+              title: const Text('Remove thumbnail'),
+              onTap: () { Navigator.pop(sheetContext); removeFolderThumbnail(context, folder); },
+            ),
           ListTile(
             leading: Icon(Icons.drive_file_rename_outline_rounded, color: ac.primary),
             title: const Text('Rename'),

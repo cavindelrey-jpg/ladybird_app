@@ -5,8 +5,8 @@
 //      Documents, Books, + whatever an admin has added; never hardcoded,
 //      see library_folder_repository.dart). Tapping one opens
 //      LibraryFolderPage, a genuine admin-editable folder tree.
-//   2. Recommended for You — individual resources, horizontal cards, no
-//      "See all" (a small rotating selection, not another folder system).
+//   2. Recommended for You — individual resources, horizontal cards you
+//      can slide through, plus a "See all" into the full list.
 //   3. Recent Reads — vertical list of the user's actual reading history,
 //      padded with recommended items if there isn't enough real history.
 //
@@ -16,6 +16,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/result.dart';
 import '../../models/app_user.dart';
 import '../../models/library_folder.dart';
 import '../../models/academic_content.dart';
@@ -33,6 +34,8 @@ import 'library_folder_page.dart';
 import 'library_search_page.dart';
 import 'content_details_page.dart';
 import 'content_upload_page.dart';
+import 'recommended_library_page.dart';
+import 'folder_thumbnail_editor.dart';
 
 class LibraryHomePage extends StatelessWidget {
   final AppUser user;
@@ -55,7 +58,8 @@ class LibraryHomePage extends StatelessWidget {
             const SizedBox(height: 12),
             _fileExplorer(context, ac),
             const SizedBox(height: 26),
-            _sectionHeader('Recommended for You', ac),
+            _sectionHeader('Recommended for You', ac, onSeeAll: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => RecommendedLibraryPage(user: user)))),
             const SizedBox(height: 12),
             _recommendedRow(context, ac),
             const SizedBox(height: 24),
@@ -104,13 +108,25 @@ class LibraryHomePage extends StatelessWidget {
     );
   }
 
-  Widget _sectionHeader(String title, AppColors ac) {
+  Widget _sectionHeader(String title, AppColors ac, {VoidCallback? onSeeAll}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(children: [
         Container(width: 4, height: 18, decoration: BoxDecoration(color: ac.primary, borderRadius: BorderRadius.circular(2))),
         const SizedBox(width: 8),
         Expanded(child: Text(title, style: AppText.h2.copyWith(fontSize: 16, color: ac.txt))),
+        if (onSeeAll != null)
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(Rad.xs),
+              onTap: onSeeAll,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: Text('See all', style: AppText.subtitle.copyWith(color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+              ),
+            ),
+          ),
       ]),
     );
   }
@@ -137,7 +153,7 @@ class LibraryHomePage extends StatelessWidget {
           );
         }
         final folders = snap.data ?? const <LibraryFolder>[];
-        if (folders.isEmpty) {
+        if (folders.isEmpty && !_canUpload) {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text('No folders configured yet.', style: AppText.bodySm.copyWith(color: ac.txt2)),
@@ -148,18 +164,40 @@ class LibraryHomePage extends StatelessWidget {
           child: GridView.count(
             crossAxisCount: 4, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
             crossAxisSpacing: 10, mainAxisSpacing: 10, childAspectRatio: 0.8,
-            children: folders.map((f) => _FolderCard(
-              folder: f,
-              onTap: () {
-                HapticFeedback.selectionClick();
-                Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => LibraryFolderPage(folderId: f.id, folderName: f.name, user: user)));
-              },
-            )).toList(),
+            children: [
+              ...folders.map((f) => _FolderCard(
+                folder: f,
+                canManage: _canUpload,
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => LibraryFolderPage(folderId: f.id, folderName: f.name, user: user)));
+                },
+              )),
+              if (_canUpload) _AddFolderTile(onTap: () => _createRootFolder(context)),
+            ],
           ),
         );
       },
     );
+  }
+
+  Future<void> _createRootFolder(BuildContext context) async {
+    final ctrl = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: const Text('New folder'),
+        content: TextField(controller: ctrl, autofocus: true, decoration: const InputDecoration(hintText: 'Name')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dCtx, ctrl.text), child: const Text('Create')),
+        ],
+      ),
+    );
+    if (name == null || name.trim().isEmpty) return;
+    final result = await LibraryFolderRepository.instance.createFolder(parentId: null, name: name);
+    if (context.mounted && result is Failure) showToast(context, (result as Failure).message);
   }
 
   Widget _recommendedRow(BuildContext context, AppColors ac) {
@@ -257,10 +295,44 @@ class LibraryHomePage extends StatelessWidget {
   }
 }
 
+/// Appended to the File Explorer grid for admins — "a new place to put
+/// [files]" at the top level, matching the same add-a-folder capability
+/// already available one level down inside LibraryFolderPage.
+class _AddFolderTile extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AddFolderTile({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: ac.bdr2, width: 1.5),
+          ),
+          alignment: Alignment.center,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.add_rounded, color: ac.primary, size: 22),
+            const SizedBox(height: 2),
+            Text('Add', style: AppText.caption.copyWith(fontSize: 10.5, fontWeight: FontWeight.w700, color: ac.primary)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
 class _FolderCard extends StatelessWidget {
   final LibraryFolder folder;
+  final bool canManage;
   final VoidCallback onTap;
-  const _FolderCard({required this.folder, required this.onTap});
+  const _FolderCard({required this.folder, required this.canManage, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -271,6 +343,7 @@ class _FolderCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
+        onLongPress: canManage ? () => _showMenu(context) : null,
         child: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(borderRadius: BorderRadius.circular(14), border: Border.all(color: ac.bdr2)),
@@ -282,6 +355,31 @@ class _FolderCard extends StatelessWidget {
                 maxLines: 2, overflow: TextOverflow.ellipsis),
           ]),
         ),
+      ),
+    );
+  }
+
+  void _showMenu(BuildContext context) {
+    final ac = AppColors.of(context);
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: ac.surf,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetContext) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: Icon(Icons.image_outlined, color: ac.primary),
+            title: const Text('Edit thumbnail'),
+            onTap: () { Navigator.pop(sheetContext); editFolderThumbnail(context, folder); },
+          ),
+          if ((folder.imageUrl ?? '').isNotEmpty)
+            ListTile(
+              leading: Icon(Icons.close_rounded, color: ac.muted),
+              title: const Text('Remove thumbnail'),
+              onTap: () { Navigator.pop(sheetContext); removeFolderThumbnail(context, folder); },
+            ),
+        ]),
       ),
     );
   }

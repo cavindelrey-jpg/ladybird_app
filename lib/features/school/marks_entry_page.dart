@@ -20,6 +20,7 @@ import '../../repositories/school_marks_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
+import 'widgets/management_scaffold.dart';
 
 class MarksEntryPage extends StatefulWidget {
   final AppUser staff;
@@ -144,13 +145,9 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        title: Text('Enter Marks', style: AppText.h2.copyWith(fontSize: 16, color: ac.txt)),
-        iconTheme: IconThemeData(color: ac.txt),
-      ),
+    return ManagementScaffold(
+      title: 'Enter Marks',
+      sidebarItems: const [ManagementNavItem(icon: Icons.assessment_outlined, label: 'Marks', selected: true)],
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

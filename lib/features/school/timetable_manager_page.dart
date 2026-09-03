@@ -13,6 +13,7 @@ import '../../repositories/school_timetable_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
+import 'widgets/management_scaffold.dart';
 
 class TimetableManagerPage extends StatefulWidget {
   final AppUser user;
@@ -53,13 +54,9 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        title: Text('Manage Timetable', style: AppText.h2.copyWith(fontSize: 16, color: ac.txt)),
-        iconTheme: IconThemeData(color: ac.txt),
-      ),
+    return ManagementScaffold(
+      title: 'Manage Timetable',
+      sidebarItems: const [ManagementNavItem(icon: Icons.calendar_month_rounded, label: 'Timetable', selected: true)],
       floatingActionButton: FloatingActionButton(
         backgroundColor: ac.primary,
         onPressed: schoolId.isEmpty || _classLevel.isEmpty

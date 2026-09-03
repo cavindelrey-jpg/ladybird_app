@@ -294,7 +294,7 @@ class _EntryTile extends StatelessWidget {
             onTap: () { Navigator.pop(sheetContext); onRename(); },
           ),
           ListTile(
-            leading: Icon(Icons.drive_file_move_outline_rounded, color: ac.primary),
+            leading: Icon(Icons.folder_open_rounded, color: ac.primary),
             title: const Text('Move to folder…'),
             onTap: () { Navigator.pop(sheetContext); onMoveFolder(); },
           ),
@@ -318,7 +318,7 @@ class _EntryTile extends StatelessWidget {
       builder: (sheetContext) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
-            leading: Icon(Icons.drive_file_move_outline_rounded, color: ac.primary),
+            leading: Icon(Icons.folder_open_rounded, color: ac.primary),
             title: const Text('Move to folder…'),
             onTap: () { Navigator.pop(sheetContext); onMove(); },
           ),

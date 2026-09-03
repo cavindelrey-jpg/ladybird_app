@@ -110,6 +110,11 @@ class AcademicContent {
   final int views;
   final int downloads;
 
+  /// The Academia Library File Explorer folder this item is filed in
+  /// (library_folders.id, shared with academia-cameroon on the same
+  /// Supabase project). Null means "Unfiled".
+  final String? folderId;
+
   const AcademicContent({
     required this.id,
     required this.title,
@@ -129,6 +134,7 @@ class AcademicContent {
     required this.tags,
     this.views = 0,
     this.downloads = 0,
+    this.folderId,
   });
 
   factory AcademicContent.fromSupabase(Map<String, dynamic> d) {
@@ -153,6 +159,7 @@ class AcademicContent {
       tags: List<String>.from(d['tags'] ?? []),
       views: (d['views'] as num?)?.toInt() ?? 0,
       downloads: (d['downloads'] as num?)?.toInt() ?? 0,
+      folderId: d['folder_id'] as String?,
     );
   }
 
@@ -177,6 +184,7 @@ class AcademicContent {
     'tags': tags,
     'views': views,
     'downloads': downloads,
+    'folder_id': folderId,
   };
 
   AcademicContent copyWith({
@@ -199,6 +207,7 @@ class AcademicContent {
     List<String>? tags,
     int? views,
     int? downloads,
+    String? folderId,
   }) => AcademicContent(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -218,6 +227,7 @@ class AcademicContent {
     tags: tags ?? this.tags,
     views: views ?? this.views,
     downloads: downloads ?? this.downloads,
+    folderId: folderId ?? this.folderId,
   );
 }
 

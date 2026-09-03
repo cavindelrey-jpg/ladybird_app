@@ -22,7 +22,7 @@ import '../services/auth_service.dart';
 import '../repositories/magazine_repository.dart';
 import 'first_login_screen.dart';
 // pages
-import '../features/academic_content/academic_content_page.dart';
+import '../features/academic_content/library_home_page.dart';
 import '../features/courses_marketplace/courses_home_page.dart';
 import '../pages/profile_page.dart';
 import '../features/dashboard/universal_home_page.dart';
@@ -303,7 +303,7 @@ class _HomeShellState extends State<HomeShell> {
     }
     switch (def.label) {
       case 'Home':     return UniversalHomePage(user: u);
-      case 'Library':  return AcademicContentPage(user: u);
+      case 'Library':  return LibraryHomePage(user: u);
       case 'Magazine': return MagazineFeedPage(user: u);
       case 'Courses':  return CoursesHomePage(user: u);
       case 'Profile':  return ProfilePage(user: u);

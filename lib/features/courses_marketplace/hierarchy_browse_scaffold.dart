@@ -22,6 +22,7 @@ class HierarchyBrowseScaffold<T> extends StatefulWidget {
   final Widget Function(BuildContext context, T item) gridTileBuilder;
   final Widget Function(BuildContext context, T item) listTileBuilder;
   final String emptyMessage;
+  final Widget? floatingActionButton;
 
   const HierarchyBrowseScaffold({
     super.key,
@@ -34,6 +35,7 @@ class HierarchyBrowseScaffold<T> extends StatefulWidget {
     required this.gridTileBuilder,
     required this.listTileBuilder,
     this.emptyMessage = 'Nothing here yet.',
+    this.floatingActionButton,
   });
 
   @override
@@ -63,6 +65,7 @@ class _HierarchyBrowseScaffoldState<T> extends State<HierarchyBrowseScaffold<T>>
     final ac = AppColors.of(context);
     return Scaffold(
       backgroundColor: ac.bg,
+      floatingActionButton: widget.floatingActionButton,
       appBar: AppBar(
         backgroundColor: ac.bg, elevation: 0,
         iconTheme: IconThemeData(color: ac.txt),

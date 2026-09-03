@@ -16,7 +16,12 @@ import '../../theme/app_colors.dart';
 import '../../widgets/app_background.dart';
 class ContentUploadPage extends StatefulWidget {
   final AppUser user;
-  const ContentUploadPage({super.key, required this.user});
+
+  /// The File Explorer folder to file this upload into. Null means
+  /// "Unfiled" until an admin moves it.
+  final String? initialFolderId;
+
+  const ContentUploadPage({super.key, required this.user, this.initialFolderId});
 
   @override
   State<ContentUploadPage> createState() => _ContentUploadPageState();
@@ -154,6 +159,7 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
       fileSizeBytes: _contentFile != null ? await _contentFile!.length() : null,
       uploadDate: DateTime.now(),
       tags: tags,
+      folderId: widget.initialFolderId,
     );
 
     final addResult = await repo.add(content);

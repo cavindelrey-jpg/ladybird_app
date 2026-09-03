@@ -22,9 +22,10 @@ import '../features/onboarding/account_choice_screen.dart';
 import '../screens/login_screen.dart';
 import '../features/courses_marketplace/courses_home_page.dart';
 import '../features/clubs/clubs_page.dart';
-import '../features/academic_content/academic_content_page.dart';
+import '../features/academic_content/library_home_page.dart';
+import '../features/academic_content/library_folder_page.dart';
+import '../repositories/library_folder_repository.dart';
 import '../features/messages/messages_home_page.dart';
-import '../models/academic_content.dart';
 import '../features/magazine/magazine_feed_page.dart';
 import '../pages/notifications_page.dart';
 import '../pages/help_support_page.dart';
@@ -74,16 +75,14 @@ class AppDrawer extends StatelessWidget {
                     _goSignIn(context);
                   } else {
                     Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => AcademicContentPage(user: user!)));
+                        builder: (_) => LibraryHomePage(user: user!)));
                   }
                 }),
                 _item(context, ac, Icons.description_rounded, 'Past Questions', () {
                   if (_isGuest) {
                     _goSignIn(context);
                   } else {
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => AcademicContentPage(
-                            user: user!, initialTypeFilter: ContentType.pastPaper)));
+                    _openLibraryFolderByName(context, user!, 'Past Papers');
                   }
                 }),
 
@@ -321,6 +320,20 @@ class AppDrawer extends StatelessWidget {
     );
   }
 
+
+  /// Deep-links straight into a Library root folder by name (e.g. "Past
+  /// Papers") — falls back to the Academia Library home page if that root
+  /// folder was renamed or removed since this shortcut was wired up.
+  Future<void> _openLibraryFolderByName(BuildContext context, AppUser user, String name) async {
+    final folder = await LibraryFolderRepository.instance.rootFolderByName(name);
+    if (!context.mounted) return;
+    if (folder == null) {
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => LibraryHomePage(user: user)));
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => LibraryFolderPage(folderId: folder.id, folderName: folder.name, user: user)));
+  }
 
   void _goSignIn(BuildContext context) {
     Navigator.of(context).push(MaterialPageRoute(

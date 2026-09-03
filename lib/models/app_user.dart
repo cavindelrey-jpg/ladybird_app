@@ -76,7 +76,7 @@ class AppUser {
   ///
   /// This REPLACES the old flat `isPremium` bool as the source of truth.
   /// `isPremium` still exists below as a derived getter, so every existing
-  /// caller (AcademicContentPage's premium-resource gate, XpRepository's
+  /// caller (LibraryHomePage's premium-resource gate, XpRepository's
   /// unlock checks) keeps working unchanged — the flat bool was never the
   /// concept, just the cheapest possible encoding of it.
   final Entitlement entitlement;
@@ -331,7 +331,7 @@ class AppUser {
 
   // ── Firestore ──────────────────────────────────────────────────────────────
   /// Lightweight placeholder passed to pages that require a non-null
-  /// AppUser (e.g. AcademicContentPage) when a guest is browsing read-only content.
+  /// AppUser (e.g. LibraryHomePage) when a guest is browsing read-only content.
   /// Never written to Firestore, never treated as a real account — id
   /// stays empty so any accidental write attempt is a visible no-op
   /// (AuthService methods already early-return on empty id).

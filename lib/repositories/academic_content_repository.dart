@@ -3,6 +3,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -443,6 +444,42 @@ class AcademicContentRepository {
     } catch (_) {
       return null;
     }
+  }
+
+  // ─── Recommendations (real data, date-seeded rotation) ─────────────────
+  // Same approach as PublicCourseRepository.recommendedForUser: same order
+  // all day for a given user, a different one the next day — a real
+  // rotation, not per-refresh randomness, and never a fabricated list.
+
+  Future<List<AcademicContent>> recommendedForUser(String? userId, {int limit = 5}) async {
+    final pool = await _db.from(_table).select().order('upload_date', ascending: false).limit(200);
+    var items = pool.map(AcademicContent.fromSupabase).toList();
+    if (items.isEmpty) return const [];
+
+    Set<String> subjects = {};
+    if (userId != null) {
+      final recentRows = await _db
+          .from('content_recent_views')
+          .select('content_id')
+          .eq('user_id', userId)
+          .order('viewed_at', ascending: false)
+          .limit(20);
+      final recentIds = recentRows.map((r) => r['content_id'] as String).toSet();
+      subjects = items.where((c) => recentIds.contains(c.id) && c.subject.isNotEmpty)
+          .map((c) => c.subject).toSet();
+    }
+
+    final scored = items.where((c) => subjects.isEmpty || subjects.contains(c.subject)).toList();
+    final candidates = scored.length >= limit ? scored : items;
+    candidates.sort((a, b) {
+      final scoreA = a.views * 1.0 + a.downloads * 2.0;
+      final scoreB = b.views * 1.0 + b.downloads * 2.0;
+      return scoreB.compareTo(scoreA);
+    });
+    final top = candidates.take(limit * 3).toList();
+    final seed = DateTime.now().difference(DateTime(2020)).inDays + (userId?.hashCode ?? 0);
+    top.shuffle(Random(seed));
+    return top.take(limit).toList();
   }
 
   // ─── Storage Upload ───────────────────────────────────────────────────────

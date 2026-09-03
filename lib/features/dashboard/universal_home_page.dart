@@ -72,7 +72,9 @@ import '../../pages/notifications_page.dart';
 import '../academic_content/content_viewer_page.dart';
 import '../academic_content/content_details_page.dart';
 import '../testing/quiz_categories_page.dart';
-import '../academic_content/academic_content_page.dart';
+import '../academic_content/library_home_page.dart';
+import '../academic_content/library_folder_page.dart';
+import '../../repositories/library_folder_repository.dart';
 import '../clubs/clubs_page.dart';
 import '../magazine/magazine_feed_page.dart';
 import '../announcements/announcements_page.dart';
@@ -173,7 +175,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             _motivationBanner(context),
             const SizedBox(height: 24),
             _sectionHeader('Recommended for You',
-                onViewAll: () => _open(context, AcademicContentPage(user: _userOrGuest))),
+                onViewAll: () => _open(context, LibraryHomePage(user: _userOrGuest))),
             const SizedBox(height: 12),
             _recommendedRow(context),
           ],
@@ -386,7 +388,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               if (data != null) {
                 _reopenContinueReading(context, data);
               } else {
-                _open(context, AcademicContentPage(user: _userOrGuest));
+                _open(context, LibraryHomePage(user: _userOrGuest));
               }
             },
             child: Padding(
@@ -766,6 +768,20 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 
+  /// Deep-links straight into a Library root folder by name (e.g. "Past
+  /// Papers") instead of the Academia Library home page — falls back to
+  /// the home page if that root folder was renamed or removed since this
+  /// shortcut was wired up, rather than dead-ending.
+  Future<void> _openLibraryFolderByName(BuildContext context, AppUser user, String name) async {
+    final folder = await LibraryFolderRepository.instance.rootFolderByName(name);
+    if (!context.mounted) return;
+    if (folder == null) {
+      _open(context, LibraryHomePage(user: user));
+      return;
+    }
+    _open(context, LibraryFolderPage(folderId: folder.id, folderName: folder.name, user: user));
+  }
+
   // -- Continue Learning -------------------------------------------------
   // Real Continue Reading position, sourced from
   // AcademicContentRepository's per-user readPositions (recorded by
@@ -958,9 +974,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     // -- kept out of here to avoid duplicate entries to the same destination.
     final items = <(String, IconData, Color, VoidCallback)>[
       ('Academia Library', Icons.menu_book_rounded, ac.primary,
-          () => _open(context, AcademicContentPage(user: _userOrGuest))),
+          () => _open(context, LibraryHomePage(user: _userOrGuest))),
       ('Past Questions', Icons.description_rounded, ac.grn,
-          () => _open(context, AcademicContentPage(user: _userOrGuest, initialTypeFilter: ContentType.pastPaper))),
+          () => _openLibraryFolderByName(context, _userOrGuest, 'Past Papers')),
       // Covers both Quizzes and Tests -- this codebase doesn't model
       // "Tests" as a separate system from Quizzes (see
       // tests_subject_picker_page.dart's own file comment), so a second

@@ -35,6 +35,9 @@ import '../features/testing/test_composer_page.dart';
 import '../features/school/school_connect_page.dart';
 import '../features/school/marks_page.dart';
 import '../features/school/timetable_page.dart';
+import '../features/school/homework_page.dart';
+import '../features/school/teacher_management_page.dart';
+import '../features/school/school_calendar_page.dart';
 
 class AppDrawer extends StatelessWidget {
   final AppUser? user;
@@ -128,6 +131,22 @@ class AppDrawer extends StatelessWidget {
                   _item(context, ac, Icons.calendar_month_outlined, 'Timetable', () {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => TimetablePage(user: user!)));
+                  }),
+                  _item(context, ac, Icons.menu_book_outlined, 'Homework', () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => HomeworkPage(user: user!)));
+                  }),
+                  _item(context, ac, Icons.event_note_outlined, 'School Calendar', () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => SchoolCalendarPage(user: user!)));
+                  }),
+                ],
+
+                if (!_isGuest && user!.isAdmin) ...[
+                  _sectionLabel(ac, 'School Administration'),
+                  _item(context, ac, Icons.badge_outlined, 'Teacher Management', () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => TeacherManagementPage(admin: user!)));
                   }),
                 ],
 

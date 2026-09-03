@@ -1,0 +1,299 @@
+// lib/features/school/teacher_management_page.dart
+// Admin Teacher-Control System (school-operations spec item 7): register
+// which (subject, classLevel) pairs a teacher may act on, and who is a
+// class's Class Master. This is the ONLY place that writes
+// AppUser.teachingAssignments/classMasterOfClass -- nothing else in the
+// app could set them before this page existed (grep confirmed
+// teachingAssignments was write-only-by-hand-in-Postgres until now). Rides
+// on the existing users_update_admin RLS policy (academia-cameroon's
+// 20260828060100_rls_policies.sql) -- see TeacherManagementRepository's
+// own header comment for why no new RPC/policy was needed.
+
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../core/result.dart';
+import '../../models/academic_content.dart' show kAcademicSubjects, kAcademicLevels;
+import '../../models/app_user.dart';
+import '../../models/teaching_assignment.dart';
+import '../../repositories/teacher_management_repository.dart';
+import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
+import '../../widgets/widgets.dart';
+import 'widgets/management_scaffold.dart';
+
+// Undergraduate/All Levels (the last two of kAcademicLevels) describe
+// CONTENT scope, not an actual class in this school's own roster -- a
+// teacher is never "assigned to" either one.
+List<String> get _schoolClassLevels => kAcademicLevels.take(7).toList();
+
+class TeacherManagementPage extends StatefulWidget {
+  final AppUser admin;
+  const TeacherManagementPage({super.key, required this.admin});
+
+  @override
+  State<TeacherManagementPage> createState() => _TeacherManagementPageState();
+}
+
+class _TeacherManagementPageState extends State<TeacherManagementPage> {
+  final _searchCtrl = TextEditingController();
+  List<AppUser> _results = [];
+  List<AppUser> _assigned = [];
+  bool _searching = false;
+  bool _loadingAssigned = true;
+
+  String get _schoolId => widget.admin.schoolId ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAssigned();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAssigned() async {
+    final staff = await TeacherManagementRepository.instance.assignedStaffOnce(_schoolId);
+    if (!mounted) return;
+    setState(() {
+      _assigned = staff;
+      _loadingAssigned = false;
+    });
+  }
+
+  Future<void> _search(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() => _results = []);
+      return;
+    }
+    setState(() => _searching = true);
+    final results = await TeacherManagementRepository.instance.searchStaff(_schoolId, query);
+    if (!mounted) return;
+    setState(() {
+      _results = results;
+      _searching = false;
+    });
+  }
+
+  void _openEditor(AppUser teacher) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AssignmentEditorSheet(
+        teacher: teacher,
+        onChanged: () {
+          _loadAssigned();
+          setState(() => _results = []);
+          _searchCtrl.clear();
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+
+    if (!widget.admin.hasMinRole(UserRole.schoolAdmin)) {
+      return Scaffold(
+        backgroundColor: ac.bg,
+        appBar: AppBar(backgroundColor: ac.bg, elevation: 0),
+        body: Center(child: Text('You need school-admin access to manage teachers.', style: GoogleFonts.inter(color: ac.muted))),
+      );
+    }
+
+    return ManagementScaffold(
+      title: 'Teacher Management',
+      sidebarItems: const [ManagementNavItem(icon: Icons.badge_outlined, label: 'Teachers', selected: true)],
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          TextField(
+            controller: _searchCtrl,
+            style: GoogleFonts.inter(fontSize: 13, color: ac.txt),
+            decoration: InputDecoration(
+              hintText: 'Search staff by name to register or edit',
+              prefixIcon: const Icon(Icons.search_rounded, size: 18),
+              filled: true,
+              fillColor: ac.surf3,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
+            ),
+            onChanged: _search,
+          ),
+          if (_searching) const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
+          for (final r in _results)
+            ListTile(
+              title: Text(r.name, style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
+              subtitle: Text(r.roleLabel, style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
+              trailing: Icon(Icons.chevron_right_rounded, color: ac.muted),
+              onTap: () => _openEditor(r),
+            ),
+          const SizedBox(height: 8),
+          Text('Assigned Staff', style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
+          const SizedBox(height: 8),
+          if (_loadingAssigned)
+            const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()))
+          else if (_assigned.isEmpty)
+            Text('No teacher has any assignments yet -- search above to get started.', style: GoogleFonts.inter(color: ac.muted))
+          else
+            for (final t in _assigned) _StaffTile(teacher: t, onTap: () => _openEditor(t)),
+        ],
+      ),
+    );
+  }
+}
+
+class _StaffTile extends StatelessWidget {
+  final AppUser teacher;
+  final VoidCallback onTap;
+  const _StaffTile({required this.teacher, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final summary = [
+      if (teacher.classMasterOfClass != null) 'Class Master of ${teacher.classMasterOfClass}',
+      for (final a in teacher.teachingAssignments) '${a.subject} · ${a.classLevel}',
+    ].join('\n');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
+      child: InkWell(
+        onTap: onTap,
+        child: Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(teacher.name, style: GoogleFonts.sora(fontSize: 13.5, fontWeight: FontWeight.w700, color: ac.txt)),
+              const SizedBox(height: 4),
+              Text(summary.isEmpty ? 'No assignments' : summary, style: GoogleFonts.inter(fontSize: 11.5, color: ac.muted)),
+            ]),
+          ),
+          Icon(Icons.chevron_right_rounded, color: ac.muted),
+        ]),
+      ),
+    );
+  }
+}
+
+class _AssignmentEditorSheet extends StatefulWidget {
+  final AppUser teacher;
+  final VoidCallback onChanged;
+  const _AssignmentEditorSheet({required this.teacher, required this.onChanged});
+
+  @override
+  State<_AssignmentEditorSheet> createState() => _AssignmentEditorSheetState();
+}
+
+class _AssignmentEditorSheetState extends State<_AssignmentEditorSheet> {
+  late List<TeachingAssignment> _assignments = List.of(widget.teacher.teachingAssignments);
+  late String? _classMaster = widget.teacher.classMasterOfClass;
+  String _addClass = _schoolClassLevels.first;
+  String _addSubject = kAcademicSubjects.first;
+  bool _saving = false;
+
+  Future<void> _saveAssignments(List<TeachingAssignment> next) async {
+    setState(() => _saving = true);
+    final result = await TeacherManagementRepository.instance.setTeachingAssignments(widget.teacher.id, next);
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      if (result is Success<void>) _assignments = next;
+    });
+    if (result is Failure<void>) showToast(context, result.message, isError: true);
+    widget.onChanged();
+  }
+
+  Future<void> _saveClassMaster(String? classLevel) async {
+    setState(() => _saving = true);
+    final result = await TeacherManagementRepository.instance.setClassMasterOfClass(widget.teacher.id, classLevel);
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      if (result is Success<void>) _classMaster = classLevel;
+    });
+    if (result is Failure<void>) showToast(context, result.message, isError: true);
+    widget.onChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (context, scrollCtrl) => Container(
+        decoration: BoxDecoration(color: ac.bg, borderRadius: const BorderRadius.vertical(top: Radius.circular(20))),
+        child: ListView(
+          controller: scrollCtrl,
+          padding: const EdgeInsets.all(20),
+          children: [
+            Text(widget.teacher.name, style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w800, color: ac.txt)),
+            Text(widget.teacher.roleLabel, style: GoogleFonts.inter(fontSize: 12, color: ac.muted)),
+            const SizedBox(height: 20),
+            Text('Class Master Of', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: ac.txt)),
+            const SizedBox(height: 6),
+            DropdownButtonFormField<String?>(
+              initialValue: _classMaster,
+              decoration: const InputDecoration(hintText: 'Not a class master'),
+              items: [
+                const DropdownMenuItem<String?>(value: null, child: Text('Not a class master')),
+                for (final c in _schoolClassLevels) DropdownMenuItem<String?>(value: c, child: Text(c)),
+              ],
+              onChanged: _saving ? null : _saveClassMaster,
+            ),
+            const SizedBox(height: 20),
+            Text('Teaching Assignments', style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: ac.txt)),
+            const SizedBox(height: 8),
+            if (_assignments.isEmpty)
+              Text('No subjects assigned yet.', style: GoogleFonts.inter(fontSize: 12.5, color: ac.muted)),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final a in _assignments)
+                Chip(
+                  label: Text('${a.subject} · ${a.classLevel}'),
+                  onDeleted: _saving ? null : () => _saveAssignments(List.of(_assignments)..remove(a)),
+                ),
+            ]),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: _addClass,
+                  decoration: const InputDecoration(labelText: 'Class'),
+                  items: [for (final c in _schoolClassLevels) DropdownMenuItem(value: c, child: Text(c))],
+                  onChanged: (v) => setState(() => _addClass = v ?? _addClass),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  initialValue: _addSubject,
+                  decoration: const InputDecoration(labelText: 'Subject'),
+                  items: [for (final s in kAcademicSubjects) DropdownMenuItem(value: s, child: Text(s))],
+                  onChanged: (v) => setState(() => _addSubject = v ?? _addSubject),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 12),
+            SecondaryBtn(
+              label: 'Add Assignment',
+              icon: Icons.add_rounded,
+              onTap: _saving
+                  ? () {}
+                  : () {
+                      final next = TeachingAssignment(subject: _addSubject, classLevel: _addClass);
+                      if (_assignments.contains(next)) return;
+                      _saveAssignments([..._assignments, next]);
+                    },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

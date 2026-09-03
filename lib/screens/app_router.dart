@@ -102,7 +102,7 @@ class _GuestShellState extends State<_GuestShell> {
     final ac = AppColors.of(context);
     final pages = [
       const UniversalHomePage(),
-      _GuestGateTab(onTap: () => _guestGate(context), label: 'Clubs'),
+      _GuestGateTab(onTap: () => _guestGate(context), label: 'Groups'),
       const UniversalHomePage(),
       _GuestGateTab(onTap: () => _guestGate(context), label: 'Messages'),
       _GuestGateTab(onTap: () => _guestGate(context), label: 'Profile'),
@@ -121,7 +121,7 @@ class _GuestShellState extends State<_GuestShell> {
         color: ac.surf,
         child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
           _navIcon(ac, Icons.home_rounded, 'Home', 0),
-          _navIcon(ac, Icons.groups_rounded, 'Clubs', 1),
+          _navIcon(ac, Icons.groups_rounded, 'Groups', 1),
           const SizedBox(width: 40),
           _navIcon(ac, Icons.chat_bubble_outline_rounded, 'Messages', 3),
           _navIcon(ac, Icons.person_outline_rounded, 'Profile', 4),
@@ -167,7 +167,7 @@ class _GuestGateTab extends StatelessWidget {
             Text('Sign in to access $label',
                 style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
             const SizedBox(height: 8),
-            Text('Create a free account to join clubs, message, and post.',
+            Text('Create a free account to join groups, message, and post.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.inter(fontSize: 13, color: ac.txt2)),
             const SizedBox(height: 20),

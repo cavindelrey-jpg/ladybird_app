@@ -206,7 +206,7 @@ class _ClubDiscussionDetailPageState extends State<ClubDiscussionDetailPage> {
     HapticFeedback.selectionClick();
     final appName = Branding.current.appName;
     Share.share('"${widget.discussion.title}" — a discussion in ${widget.club.name} on $appName.\n\n'
-        'Open the $appName app, go to Clubs > ${widget.club.name} > Discussions to join in.');
+        'Open the $appName app, go to Groups > ${widget.club.name} > Discussions to join in.');
   }
 
   @override
@@ -394,7 +394,7 @@ class _ResourcePickerSheet extends StatelessWidget {
                 if (snap.connectionState == ConnectionState.waiting) return const LoadingView();
                 if (resources.isEmpty) {
                   return const EmptyState(icon: Icons.folder_open_outlined, title: 'No resources yet',
-                      subtitle: 'Add one from the club\'s Resources tab first.');
+                      subtitle: 'Add one from the group\'s Resources tab first.');
                 }
                 return ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 16),

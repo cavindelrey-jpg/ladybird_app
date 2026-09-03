@@ -31,7 +31,7 @@ const _faqs = [
       'on the Premium unlock screen.'),
   _Faq('Can I use the app without a school?',
       'Yes — create an independent account to access the Content Library, '
-      'Past Questions, Clubs, and (soon) the Ladybird Magazine without '
+      'Past Questions, Groups, and (soon) the Ladybird Magazine without '
       'being linked to any institution.'),
   _Faq('How do I switch to a different school?',
       "Open Settings and tap 'Switch School' (only shown for school-linked "

@@ -101,7 +101,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
         bottom: TabBar(
           controller: _tabController,
           isScrollable: true,
-          tabs: const [Tab(text: 'Library'), Tab(text: 'Clubs'), Tab(text: 'People'), Tab(text: 'Courses')],
+          tabs: const [Tab(text: 'Library'), Tab(text: 'Groups'), Tab(text: 'People'), Tab(text: 'Courses')],
         ),
       ),
       body: AppBackground(
@@ -135,8 +135,8 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
   }
 
   Widget _buildClubList() {
-    if (_clubsFailed) return ErrorView(message: "Couldn't search Clubs — check your connection.", onRetry: () => _performSearch(_ctrl.text));
-    if (_clubs.isEmpty) return const EmptyState(icon: Icons.groups, title: 'No clubs found');
+    if (_clubsFailed) return ErrorView(message: "Couldn't search Groups — check your connection.", onRetry: () => _performSearch(_ctrl.text));
+    if (_clubs.isEmpty) return const EmptyState(icon: Icons.groups, title: 'No groups found');
     return ListView.builder(
       itemCount: _clubs.length,
       itemBuilder: (context, i) => ListTile(

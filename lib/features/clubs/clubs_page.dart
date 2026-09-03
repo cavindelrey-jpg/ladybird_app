@@ -162,7 +162,7 @@ class _ClubsPageState extends State<ClubsPage> {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => CreateClubPage(user: widget.user)));
               },
               icon: const Icon(Icons.add_rounded, color: C.gold),
-              label: Text('Create Club', style: AppText.button.copyWith(fontSize: 13)),
+              label: Text('Create Group', style: AppText.button.copyWith(fontSize: 13)),
             )
           : null,
     );
@@ -174,7 +174,7 @@ class _ClubsPageState extends State<ClubsPage> {
       child: Row(children: [
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Clubs', style: AppText.h1.copyWith(fontSize: 22)),
+            Text('Groups', style: AppText.h1.copyWith(fontSize: 22)),
           ]),
         ),
         IconButton(
@@ -201,7 +201,7 @@ class _ClubsPageState extends State<ClubsPage> {
               onChanged: (v) => setState(() => _searchQuery = v),
               style: AppText.bodySm.copyWith(color: C.txt),
               decoration: InputDecoration(
-                hintText: 'Search clubs by name, interest or subject…',
+                hintText: 'Search groups by name, interest or subject…',
                 hintStyle: AppText.bodySm.copyWith(color: C.muted, fontSize: 12.5),
                 prefixIcon: const Icon(Icons.search_rounded, size: 18, color: C.muted),
                 border: InputBorder.none, isDense: true,
@@ -227,7 +227,7 @@ class _ClubsPageState extends State<ClubsPage> {
   /// actual Club.category values (not a hardcoded list) — matches the
   /// mockup's chip row without inventing categories no club actually has.
   Widget _categoryChips(List<String> categories) {
-    final chips = ['All Clubs', ...categories];
+    final chips = ['All Groups', ...categories];
     return SizedBox(
       height: 36,
       child: ListView.separated(
@@ -237,7 +237,7 @@ class _ClubsPageState extends State<ClubsPage> {
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
           final label = chips[i];
-          final isAll = label == 'All Clubs';
+          final isAll = label == 'All Groups';
           final active = isAll ? _selectedCategory == null : _selectedCategory == label;
           return Material(
             color: Colors.transparent,
@@ -282,7 +282,7 @@ class _ClubsPageState extends State<ClubsPage> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text('My Clubs', style: AppText.h2.copyWith(fontSize: 16))),
+          Expanded(child: Text('My Groups', style: AppText.h2.copyWith(fontSize: 16))),
         ]),
         const SizedBox(height: 12),
         StreamBuilder<List<String>>(
@@ -309,7 +309,7 @@ class _ClubsPageState extends State<ClubsPage> {
                 final pendingIds = (pendingSnap.data ?? const <String>[]).toSet();
                 final myClubs = allClubs.where((c) => joinedIds.contains(c.id) || pendingIds.contains(c.id)).toList();
                 if (myClubs.isEmpty) {
-                  return Text('No clubs yet — discover one below or create your own.', style: AppText.bodySm);
+                  return Text('No groups yet — discover one below or create your own.', style: AppText.bodySm);
                 }
                 return SizedBox(
                   height: 260,
@@ -399,7 +399,7 @@ class _ClubsPageState extends State<ClubsPage> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: Text('Discover Clubs', style: AppText.h2.copyWith(fontSize: 16))),
+          Expanded(child: Text('Discover Groups', style: AppText.h2.copyWith(fontSize: 16))),
           Material(
             color: Colors.transparent,
             child: InkWell(
@@ -416,7 +416,7 @@ class _ClubsPageState extends State<ClubsPage> {
         ]),
         const SizedBox(height: 12),
         if (allClubs.isEmpty)
-          Text('No clubs yet — be the first to create one.', style: AppText.bodySm)
+          Text('No groups yet — be the first to create one.', style: AppText.bodySm)
         else
           SizedBox(
             height: 260,
@@ -446,9 +446,9 @@ class _ClubsPageState extends State<ClubsPage> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Icon(Icons.groups_rounded, color: C.blu, size: 20),
               const SizedBox(height: 8),
-              Text('Clubs', style: AppText.title.copyWith(fontSize: 13)),
+              Text('Groups', style: AppText.title.copyWith(fontSize: 13)),
               const SizedBox(height: 4),
-              Text('Shared spaces around common interests. Join open clubs or request to join those that require approval.',
+              Text('Shared spaces around common interests. Join open groups or request to join those that require approval.',
                   style: AppText.caption.copyWith(fontSize: 10.5, height: 1.35)),
             ]),
           ),
@@ -716,7 +716,7 @@ class _DiscoverClubCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                child: Text(club.requiresApproval ? 'Request to Join' : 'Join Club',
+                child: Text(club.requiresApproval ? 'Request to Join' : 'Join Group',
                     style: AppText.caption.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
               ),
             ),
@@ -728,7 +728,7 @@ class _DiscoverClubCard extends StatelessWidget {
 
   Future<void> _handleJoin(BuildContext context) async {
     if (user.isGuest) {
-      showToast(context, 'Create an account to join clubs');
+      showToast(context, 'Create an account to join groups');
       return;
     }
     HapticFeedback.mediumImpact();
@@ -808,10 +808,10 @@ class AllClubsPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: ac.bg, elevation: 0,
         iconTheme: IconThemeData(color: ac.txt),
-        title: Text('Discover Clubs', style: AppText.title),
+        title: Text('Discover Groups', style: AppText.title),
       ),
       body: AppBackground(child: clubs.isEmpty
-          ? const EmptyState(icon: Icons.groups_outlined, title: 'No clubs yet',
+          ? const EmptyState(icon: Icons.groups_outlined, title: 'No groups yet',
               subtitle: 'Be the first to create one.')
           : ListView.separated(
               padding: const EdgeInsets.all(16),
@@ -966,7 +966,7 @@ class _Hero extends StatelessWidget {
           child: Row(children: [
             _circleIconButton(
               icon: Icons.chat_bubble_outline_rounded,
-              tooltip: 'Club chat',
+              tooltip: 'Group chat',
               onTap: () => Navigator.push(context, MaterialPageRoute(
                   builder: (_) => ClubChatPage(club: club, user: user))),
             ),
@@ -999,7 +999,7 @@ class _Hero extends StatelessWidget {
                 if (isVerified) ...[
                   const SizedBox(width: 6),
                   Tooltip(
-                    message: 'School-verified club',
+                    message: 'School-verified group',
                     child: Icon(Icons.verified_rounded, color: C.blu, size: 18),
                   ),
                 ],
@@ -1065,7 +1065,7 @@ class _Hero extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           ),
-          child: Text(club.requiresApproval ? 'Request to Join' : 'Join Club',
+          child: Text(club.requiresApproval ? 'Request to Join' : 'Join Group',
               style: AppText.caption.copyWith(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
         ),
       );
@@ -1115,7 +1115,7 @@ class _Hero extends StatelessWidget {
           if (_isAdmin)
             ListTile(
               leading: const Icon(Icons.settings_outlined),
-              title: const Text('Club Settings'),
+              title: const Text('Group Settings'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(
@@ -1137,13 +1137,13 @@ class _Hero extends StatelessWidget {
             onTap: () {
               Navigator.pop(context);
               Share.share('Join "${club.name}"!\n\n${club.description}\n\n'
-                  'Open the ${Branding.current.appName} app, go to Clubs, and search for it to join.');
+                  'Open the ${Branding.current.appName} app, go to Groups, and search for it to join.');
             },
           ),
           const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.logout_rounded, color: C.red),
-            title: const Text('Leave Club', style: TextStyle(color: C.red)),
+            title: const Text('Leave Group', style: TextStyle(color: C.red)),
             onTap: () {
               Navigator.pop(context);
               _confirmLeave(context);
@@ -1158,7 +1158,7 @@ class _Hero extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Leave this club?'),
+        title: const Text('Leave this group?'),
         content: Text('You can rejoin "${club.name}" any time${club.requiresApproval ? ", but you'll need approval again." : "."}'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
@@ -1465,7 +1465,7 @@ class _FeedTabState extends State<_FeedTab> {
           final posts = snap.data ?? const <ClubPost>[];
           if (posts.isEmpty) {
             return const EmptyState(icon: Icons.campaign_outlined, title: 'No posts yet',
-                subtitle: 'Be the first to post something for this club.');
+                subtitle: 'Be the first to post something for this group.');
           }
           return ListView.separated(
             padding: const EdgeInsets.all(16),
@@ -1789,7 +1789,7 @@ class _ResourcesTab extends StatelessWidget {
           final resources = snap.data ?? const <ClubResource>[];
           if (resources.isEmpty) {
             return const EmptyState(icon: Icons.folder_open_outlined, title: 'No resources yet',
-                subtitle: 'Share a link or file useful to the whole club.');
+                subtitle: 'Share a link or file useful to the whole group.');
           }
           return ListView.separated(
             padding: const EdgeInsets.all(16),
@@ -1934,7 +1934,7 @@ class _EventsTab extends StatelessWidget {
               .where((e) => e.startAt.isAfter(DateTime.now().subtract(const Duration(days: 1)))).toList();
           if (events.isEmpty) {
             return const EmptyState(icon: Icons.event_outlined, title: 'No upcoming events',
-                subtitle: 'Plan something for the club to look forward to.');
+                subtitle: 'Plan something for the group to look forward to.');
           }
           return ListView.separated(
             padding: const EdgeInsets.all(16),

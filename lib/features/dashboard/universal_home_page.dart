@@ -985,7 +985,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       // see app_drawer.dart's own comment on that).
       ('Academia Quizzes', Icons.help_outline_rounded, ac.gold,
           () => _open(context, QuizCategoriesPage(user: _userOrGuest))),
-      ('Clubs', Icons.groups_rounded, ac.grn,
+      ('Groups', Icons.groups_rounded, ac.grn,
           () => _open(context, ClubsPage(user: _userOrGuest))),
       if (isSchoolMember)
         ('School Connect', Icons.forum_outlined, ac.pur,
@@ -1071,7 +1071,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           Expanded(child: _panel(title: 'Upcoming Events', child: _upcomingEventsContent())),
           const SizedBox(width: 12),
           Expanded(child: _panel(
-              title: 'My Club',
+              title: 'My Group',
               onTap: _isGuest ? null : () => _open(context, ClubsPage(user: _u!)),
               child: _myClubContent(context))),
         ]),
@@ -1110,7 +1110,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(Icons.groups_outlined, color: ac.muted, size: 18),
         const SizedBox(width: 8),
-        Expanded(child: Text('Sign in to see your clubs.',
+        Expanded(child: Text('Sign in to see your groups.',
             style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted, height: 1.3))),
       ]);
     }
@@ -1125,7 +1125,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Icon(Icons.groups_outlined, color: ac.muted, size: 18),
             const SizedBox(width: 8),
-            Expanded(child: Text('No upcoming club meetings.',
+            Expanded(child: Text('No upcoming group meetings.',
                 style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted, height: 1.3))),
           ]);
         }

@@ -35,7 +35,7 @@ class _ComposeAnnouncementPageState extends State<ComposeAnnouncementPage> {
   bool _uploadingImage = false;
   String _category = 'General';
 
-  static const _categories = ['General', 'Academic', 'Sports', 'Club', 'Emergency'];
+  static const _categories = ['General', 'Academic', 'Sports', 'Group', 'Emergency'];
 
   @override
   void dispose() {

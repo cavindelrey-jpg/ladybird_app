@@ -19,7 +19,7 @@ const List<String> kArticleCategories = [
 
 /// Predefined tag suggestions shown as chips in the composer.
 const List<String> kArticleTags = [
-  'GCE', 'Study Tips', 'Exam Prep', 'Clubs', 'Announcements',
+  'GCE', 'Study Tips', 'Exam Prep', 'Groups', 'Announcements',
   'Interview', 'Achievement', 'Event',
 ];
 

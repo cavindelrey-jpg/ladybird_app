@@ -42,7 +42,7 @@ class AboutAcademiaPage extends StatelessWidget {
             ac,
             'What is ${brand.appName}?',
             '${brand.appName} is ${brand.tagline} — courses, past exam '
-            'questions, clubs, the school magazine, and school management, '
+            'questions, groups, the school magazine, and school management, '
             'all in one app for our students.',
           ),
           _section(

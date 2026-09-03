@@ -1201,7 +1201,7 @@ class _RecommendedClubsSection extends StatelessWidget {
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(children: [
-          Expanded(child: Text('Recommended Clubs', style: AppText.h2.copyWith(fontSize: 16))),
+          Expanded(child: Text('Recommended Groups', style: AppText.h2.copyWith(fontSize: 16))),
           if (seeAllList.length > preview.length)
             Material(
               color: Colors.transparent,

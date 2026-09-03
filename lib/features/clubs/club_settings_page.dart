@@ -104,7 +104,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
 
   Future<void> _save() async {
     if (_nameCtrl.text.trim().isEmpty) {
-      showToast(context, 'Club name is required');
+      showToast(context, 'Group name is required');
       return;
     }
     setState(() => _saving = true);
@@ -136,7 +136,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
     if (!mounted) return;
     setState(() => _saving = false);
     if (result is Success) {
-      showToast(context, 'Club settings saved.');
+      showToast(context, 'Group settings saved.');
       Navigator.of(context).pop(true);
     } else {
       showToast(context, (result as Failure).message);
@@ -147,7 +147,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete this club?'),
+        title: const Text('Delete this group?'),
         content: Text('"${widget.club.name}" and its chat history will be permanently deleted. '
             'This cannot be undone.'),
         actions: [
@@ -168,7 +168,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
       // Pop settings AND the club detail page underneath it -- the club
       // no longer exists, nothing left to show there.
       Navigator.of(context).popUntil((r) => r.isFirst || r.settings.name == '/clubs');
-      showToast(context, 'Club deleted.');
+      showToast(context, 'Group deleted.');
     } else {
       showToast(context, (result as Failure).message);
     }
@@ -182,7 +182,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
       appBar: AppBar(
         backgroundColor: ac.bg, elevation: 0,
         iconTheme: IconThemeData(color: ac.txt),
-        title: Text('Club Settings', style: GoogleFonts.sora(
+        title: Text('Group Settings', style: GoogleFonts.sora(
             fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
       ),
       // Defense-in-depth role gate — see file header. The detail page's
@@ -200,8 +200,8 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
               icon: Icons.lock_outline_rounded,
               title: "You don't have permission",
               subtitle: role == ClubRole.moderator
-                  ? 'Only admins can change club settings. Ask an admin, or manage members from the Members tab.'
-                  : 'Only this club\'s admins can access its settings.',
+                  ? 'Only admins can change group settings. Ask an admin, or manage members from the Members tab.'
+                  : 'Only this group\'s admins can access its settings.',
             );
           }
           return _settingsForm(context, role);
@@ -251,7 +251,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
           ),
           const SizedBox(height: 4),
           Center(
-            child: Text('Banner — the wide cover photo on your club page', style: GoogleFonts.inter(fontSize: 11.5, color: C.muted)),
+            child: Text('Banner — the wide cover photo on your group page', style: GoogleFonts.inter(fontSize: 11.5, color: C.muted)),
           ),
           const SizedBox(height: 20),
           // The club's real logo — an actual picture, not a pick-from-a-
@@ -291,7 +291,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
                 ),
               ),
               const SizedBox(height: 6),
-              Text('Club logo', style: GoogleFonts.inter(fontSize: 11.5, color: C.muted)),
+              Text('Group logo', style: GoogleFonts.inter(fontSize: 11.5, color: C.muted)),
             ]),
           ),
           const SizedBox(height: 20),
@@ -299,7 +299,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
             controller: _nameCtrl,
             style: GoogleFonts.inter(fontSize: 14, color: C.txt),
             decoration: InputDecoration(
-              labelText: 'Club Name',
+              labelText: 'Group Name',
               filled: true, fillColor: C.surf3,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
             ),
@@ -359,7 +359,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
                     ? const SizedBox(width: 16, height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2, color: C.red))
                     : const Icon(Icons.delete_outline_rounded),
-                label: Text(_deleting ? 'Deleting…' : 'Delete Club'),
+                label: Text(_deleting ? 'Deleting…' : 'Delete Group'),
               ),
             ),
           ],

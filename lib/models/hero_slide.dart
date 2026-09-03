@@ -9,7 +9,7 @@
 
 enum HeroDestination {
   library('Library'),
-  clubs('Clubs'),
+  clubs('Groups'),
   pastQuestions('Past Questions'),
   magazine('Magazine'),
   courses('Courses'),

@@ -117,8 +117,8 @@ extension XpSourceExt on XpSource {
       case XpSource.testCompletion:  return 'Test Completed';
       case XpSource.streakDaily:     return 'Daily Login';
       case XpSource.streakMilestone: return 'Streak Milestone';
-      case XpSource.clubQuestion:    return 'Club Question';
-      case XpSource.clubAnswer:      return 'Club Answer';
+      case XpSource.clubQuestion:    return 'Group Question';
+      case XpSource.clubAnswer:      return 'Group Answer';
       case XpSource.clubBestAnswer:  return 'Best Answer';
       case XpSource.dailyLearning:   return 'Daily Learning';
     }

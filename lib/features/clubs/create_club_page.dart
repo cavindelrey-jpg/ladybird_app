@@ -160,7 +160,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
       appBar: AppBar(
         backgroundColor: ac.bg, elevation: 0,
         iconTheme: IconThemeData(color: ac.txt),
-        title: Text('Create a Club', style: GoogleFonts.sora(
+        title: Text('Create a Group', style: GoogleFonts.sora(
             fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
       ),
       body: AppBackground(child: Form(
@@ -204,7 +204,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
             ),
             const SizedBox(height: 4),
             Center(
-              child: Text('Banner — the wide cover photo on your club page', style: GoogleFonts.inter(fontSize: 11.5, color: C.muted)),
+              child: Text('Banner — the wide cover photo on your group page', style: GoogleFonts.inter(fontSize: 11.5, color: C.muted)),
             ),
             const SizedBox(height: 20),
             // The club's real logo — an actual picture, not a pick-from-a-
@@ -242,16 +242,16 @@ class _CreateClubPageState extends State<CreateClubPage> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text('Club logo', style: GoogleFonts.inter(fontSize: 11.5, color: C.muted)),
+                Text('Group logo', style: GoogleFonts.inter(fontSize: 11.5, color: C.muted)),
               ]),
             ),
             const SizedBox(height: 20),
             TextFormField(
               controller: _nameCtrl,
               style: GoogleFonts.inter(fontSize: 14, color: C.txt),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Club name is required' : null,
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Group name is required' : null,
               decoration: InputDecoration(
-                labelText: 'Club Name',
+                labelText: 'Group Name',
                 filled: true, fillColor: C.surf3,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
               ),
@@ -291,7 +291,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
                       fontSize: 13.5, fontWeight: FontWeight.w600, color: C.txt)),
                   subtitle: Text(
                       _restrictToSchool
-                          ? 'Only people at your school will see this club.'
+                          ? 'Only people at your school will see this group.'
                           : 'Open to everyone.',
                       style: GoogleFonts.inter(fontSize: 11.5, color: C.txt2)),
                   value: _restrictToSchool,
@@ -335,13 +335,13 @@ class _CreateClubPageState extends State<CreateClubPage> {
                 const Icon(Icons.info_outline_rounded, size: 16, color: C.primary),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text("You'll be the club's admin — you can add moderators later from Members.",
+                  child: Text("You'll be the group's admin — you can add moderators later from Members.",
                       style: GoogleFonts.inter(fontSize: 11.5, color: C.primary)),
                 ),
               ]),
             ),
             const SizedBox(height: 24),
-            PrimaryBtn(label: 'Create Club', onTap: _create, loading: _saving),
+            PrimaryBtn(label: 'Create Group', onTap: _create, loading: _saving),
           ],
         ),
       )),

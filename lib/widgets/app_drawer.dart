@@ -163,7 +163,7 @@ class AppDrawer extends StatelessWidget {
                         builder: (_) => MessagesHomePage(user: user!)));
                   }
                 }),
-                _item(context, ac, Icons.groups_rounded, 'Clubs', () {
+                _item(context, ac, Icons.groups_rounded, 'Groups', () {
                   if (_isGuest) {
                     _goSignIn(context);
                   } else {

@@ -136,7 +136,7 @@ class ClubRepository {
       await _db.rpc('join_club', params: {'p_club_id': clubId, 'p_name': name, 'p_photo_url': photoUrl});
       return const Success(null);
     } catch (e) {
-      return Failure('Failed to join club', e);
+      return Failure('Failed to join group', e);
     }
   }
 
@@ -221,7 +221,7 @@ class ClubRepository {
       await _db.rpc('leave_club', params: {'p_club_id': clubId});
       return const Success(null);
     } catch (e) {
-      return Failure('Failed to leave club', e);
+      return Failure('Failed to leave group', e);
     }
   }
 
@@ -304,7 +304,7 @@ class ClubRepository {
       });
       return Success(clubId);
     } catch (e) {
-      return Failure('Failed to create club', e);
+      return Failure('Failed to create group', e);
     }
   }
 
@@ -355,7 +355,7 @@ class ClubRepository {
       await _db.storage.from(_bucket).upload(path, imageFile, fileOptions: const FileOptions(upsert: true));
       return Success(_db.storage.from(_bucket).getPublicUrl(path));
     } catch (e) {
-      return Failure('Failed to upload club banner', e);
+      return Failure('Failed to upload group banner', e);
     }
   }
 
@@ -370,7 +370,7 @@ class ClubRepository {
       await _db.storage.from(_bucket).upload(path, imageFile, fileOptions: const FileOptions(upsert: true));
       return Success(_db.storage.from(_bucket).getPublicUrl(path));
     } catch (e) {
-      return Failure('Failed to upload club thumbnail', e);
+      return Failure('Failed to upload group thumbnail', e);
     }
   }
 
@@ -381,7 +381,7 @@ class ClubRepository {
       await _db.from('clubs').update(club.toUpdateMap()).eq('id', club.id);
       return const Success(null);
     } catch (e) {
-      return Failure('Failed to update club', e);
+      return Failure('Failed to update group', e);
     }
   }
 
@@ -391,7 +391,7 @@ class ClubRepository {
       await _db.from('clubs').delete().eq('id', clubId);
       return const Success(null);
     } catch (e) {
-      return Failure('Failed to delete club', e);
+      return Failure('Failed to delete group', e);
     }
   }
 

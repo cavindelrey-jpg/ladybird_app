@@ -33,7 +33,7 @@ class QuickAccessRegistry {
         icon: Icons.description_rounded, bg: C.grnb, fg: C.grn, defaultOrder: 1),
     QuickAccessFeature(id: 'magazine', label: 'Magazine',
         icon: Icons.auto_stories_rounded, bg: C.purb, fg: C.pur, defaultOrder: 2),
-    QuickAccessFeature(id: 'clubs', label: 'Clubs',
+    QuickAccessFeature(id: 'clubs', label: 'Groups',
         icon: Icons.groups_rounded, bg: C.goldp, fg: C.gold, defaultOrder: 3),
     QuickAccessFeature(id: 'courses', label: 'Courses',
         icon: Icons.school_rounded, bg: C.primaryBg, fg: C.primary, defaultOrder: 4),

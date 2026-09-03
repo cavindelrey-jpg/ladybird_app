@@ -137,14 +137,14 @@ class ClubMembersBody extends StatelessWidget {
                               if (myRole == ClubRole.admin && m.role != ClubRole.admin)
                                 const PopupMenuItem(value: 'set_admin', child: Text('Set as Admin')),
                               if (!isOnlyAdmin)
-                                PopupMenuItem(value: 'remove', child: Text('Remove from Club',
+                                PopupMenuItem(value: 'remove', child: Text('Remove from Group',
                                     style: TextStyle(color: ac.red))),
                             ],
                           )
                         else if (isOnlyAdmin && !isSelf)
                           Padding(
                             padding: const EdgeInsets.only(right: 4),
-                            child: Tooltip(message: 'Club needs at least one admin',
+                            child: Tooltip(message: 'Group needs at least one admin',
                                 child: Icon(Icons.shield_outlined, size: 16, color: ac.muted)),
                           ),
                       ]),

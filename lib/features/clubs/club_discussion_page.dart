@@ -105,7 +105,7 @@ class _AskQuestionPageState extends State<AskQuestionPage> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _posting ? null : _submit,
-              style: ElevatedButton.styleFrom(backgroundColor: C.navy, foregroundColor: Colors.white,
+              style: ElevatedButton.styleFrom(backgroundColor: ac.navy, foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14)),
               child: _posting
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
@@ -296,16 +296,17 @@ class _ClubDiscussionDetailPageState extends State<ClubDiscussionDetailPage> {
   /// The mockup's Poll / Resource / Mention / More row, sitting just
   /// above the text field. Poll is an honest stub — see file header.
   Widget _composerRow() {
+    final ac = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(children: [
-          _composerAction(icon: Icons.bar_chart_rounded, label: 'Poll', color: C.blu,
+          _composerAction(icon: Icons.bar_chart_rounded, label: 'Poll', color: ac.blu,
               onTap: () => showToast(context, "Polls aren't built yet.")),
-          _composerAction(icon: Icons.description_outlined, label: 'Resource', color: C.grn, onTap: _pickResource),
-          _composerAction(icon: Icons.alternate_email_rounded, label: 'Mention', color: C.pur, onTap: _pickMention),
-          _composerAction(icon: Icons.more_horiz_rounded, label: 'More', color: C.txt2, onTap: _shareDiscussion),
+          _composerAction(icon: Icons.description_outlined, label: 'Resource', color: ac.grn, onTap: _pickResource),
+          _composerAction(icon: Icons.alternate_email_rounded, label: 'Mention', color: ac.pur, onTap: _pickMention),
+          _composerAction(icon: Icons.more_horiz_rounded, label: 'More', color: ac.txt2, onTap: _shareDiscussion),
         ]),
       ),
     );
@@ -330,6 +331,7 @@ class _ClubDiscussionDetailPageState extends State<ClubDiscussionDetailPage> {
   }
 
   Widget _replyBar() {
+    final ac = AppColors.of(context);
     return SafeArea(
       top: false,
       child: Padding(
@@ -347,7 +349,7 @@ class _ClubDiscussionDetailPageState extends State<ClubDiscussionDetailPage> {
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(24), border: Border.all(color: C.bdr)),
+                decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(24), border: Border.all(color: ac.bdr)),
                 child: TextField(
                   controller: _replyCtrl,
                   minLines: 1, maxLines: 4,
@@ -359,7 +361,7 @@ class _ClubDiscussionDetailPageState extends State<ClubDiscussionDetailPage> {
             IconButton(
               icon: _sending
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.send_rounded, color: C.primary),
+                  : Icon(Icons.send_rounded, color: ac.primary),
               onPressed: _sending ? null : _sendReply,
             ),
           ]),
@@ -390,6 +392,7 @@ class _ResourcePickerSheet extends StatelessWidget {
             child: StreamBuilder<List<ClubResource>>(
               stream: ClubRepository.instance.watchResources(club.id),
               builder: (context, snap) {
+                final ac = AppColors.of(context);
                 final resources = snap.data ?? const <ClubResource>[];
                 if (snap.connectionState == ConnectionState.waiting) return const LoadingView();
                 if (resources.isEmpty) {
@@ -405,7 +408,7 @@ class _ResourcePickerSheet extends StatelessWidget {
                     return ACard(
                       onTap: () => Navigator.pop(context, r),
                       child: Row(children: [
-                        Icon(r.isFile ? Icons.insert_drive_file_outlined : Icons.link_rounded, color: C.primary, size: 18),
+                        Icon(r.isFile ? Icons.insert_drive_file_outlined : Icons.link_rounded, color: ac.primary, size: 18),
                         const SizedBox(width: 10),
                         Expanded(child: Text(r.title, maxLines: 1, overflow: TextOverflow.ellipsis,
                             style: AppText.title.copyWith(fontSize: 13.5))),
@@ -477,16 +480,17 @@ class _AttachedResourceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(color: C.grnb, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: ac.grnBg, borderRadius: BorderRadius.circular(20)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.description_outlined, size: 14, color: C.grn),
+        Icon(Icons.description_outlined, size: 14, color: ac.grn),
         const SizedBox(width: 6),
         Flexible(child: Text(resource.title, maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w700, color: C.grn))),
+            style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w700, color: ac.grn))),
         const SizedBox(width: 4),
-        InkWell(onTap: onRemove, child: const Icon(Icons.close_rounded, size: 14, color: C.grn)),
+        InkWell(onTap: onRemove, child: Icon(Icons.close_rounded, size: 14, color: ac.grn)),
       ]),
     );
   }
@@ -500,16 +504,17 @@ class _QuestionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+      decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           UserAvatar(initials: discussion.authorName.isEmpty ? '?' : discussion.authorName[0].toUpperCase(),
               radius: 16, photoUrl: discussion.authorPhotoUrl),
           const SizedBox(width: 10),
           Expanded(child: Text(discussion.authorName, style: AppText.title.copyWith(fontSize: 13))),
-          StatusBadge(label: '+${XpSource.clubQuestion.baseXp} XP', color: C.grn),
+          StatusBadge(label: '+${XpSource.clubQuestion.baseXp} XP', color: ac.grn),
         ]),
         const SizedBox(height: 12),
         Text(discussion.title, style: AppText.h2.copyWith(fontSize: 17)),
@@ -517,17 +522,17 @@ class _QuestionHeader extends StatelessWidget {
         Text(discussion.body, style: AppText.bodySm.copyWith(fontSize: 13.5, height: 1.4)),
         if ((discussion.tag ?? '').isNotEmpty) ...[
           const SizedBox(height: 10),
-          StatusBadge(label: discussion.tag!, color: C.pur),
+          StatusBadge(label: discussion.tag!, color: ac.pur),
         ],
         const SizedBox(height: 12),
         Row(children: [
           _DiscussionLikeButton(club: club, discussion: discussion, user: user),
           const SizedBox(width: 16),
-          const Icon(Icons.mode_comment_outlined, size: 15, color: C.muted),
+          Icon(Icons.mode_comment_outlined, size: 15, color: ac.muted),
           const SizedBox(width: 4),
           Text('${discussion.replyCount}', style: AppText.caption.copyWith(fontSize: 11.5)),
           const SizedBox(width: 16),
-          const Icon(Icons.visibility_outlined, size: 15, color: C.muted),
+          Icon(Icons.visibility_outlined, size: 15, color: ac.muted),
           const SizedBox(width: 4),
           Text('${discussion.viewCount}', style: AppText.caption.copyWith(fontSize: 11.5)),
         ]),
@@ -547,9 +552,10 @@ class _DiscussionLikeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     if (user.isGuest) {
       return Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.favorite_border_rounded, size: 15, color: C.muted),
+        Icon(Icons.favorite_border_rounded, size: 15, color: ac.muted),
         const SizedBox(width: 4),
         Text('${discussion.likeCount}', style: AppText.caption.copyWith(fontSize: 11.5)),
       ]);
@@ -568,7 +574,7 @@ class _DiscussionLikeButton extends StatelessWidget {
             },
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                  size: 15, color: liked ? C.red : C.muted),
+                  size: 15, color: liked ? ac.red : ac.muted),
               const SizedBox(width: 4),
               Text('${discussion.likeCount}', style: AppText.caption.copyWith(fontSize: 11.5)),
             ]),
@@ -593,22 +599,23 @@ class _ReplyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: reply.isBestAnswer ? C.grnb : C.surf,
+        color: reply.isBestAnswer ? ac.grnBg : ac.surf,
         borderRadius: BorderRadius.circular(Rad.md),
-        border: Border.all(color: reply.isBestAnswer ? C.grn : C.bdr),
+        border: Border.all(color: reply.isBestAnswer ? ac.grn : ac.bdr),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (reply.isBestAnswer)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Row(children: [
-              const Icon(Icons.check_circle_rounded, color: C.grn, size: 16),
+              Icon(Icons.check_circle_rounded, color: ac.grn, size: 16),
               const SizedBox(width: 6),
-              Text('Best Answer', style: AppText.label.copyWith(fontSize: 11, color: C.grn)),
+              Text('Best Answer', style: AppText.label.copyWith(fontSize: 11, color: ac.grn)),
             ]),
           ),
         Row(children: [
@@ -617,7 +624,7 @@ class _ReplyCard extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(child: Text(reply.authorName, style: AppText.title.copyWith(fontSize: 12.5))),
           if (canMarkBest)
-            TextButton(onPressed: onMarkBest, child: Text('Mark Best', style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w700, color: C.primary))),
+            TextButton(onPressed: onMarkBest, child: Text('Mark Best', style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w700, color: ac.primary))),
         ]),
         const SizedBox(height: 8),
         Text(reply.body, style: AppText.bodySm.copyWith(fontSize: 13, height: 1.4)),
@@ -652,9 +659,10 @@ class _ReplyLikeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     if (user.isGuest) {
       return Row(mainAxisSize: MainAxisSize.min, children: [
-        const Icon(Icons.favorite_border_rounded, size: 14, color: C.muted),
+        Icon(Icons.favorite_border_rounded, size: 14, color: ac.muted),
         const SizedBox(width: 4),
         Text('${reply.likeCount}', style: AppText.caption.copyWith(fontSize: 11)),
       ]);
@@ -673,7 +681,7 @@ class _ReplyLikeButton extends StatelessWidget {
             },
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                  size: 14, color: liked ? C.red : C.muted),
+                  size: 14, color: liked ? ac.red : ac.muted),
               const SizedBox(width: 4),
               Text('${reply.likeCount}', style: AppText.caption.copyWith(fontSize: 11)),
             ]),

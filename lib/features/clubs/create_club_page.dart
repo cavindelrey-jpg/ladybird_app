@@ -180,7 +180,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
                 child: Container(
                 height: 120, width: double.infinity,
                 decoration: BoxDecoration(
-                  color: C.navy, borderRadius: BorderRadius.circular(Rad.md),
+                  color: ac.navy, borderRadius: BorderRadius.circular(Rad.md),
                   image: _bannerFile != null
                       ? DecorationImage(image: FileImage(_bannerFile!), fit: BoxFit.cover)
                       : null,
@@ -204,7 +204,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
             ),
             const SizedBox(height: 4),
             Center(
-              child: Text('Banner — the wide cover photo on your group page', style: GoogleFonts.inter(fontSize: 11.5, color: C.muted)),
+              child: Text('Banner — the wide cover photo on your group page', style: GoogleFonts.inter(fontSize: 11.5, color: ac.muted)),
             ),
             const SizedBox(height: 20),
             // The club's real logo — an actual picture, not a pick-from-a-
@@ -222,14 +222,14 @@ class _CreateClubPageState extends State<CreateClubPage> {
                     child: Container(
                       width: 92, height: 92,
                       decoration: BoxDecoration(
-                        color: C.surf3, shape: BoxShape.circle,
-                        border: Border.all(color: C.bdr),
+                        color: ac.surf3, shape: BoxShape.circle,
+                        border: Border.all(color: ac.bdr),
                         image: _thumbnailFile != null
                             ? DecorationImage(image: FileImage(_thumbnailFile!), fit: BoxFit.cover)
                             : null,
                       ),
                       child: _thumbnailFile == null
-                          ? Icon(Icons.add_a_photo_outlined, color: C.muted, size: 26)
+                          ? Icon(Icons.add_a_photo_outlined, color: ac.muted, size: 26)
                           : Align(
                               alignment: Alignment.bottomRight,
                               child: Container(
@@ -242,17 +242,17 @@ class _CreateClubPageState extends State<CreateClubPage> {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text('Group logo', style: GoogleFonts.inter(fontSize: 11.5, color: C.muted)),
+                Text('Group logo', style: GoogleFonts.inter(fontSize: 11.5, color: ac.muted)),
               ]),
             ),
             const SizedBox(height: 20),
             TextFormField(
               controller: _nameCtrl,
-              style: GoogleFonts.inter(fontSize: 14, color: C.txt),
+              style: GoogleFonts.inter(fontSize: 14, color: ac.txt),
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Group name is required' : null,
               decoration: InputDecoration(
                 labelText: 'Group Name',
-                filled: true, fillColor: C.surf3,
+                filled: true, fillColor: ac.surf3,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
               ),
             ),
@@ -260,11 +260,11 @@ class _CreateClubPageState extends State<CreateClubPage> {
             TextFormField(
               controller: _descCtrl,
               maxLines: 3,
-              style: GoogleFonts.inter(fontSize: 14, color: C.txt),
+              style: GoogleFonts.inter(fontSize: 14, color: ac.txt),
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Add a short description' : null,
               decoration: InputDecoration(
                 labelText: 'Description',
-                filled: true, fillColor: C.surf3,
+                filled: true, fillColor: ac.surf3,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
               ),
             ),
@@ -273,7 +273,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
               initialValue: _category,
               decoration: InputDecoration(
                 labelText: 'Category',
-                filled: true, fillColor: C.surf3,
+                filled: true, fillColor: ac.surf3,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
               ),
               items: _kClubCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
@@ -284,18 +284,18 @@ class _CreateClubPageState extends State<CreateClubPage> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                    color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+                    color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
                 child: SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text('Restrict to my school', style: GoogleFonts.inter(
-                      fontSize: 13.5, fontWeight: FontWeight.w600, color: C.txt)),
+                      fontSize: 13.5, fontWeight: FontWeight.w600, color: ac.txt)),
                   subtitle: Text(
                       _restrictToSchool
                           ? 'Only people at your school will see this group.'
                           : 'Open to everyone.',
-                      style: GoogleFonts.inter(fontSize: 11.5, color: C.txt2)),
+                      style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
                   value: _restrictToSchool,
-                  activeThumbColor: C.gold,
+                  activeThumbColor: ac.gold,
                   onChanged: (v) => setState(() => _restrictToSchool = v),
                 ),
               ),
@@ -304,18 +304,18 @@ class _CreateClubPageState extends State<CreateClubPage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
-                  color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+                  color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
               child: SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text('Require approval to join', style: GoogleFonts.inter(
-                    fontSize: 13.5, fontWeight: FontWeight.w600, color: C.txt)),
+                    fontSize: 13.5, fontWeight: FontWeight.w600, color: ac.txt)),
                 subtitle: Text(
                     _requiresApproval
                         ? 'People must request to join — you approve each one.'
                         : 'Anyone can join instantly.',
-                    style: GoogleFonts.inter(fontSize: 11.5, color: C.txt2)),
+                    style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
                 value: _requiresApproval,
-                activeThumbColor: C.gold,
+                activeThumbColor: ac.gold,
                 onChanged: (v) => setState(() => _requiresApproval = v),
               ),
             ),
@@ -323,20 +323,20 @@ class _CreateClubPageState extends State<CreateClubPage> {
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: C.redb, borderRadius: BorderRadius.circular(Rad.sm)),
-                child: Text(_error!, style: GoogleFonts.inter(fontSize: 12, color: C.red)),
+                decoration: BoxDecoration(color: ac.redBg, borderRadius: BorderRadius.circular(Rad.sm)),
+                child: Text(_error!, style: GoogleFonts.inter(fontSize: 12, color: ac.red)),
               ),
             ],
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
+              decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(Rad.sm)),
               child: Row(children: [
-                const Icon(Icons.info_outline_rounded, size: 16, color: C.primary),
+                Icon(Icons.info_outline_rounded, size: 16, color: ac.primary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text("You'll be the group's admin — you can add moderators later from Members.",
-                      style: GoogleFonts.inter(fontSize: 11.5, color: C.primary)),
+                      style: GoogleFonts.inter(fontSize: 11.5, color: ac.primary)),
                 ),
               ]),
             ),

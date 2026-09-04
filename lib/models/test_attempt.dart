@@ -257,6 +257,14 @@ class TestAttempt {
   /// written before this field existed.
   final double attemptMultiplier;
 
+  /// Set only when this attempt was launched from a quiz-as-homework
+  /// assignment (spec item 4B) — see TestTakingPage/HomeworkPage's
+  /// "Take Quiz" action. Lets the server enforce the REAL, per-student
+  /// homework deadline (including any extension) at submit time via a
+  /// trigger on public.test_attempts, not merely a client-side check —
+  /// see supabase/migrations/20260904000008_quiz_homework_expiry_enforcement.sql.
+  final String? homeworkId;
+
   const TestAttempt({
     required this.id,
     required this.testId,
@@ -273,6 +281,7 @@ class TestAttempt {
     this.gradedAt,
     this.levelMultiplier = 1.0,
     this.attemptMultiplier = 1.0,
+    this.homeworkId,
   });
 
   int get gradedPoints =>
@@ -304,11 +313,13 @@ class TestAttempt {
       gradedAt: d['graded_at'] == null ? null : DateTime.tryParse(d['graded_at'].toString()),
       levelMultiplier: (d['level_multiplier'] as num?)?.toDouble() ?? 1.0,
       attemptMultiplier: (d['attempt_multiplier'] as num?)?.toDouble() ?? 1.0,
+      homeworkId: d['homework_id']?.toString(),
     );
   }
 
   Map<String, dynamic> toSupabase() => {
         'test_id': testId.isEmpty ? null : testId,
+        'homework_id': homeworkId,
         'test_title': testTitle,
         'subject': subject,
         'difficulty': difficulty.name,

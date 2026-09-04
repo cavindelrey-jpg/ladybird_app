@@ -64,6 +64,25 @@ class HomeworkRepository {
     }
   }
 
+  /// The real, per-student deadline for a quiz-as-homework — a plain
+  /// due_at comparison isn't enough once a teacher can grant one student
+  /// an extension (spec item 4B). Backed by
+  /// get_effective_homework_due_at() (see supabase/migrations/
+  /// 20260904000001_homework_quizzes_and_extensions.sql), the same
+  /// function the server-side submission guard uses, so the client's
+  /// "is this expired" display always agrees with what the backend will
+  /// actually accept.
+  Future<DateTime?> getEffectiveDueAt(String homeworkId, String studentId) async {
+    try {
+      final result = await _db.rpc('get_effective_homework_due_at', params: {
+        'p_homework_id': homeworkId, 'p_student_id': studentId,
+      });
+      return result == null ? null : DateTime.tryParse(result.toString());
+    } catch (_) {
+      return null;
+    }
+  }
+
   Map<String, dynamic> _toRow(Homework h) => {
         'school_id': h.schoolId,
         'class_level': h.classLevel,
@@ -77,6 +96,7 @@ class HomeworkRepository {
         'attachment_name': h.attachmentName,
         'required_materials': h.requiredMaterials,
         'notify': h.notify,
+        'test_id': h.testId,
       };
 
   Homework _fromRow(Map<String, dynamic> row) => Homework.fromSupabase(row);

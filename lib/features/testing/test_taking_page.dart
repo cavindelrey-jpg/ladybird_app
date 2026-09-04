@@ -37,7 +37,11 @@ import 'test_result_page.dart';
 class TestTakingPage extends StatefulWidget {
   final AppUser user;
   final Test test;
-  const TestTakingPage({super.key, required this.user, required this.test});
+  /// Set when launched from HomeworkPage's "Take Quiz" action (spec item
+  /// 4B) — threaded through to TestRepository.submitAttempt so the
+  /// server can enforce the real, per-student homework deadline.
+  final String? homeworkId;
+  const TestTakingPage({super.key, required this.user, required this.test, this.homeworkId});
 
   @override
   State<TestTakingPage> createState() => _TestTakingPageState();
@@ -131,6 +135,7 @@ class _TestTakingPageState extends State<TestTakingPage> {
       userName: widget.user.name,
       rawAnswers: rawAnswers,
       educationLevel: widget.user.educationLevel,
+      homeworkId: widget.homeworkId,
     );
     if (!mounted) return;
     setState(() => _submitting = false);

@@ -92,6 +92,19 @@ class TestRepository {
     });
   }
 
+  /// A teacher's own tests, published or not -- powers the quiz picker
+  /// when assigning a quiz as homework (spec item 4B): a teacher sends an
+  /// EXISTING quiz they authored, rather than authoring a new one inline
+  /// from the homework form.
+  Stream<List<Test>> watchTestsByCreator(String creatorId) {
+    if (creatorId.isEmpty) return Stream.value(const []);
+    return _tests
+        .stream(primaryKey: ['id'])
+        .eq('created_by', creatorId)
+        .order('created_at', ascending: false)
+        .map((rows) => rows.map(Test.fromSupabase).toList());
+  }
+
   Stream<Test?> watchTest(String testId) => _tests
       .stream(primaryKey: ['id'])
       .eq('id', testId)
@@ -371,8 +384,29 @@ class TestRepository {
     required String userName,
     required Map<String, dynamic> rawAnswers,
     String educationLevel = '',
+    /// Set when this test is being taken as quiz-as-homework (spec item
+    /// 4B) — see TestTakingPage's "Take Quiz" launch from HomeworkPage.
+    String? homeworkId,
   }) async {
     if (userId.isEmpty) return const Failure('Sign in to submit a test.', null);
+    if (homeworkId != null) {
+      // Fail fast client-side before doing any grading work -- the real,
+      // unbypassable gate is the trigger on public.test_attempts (see
+      // supabase/migrations/20260904000008_quiz_homework_expiry_enforcement.sql),
+      // which re-checks this same effective-due-date function server-side
+      // regardless of what the client does or skips.
+      try {
+        final effectiveDueAt = await _db.rpc('get_effective_homework_due_at', params: {
+          'p_homework_id': homeworkId, 'p_student_id': userId,
+        });
+        final due = effectiveDueAt == null ? null : DateTime.tryParse(effectiveDueAt.toString());
+        if (due != null && DateTime.now().isAfter(due)) {
+          return const Failure('This quiz has expired and can no longer be submitted.', null);
+        }
+      } catch (_) {
+        // best-effort pre-check -- the DB trigger is the real gate either way
+      }
+    }
     try {
       final levelMultiplier = academicLevelMultiplier(educationLevel);
       var totalXpFromQuestions = 0;
@@ -508,8 +542,18 @@ class TestRepository {
         gradedAt: fullyGradedNow ? DateTime.now() : null,
         levelMultiplier: levelMultiplier,
         attemptMultiplier: attemptMultiplier,
+        homeworkId: homeworkId,
       );
-      final row = await _attempts.insert(attempt.toSupabase()).select('id').single();
+      final Map<String, dynamic> row;
+      try {
+        row = await _attempts.insert(attempt.toSupabase()).select('id').single();
+      } on PostgrestException catch (e) {
+        // The homework-expiry trigger raises a plain exception if the
+        // effective due date has passed -- surface that message directly
+        // rather than a generic failure, same as the client-side
+        // pre-check above.
+        return Failure(e.message, e);
+      }
       final attemptId = row['id'] as String;
       final savedAttempt = TestAttempt(
         id: attemptId, testId: attempt.testId, testTitle: attempt.testTitle,
@@ -518,7 +562,7 @@ class TestRepository {
         totalPossiblePoints: attempt.totalPossiblePoints, status: attempt.status,
         totalXpAwarded: attempt.totalXpAwarded, submittedAt: attempt.submittedAt,
         gradedAt: attempt.gradedAt, levelMultiplier: attempt.levelMultiplier,
-        attemptMultiplier: attempt.attemptMultiplier,
+        attemptMultiplier: attempt.attemptMultiplier, homeworkId: attempt.homeworkId,
       );
       bonus = dampedBonus;
 

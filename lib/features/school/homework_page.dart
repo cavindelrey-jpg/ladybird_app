@@ -19,10 +19,13 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/result.dart';
 import '../../models/app_user.dart';
 import '../../models/homework.dart';
+import '../../models/test.dart';
 import '../../repositories/homework_repository.dart';
+import '../../repositories/test_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
+import '../testing/test_taking_page.dart';
 import 'widgets/management_scaffold.dart';
 
 class HomeworkPage extends StatefulWidget {
@@ -94,6 +97,7 @@ class _CreateHomeworkTabState extends State<_CreateHomeworkTab> {
   DateTime _dueAt = DateTime.now().add(const Duration(days: 1));
   bool _notify = true;
   bool _saving = false;
+  String? _testId;
 
   List<String> get _classLevels =>
       widget.user.teachingAssignments.map((a) => a.classLevel).toSet().toList()..sort();
@@ -134,6 +138,10 @@ class _CreateHomeworkTabState extends State<_CreateHomeworkTab> {
       showToast(context, 'Enter a title.', isError: true);
       return;
     }
+    if (_type == 'quiz' && (_testId ?? '').isEmpty) {
+      showToast(context, 'Pick a quiz to send as this homework.', isError: true);
+      return;
+    }
     // Client-side mirror of the real enforcement in the homework RLS
     // policy -- catches the mistake before a wasted round trip, but the
     // policy itself is the actual boundary.
@@ -155,6 +163,7 @@ class _CreateHomeworkTabState extends State<_CreateHomeworkTab> {
       requiredMaterials: List.of(_materials),
       notify: _notify,
       createdAt: DateTime.now(),
+      testId: _type == 'quiz' ? _testId : null,
     );
     final result = await HomeworkRepository.instance.create(homework);
     if (!mounted) return;
@@ -166,7 +175,10 @@ class _CreateHomeworkTabState extends State<_CreateHomeworkTab> {
       _titleCtrl.clear();
       _descCtrl.clear();
       _materialCtrl.clear();
-      setState(() => _materials.clear());
+      setState(() {
+        _materials.clear();
+        _testId = null;
+      });
     }
   }
 
@@ -243,11 +255,41 @@ class _CreateHomeworkTabState extends State<_CreateHomeworkTab> {
                 DropdownMenuItem(value: 'reading', child: Text('Reading')),
                 DropdownMenuItem(value: 'project', child: Text('Project')),
                 DropdownMenuItem(value: 'revision', child: Text('Revision')),
+                DropdownMenuItem(value: 'quiz', child: Text('Quiz')),
               ],
               onChanged: (v) => setState(() => _type = v ?? _type),
             ),
           ),
         ]),
+        if (_type == 'quiz') ...[
+          const SizedBox(height: 16),
+          Text('Quiz', style: GoogleFonts.inter(fontSize: 12.5, color: ac.muted)),
+          const SizedBox(height: 6),
+          StreamBuilder<List<Test>>(
+            stream: TestRepository.instance.watchTestsByCreator(widget.user.id),
+            builder: (context, snap) {
+              final all = snap.data ?? const <Test>[];
+              final subject = _subject;
+              final tests = subject == null ? all : all.where((t) => t.subject == subject).toList();
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const LinearProgressIndicator();
+              }
+              if (tests.isEmpty) {
+                return Text(
+                  "You haven't created a quiz for this subject yet — create one in Quizzes first.",
+                  style: GoogleFonts.inter(fontSize: 12, color: ac.muted),
+                );
+              }
+              if (_testId != null && !tests.any((t) => t.id == _testId)) _testId = null;
+              return DropdownButtonFormField<String>(
+                initialValue: _testId,
+                decoration: const InputDecoration(labelText: 'Select a quiz to send'),
+                items: [for (final t in tests) DropdownMenuItem(value: t.id, child: Text(t.title))],
+                onChanged: (v) => setState(() => _testId = v),
+              );
+            },
+          ),
+        ],
         const SizedBox(height: 16),
         Text('Required Materials (Optional)', style: GoogleFonts.inter(fontSize: 12.5, color: ac.muted)),
         const SizedBox(height: 6),
@@ -353,7 +395,7 @@ class _StudentHomeworkView extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             itemCount: sorted.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (_, i) => _HomeworkTile(homework: sorted[i]),
+            itemBuilder: (_, i) => _HomeworkTile(homework: sorted[i], student: user),
           );
         },
       ),
@@ -364,7 +406,10 @@ class _StudentHomeworkView extends StatelessWidget {
 class _HomeworkTile extends StatelessWidget {
   final Homework homework;
   final VoidCallback? onDelete;
-  const _HomeworkTile({required this.homework, this.onDelete});
+  /// Set only in the student's own "My Homework" view — enables the
+  /// "Take Quiz" action for quiz-type homework (spec item 4B).
+  final AppUser? student;
+  const _HomeworkTile({required this.homework, this.onDelete, this.student});
 
   @override
   Widget build(BuildContext context) {
@@ -387,6 +432,10 @@ class _HomeworkTile extends StatelessWidget {
             const SizedBox(height: 8),
             Text('Due ${homework.dueAt.day}/${homework.dueAt.month}/${homework.dueAt.year}',
                 style: GoogleFonts.inter(fontSize: 11, color: ac.muted)),
+            if (homework.isQuiz && student != null) ...[
+              const SizedBox(height: 10),
+              _TakeQuizButton(homework: homework, student: student!),
+            ],
           ]),
         ),
         const SizedBox(width: 10),
@@ -404,6 +453,58 @@ class _HomeworkTile extends StatelessWidget {
             IconButton(icon: Icon(Icons.delete_outline_rounded, size: 18, color: ac.muted), onPressed: onDelete),
         ]),
       ]),
+    );
+  }
+}
+
+class _TakeQuizButton extends StatefulWidget {
+  final Homework homework;
+  final AppUser student;
+  const _TakeQuizButton({required this.homework, required this.student});
+
+  @override
+  State<_TakeQuizButton> createState() => _TakeQuizButtonState();
+}
+
+class _TakeQuizButtonState extends State<_TakeQuizButton> {
+  late final Future<DateTime?> _effectiveDueAt = HomeworkRepository.instance
+      .getEffectiveDueAt(widget.homework.id, widget.student.id);
+  bool _opening = false;
+
+  Future<void> _open() async {
+    setState(() => _opening = true);
+    final test = await TestRepository.instance.watchTest(widget.homework.testId!).first;
+    if (!mounted) return;
+    setState(() => _opening = false);
+    if (test == null) {
+      showToast(context, 'This quiz is no longer available.', isError: true);
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => TestTakingPage(user: widget.student, test: test, homeworkId: widget.homework.id),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return FutureBuilder<DateTime?>(
+      future: _effectiveDueAt,
+      builder: (context, snap) {
+        final expired = snap.data != null && DateTime.now().isAfter(snap.data!);
+        return SizedBox(
+          height: 34,
+          child: OutlinedButton.icon(
+            onPressed: expired || _opening ? null : _open,
+            icon: Icon(expired ? Icons.lock_clock_outlined : Icons.quiz_outlined, size: 16),
+            label: Text(expired ? 'Expired' : 'Take Quiz', style: const TextStyle(fontSize: 12.5)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: expired ? ac.muted : ac.primary,
+              side: BorderSide(color: expired ? ac.bdr2 : ac.primary),
+            ),
+          ),
+        );
+      },
     );
   }
 }

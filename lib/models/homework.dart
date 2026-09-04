@@ -20,6 +20,11 @@ class Homework {
   final bool notify;
   final DateTime createdAt;
 
+  /// Set only when [homeworkType] == 'quiz' — the linked public.tests row
+  /// (spec item 4B, quiz-as-homework). Backed by public.homework.test_id,
+  /// see supabase/migrations/20260904000001_homework_quizzes_and_extensions.sql.
+  final String? testId;
+
   const Homework({
     required this.id,
     required this.schoolId,
@@ -35,7 +40,10 @@ class Homework {
     this.requiredMaterials = const [],
     this.notify = true,
     required this.createdAt,
+    this.testId,
   });
+
+  bool get isQuiz => homeworkType == 'quiz' && (testId ?? '').isNotEmpty;
 
   bool get isOverdue => DateTime.now().isAfter(dueAt);
 
@@ -54,6 +62,7 @@ class Homework {
         requiredMaterials: (d['required_materials'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
         notify: d['notify'] ?? true,
         createdAt: DateTime.tryParse(d['created_at']?.toString() ?? '') ?? DateTime.now(),
+        testId: d['test_id']?.toString(),
       );
 
   Map<String, dynamic> toSupabase() => {
@@ -69,5 +78,6 @@ class Homework {
         'attachment_name': attachmentName,
         'required_materials': requiredMaterials,
         'notify': notify,
+        'test_id': testId,
       };
 }

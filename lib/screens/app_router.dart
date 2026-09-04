@@ -26,6 +26,7 @@ import '../features/academic_content/library_home_page.dart';
 import '../features/courses_marketplace/courses_home_page.dart';
 import '../pages/profile_page.dart';
 import '../features/dashboard/universal_home_page.dart';
+import '../features/school/parent_dashboard_page.dart';
 import '../features/magazine/magazine_feed_page.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/create_content_sheet.dart';
@@ -302,7 +303,10 @@ class _HomeShellState extends State<HomeShell> {
           ])));
     }
     switch (def.label) {
-      case 'Home':     return UniversalHomePage(user: u);
+      // Item 5: a parent's Home tab shows their linked student's
+      // information (timetable/marks/homework), never their own —
+      // there is no "own" student data for a parent account to show.
+      case 'Home':     return u.isParent ? ParentDashboardPage(user: u) : UniversalHomePage(user: u);
       case 'Library':  return LibraryHomePage(user: u);
       case 'Magazine': return MagazineFeedPage(user: u);
       case 'Courses':  return CoursesHomePage(user: u);

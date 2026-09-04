@@ -13,7 +13,9 @@ enum NotificationType {
   articlePublished,
   system,
   homework,
-  dailyProgram;
+  dailyProgram,
+  message,
+  recommendation;
 
   String get label {
     switch (this) {
@@ -24,6 +26,8 @@ enum NotificationType {
       case NotificationType.system:           return Branding.current.appName;
       case NotificationType.homework:         return 'Homework';
       case NotificationType.dailyProgram:     return "Tomorrow's Program";
+      case NotificationType.message:          return 'Message';
+      case NotificationType.recommendation:   return 'Recommended for you';
     }
   }
 }
@@ -53,6 +57,7 @@ class AppNotification {
       'reply': NotificationType.reply, 'article_published': NotificationType.articlePublished,
       'system': NotificationType.system, 'homework': NotificationType.homework,
       'daily_program': NotificationType.dailyProgram,
+      'message': NotificationType.message, 'recommendation': NotificationType.recommendation,
     };
     return AppNotification(
       id: d['id'] as String,

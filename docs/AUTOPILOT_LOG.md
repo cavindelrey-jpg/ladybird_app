@@ -5315,3 +5315,45 @@ any more code, specifically hunting for item 15's "no mock data/fake
 success/frontend-only state" violations. Will prioritize CRITICAL/
 HIGH-PRIORITY items (6 - already appears largely fixed, 10 - XP
 transactional bug, unstarted) first once inventory returns.
+
+## 2026-09-04 (2) — Skipped item 9E (Daily Challenge notification): the feature it points at doesn't exist yet
+
+Spec item 9E says "The Daily Challenge already exists... connect it to
+the notification system." Checked lib/repositories/daily_challenge_repository.dart
+before building anything: it's an explicit, documented stub --
+`getToday()` unconditionally returns null, `submitAttempt()`/`seedToday()`
+unconditionally return Failure("Daily challenges aren't available yet."),
+and the file's own header comment says "No Postgres table yet." There is
+no real Daily Challenge feature in this codebase today, so the spec's
+premise is wrong here, not just a wording gap.
+
+**Default taken**: did not build a notification for it. A notification
+saying "check your Daily Challenge" that leads to a permanently-empty
+screen would be exactly the kind of decorative-but-fake element item 15
+explicitly forbids, and there's no Postgres table to even query from a
+cron job (the honest-silence pattern the other crons use isn't available
+here -- there's nothing real to be silent or non-silent about). Building
+the actual Daily Challenge feature from scratch is a materially bigger
+scope than "connect an existing thing to notifications" and the spec
+itself says not to rebuild it, so left alone rather than doing it as a
+side effect of item 9E.
+
+**Flagging for the user**: if Daily Challenge is meant to be a real,
+shipped feature, that's separate, larger work item that should be
+called out explicitly (a Postgres table + seeding UI + the actual
+challenge-taking flow) -- once it exists, wiring a daily reminder
+notification for it is a small addition following the same pattern as
+9B/9D above.
+
+Delivered instead this session: fixed 9A (notify_school_on_announcement
+was silently rolling back every school announcement insert due to a
+u.school_id-vs-institution_id column bug, same class of bug as the
+school_marks/timetable RLS issue from the day before), added 9B
+(direct-message notifications, real trigger on direct_messages joined to
+conversations.participant_ids) and 9D (daily per-student recommendation
+notifications across courses/library/quizzes, favorite-subject-weighted,
+skips a category rather than faking a duplicate when nothing unseen
+exists). Also rewrote the broken uncommitted teacher-authorization RLS
+migration (item 3/13) and scoped the XP paywall to the Academia brand
+only (item 11) -- see this file's prior entry for the full kickoff
+context.

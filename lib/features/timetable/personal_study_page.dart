@@ -194,82 +194,102 @@ class _SlotFormSheetState extends State<_SlotFormSheet> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
+    // The previous fix (wrapping everything in one SingleChildScrollView)
+    // made the Save button reachable but not DISCOVERABLE -- it still
+    // required scrolling past the keyboard/dropdown to find it, which a
+    // real user reported as "there is no way to save" / "the button
+    // doesn't even exist" even on a build that had that fix. Save/Delete
+    // now live OUTSIDE the scrollable region, in a fixed footer that's
+    // always rendered at a constant position at the bottom of the sheet
+    // -- it can never scroll out of view, regardless of how much room
+    // the form fields above it take or whether the keyboard is open.
+    final maxSheetHeight = MediaQuery.of(context).size.height * 0.85;
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SafeArea(
-        // The Save/Delete row previously fell outside the visible area
-        // whenever the keyboard was open and pushed this un-scrollable
-        // Column taller than what was left of the screen -- no way to
-        // reach it, which read as "there's no save button" even though
-        // one was always there.
-        child: SingleChildScrollView(
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(widget.existing == null ? 'New Study Session' : 'Edit Study Session',
-              style: AppText.title.copyWith(fontSize: 16)),
-          const SizedBox(height: 14),
-          TextField(controller: _activityCtrl,
-              decoration: const InputDecoration(hintText: 'e.g. Mathematics revision', border: OutlineInputBorder())),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8, runSpacing: 8,
-            children: List.generate(7, (i) {
-              final d = i + 1;
-              final sel = d == _day;
-              return ChoiceChip(
-                label: Text(PersonalStudySlot.dayNames[d]),
-                selected: sel,
-                onSelected: (_) => setState(() => _day = d),
-                selectedColor: ac.primary,
-                labelStyle: TextStyle(color: sel ? Colors.white : ac.txt),
-              );
-            }),
-          ),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () async {
-                  final picked = await showTimePicker(context: context, initialTime: _start);
-                  if (picked != null) setState(() => _start = picked);
-                },
-                child: Text('Start: ${_fmt(_start)}'),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxSheetHeight),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(widget.existing == null ? 'New Study Session' : 'Edit Study Session',
+                      style: AppText.title.copyWith(fontSize: 16)),
+                  const SizedBox(height: 14),
+                  TextField(controller: _activityCtrl,
+                      decoration: const InputDecoration(hintText: 'e.g. Mathematics revision', border: OutlineInputBorder())),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8, runSpacing: 8,
+                    children: List.generate(7, (i) {
+                      final d = i + 1;
+                      final sel = d == _day;
+                      return ChoiceChip(
+                        label: Text(PersonalStudySlot.dayNames[d]),
+                        selected: sel,
+                        onSelected: (_) => setState(() => _day = d),
+                        selectedColor: ac.primary,
+                        labelStyle: TextStyle(color: sel ? Colors.white : ac.txt),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          final picked = await showTimePicker(context: context, initialTime: _start);
+                          if (picked != null) setState(() => _start = picked);
+                        },
+                        child: Text('Start: ${_fmt(_start)}'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          final picked = await showTimePicker(context: context, initialTime: _end);
+                          if (picked != null) setState(() => _end = picked);
+                        },
+                        child: Text('End: ${_fmt(_end)}'),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String?>(
+                    initialValue: _subject,
+                    decoration: const InputDecoration(labelText: 'Subject (optional)', border: OutlineInputBorder()),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('None')),
+                      ...kAcademicSubjects.map((s) => DropdownMenuItem(value: s, child: Text(s))),
+                    ],
+                    onChanged: (v) => setState(() => _subject = v),
+                  ),
+                ]),
               ),
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () async {
-                  final picked = await showTimePicker(context: context, initialTime: _end);
-                  if (picked != null) setState(() => _end = picked);
-                },
-                child: Text('End: ${_fmt(_end)}'),
+            // Fixed footer -- never inside the scroll view, always visible.
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+              decoration: BoxDecoration(
+                color: ac.bg,
+                border: Border(top: BorderSide(color: ac.bdr2)),
               ),
+              child: Row(children: [
+                if (widget.existing != null)
+                  TextButton(onPressed: _delete, child: Text('Delete', style: TextStyle(color: ac.red))),
+                const Spacer(),
+                ElevatedButton(
+                  onPressed: _saving ? null : _submit,
+                  style: ElevatedButton.styleFrom(backgroundColor: ac.navy, foregroundColor: Colors.white),
+                  child: _saving
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Save'),
+                ),
+              ]),
             ),
           ]),
-          const SizedBox(height: 12),
-          DropdownButtonFormField<String?>(
-            initialValue: _subject,
-            decoration: const InputDecoration(labelText: 'Subject (optional)', border: OutlineInputBorder()),
-            items: [
-              const DropdownMenuItem(value: null, child: Text('None')),
-              ...kAcademicSubjects.map((s) => DropdownMenuItem(value: s, child: Text(s))),
-            ],
-            onChanged: (v) => setState(() => _subject = v),
-          ),
-          const SizedBox(height: 16),
-          Row(children: [
-            if (widget.existing != null)
-              TextButton(onPressed: _delete, child: Text('Delete', style: TextStyle(color: ac.red))),
-            const Spacer(),
-            ElevatedButton(
-              onPressed: _saving ? null : _submit,
-              style: ElevatedButton.styleFrom(backgroundColor: ac.navy, foregroundColor: Colors.white),
-              child: _saving
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Save'),
-            ),
-          ]),
-        ]),
         ),
       ),
     );

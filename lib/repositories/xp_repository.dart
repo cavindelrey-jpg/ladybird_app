@@ -16,6 +16,7 @@
 import '../models/app_user.dart';
 import '../models/xp_transaction.dart';
 import '../core/result.dart';
+import '../config/branding.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class XpRepository {
@@ -110,9 +111,11 @@ class XpRepository {
       .map((rows) => rows.map(XpTransaction.fromSupabase).toList());
 
   /// Checks unlock status. Premium subscribers unlock everything
-  /// implicitly.
+  /// implicitly, and so does every white-label school build (Green
+  /// Hills, Legitbell, ...) — the XP/paywall economy is Academia-only,
+  /// see Branding.xpEconomyEnabled.
   Future<bool> isPaperUnlocked(AppUser user, String paperId) async {
-    if (user.isPremium) return true;
+    if (user.isPremium || !Branding.current.xpEconomyEnabled) return true;
     final row = await _db
         .from('unlocked_papers')
         .select()
@@ -123,7 +126,7 @@ class XpRepository {
   }
 
   Stream<bool> watchIsPaperUnlocked(AppUser user, String paperId) {
-    if (user.isPremium) return Stream.value(true);
+    if (user.isPremium || !Branding.current.xpEconomyEnabled) return Stream.value(true);
     return _db
         .from('unlocked_papers')
         .stream(primaryKey: ['user_id', 'paper_id'])

@@ -81,6 +81,18 @@ class Branding {
 
   static Branding get current => _current;
 
+  /// True only for the public Academia app. The XP economy (paywalled
+  /// past papers, purchases, leaderboards) is an Academia-only mechanic —
+  /// per spec: Green Hills and Legitbell (and any other white-label
+  /// school build) must have all papers/books auto-unlocked, with no XP
+  /// or fiat paywall of any kind. Deliberately an allowlist (only
+  /// 'academia' opts in) rather than a denylist of known white-label
+  /// ids, so a brand this repo doesn't know about yet (a future
+  /// Legitbell-style fork, which per docs/AUTOPILOT_LOG.md gets its own
+  /// repo/BRAND_ID the same way this Ladybird fork does) defaults to
+  /// "no XP paywall" rather than accidentally inheriting one.
+  bool get xpEconomyEnabled => brandId == 'academia';
+
   static Color _parseColor(String? hex, Color fallback) {
     if (hex == null || hex.isEmpty) return fallback;
     final cleaned = hex.replaceAll('#', '');

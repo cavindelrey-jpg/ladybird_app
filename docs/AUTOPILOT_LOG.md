@@ -5357,3 +5357,98 @@ exists). Also rewrote the broken uncommitted teacher-authorization RLS
 migration (item 3/13) and scoped the XP paywall to the Academia brand
 only (item 11) -- see this file's prior entry for the full kickoff
 context.
+
+## 2026-09-04 (3) — Session summary: 10 of 15 spec items landed, remaining gaps flagged explicitly
+
+Consolidated summary of this session's work on the large numbered spec
+(this file's first entry above has the full kickoff context/assumptions).
+Branch: feature/spec-2026-09-04-full-audit, off main, per this file's
+"never work directly on main" rule. Commits e7b809e through 0279da6.
+
+**Fully landed this session:**
+- Item 6 (Study Plan Add-Session bug): confirmed already-fixed by a
+  prior session (missing table), added start/end time validation.
+- Item 8 (Magazine branding): confirmed clean, committed the last two
+  in-progress string fixes.
+- Item 3/13 (marks RLS): rewrote a previously-uncommitted, BROKEN
+  migration that reintroduced the exact school_id-vs-institution_id bug
+  fixed one day earlier and dropped the class-master bypass -- now
+  DB-enforced per-(subject,class_level) teacher authorization.
+- Item 9A (announcements->notifications): found and fixed a live bug --
+  notify_school_on_announcement() referenced a nonexistent column,
+  which (AFTER INSERT trigger, same transaction) was silently rolling
+  back every school announcement insert since 2026-09-01.
+- Item 11 (XP scoped to Academia only): Branding.xpEconomyEnabled gate
+  on XpRepository.isPaperUnlocked -- white-label builds auto-unlock
+  every past paper, no purchase sheet.
+- Item 9B (message notifications): real trigger on direct_messages.
+- Item 9D (recommendation notifications, >=3/day): new cron, genuinely
+  per-student across courses/library/quizzes, skips a category rather
+  than faking a duplicate.
+- Item 9E (Daily Challenge notification): explicitly SKIPPED, logged
+  separately -- the feature itself is an unbuilt stub, building a
+  notification for it would be exactly the fake/decorative element
+  item 15 forbids.
+- Item 5 (parent-student linking + Parent Dashboard): new
+  parent_student_links table auto-populated from the existing
+  voucher-pair mechanism, RLS bypass added to marks/homework/timetable
+  SELECT, new read-only ParentDashboardPage (deliberately not a reuse
+  of student screens, to avoid side effects/action buttons firing on a
+  child's behalf).
+- Item 7 (dark mode): two forks fixed magazine_feed_page.dart (~50 raw
+  legacy C.xxx refs -- the actual bug) and lib/features/clubs/ (same
+  pattern, flagged by the first fork and by
+  docs/ARCHITECTURE_REPORT.md's own prior audit). Every other file on
+  the original suspect list turned out to be a false positive (already
+  correctly themed).
+- Item 12 (XP leaderboards): school-scoped (server-verifies the caller
+  actually belongs to that school) + global-Academia RPCs, ranked by
+  lifetime_xp so spending never drops rank; global tab hidden on
+  white-label builds.
+- Item 4B (quiz-as-homework + server-enforced expiry): teacher links an
+  existing quiz to a homework row; student gets a "Take Quiz"/"Expired"
+  button; REAL backend enforcement via a BEFORE INSERT trigger on
+  test_attempts (not just the frontend button state) that re-checks
+  the same get_effective_homework_due_at() the client pre-checks, so
+  client and server can never disagree about what "expired" means.
+
+**Explicitly NOT done, flagged for a follow-up session (not silently
+dropped):**
+- Item 1's finer point: public.users' own RLS (who can write
+  teaching_assignments/class_master_of_class/role) isn't defined in
+  this repo (shared Supabase project with the sibling greenhills_app
+  repo this app forked from) -- couldn't be safely inspected or
+  hardened blind the way school_marks/homework/timetable could (their
+  current policies WERE readable, from this repo's own prior
+  migrations). Needs either that policy pasted in, or direct DB access,
+  to fix responsibly.
+- Item 2's "yearly timetable": only a weekly-recurring
+  school_timetable_slots exists; no term-dates/one-off yearly calendar
+  concept beyond the separate school_calendar_events table. Bigger
+  greenfield feature, not attempted this session given time.
+- Item 14 (end-to-end runtime testing): this sandbox has no reliable
+  network (confirmed again this session -- `supabase migration list`
+  and even a plain `ls` hung past 120s) -- couldn't run `flutter
+  analyze`/`flutter test`/apply migrations against a live DB to
+  actually execute any of the "Teacher: enter marks, save, verify
+  persist" style workflows end-to-end. Every fix above was verified by
+  static reading (cross-checking column names against BOTH directions
+  of the relevant Dart model's Supabase mapping wherever this repo
+  doesn't define the table itself) rather than a real run. Recommend
+  running `flutter analyze` and applying the new migrations against a
+  real/staging Supabase project as the next session's first step,
+  BEFORE building further on top of this branch.
+
+**Pattern used repeatedly this session, worth naming for next time**:
+several tables this repo writes to (direct_messages, conversations,
+courses, tests, academic_content, school_vouchers, public.users) have
+NO migration file in this repo at all -- base schema lives in the
+sibling greenhills_app repo (shared Supabase project). Column names for
+any SQL touching those tables were never guessed -- always cross-checked
+against BOTH the read (fromSupabase) AND write (toSupabase) side of the
+relevant Dart model, since agreement between both directions is strong
+evidence the column really exists with that exact name. Where a
+narrower, purpose-built SECURITY DEFINER RPC could avoid needing to
+touch/guess an invisible table's RLS at all (get_linked_students,
+get_school_leaderboard, get_global_leaderboard), that was preferred
+over broadening an unseen policy.

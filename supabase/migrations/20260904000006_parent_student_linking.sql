@@ -16,8 +16,20 @@
 -- CREATE OR REPLACE'd without risking silently dropping behavior it
 -- already has. A trigger on the same table's UPDATE achieves the same
 -- outcome without touching that function at all.
+--
+-- Table named academia_parent_student_links, not the more obvious
+-- parent_student_links: a live push against the real project hit
+-- "column student_id does not exist" on the CREATE INDEX right after
+-- CREATE TABLE IF NOT EXISTS -- the only way that happens is a table
+-- already named public.parent_student_links exists with some other,
+-- incompatible shape (almost certainly from the sibling greenhills_app
+-- repo, same shared Supabase project, whose schema isn't visible from
+-- here -- no Docker for `supabase db dump`, no service_role key for a
+-- PostgREST OpenAPI introspection, no stored DB password for a direct
+-- psql session). Renaming avoids touching or guessing at an unknown
+-- table something else may depend on.
 
-create table if not exists public.parent_student_links (
+create table if not exists public.academia_parent_student_links (
   parent_id uuid not null references auth.users(id) on delete cascade,
   student_id uuid not null references auth.users(id) on delete cascade,
   school_id uuid references public.institutions(id) on delete cascade,
@@ -25,17 +37,19 @@ create table if not exists public.parent_student_links (
   primary key (parent_id, student_id)
 );
 
-create index if not exists parent_student_links_student_idx on public.parent_student_links (student_id);
+create index if not exists academia_parent_student_links_student_idx on public.academia_parent_student_links (student_id);
 
-alter table public.parent_student_links enable row level security;
+alter table public.academia_parent_student_links enable row level security;
 
-create policy "parent student links select own" on public.parent_student_links
+drop policy if exists "parent student links select own" on public.academia_parent_student_links;
+create policy "parent student links select own" on public.academia_parent_student_links
   for select
   using (parent_id = auth.uid() or student_id = auth.uid());
 
 -- Admins of the school can view/correct links for their own school —
 -- e.g. a parent who claims the wrong code, or a re-issued voucher.
-create policy "parent student links admin manage" on public.parent_student_links
+drop policy if exists "parent student links admin manage" on public.academia_parent_student_links;
+create policy "parent student links admin manage" on public.academia_parent_student_links
   for all
   using (
     school_id in (
@@ -77,7 +91,7 @@ begin
       from public.school_vouchers
       where id = new.linked_student_voucher_id and status = 'redeemed';
     if v_student_user_id is not null then
-      insert into public.parent_student_links (parent_id, student_id, school_id)
+      insert into public.academia_parent_student_links (parent_id, student_id, school_id)
       values (new.redeemed_by_user_id, v_student_user_id, new.school_id)
       on conflict (parent_id, student_id) do nothing;
     end if;
@@ -87,7 +101,7 @@ begin
       where linked_student_voucher_id = new.id and role = 'parent' and status = 'redeemed'
         and redeemed_by_user_id is not null
     loop
-      insert into public.parent_student_links (parent_id, student_id, school_id)
+      insert into public.academia_parent_student_links (parent_id, student_id, school_id)
       values (v_parent_user_id, new.redeemed_by_user_id, new.school_id)
       on conflict (parent_id, student_id) do nothing;
     end loop;
@@ -116,7 +130,7 @@ set search_path = public
 stable
 as $$
   select u.id, u.name, u.class_level, u.institution_id, u.photo_url
-  from public.parent_student_links pl
+  from public.academia_parent_student_links pl
   join public.users u on u.id = pl.student_id
   where pl.parent_id = p_parent_id;
 $$;
@@ -135,7 +149,7 @@ create policy "school marks select" on public.school_marks
       where id = auth.uid() and role in ('lecturer', 'department_admin', 'school_admin', 'super_admin')
     )
     or exists (
-      select 1 from public.parent_student_links pl
+      select 1 from public.academia_parent_student_links pl
       where pl.parent_id = auth.uid() and pl.student_id = school_marks.student_id
     )
   );
@@ -152,7 +166,7 @@ create policy "homework select" on public.homework
              or u.role in ('lecturer', 'department_admin', 'school_admin', 'super_admin'))
     )
     or exists (
-      select 1 from public.parent_student_links pl
+      select 1 from public.academia_parent_student_links pl
       join public.users su on su.id = pl.student_id
       where pl.parent_id = auth.uid()
         and su.institution_id = homework.school_id
@@ -166,7 +180,7 @@ create policy "school timetable select" on public.school_timetable_slots
   using (
     school_id in (select institution_id from public.users where id = auth.uid())
     or exists (
-      select 1 from public.parent_student_links pl
+      select 1 from public.academia_parent_student_links pl
       join public.users su on su.id = pl.student_id
       where pl.parent_id = auth.uid()
         and su.institution_id = school_timetable_slots.school_id

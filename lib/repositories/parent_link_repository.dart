@@ -1,6 +1,6 @@
 // lib/repositories/parent_link_repository.dart
 // Spec item 5's parent<->student link. Backed by
-// public.parent_student_links, populated automatically by a trigger on
+// public.academia_parent_student_links, populated automatically by a trigger on
 // school_vouchers redemption (see supabase/migrations/
 // 20260904000006_parent_student_linking.sql) rather than any manual
 // admin step -- a parent-role voucher already carries

@@ -1904,6 +1904,7 @@ class _AddResourceSheetState extends State<_AddResourceSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
       child: SafeArea(

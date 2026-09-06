@@ -1185,7 +1185,6 @@ class _RecommendedClubsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return StreamBuilder<List<Club>>(
       stream: ClubRepository.instance.watchClubs(schoolId: user?.schoolId),
       builder: (context, snap) {
@@ -1208,6 +1207,7 @@ class _RecommendedClubsSection extends StatelessWidget {
   }
 
   Widget _section(BuildContext context, List<Club> preview, List<Club> seeAllList) {
+    final ac = AppColors.of(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),

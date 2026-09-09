@@ -6,6 +6,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/result.dart';
 import '../../models/app_user.dart';
 import '../../models/club.dart';
 import '../../repositories/club_repository.dart';
@@ -218,27 +219,69 @@ class _PendingRequestsSection extends StatelessWidget {
             const SizedBox(height: 10),
             ...requests.map((r) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: ACard(child: Row(children: [
-                UserAvatar(initials: r.userName.isEmpty ? '?' : r.userName[0].toUpperCase(),
-                    radius: 18, photoUrl: r.userPhotoUrl),
-                const SizedBox(width: 10),
-                Expanded(child: Text(r.userName, style: GoogleFonts.inter(
-                    fontSize: 13.5, fontWeight: FontWeight.w600, color: ac.txt))),
-                TextButton(
-                  onPressed: () => ClubRepository.instance.declineJoinRequest(r.id),
-                  child: Text('Decline', style: TextStyle(color: ac.muted)),
-                ),
-                ElevatedButton(
-                  onPressed: () => ClubRepository.instance.approveJoinRequest(r),
-                  style: ElevatedButton.styleFrom(backgroundColor: ac.navy, foregroundColor: Colors.white),
-                  child: const Text('Approve'),
-                ),
-              ])),
+              child: _JoinRequestRow(request: r),
             )),
             Divider(color: ac.bdr2, height: 24),
           ]),
         );
       },
     );
+  }
+}
+
+/// One join-request row — its own StatefulWidget so Approve/Decline can
+/// show a per-row busy state and, critically, actually surface a
+/// failure. Both actions used to be fire-and-forget (no await, no error
+/// handling): if approve_club_join_request() rejected the caller (e.g.
+/// a promoted admin who wasn't the club's original moderator_id), NOTHING
+/// visibly happened, which read as "there's no way to accept."
+class _JoinRequestRow extends StatefulWidget {
+  final ClubJoinRequest request;
+  const _JoinRequestRow({required this.request});
+
+  @override
+  State<_JoinRequestRow> createState() => _JoinRequestRowState();
+}
+
+class _JoinRequestRowState extends State<_JoinRequestRow> {
+  bool _busy = false;
+
+  Future<void> _decide(Future<Result<void>> Function() action) async {
+    setState(() => _busy = true);
+    final result = await action();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (result is Failure<void>) {
+      showToast(context, result.message, isError: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final r = widget.request;
+    return ACard(child: Row(children: [
+      UserAvatar(initials: r.userName.isEmpty ? '?' : r.userName[0].toUpperCase(),
+          radius: 18, photoUrl: r.userPhotoUrl),
+      const SizedBox(width: 10),
+      Expanded(child: Text(r.userName, style: GoogleFonts.inter(
+          fontSize: 13.5, fontWeight: FontWeight.w600, color: ac.txt))),
+      if (_busy)
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+        )
+      else ...[
+        TextButton(
+          onPressed: () => _decide(() => ClubRepository.instance.declineJoinRequest(r.id)),
+          child: Text('Decline', style: TextStyle(color: ac.muted)),
+        ),
+        ElevatedButton(
+          onPressed: () => _decide(() => ClubRepository.instance.approveJoinRequest(r)),
+          style: ElevatedButton.styleFrom(backgroundColor: ac.navy, foregroundColor: Colors.white),
+          child: const Text('Approve'),
+        ),
+      ],
+    ]));
   }
 }

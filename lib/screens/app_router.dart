@@ -109,7 +109,7 @@ class _GuestShellState extends State<_GuestShell> {
       _GuestGateTab(onTap: () => _guestGate(context), label: 'Profile'),
     ];
     return Scaffold(
-      drawer: const AppDrawer(user: null),
+      drawer: AppDrawer(user: null, onHomeTap: () => setState(() => _tab = 0)),
       body: IndexedStack(index: _tab, children: pages),
       floatingActionButton: FloatingActionButton(
         backgroundColor: ac.gold,
@@ -329,7 +329,7 @@ class _HomeShellState extends State<HomeShell> {
     _visitedTabs.add(safeTab);
 
     return Scaffold(
-      drawer: AppDrawer(user: widget.user),
+      drawer: AppDrawer(user: widget.user, onHomeTap: () => setState(() => _tab = 0)),
       body: SafeArea(
         child: IndexedStack(
           index: safeTab,

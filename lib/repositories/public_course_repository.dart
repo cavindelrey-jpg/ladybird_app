@@ -14,7 +14,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/public_course.dart';
-import '../core/result.dart';
+import '../core/core.dart';
 import '../services/content_cache_service.dart';
 
 /// One row of [PublicCourseRepository.levelsOnce] — a canonical education
@@ -33,6 +33,9 @@ class PublicCourseRepository {
   static const String _bucket = 'app-content';
   final SupabaseClient _db = Supabase.instance.client;
   SupabaseQueryBuilder get _courses => _db.from('courses');
+  
+  final _streamCache = StreamCache();
+  final _memoizer = Memoizer();
 
   // ── Feed queries ─────────────────────────────────────────
 
@@ -103,50 +106,60 @@ class PublicCourseRepository {
     return controller.stream;
   }
 
-  Stream<List<PublicCourse>> watchByCategory(String category, {int limit = 30}) => _courses
-      .stream(primaryKey: ['id'])
-      .eq('category', category)
-      .order('created_at', ascending: false)
-      .limit(limit)
-      .map((rows) => rows
-          .where((r) => r['published'] == true)
-          .map(PublicCourse.fromSupabase)
-          .toList());
+  Stream<List<PublicCourse>> watchByCategory(String category, {int limit = 30}) => _streamCache.watch(
+      'watchByCategory_${category}_$limit',
+      () => _courses
+          .stream(primaryKey: ['id'])
+          .eq('category', category)
+          .order('created_at', ascending: false)
+          .limit(limit)
+          .map((rows) => rows
+              .where((r) => r['published'] == true)
+              .map(PublicCourse.fromSupabase)
+              .toList()));
 
-  Stream<List<PublicCourse>> watchByCreator(String creatorId) => _courses
-      .stream(primaryKey: ['id'])
-      .eq('creator_id', creatorId)
-      .order('created_at', ascending: false)
-      .map((rows) => rows.map(PublicCourse.fromSupabase).toList());
+  Stream<List<PublicCourse>> watchByCreator(String creatorId) => _streamCache.watch(
+      'watchByCreator_$creatorId',
+      () => _courses
+          .stream(primaryKey: ['id'])
+          .eq('creator_id', creatorId)
+          .order('created_at', ascending: false)
+          .map((rows) => rows.map(PublicCourse.fromSupabase).toList()));
 
-  Stream<PublicCourse?> watchOne(String courseId) => _courses
-      .stream(primaryKey: ['id'])
-      .eq('id', courseId)
-      .map((rows) => rows.isNotEmpty ? PublicCourse.fromSupabase(rows.first) : null);
+  Stream<PublicCourse?> watchOne(String courseId) => _streamCache.watch(
+      'watchOne_$courseId',
+      () => _courses
+          .stream(primaryKey: ['id'])
+          .eq('id', courseId)
+          .map((rows) => rows.isNotEmpty ? PublicCourse.fromSupabase(rows.first) : null));
 
   /// Featured — top-rated among reasonably-enrolled courses. Computed,
   /// not manually curated.
   Future<List<PublicCourse>> watchFeaturedOnce({int count = 6}) async {
-    final rows = await _courses.select().eq('published', true).order('created_at', ascending: false).limit(60);
-    final courses = rows.map(PublicCourse.fromSupabase).toList()
-      ..sort((a, b) {
-        final scoreA = a.avgRating * 10 + a.enrolledCount * 0.1;
-        final scoreB = b.avgRating * 10 + b.enrolledCount * 0.1;
-        return scoreB.compareTo(scoreA);
-      });
-    return courses.take(count).toList();
+    return _memoizer.runOnce('watchFeaturedOnce_$count', () async {
+      final rows = await _courses.select().eq('published', true).order('created_at', ascending: false).limit(60);
+      final courses = rows.map(PublicCourse.fromSupabase).toList()
+        ..sort((a, b) {
+          final scoreA = a.avgRating * 10 + a.enrolledCount * 0.1;
+          final scoreB = b.avgRating * 10 + b.enrolledCount * 0.1;
+          return scoreB.compareTo(scoreA);
+        });
+      return courses.take(count).toList();
+    });
   }
 
   /// Category counts for "Popular Topics" — computed client-side from a
   /// bounded sample.
   Future<Map<String, int>> categoryCountsOnce() async {
-    final rows = await _courses.select('category').eq('published', true).limit(500);
-    final counts = <String, int>{};
-    for (final row in rows) {
-      final cat = row['category'] ?? 'Other';
-      counts[cat] = (counts[cat] ?? 0) + 1;
-    }
-    return counts;
+    return _memoizer.runOnce('categoryCountsOnce', () async {
+      final rows = await _courses.select('category').eq('published', true).limit(500);
+      final counts = <String, int>{};
+      for (final row in rows) {
+        final cat = row['category'] ?? 'Other';
+        counts[cat] = (counts[cat] ?? 0) + 1;
+      }
+      return counts;
+    });
   }
 
   // ── Curriculum node icons ─────────────────────────────────────────
@@ -158,14 +171,16 @@ class PublicCourseRepository {
 
   /// All node->look assignments made so far.
   Future<Map<String, CurriculumIcon>> curriculumIconsOnce() async {
-    final rows = await _curriculumIcons.select().limit(2000);
-    return {
-      for (final r in rows)
-        r['key'] as String: CurriculumIcon(
-          emoji: r['emoji'] as String? ?? '',
-          imageUrl: r['image_url'] as String? ?? '',
-        ),
-    };
+    return _memoizer.runOnce('curriculumIconsOnce', () async {
+      final rows = await _curriculumIcons.select().limit(2000);
+      return {
+        for (final r in rows)
+          r['key'] as String: CurriculumIcon(
+            emoji: r['emoji'] as String? ?? '',
+            imageUrl: r['image_url'] as String? ?? '',
+          ),
+      };
+    });
   }
 
   /// Assigns/updates the look for one tree node. Pass whichever of
@@ -177,6 +192,7 @@ class PublicCourseRepository {
     } else {
       await _curriculumIcons.upsert({'key': key, 'emoji': emoji, 'image_url': imageUrl});
     }
+    _memoizer.clear();
   }
 
   /// Uploads a photo for one Subject/Level/Topic node, returning its
@@ -208,50 +224,62 @@ class PublicCourseRepository {
   /// The 5 canonical levels in order, each with its live course count.
   /// Never a hardcoded list — reads whatever admins have configured.
   Future<List<CourseLevelInfo>> levelsOnce() async {
-    final results = await Future.wait([
-      _courseLevels.select().order('sort_order'),
-      _courses.select('level').eq('published', true).limit(5000),
-    ]);
-    final levelRows = results[0] as List<Map<String, dynamic>>;
-    final courseRows = results[1] as List<Map<String, dynamic>>;
-    final counts = <String, int>{};
-    for (final row in courseRows) {
-      final level = row['level'] as String?;
-      if (level != null && level.trim().isNotEmpty) counts[level] = (counts[level] ?? 0) + 1;
-    }
-    return levelRows
-        .map((r) => CourseLevelInfo(name: r['name'] as String, courseCount: counts[r['name']] ?? 0))
-        .toList();
+    return _memoizer.runOnce('levelsOnce', () async {
+      final results = await Future.wait([
+        _courseLevels.select().order('sort_order'),
+        _courses.select('level').eq('published', true).limit(5000),
+      ]);
+      final levelRows = results[0] as List<Map<String, dynamic>>;
+      final courseRows = results[1] as List<Map<String, dynamic>>;
+      final counts = <String, int>{};
+      for (final row in courseRows) {
+        final level = row['level'] as String?;
+        if (level != null && level.trim().isNotEmpty) counts[level] = (counts[level] ?? 0) + 1;
+      }
+      return levelRows
+          .map((r) => CourseLevelInfo(name: r['name'] as String, courseCount: counts[r['name']] ?? 0))
+          .toList();
+    });
   }
 
   Future<List<String>> subjectsInLevel(String level) async {
-    final rows = await _courses.select('category').eq('published', true).eq('level', level).limit(500);
-    return _distinctNonEmpty(rows.map((r) => r['category'] as String?));
+    return _memoizer.runOnce('subjectsInLevel_$level', () async {
+      final rows = await _courses.select('category').eq('published', true).eq('level', level).limit(500);
+      return _distinctNonEmpty(rows.map((r) => r['category'] as String?));
+    });
   }
 
   Future<Map<String, int>> subjectCountsInLevel(String level) async {
-    final rows = await _courses.select('category').eq('published', true).eq('level', level).limit(5000);
-    return _countBy(rows.map((r) => r['category'] as String?));
+    return _memoizer.runOnce('subjectCountsInLevel_$level', () async {
+      final rows = await _courses.select('category').eq('published', true).eq('level', level).limit(5000);
+      return _countBy(rows.map((r) => r['category'] as String?));
+    });
   }
 
   Future<List<String>> topicsInSubject(String level, String subject) async {
-    final rows = await _courses
-        .select('topic').eq('published', true).eq('level', level).eq('category', subject).limit(500);
-    return _distinctNonEmpty(rows.map((r) => r['topic'] as String?));
+    return _memoizer.runOnce('topicsInSubject_${level}_$subject', () async {
+      final rows = await _courses
+          .select('topic').eq('published', true).eq('level', level).eq('category', subject).limit(500);
+      return _distinctNonEmpty(rows.map((r) => r['topic'] as String?));
+    });
   }
 
   Future<Map<String, int>> topicCountsInSubject(String level, String subject) async {
-    final rows = await _courses
-        .select('topic').eq('published', true).eq('level', level).eq('category', subject).limit(5000);
-    return _countBy(rows.map((r) => r['topic'] as String?));
+    return _memoizer.runOnce('topicCountsInSubject_${level}_$subject', () async {
+      final rows = await _courses
+          .select('topic').eq('published', true).eq('level', level).eq('category', subject).limit(5000);
+      return _countBy(rows.map((r) => r['topic'] as String?));
+    });
   }
 
   Future<List<PublicCourse>> coursesInTopic(String level, String subject, String topic) async {
-    final rows = await _courses
-        .select()
-        .eq('published', true).eq('level', level).eq('category', subject).eq('topic', topic)
-        .order('sort_order');
-    return rows.map(PublicCourse.fromSupabase).toList();
+    return _memoizer.runOnce('coursesInTopic_${level}_${subject}_$topic', () async {
+      final rows = await _courses
+          .select()
+          .eq('published', true).eq('level', level).eq('category', subject).eq('topic', topic)
+          .order('sort_order');
+      return rows.map(PublicCourse.fromSupabase).toList();
+    });
   }
 
   Map<String, int> _countBy(Iterable<String?> values) {
@@ -371,6 +399,7 @@ class PublicCourseRepository {
       final row = await _courses.insert(course.toSupabase()).select('id').single()
           .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
               'Saving is taking too long. Check your connection and try again.'));
+      _memoizer.clear();
       return Success(row['id'] as String);
     } catch (e) {
       return Failure('Failed to create course', e);
@@ -382,6 +411,7 @@ class PublicCourseRepository {
       await _courses.update(course.toSupabase()).eq('id', course.id)
           .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
               'Saving is taking too long. Check your connection and try again.'));
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update course', e);
@@ -391,6 +421,7 @@ class PublicCourseRepository {
   Future<Result<void>> delete(String id) async {
     try {
       await _courses.delete().eq('id', id);
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to delete course', e);

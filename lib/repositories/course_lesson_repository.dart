@@ -6,7 +6,7 @@
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/course_lesson.dart';
-import '../core/result.dart';
+import '../core/core.dart';
 
 class CourseLessonRepository {
   CourseLessonRepository._();
@@ -16,21 +16,30 @@ class CourseLessonRepository {
   final SupabaseClient _db = Supabase.instance.client;
   SupabaseQueryBuilder get _lessons => _db.from('course_lessons');
 
-  Stream<List<CourseLesson>> watchLessons(String courseId) => _lessons
-      .stream(primaryKey: ['id'])
-      .eq('course_id', courseId)
-      .order('sort_order')
-      .map((rows) => rows.map(CourseLesson.fromSupabase).toList());
+  final _memoizer = Memoizer();
+  final _streamCache = StreamCache();
+
+  Stream<List<CourseLesson>> watchLessons(String courseId) => _streamCache.watch(
+      'watchLessons_$courseId',
+      () => _lessons
+          .stream(primaryKey: ['id'])
+          .eq('course_id', courseId)
+          .order('sort_order')
+          .map((rows) => rows.map(CourseLesson.fromSupabase).toList()));
 
   Future<List<CourseLesson>> lessonsOnce(String courseId) async {
-    final rows = await _lessons.select().eq('course_id', courseId).order('sort_order');
-    return rows.map(CourseLesson.fromSupabase).toList();
+    return _memoizer.runOnce('lessonsOnce_$courseId', () async {
+      final rows = await _lessons.select().eq('course_id', courseId).order('sort_order');
+      return rows.map(CourseLesson.fromSupabase).toList();
+    });
   }
 
-  Stream<CourseLesson?> watchOne(String lessonId) => _lessons
-      .stream(primaryKey: ['id'])
-      .eq('id', lessonId)
-      .map((rows) => rows.isNotEmpty ? CourseLesson.fromSupabase(rows.first) : null);
+  Stream<CourseLesson?> watchOne(String lessonId) => _streamCache.watch(
+      'watchOne_$lessonId',
+      () => _lessons
+          .stream(primaryKey: ['id'])
+          .eq('id', lessonId)
+          .map((rows) => rows.isNotEmpty ? CourseLesson.fromSupabase(rows.first) : null));
 
   // ── Sequence placement — same gap-of-100 pattern as PublicCourseRepository ──
 
@@ -64,6 +73,7 @@ class CourseLessonRepository {
       final row = await _lessons.insert(lesson.toSupabase()).select('id').single()
           .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
               'Saving is taking too long. Check your connection and try again.'));
+      _memoizer.clear();
       return Success(row['id'] as String);
     } catch (e) {
       return Failure('Failed to create lesson', e);
@@ -75,6 +85,7 @@ class CourseLessonRepository {
       await _lessons.update(lesson.toSupabase()).eq('id', lesson.id)
           .timeout(const Duration(seconds: 20), onTimeout: () => throw Exception(
               'Saving is taking too long. Check your connection and try again.'));
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update lesson', e);
@@ -84,6 +95,7 @@ class CourseLessonRepository {
   Future<Result<void>> delete(String id) async {
     try {
       await _lessons.delete().eq('id', id);
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to delete lesson', e);

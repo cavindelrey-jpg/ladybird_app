@@ -11,7 +11,7 @@
 
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../core/result.dart';
+import '../core/core.dart';
 
 class HomeHeroRepository {
   HomeHeroRepository._();
@@ -20,12 +20,15 @@ class HomeHeroRepository {
   static const String _rowId = 'ladybird';
   static const String _bucket = 'app-content';
   final SupabaseClient _db = Supabase.instance.client;
+  final _streamCache = StreamCache();
 
-  Stream<String> watchImageUrl() => _db
-      .from('home_hero')
-      .stream(primaryKey: ['id'])
-      .eq('id', _rowId)
-      .map((rows) => rows.isNotEmpty ? (rows.first['image_url'] as String? ?? '') : '');
+  Stream<String> watchImageUrl() => _streamCache.watch(
+      'watchImageUrl',
+      () => _db
+          .from('home_hero')
+          .stream(primaryKey: ['id'])
+          .eq('id', _rowId)
+          .map((rows) => rows.isNotEmpty ? (rows.first['image_url'] as String? ?? '') : ''));
 
   Future<Result<String>> uploadImage(File imageFile) async {
     try {

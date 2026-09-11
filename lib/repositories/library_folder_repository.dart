@@ -10,7 +10,7 @@ import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/library_folder.dart';
 import '../models/academic_content.dart';
-import '../core/result.dart';
+import '../core/core.dart';
 
 /// Which root folder a given [ContentType] backfills into by default —
 /// mirrors the mapping in academia-cameroon's
@@ -34,16 +34,23 @@ class LibraryFolderRepository {
   final SupabaseClient _db = Supabase.instance.client;
   SupabaseQueryBuilder get _folders => _db.from('library_folders');
 
+  final _streamCache = StreamCache();
+  final _memoizer = Memoizer();
+
   /// The top-level categories (Past Papers, Notes, Documents, Books, plus
   /// anything an admin has added) — never a Dart-side constant list.
   Stream<List<LibraryFolder>> watchRootFolders() {
-    return _folders.stream(primaryKey: ['id']).order('sort_order').map(
-        (rows) => rows.where((r) => r['parent_id'] == null).map(LibraryFolder.fromSupabase).toList());
+    return _streamCache.watch('watchRootFolders', () => 
+      _folders.stream(primaryKey: ['id']).order('sort_order').map(
+          (rows) => rows.where((r) => r['parent_id'] == null).map(LibraryFolder.fromSupabase).toList())
+    );
   }
 
   Stream<List<LibraryFolder>> watchChildFolders(String parentId) {
-    return _folders.stream(primaryKey: ['id']).eq('parent_id', parentId).order('sort_order').map(
-        (rows) => rows.map(LibraryFolder.fromSupabase).toList());
+    return _streamCache.watch('watchChildFolders_$parentId', () => 
+      _folders.stream(primaryKey: ['id']).eq('parent_id', parentId).order('sort_order').map(
+          (rows) => rows.map(LibraryFolder.fromSupabase).toList())
+    );
   }
 
   /// Looks up a root folder by its exact name — used by Home shortcuts
@@ -51,20 +58,26 @@ class LibraryFolderRepository {
   /// Academia Library home page. Returns null if no root folder with that
   /// name exists yet (an admin renamed or removed it).
   Future<LibraryFolder?> rootFolderByName(String name) async {
-    final row = await _folders.select().filter('parent_id', 'is', null).eq('name', name).maybeSingle();
-    return row == null ? null : LibraryFolder.fromSupabase(row);
+    return _memoizer.runOnce('rootFolderByName_$name', () async {
+      final row = await _folders.select().filter('parent_id', 'is', null).eq('name', name).maybeSingle();
+      return row == null ? null : LibraryFolder.fromSupabase(row);
+    });
   }
 
   Future<LibraryFolder?> folderOnce(String id) async {
-    final row = await _folders.select().eq('id', id).maybeSingle();
-    return row == null ? null : LibraryFolder.fromSupabase(row);
+    return _memoizer.runOnce('folderOnce_$id', () async {
+      final row = await _folders.select().eq('id', id).maybeSingle();
+      return row == null ? null : LibraryFolder.fromSupabase(row);
+    });
   }
 
   /// Items placed directly in this folder (not recursive — matches
   /// file-explorer semantics where a folder shows its immediate children).
   Stream<List<AcademicContent>> watchItemsInFolder(String folderId) {
-    return _db.from('academic_content').stream(primaryKey: ['id']).eq('folder_id', folderId).map(
-        (rows) => rows.map(AcademicContent.fromSupabase).toList());
+    return _streamCache.watch('watchItemsInFolder_$folderId', () => 
+      _db.from('academic_content').stream(primaryKey: ['id']).eq('folder_id', folderId).map(
+          (rows) => rows.map(AcademicContent.fromSupabase).toList())
+    );
   }
 
   Future<Result<String>> createFolder({required String? parentId, required String name}) async {
@@ -73,6 +86,7 @@ class LibraryFolderRepository {
           .insert({'parent_id': parentId, 'name': name.trim(), 'updated_at': DateTime.now().toIso8601String()})
           .select('id')
           .single();
+      _memoizer.clear();
       return Success(row['id'] as String);
     } catch (e) {
       return Failure('Failed to create folder', e);
@@ -82,6 +96,7 @@ class LibraryFolderRepository {
   Future<Result<void>> renameFolder(String id, String newName) async {
     try {
       await _folders.update({'name': newName.trim(), 'updated_at': DateTime.now().toIso8601String()}).eq('id', id);
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to rename folder', e);
@@ -113,6 +128,7 @@ class LibraryFolderRepository {
       await _folders
           .update({'parent_id': newParentId, 'updated_at': DateTime.now().toIso8601String()})
           .eq('id', id);
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to move folder', e);
@@ -125,6 +141,7 @@ class LibraryFolderRepository {
   Future<Result<void>> deleteFolder(String id) async {
     try {
       await _folders.delete().eq('id', id);
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to delete folder', e);
@@ -149,6 +166,7 @@ class LibraryFolderRepository {
   Future<Result<void>> setFolderImage(String folderId, String imageUrl) async {
     try {
       await _folders.update({'image_url': imageUrl, 'updated_at': DateTime.now().toIso8601String()}).eq('id', folderId);
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to set folder thumbnail', e);

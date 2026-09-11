@@ -6,7 +6,7 @@
 // AppUser.canManageHomeworkFor client-side.
 
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../core/result.dart';
+import '../core/core.dart';
 import '../models/homework.dart';
 
 class HomeworkRepository {
@@ -15,31 +15,39 @@ class HomeworkRepository {
 
   final SupabaseClient _db = Supabase.instance.client;
   SupabaseQueryBuilder get _homework => _db.from('homework');
+  
+  final _streamCache = StreamCache();
+  final _memoizer = Memoizer();
 
   /// Every homework entry for [classLevel] in [schoolId], newest due first
   /// -- powers a student's "My Homework" list.
   Stream<List<Homework>> watchForClass(String schoolId, String classLevel) {
     if (schoolId.isEmpty || classLevel.isEmpty) return Stream.value(const []);
-    return _homework.stream(primaryKey: ['id']).eq('school_id', schoolId).map((rows) {
-      final list = rows.where((r) => r['class_level'] == classLevel).map(_fromRow).toList()
-        ..sort((a, b) => b.dueAt.compareTo(a.dueAt));
-      return list;
-    });
+    return _streamCache.watch('watchForClass_${schoolId}_$classLevel', () => 
+      _homework.stream(primaryKey: ['id']).eq('school_id', schoolId).map((rows) {
+        final list = rows.where((r) => r['class_level'] == classLevel).map(_fromRow).toList()
+          ..sort((a, b) => b.dueAt.compareTo(a.dueAt));
+        return list;
+      })
+    );
   }
 
   /// Everything one teacher has assigned, across every class/subject they
   /// teach -- powers the "Recently Assigned" list in Homework Management.
   Stream<List<Homework>> watchByTeacher(String teacherId) {
     if (teacherId.isEmpty) return Stream.value(const []);
-    return _homework.stream(primaryKey: ['id']).eq('teacher_id', teacherId).map((rows) {
-      final list = rows.map(_fromRow).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
-    });
+    return _streamCache.watch('watchByTeacher_$teacherId', () =>
+      _homework.stream(primaryKey: ['id']).eq('teacher_id', teacherId).map((rows) {
+        final list = rows.map(_fromRow).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      })
+    );
   }
 
   Future<Result<void>> create(Homework homework) async {
     try {
       await _homework.insert(_toRow(homework));
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Couldn\'t save that homework', e);
@@ -49,6 +57,7 @@ class HomeworkRepository {
   Future<Result<void>> update(Homework homework) async {
     try {
       await _homework.update(_toRow(homework)).eq('id', homework.id);
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Couldn\'t update that homework', e);
@@ -58,6 +67,7 @@ class HomeworkRepository {
   Future<Result<void>> delete(String id) async {
     try {
       await _homework.delete().eq('id', id);
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Couldn\'t delete that homework', e);
@@ -73,14 +83,16 @@ class HomeworkRepository {
   /// "is this expired" display always agrees with what the backend will
   /// actually accept.
   Future<DateTime?> getEffectiveDueAt(String homeworkId, String studentId) async {
-    try {
-      final result = await _db.rpc('get_effective_homework_due_at', params: {
-        'p_homework_id': homeworkId, 'p_student_id': studentId,
-      });
-      return result == null ? null : DateTime.tryParse(result.toString());
-    } catch (_) {
-      return null;
-    }
+    return _memoizer.runOnce('getEffectiveDueAt_${homeworkId}_$studentId', () async {
+      try {
+        final result = await _db.rpc('get_effective_homework_due_at', params: {
+          'p_homework_id': homeworkId, 'p_student_id': studentId,
+        });
+        return result == null ? null : DateTime.tryParse(result.toString());
+      } catch (_) {
+        return null;
+      }
+    });
   }
 
   Map<String, dynamic> _toRow(Homework h) => {

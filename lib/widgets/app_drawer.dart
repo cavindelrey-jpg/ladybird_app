@@ -41,7 +41,7 @@ import '../features/school/school_calendar_page.dart';
 
 class AppDrawer extends StatelessWidget {
   final AppUser? user;
-  const AppDrawer({super.key, this.user});
+  const AppDrawer({super.key, this.user, this.onHomeTap});
 
   bool get _isGuest => user == null;
 
@@ -62,7 +62,7 @@ class AppDrawer extends StatelessWidget {
                 // (Content/Assessment/Communication/Settings) replacing
                 // what used to be a flatter, less organized list.
                 _sectionLabel(ac, 'Content'),
-                _item(context, ac, Icons.home_rounded, 'Home', () {}),
+                _item(context, ac, Icons.home_rounded, 'Home', () { if (onHomeTap != null) onHomeTap!(); }),
                 // "Course Navigation" used to be a separate top-level
                 // entry pointing at CourseNavigationPage -- but
                 // CoursesMarketplacePage already has its own prominent

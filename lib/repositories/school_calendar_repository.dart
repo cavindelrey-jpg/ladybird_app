@@ -5,7 +5,7 @@
 // mirrors AppUser.canManageSchool exactly, same as the Timetable manager.
 
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../core/result.dart';
+import '../core/core.dart';
 import '../models/school_calendar_event.dart';
 
 class SchoolCalendarRepository {
@@ -14,15 +14,18 @@ class SchoolCalendarRepository {
 
   final SupabaseClient _db = Supabase.instance.client;
   SupabaseQueryBuilder get _events => _db.from('school_calendar_events');
+  final _streamCache = StreamCache();
 
   /// Every event for [schoolId], soonest-starting first.
   Stream<List<SchoolCalendarEvent>> watchAll(String schoolId) {
     if (schoolId.isEmpty) return Stream.value(const []);
-    return _events.stream(primaryKey: ['id']).eq('school_id', schoolId).map((rows) {
-      final list = rows.map(SchoolCalendarEvent.fromSupabase).toList()
-        ..sort((a, b) => a.startDate.compareTo(b.startDate));
-      return list;
-    });
+    return _streamCache.watch('watchAll_$schoolId', () =>
+      _events.stream(primaryKey: ['id']).eq('school_id', schoolId).map((rows) {
+        final list = rows.map(SchoolCalendarEvent.fromSupabase).toList()
+          ..sort((a, b) => a.startDate.compareTo(b.startDate));
+        return list;
+      })
+    );
   }
 
   /// Events on or after today, capped at [limit] -- powers "Upcoming Events".

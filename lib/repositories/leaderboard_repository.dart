@@ -9,6 +9,7 @@
 // get_linked_students() reasoning).
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/core.dart';
 
 class LeaderboardEntry {
   final String userId;
@@ -39,17 +40,22 @@ class LeaderboardRepository {
   static final LeaderboardRepository instance = LeaderboardRepository._();
 
   final SupabaseClient _db = Supabase.instance.client;
+  final _memoizer = Memoizer();
 
   Future<List<LeaderboardEntry>> getSchoolLeaderboard(String schoolId, {int limit = 50}) async {
     if (schoolId.isEmpty) return const [];
-    final rows = await _db.rpc('get_school_leaderboard', params: {
-      'p_school_id': schoolId, 'p_limit': limit,
-    }) as List;
-    return rows.map((r) => LeaderboardEntry.fromSupabase(Map<String, dynamic>.from(r as Map))).toList();
+    return _memoizer.runOnce('getSchoolLeaderboard_${schoolId}_$limit', () async {
+      final rows = await _db.rpc('get_school_leaderboard', params: {
+        'p_school_id': schoolId, 'p_limit': limit,
+      }) as List;
+      return rows.map((r) => LeaderboardEntry.fromSupabase(Map<String, dynamic>.from(r as Map))).toList();
+    });
   }
 
   Future<List<LeaderboardEntry>> getGlobalLeaderboard({int limit = 50}) async {
-    final rows = await _db.rpc('get_global_leaderboard', params: {'p_limit': limit}) as List;
-    return rows.map((r) => LeaderboardEntry.fromSupabase(Map<String, dynamic>.from(r as Map))).toList();
+    return _memoizer.runOnce('getGlobalLeaderboard_$limit', () async {
+      final rows = await _db.rpc('get_global_leaderboard', params: {'p_limit': limit}) as List;
+      return rows.map((r) => LeaderboardEntry.fromSupabase(Map<String, dynamic>.from(r as Map))).toList();
+    });
   }
 }

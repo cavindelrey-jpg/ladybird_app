@@ -31,6 +31,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/core.dart';
 import '../core/essay_matching.dart';
 import '../core/result.dart';
 import '../core/xp_rules.dart';
@@ -58,6 +59,9 @@ class TestRepository {
   // `subject::`/`level::`/`topic::` ones in the same table.
   SupabaseQueryBuilder get _nodeIcons => _db.from('curriculum_icons');
 
+  final _memoizer = Memoizer();
+  final _streamCache = StreamCache();
+
   // ── Reading tests ────────────────────────────────────────────────────
 
   /// Live list of published tests for one subject. [institutionId] null
@@ -71,7 +75,8 @@ class TestRepository {
   /// bucketing as [topicTestCountsOnce]/[categoryTestCountsOnce].
   Stream<List<Test>> watchTestsBySubject(String subject,
       {String? institutionId, String? category, String? topic}) {
-    return _tests
+    final key = 'watchTestsBySubject_${subject}_${institutionId}_${category}_$topic';
+    return _streamCache.watch(key, () => _tests
         .stream(primaryKey: ['id'])
         .eq('subject', subject)
         .order('created_at', ascending: false)
@@ -89,7 +94,7 @@ class TestRepository {
         }
         return true;
       }).toList();
-    });
+    }));
   }
 
   /// A teacher's own tests, published or not -- powers the quiz picker
@@ -98,53 +103,57 @@ class TestRepository {
   /// from the homework form.
   Stream<List<Test>> watchTestsByCreator(String creatorId) {
     if (creatorId.isEmpty) return Stream.value(const []);
-    return _tests
+    return _streamCache.watch('watchTestsByCreator_$creatorId', () => _tests
         .stream(primaryKey: ['id'])
         .eq('created_by', creatorId)
         .order('created_at', ascending: false)
-        .map((rows) => rows.map(Test.fromSupabase).toList());
+        .map((rows) => rows.map(Test.fromSupabase).toList()));
   }
 
-  Stream<Test?> watchTest(String testId) => _tests
+  Stream<Test?> watchTest(String testId) => _streamCache.watch('watchTest_$testId', () => _tests
       .stream(primaryKey: ['id'])
       .eq('id', testId)
-      .map((rows) => rows.isNotEmpty ? Test.fromSupabase(rows.first) : null);
+      .map((rows) => rows.isNotEmpty ? Test.fromSupabase(rows.first) : null));
 
   /// Distinct subjects that currently have at least one published test.
   /// [category] optionally scopes this to one education level; omitted
   /// keeps the old whole-catalogue behavior.
   Future<List<String>> distinctSubjectsOnce({String? category}) async {
-    final rows = await _tests.select('subject,category').eq('published', true);
-    final subjects = rows
-        .where((r) => category == null || category.isEmpty ||
-            ((r['category'] as String? ?? '').isEmpty
-                ? kUncategorizedQuizBucket
-                : r['category']) == category)
-        .map((r) => (r['subject'] as String?) ?? '')
-        .where((s) => s.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
-    return subjects;
+    return _memoizer.runOnce('distinctSubjectsOnce_$category', () async {
+      final rows = await _tests.select('subject,category').eq('published', true);
+      final subjects = rows
+          .where((r) => category == null || category.isEmpty ||
+              ((r['category'] as String? ?? '').isEmpty
+                  ? kUncategorizedQuizBucket
+                  : r['category']) == category)
+          .map((r) => (r['subject'] as String?) ?? '')
+          .where((s) => s.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+      return subjects;
+    });
   }
 
   /// Real per-subject test counts. [category] optionally scopes this to
   /// one education level (see [distinctSubjectsOnce]).
   Future<Map<String, int>> subjectTestCountsOnce({String? category}) async {
-    final rows = await _tests.select('subject,category').eq('published', true);
-    final counts = <String, int>{};
-    for (final row in rows) {
-      if (category != null && category.isNotEmpty) {
-        final rowCategory = (row['category'] as String? ?? '').isEmpty
-            ? kUncategorizedQuizBucket
-            : row['category'] as String;
-        if (rowCategory != category) continue;
+    return _memoizer.runOnce('subjectTestCountsOnce_$category', () async {
+      final rows = await _tests.select('subject,category').eq('published', true);
+      final counts = <String, int>{};
+      for (final row in rows) {
+        if (category != null && category.isNotEmpty) {
+          final rowCategory = (row['category'] as String? ?? '').isEmpty
+              ? kUncategorizedQuizBucket
+              : row['category'] as String;
+          if (rowCategory != category) continue;
+        }
+        final subject = (row['subject'] as String?) ?? '';
+        if (subject.isEmpty) continue;
+        counts[subject] = (counts[subject] ?? 0) + 1;
       }
-      final subject = (row['subject'] as String?) ?? '';
-      if (subject.isEmpty) continue;
-      counts[subject] = (counts[subject] ?? 0) + 1;
-    }
-    return counts;
+      return counts;
+    });
   }
 
   static const String _categoryCountsCacheKey = 'test_category_counts';
@@ -184,18 +193,20 @@ class TestRepository {
     required String category,
     required String subject,
   }) async {
-    final rows = await _tests.select('category,topic').eq('subject', subject).eq('published', true);
-    final counts = <String, int>{};
-    for (final row in rows) {
-      final rowCategory = (row['category'] as String? ?? '').isEmpty
-          ? kUncategorizedQuizBucket
-          : row['category'] as String;
-      if (rowCategory != category) continue;
-      final raw = (row['topic'] as String?) ?? '';
-      final topic = raw.isEmpty ? kGeneralQuizTopicBucket : raw;
-      counts[topic] = (counts[topic] ?? 0) + 1;
-    }
-    return counts;
+    return _memoizer.runOnce('topicTestCountsOnce_${category}_$subject', () async {
+      final rows = await _tests.select('category,topic').eq('subject', subject).eq('published', true);
+      final counts = <String, int>{};
+      for (final row in rows) {
+        final rowCategory = (row['category'] as String? ?? '').isEmpty
+            ? kUncategorizedQuizBucket
+            : row['category'] as String;
+        if (rowCategory != category) continue;
+        final raw = (row['topic'] as String?) ?? '';
+        final topic = raw.isEmpty ? kGeneralQuizTopicBucket : raw;
+        counts[topic] = (counts[topic] ?? 0) + 1;
+      }
+      return counts;
+    });
   }
 
   // ── Quiz categories (education-level tree top tier) ─────────────────
@@ -241,14 +252,16 @@ class TestRepository {
       'quizTopic::$category::$subject::$topic';
 
   Future<Map<String, CurriculumIcon>> quizNodeIconsOnce() async {
-    final rows = await _nodeIcons.select().limit(2000);
-    return {
-      for (final r in rows)
-        r['key'] as String: CurriculumIcon(
-          emoji: r['emoji'] as String? ?? '',
-          imageUrl: r['image_url'] as String? ?? '',
-        ),
-    };
+    return _memoizer.runOnce('quizNodeIconsOnce', () async {
+      final rows = await _nodeIcons.select().limit(2000);
+      return {
+        for (final r in rows)
+          r['key'] as String: CurriculumIcon(
+            emoji: r['emoji'] as String? ?? '',
+            imageUrl: r['image_url'] as String? ?? '',
+          ),
+      };
+    });
   }
 
   Future<void> setQuizNodeIcon(String key, {String emoji = '', String imageUrl = ''}) async {
@@ -257,6 +270,7 @@ class TestRepository {
     } else {
       await _nodeIcons.upsert({'key': key, 'emoji': emoji, 'image_url': imageUrl});
     }
+    _memoizer.clear();
   }
 
   Future<Result<String>> uploadQuizNodeImage({
@@ -308,8 +322,10 @@ class TestRepository {
   /// Bounded recent-tests fetch across every subject — the fallback/pool
   /// query for RecommendationRepository.forQuizzes().
   Future<List<Test>> recentPublishedOnce({int limit = 60}) async {
-    final rows = await _tests.select().eq('published', true).order('created_at', ascending: false).limit(limit);
-    return rows.map(Test.fromSupabase).toList();
+    return _memoizer.runOnce('recentPublishedOnce_$limit', () async {
+      final rows = await _tests.select().eq('published', true).order('created_at', ascending: false).limit(limit);
+      return rows.map(Test.fromSupabase).toList();
+    });
   }
 
   // ── Usage signal (production_plan.md §5) ────────────────────────────
@@ -323,18 +339,20 @@ class TestRepository {
   Future<Map<String, int>> subjectCompletionCountsOnce(String userId,
       {int sampleSize = 100}) async {
     if (userId.isEmpty) return const {};
-    final rows = await _attempts
-        .select('subject')
-        .eq('user_id', userId)
-        .order('submitted_at', ascending: false)
-        .limit(sampleSize);
-    final counts = <String, int>{};
-    for (final row in rows) {
-      final subject = (row['subject'] as String?) ?? '';
-      if (subject.isEmpty) continue;
-      counts[subject] = (counts[subject] ?? 0) + 1;
-    }
-    return counts;
+    return _memoizer.runOnce('subjectCompletionCountsOnce_${userId}_$sampleSize', () async {
+      final rows = await _attempts
+          .select('subject')
+          .eq('user_id', userId)
+          .order('submitted_at', ascending: false)
+          .limit(sampleSize);
+      final counts = <String, int>{};
+      for (final row in rows) {
+        final subject = (row['subject'] as String?) ?? '';
+        if (subject.isEmpty) continue;
+        counts[subject] = (counts[subject] ?? 0) + 1;
+      }
+      return counts;
+    });
   }
 
   // ── Authoring (lecturer/admin) ───────────────────────────────────────
@@ -342,6 +360,7 @@ class TestRepository {
   Future<Result<String>> createTest(Test test) async {
     try {
       final row = await _tests.insert(test.toSupabase()).select('id').single();
+      _memoizer.clear();
       return Success(row['id'] as String);
     } catch (e) {
       return Failure('Failed to create test', e);
@@ -351,6 +370,7 @@ class TestRepository {
   Future<Result<void>> updateTest(String testId, Test test) async {
     try {
       await _tests.update(test.toSupabase()).eq('id', testId);
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update test', e);
@@ -360,6 +380,7 @@ class TestRepository {
   Future<Result<void>> deleteTest(String testId) async {
     try {
       await _tests.delete().eq('id', testId);
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to delete test', e);
@@ -582,6 +603,7 @@ class TestRepository {
       if (bonus > 0) {
         await XpRepository.instance.awardXp(userId, XpSource.testCompletion, bonus, refId: attemptId);
       }
+      _memoizer.clear();
 
       return Success(savedAttempt);
     } catch (e) {
@@ -705,6 +727,7 @@ class TestRepository {
       if (bonus > 0) {
         await XpRepository.instance.awardXp(userId, XpSource.testCompletion, bonus, refId: attemptId);
       }
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure(e.toString().replaceFirst('Exception: ', ''), e);

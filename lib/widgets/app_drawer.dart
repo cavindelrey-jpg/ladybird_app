@@ -41,6 +41,7 @@ import '../features/school/school_calendar_page.dart';
 
 class AppDrawer extends StatelessWidget {
   final AppUser? user;
+  final VoidCallback? onHomeTap;
   const AppDrawer({super.key, this.user, this.onHomeTap});
 
   bool get _isGuest => user == null;

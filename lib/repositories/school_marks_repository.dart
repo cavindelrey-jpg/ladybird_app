@@ -5,7 +5,7 @@
 // existing entry rather than duplicating it, keyed on that same tuple.
 
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../core/result.dart';
+import '../core/core.dart';
 import '../models/school_mark.dart';
 
 /// Overall grade for a whole sequence -- same percentage scale as a
@@ -46,19 +46,25 @@ class SchoolMarksRepository {
 
   final SupabaseClient _db = Supabase.instance.client;
   SupabaseQueryBuilder get _marks => _db.from('school_marks');
+  final _memoizer = Memoizer();
+  final _streamCache = StreamCache();
 
   Stream<List<SchoolMark>> watchForSequence(String studentId, AcademicSequence sequence) {
     if (studentId.isEmpty) return Stream.value(const []);
-    return _marks
-        .stream(primaryKey: ['id'])
-        .eq('student_id', studentId)
-        .map((rows) => rows.where((r) => r['sequence'] == sequence.name).map(_fromRow).toList());
+    return _streamCache.watch('watchForSequence_${studentId}_${sequence.name}', () =>
+      _marks
+          .stream(primaryKey: ['id'])
+          .eq('student_id', studentId)
+          .map((rows) => rows.where((r) => r['sequence'] == sequence.name).map(_fromRow).toList())
+    );
   }
 
   Future<List<SchoolMark>> getForSequenceOnce(String studentId, AcademicSequence sequence) async {
     if (studentId.isEmpty) return const [];
-    final rows = await _marks.select().eq('student_id', studentId).eq('sequence', sequence.name);
-    return rows.map(_fromRow).toList();
+    return _memoizer.runOnce('getForSequenceOnce_${studentId}_${sequence.name}', () async {
+      final rows = await _marks.select().eq('student_id', studentId).eq('sequence', sequence.name);
+      return rows.map(_fromRow).toList();
+    });
   }
 
   /// Every mark this student has ever been given, any sequence -- powers
@@ -67,25 +73,30 @@ class SchoolMarksRepository {
   /// Sequence 1 like the full Marks page does.
   Future<List<SchoolMark>> allMarksOnce(String studentId) async {
     if (studentId.isEmpty) return const [];
-    final rows = await _marks.select().eq('student_id', studentId);
-    return rows.map(_fromRow).toList();
+    return _memoizer.runOnce('allMarksOnce_$studentId', () async {
+      final rows = await _marks.select().eq('student_id', studentId);
+      return rows.map(_fromRow).toList();
+    });
   }
 
   /// The full 6-sequence history for one subject, in chronological order.
   Future<Map<AcademicSequence, SchoolMark>> subjectHistory(String studentId, String subject) async {
     if (studentId.isEmpty) return {};
-    final rows = await _marks.select().eq('student_id', studentId).eq('subject', subject);
-    final out = <AcademicSequence, SchoolMark>{};
-    for (final row in rows) {
-      final seq = AcademicSequence.fromKey(row['sequence']?.toString() ?? '');
-      if (seq != null) out[seq] = _fromRow(row);
-    }
-    return out;
+    return _memoizer.runOnce('subjectHistory_${studentId}_$subject', () async {
+      final rows = await _marks.select().eq('student_id', studentId).eq('subject', subject);
+      final out = <AcademicSequence, SchoolMark>{};
+      for (final row in rows) {
+        final seq = AcademicSequence.fromKey(row['sequence']?.toString() ?? '');
+        if (seq != null) out[seq] = _fromRow(row);
+      }
+      return out;
+    });
   }
 
   Future<Result<void>> upsert(SchoolMark mark) async {
     try {
       await _marks.upsert(_toRow(mark), onConflict: 'student_id,subject,sequence,academic_year');
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Couldn\'t save that mark', e);
@@ -95,6 +106,7 @@ class SchoolMarksRepository {
   Future<Result<void>> delete(String markId) async {
     try {
       await _marks.delete().eq('id', markId);
+      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Couldn\'t delete that mark', e);
@@ -106,8 +118,10 @@ class SchoolMarksRepository {
   /// picker.
   Future<List<String>> distinctStudentIds(String schoolId, String classLevel) async {
     if (schoolId.isEmpty) return const [];
-    final rows = await _marks.select('student_id').eq('school_id', schoolId).eq('class_level', classLevel);
-    return rows.map((r) => r['student_id'] as String).toSet().toList();
+    return _memoizer.runOnce('distinctStudentIds_${schoolId}_$classLevel', () async {
+      final rows = await _marks.select('student_id').eq('school_id', schoolId).eq('class_level', classLevel);
+      return rows.map((r) => r['student_id'] as String).toSet().toList();
+    });
   }
 
   Map<String, dynamic> _toRow(SchoolMark m) => {

@@ -30,28 +30,31 @@ class _DailyChallengeGateState extends State<DailyChallengeGate> {
   }
 
   Future<void> _checkDailyChallenge() async {
-    final prefs = await SharedPreferences.getInstance();
-    final now = DateTime.now();
-    final todayStr = "${now.year}-${now.month}-${now.day}";
-    final lastDismissed = prefs.getString('daily_challenge_dismissed_${widget.user.id}');
-    if (lastDismissed == todayStr) {
-      if (mounted) setState(() => _checked = true);
-      return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final now = DateTime.now();
+      final todayStr = "${now.year}-${now.month}-${now.day}";
+      final lastDismissed = prefs.getString('daily_challenge_dismissed_${widget.user.id}');
+      if (lastDismissed == todayStr) {
+        if (mounted) setState(() => _checked = true);
+        return;
+      }
+
+      final streakStream = DailyLearningRepository.instance.watchStreak(widget.user.id);
+      final streak = await streakStream.first;
+      
+      final lastCompleted = streak?.lastCompletedDate;
+      if (lastCompleted != null && lastCompleted.year == now.year && lastCompleted.month == now.month && lastCompleted.day == now.day) {
+        // Completed today
+        if (mounted) setState(() => _checked = true);
+        return;
+      }
+    } catch (e) {
+      // If table doesn't exist yet or offline, fail open to avoid boot loop
+      debugPrint('DailyChallengeGate error: $e');
     }
 
-    // We only have Etymology for now, let's just pick the first course
-    // Later we will loop through or select the active course
-    final streakStream = DailyLearningRepository.instance.watchStreak(widget.user.id);
-    final streak = await streakStream.first;
-    
-    final lastCompleted = streak?.lastCompletedDate;
-    if (lastCompleted != null && lastCompleted.year == now.year && lastCompleted.month == now.month && lastCompleted.day == now.day) {
-      // Completed today
-      if (mounted) setState(() => _checked = true);
-      return;
-    }
-
-    // Show the modal!
+    // Show the modal! (or fail open if errored, but we can't show modal without data, so if we errored, _getPendingChallenge will probably also error and we handle it there).
     if (mounted) setState(() => _checked = true);
   }
 
@@ -96,31 +99,36 @@ class _DailyChallengeGateState extends State<DailyChallengeGate> {
   }
 
   Future<_PendingChallenge?> _getPendingChallenge() async {
-    final streak = await DailyLearningRepository.instance.watchStreak(widget.user.id).first;
-    final now = DateTime.now();
-    if (streak?.lastCompletedDate != null && 
-        streak!.lastCompletedDate!.year == now.year && 
-        streak.lastCompletedDate!.month == now.month && 
-        streak.lastCompletedDate!.day == now.day) {
+    try {
+      final streak = await DailyLearningRepository.instance.watchStreak(widget.user.id).first;
+      final now = DateTime.now();
+      if (streak?.lastCompletedDate != null && 
+          streak!.lastCompletedDate!.year == now.year && 
+          streak.lastCompletedDate!.month == now.month && 
+          streak.lastCompletedDate!.day == now.day) {
+        return null;
+      }
+
+      final course = DailyLearningRepository.instance.courses.first;
+      final progress = await DailyLearningRepository.instance.watchProgress(widget.user.id, course.id).first;
+      
+      DailyLearningLesson? nextLesson;
+      for (final l in course.lessons) {
+        if (!progress.contains(l.id)) {
+          nextLesson = l;
+          break;
+        }
+      }
+      
+      if (nextLesson == null) {
+        return null; // All done
+      }
+      
+      return _PendingChallenge(course: course, lesson: nextLesson, streak: streak);
+    } catch (e) {
+      debugPrint('DailyChallengeGate error: $e');
       return null;
     }
-
-    final course = DailyLearningRepository.instance.courses.first;
-    final progress = await DailyLearningRepository.instance.watchProgress(widget.user.id, course.id).first;
-    
-    DailyLearningLesson? nextLesson;
-    for (final l in course.lessons) {
-      if (!progress.contains(l.id)) {
-        nextLesson = l;
-        break;
-      }
-    }
-    
-    if (nextLesson == null) {
-      return null; // All done
-    }
-    
-    return _PendingChallenge(course: course, lesson: nextLesson, streak: streak);
   }
 }
 

@@ -356,24 +356,7 @@ class _DownloadButtonState extends State<_DownloadButton> {
     HapticFeedback.mediumImpact();
     setState(() => _loading = true);
 
-    // Past papers specifically are gated behind the XP/Premium unlock
-    // economy — everything else in the Library stays freely accessible.
-    if (_isPastPaper) {
-      final unlocked = await XpRepository.instance.isPaperUnlocked(widget.user, widget.item.id);
-      if (!unlocked) {
-        if (mounted) setState(() => _loading = false);
-        if (!mounted) return;
-        final nowUnlocked = await showPaperUnlockSheet(
-          context, user: widget.user, paperId: widget.item.id, paperTitle: widget.item.title,
-          // production_plan.md §4.6: fixed price by the PAPER's own
-          // level (junior/senior/advanced), not one flat rate for every
-          // past paper regardless of level.
-          cost: pastPaperPriceForContentLevel(widget.item.level),
-        );
-        if (!nowUnlocked) return; // user backed out — don't open the file
-        if (mounted) setState(() => _loading = true);
-      }
-    }
+    // Past papers are freely accessible in Green Hills (no XP economy).
 
     try {
       await _openFile();

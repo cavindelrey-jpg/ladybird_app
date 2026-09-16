@@ -89,8 +89,6 @@ class LibraryHomePage extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
       child: Row(children: [
         Expanded(child: Text('Academia Library', style: AppText.h1.copyWith(fontSize: 22, color: ac.txt))),
-        XpBalanceBadge(userId: user.id),
-        const SizedBox(width: 8),
         IconButton(
           icon: Icon(Icons.search_rounded, color: ac.txt2),
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LibrarySearchPage(user: user))),

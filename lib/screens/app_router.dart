@@ -12,6 +12,7 @@
 // moderation/authoring privilege independent of any school.
 
 import 'dart:async';
+import '../features/daily_learning/daily_challenge_gate.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show User;
@@ -216,7 +217,7 @@ class _AppUserGate extends StatelessWidget {
         }
         if (user.status == AccountStatus.suspended) return _SuspendedScreen(user: user);
         if (user.isFirstLogin) return FirstLoginScreen(user: user);
-        return HomeShell(user: user);
+        return DailyChallengeGate(user: user, child: HomeShell(user: user));
       },
     );
   }

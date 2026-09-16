@@ -9,6 +9,7 @@
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/daily_learning.dart';
+import "../models/daily_learning_streak.dart";
 import '../models/xp_transaction.dart';
 import '../data/etymology_course.dart';
 import '../core/result.dart';
@@ -71,18 +72,75 @@ class DailyLearningRepository {
       'completed_lesson_ids': ids,
       'updated_at': DateTime.now().toIso8601String(),
     }, onConflict: 'user_id,course_id');
+    
+    await _updateStreak(userId);
 
     if (correctCount <= 0) return 0;
     final rawAmount = correctCount * XpSource.dailyLearning.baseXp;
-    // refId is a uuid column (test_attempts.id for quiz sources) --
-    // course/lesson ids here are plain strings, not uuids, so this earn
-    // isn't tied to a ref row. The ledger's `source` (dailyLearning) is
-    // enough to identify where the XP came from.
     final result = await XpRepository.instance.awardXp(
       userId,
       XpSource.dailyLearning,
       rawAmount,
     );
     return result is Success<int> ? result.value : 0;
+  }
+
+  Future<void> _updateStreak(String userId) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final row = await _db.from('daily_learning_streaks').select().eq('user_id', userId).maybeSingle();
+    
+    int current = 0;
+    int longest = 0;
+    DateTime? lastDate;
+    
+    if (row != null) {
+      current = (row['current_streak'] as num?)?.toInt() ?? 0;
+      longest = (row['longest_streak'] as num?)?.toInt() ?? 0;
+      final dateStr = row['last_completed_date'] as String?;
+      if (dateStr != null) lastDate = DateTime.tryParse(dateStr);
+    }
+    
+    if (lastDate != null && lastDate.year == today.year && lastDate.month == today.month && lastDate.day == today.day) {
+      return; // Already completed today
+    }
+    
+    if (lastDate != null && today.difference(lastDate).inDays == 1) {
+      current += 1;
+    } else {
+      current = 1;
+    }
+    if (current > longest) longest = current;
+    
+    await _db.from('daily_learning_streaks').upsert({
+      'user_id': userId,
+      'current_streak': current,
+      'longest_streak': longest,
+      'last_completed_date': "${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}",
+    });
+  }
+
+  Stream<DailyLearningStreak?> watchStreak(String userId) {
+    if (userId.isEmpty) return Stream.value(null);
+    return _db
+        .from('daily_learning_streaks')
+        .stream(primaryKey: ['user_id'])
+        .eq('user_id', userId)
+        .map((rows) {
+      if (rows.isEmpty) return DailyLearningStreak(userId: userId, currentStreak: 0, longestStreak: 0);
+      final streak = DailyLearningStreak.fromSupabase(rows.first);
+      // If they missed yesterday, show current streak as 0 in UI immediately
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      if (streak.lastCompletedDate != null && today.difference(streak.lastCompletedDate!).inDays > 1) {
+        return DailyLearningStreak(
+          userId: userId, 
+          currentStreak: 0, 
+          longestStreak: streak.longestStreak, 
+          lastCompletedDate: streak.lastCompletedDate
+        );
+      }
+      return streak;
+    });
   }
 }

@@ -6,6 +6,7 @@
 // session," not a full etymology syllabus.
 
 import '../models/daily_learning.dart';
+import 'intellectual_courses.dart';
 
 final DailyLearningCourse etymologyCourse = DailyLearningCourse(
   id: 'etymology',
@@ -183,4 +184,4 @@ final DailyLearningCourse etymologyCourse = DailyLearningCourse(
 /// Registry of every Daily Learning course -- currently just Etymology.
 /// Adding a second subject later means adding one more entry here, not
 /// restructuring anything in the repository or UI layer.
-final List<DailyLearningCourse> dailyLearningCourses = [etymologyCourse];
+final List<DailyLearningCourse> dailyLearningCourses = [etymologyCourse, ...intellectualCourses];

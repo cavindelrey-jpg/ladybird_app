@@ -8,6 +8,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/personal_study_slot.dart';
 import '../core/result.dart';
+import '../core/offline_cache.dart'; // Added offline cache
 
 class PersonalStudyRepository {
   PersonalStudyRepository._();
@@ -16,11 +17,21 @@ class PersonalStudyRepository {
   final SupabaseClient _db = Supabase.instance.client;
   SupabaseQueryBuilder get _slots => _db.from('personal_study_slots');
 
-  Stream<List<PersonalStudySlot>> watchAll(String userId) => _slots
-      .stream(primaryKey: ['id'])
-      .eq('user_id', userId)
-      .order('day_of_week')
-      .map((rows) => rows.map(_fromRow).toList());
+  Stream<List<PersonalStudySlot>> watchAll(String userId) {
+    final live = _slots
+        .stream(primaryKey: ['id'])
+        .eq('user_id', userId)
+        .order('day_of_week')
+        .map((rows) => rows.map(_fromRow).toList());
+        
+    return OfflineCache.instance.watch<List<PersonalStudySlot>>(
+      'personal_study_$userId',
+      live,
+      toJson: (slots) => OfflineCache.listToJson(slots, (s) => (s as PersonalStudySlot).toJson()),
+      fromJson: (json) => OfflineCache.listFromJson(json, (j) => PersonalStudySlot.fromJson(j)),
+      emptyValue: [],
+    );
+  }
 
   /// Today's slots only — powers the "Today's Study Program" Home section.
   /// DateTime.weekday is already 1=Mon..7=Sun, matching PersonalStudySlot.dayOfWeek.

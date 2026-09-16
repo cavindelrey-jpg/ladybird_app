@@ -265,6 +265,16 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       case Failure(:final message):
         showToast(context, 'Could not upload banner: $message', isError: true);
     }
+
+  Future<void> _deleteHeroBanner(BuildContext context) async {
+    final result = await HomeHeroRepository.instance.setImage('');
+    if (!context.mounted) return;
+    if (result case Failure(:final message)) {
+      showToast(context, 'Could not remove banner: $message', isError: true);
+    } else {
+      showToast(context, 'Banner removed');
+    }
+  }
   }
 
   /// Mockup has the stat/class-info box living INSIDE the hero card, to
@@ -277,9 +287,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   /// row so the two apps' banners never collide) -- everything else in
   /// this card (greeting, Resume Learning button, stat box) is unchanged.
   Widget _heroAndStats(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: StreamBuilder<String>(
+    return StreamBuilder<String>(
         stream: HomeHeroRepository.instance.watchImageUrl(),
         builder: (context, snap) {
           final imageUrl = snap.data ?? '';
@@ -290,9 +298,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             decoration: BoxDecoration(
               gradient: hasImage ? null : LinearGradient(
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
-                colors: [ac.navy, ac.navy2],
+                colors: [ac.primary, ac.grn],
               ),
-              borderRadius: BorderRadius.circular(Rad.lg),
+              borderRadius: BorderRadius.zero,
             ),
             child: Stack(children: [
               if (hasImage)
@@ -301,7 +309,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                       errorBuilder: (_, __, ___) => Container(
                         decoration: BoxDecoration(gradient: LinearGradient(
                             begin: Alignment.topLeft, end: Alignment.bottomRight,
-                            colors: [ac.navy, ac.navy2])),
+                            colors: [ac.primary, ac.grn])),
                       )),
                 )
               else
@@ -351,21 +359,36 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               if (_canManageHeroBanner)
                 Positioned(
                   bottom: 10, right: 10,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(14),
-                    onTap: () => _pickHeroBanner(context),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: Colors.black.withValues(alpha: .35), shape: BoxShape.circle),
-                      child: Icon(hasImage ? Icons.edit_rounded : Icons.add_photo_alternate_outlined,
-                          size: 16, color: Colors.white),
-                    ),
+                  child: Row(
+                    children: [
+                      if (hasImage) ...[
+                        InkWell(
+                          borderRadius: BorderRadius.circular(14),
+                          onTap: () => _deleteHeroBanner(context),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(color: Colors.black.withValues(alpha: .35), shape: BoxShape.circle),
+                            child: Icon(Icons.delete_outline_rounded, size: 16, color: Colors.white),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => _pickHeroBanner(context),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(color: Colors.black.withValues(alpha: .35), shape: BoxShape.circle),
+                          child: Icon(hasImage ? Icons.edit_rounded : Icons.add_photo_alternate_outlined,
+                              size: 16, color: Colors.white),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
             ]),
           );
         },
-      ),
     );
   }
 
@@ -629,7 +652,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             ),
           ]);
         },
-      ),
     );
   }
 
@@ -1207,7 +1229,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(Rad.lg)),
+        decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.zero),
         child: Row(children: [
           Container(
             width: 34, height: 34,

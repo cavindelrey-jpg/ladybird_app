@@ -148,12 +148,15 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     if (text.isEmpty) return;
     _textCtrl.clear();
     HapticFeedback.lightImpact();
-    await MessagingRepository.instance.sendMessage(
+    final result = await MessagingRepository.instance.sendMessage(
       conversationId: widget.conversationId,
       senderId: widget.currentUser.id, senderName: widget.currentUser.name,
       recipientId: widget.otherUserId,
       text: text,
     );
+    if (result is Failure && mounted) {
+      showToast(context, result.message);
+    }
   }
 
   Future<void> _pickAndSendMedia({required bool isVideo}) async {
@@ -292,7 +295,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
               if (snap.hasError) {
                 return ErrorView(message: snap.error.toString());
               }
-              final messages = snap.data ?? const <ChatMessage>[];
+              final messages = List.of(snap.data ?? const <ChatMessage>[]);
               if (messages.isEmpty) {
                 return const EmptyState(
                   icon: Icons.chat_bubble_outline_rounded,
@@ -300,25 +303,29 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
                   subtitle: 'Say hello to start the conversation.',
                 );
               }
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (_scrollCtrl.hasClients) {
-                  _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
-                }
-              });
-              // Interleave a date separator whenever the calendar day
-              // changes, so a long thread doesn't read as one undated wall.
-              final items = <Object>[];
+              
+              // Sort newest first
+              messages.sort((a, b) => b.sentAt.compareTo(a.sentAt));
+
+              final items = <dynamic>[];
               DateTime? lastDay;
+              
+              // Since we are reversed, items[0] is rendered at the absolute bottom.
+              // We iterate newest -> oldest.
               for (final m in messages) {
                 final day = DateTime(m.sentAt.year, m.sentAt.month, m.sentAt.day);
-                if (lastDay == null || day != lastDay) {
-                  items.add(day);
-                  lastDay = day;
+                if (lastDay != null && day != lastDay) {
+                  // Add date separator for the *previous* group we just finished iterating (which is newer)
+                  items.add(lastDay);
                 }
                 items.add(m);
+                lastDay = day;
               }
+              if (lastDay != null) items.add(lastDay); // Separator for the oldest group at the very top
+
               return ListView.builder(
                 controller: _scrollCtrl,
+                reverse: true,
                 padding: const EdgeInsets.all(16),
                 itemCount: items.length,
                 itemBuilder: (_, i) {
@@ -640,7 +647,11 @@ class _ContentPickerPageState<T> extends State<_ContentPickerPage<T>> {
               var items = snap.data ?? const [];
               if (_query.isNotEmpty) items = items.where((i) => widget.matches(i, _query)).toList();
               if (items.isEmpty) {
-                return const EmptyState(icon: Icons.search_off_rounded, title: 'Nothing found', subtitle: 'Try a different search.');
+                return const EmptyState(
+                  icon: Icons.search_off_rounded, 
+                  title: 'Hmm, nothing found', 
+                  subtitle: 'We couldn\'t find exactly what you were looking for. Would you like to try a different name or keyword?'
+                );
               }
               return ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),

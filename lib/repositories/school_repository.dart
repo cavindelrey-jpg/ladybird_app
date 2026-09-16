@@ -1,12 +1,5 @@
-// lib/repositories/school_repository.dart
-// CRUD for the school registry (see models/school.dart — backed by
-// public.institutions, the same table academia-cameroon's Institution
-// model uses). Creating a school is a platform-level action — RLS
-// (institutions_write_super_admin) restricts inserts to super_admin,
-// same tier "Register a School" was already documented at.
-
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../core/core.dart';
+import '../core/result.dart';
 import '../models/school.dart';
 
 class SchoolRepository {
@@ -14,8 +7,10 @@ class SchoolRepository {
   static final SchoolRepository instance = SchoolRepository._();
 
   final SupabaseClient _supabase = Supabase.instance.client;
-  final _memoizer = Memoizer();
-  final _streamCache = StreamCache();
+
+  // Add memory cache
+  final Map<String, School> _idCache = {};
+  final Map<String, School> _codeCache = {};
 
   Future<Result<School>> registerSchool({
     required String name,
@@ -39,37 +34,84 @@ class SchoolRepository {
           .insert({'school_code': normalizedCode, 'school_name': name.trim()})
           .select()
           .single();
-      _memoizer.clear(); // Invalidate cache on write
-      return Success(School.fromSupabase(row));
+      final school = School.fromSupabase(row);
+      _idCache[school.id] = school;
+      _codeCache[school.code.toUpperCase()] = school;
+      return Success(school);
     } catch (e) {
       return Failure('Failed to register school', e);
     }
   }
 
-  Future<School?> getByCodeOnce(String code) async {
+  Future<School?> getByCodeOnce(String code, {bool forceRefresh = false}) async {
     final normalizedCode = code.trim().toUpperCase();
     if (normalizedCode.isEmpty) return null;
-    return _memoizer.runOnce('getByCodeOnce_$normalizedCode', () async {
-      final row = await _supabase
-          .from('institutions')
-          .select()
-          .eq('school_code', normalizedCode)
-          .maybeSingle();
-      return row == null ? null : School.fromSupabase(row);
-    });
+    
+    if (!forceRefresh && _codeCache.containsKey(normalizedCode)) {
+      return _codeCache[normalizedCode];
+    }
+    
+    final row = await _supabase
+        .from('institutions')
+        .select()
+        .eq('school_code', normalizedCode)
+        .maybeSingle();
+    if (row == null) return null;
+    
+    final school = School.fromSupabase(row);
+    _codeCache[normalizedCode] = school;
+    _idCache[school.id] = school;
+    return school;
   }
 
-  Future<School?> getByIdOnce(String schoolId) async {
+  Future<School?> getByIdOnce(String schoolId, {bool forceRefresh = false}) async {
     if (schoolId.isEmpty) return null;
-    return _memoizer.runOnce('getByIdOnce_$schoolId', () async {
-      final row = await _supabase.from('institutions').select().eq('id', schoolId).maybeSingle();
-      return row == null ? null : School.fromSupabase(row);
-    });
+    
+    if (!forceRefresh && _idCache.containsKey(schoolId)) {
+      return _idCache[schoolId];
+    }
+
+    final row = await _supabase.from('institutions').select().eq('id', schoolId).maybeSingle();
+    if (row == null) return null;
+    
+    final school = School.fromSupabase(row);
+    _idCache[schoolId] = school;
+    _codeCache[school.code.toUpperCase()] = school;
+    return school;
   }
 
-  Stream<List<School>> watchAll() => _streamCache.watch('watchAll', () => _supabase
+  Stream<List<School>> watchAll() => _supabase
       .from('institutions')
       .stream(primaryKey: ['id'])
       .order('school_name')
-      .map((rows) => rows.map(School.fromSupabase).toList()));
+      .map((rows) {
+        final schools = rows.map(School.fromSupabase).toList();
+        for (final s in schools) {
+          _idCache[s.id] = s;
+          _codeCache[s.code.toUpperCase()] = s;
+        }
+        return schools;
+      });
+
+  Future<Result<List<String>>> getSubjects(String schoolId) async {
+    try {
+      final rows = await _supabase.from('school_subjects').select('name').eq('school_id', schoolId).order('name');
+      final list = (rows as List).map((r) => r['name'] as String).toList();
+      return Success(list);
+    } catch (e) {
+      return Failure('Failed to load subjects', e);
+    }
+  }
+
+  Future<Result<void>> addSubject(String schoolId, String name) async {
+    try {
+      await _supabase.from('school_subjects').insert({
+        'school_id': schoolId,
+        'name': name,
+      });
+      return const Success(null);
+    } catch (e) {
+      return Failure('Failed to add subject', e);
+    }
+  }
 }

@@ -16,10 +16,12 @@ import '../../models/academic_content.dart' show kAcademicSubjects, kAcademicLev
 import '../../models/app_user.dart';
 import '../../models/teaching_assignment.dart';
 import '../../repositories/teacher_management_repository.dart';
+import '../../repositories/school_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import 'widgets/management_scaffold.dart';
+import 'manage_subjects_dialog.dart';
 
 // Undergraduate/All Levels (the last two of kAcademicLevels) describe
 // CONTENT scope, not an actual class in this school's own roster -- a
@@ -38,6 +40,7 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
   final _searchCtrl = TextEditingController();
   List<AppUser> _results = [];
   List<AppUser> _assigned = [];
+  List<String> _subjects = [];
   bool _searching = false;
   bool _loadingAssigned = true;
 
@@ -47,6 +50,14 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
   void initState() {
     super.initState();
     _loadAssigned();
+    _loadSubjects();
+  }
+
+  Future<void> _loadSubjects() async {
+    final res = await SchoolRepository.instance.getSubjects(_schoolId);
+    if (res is Success<List<String>> && mounted) {
+      setState(() => _subjects = res.value);
+    }
   }
 
   @override
@@ -85,6 +96,7 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
       backgroundColor: Colors.transparent,
       builder: (_) => _AssignmentEditorSheet(
         teacher: teacher,
+        subjects: _subjects,
         onChanged: () {
           _loadAssigned();
           setState(() => _results = []);
@@ -112,17 +124,35 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          TextField(
-            controller: _searchCtrl,
-            style: GoogleFonts.inter(fontSize: 13, color: ac.txt),
-            decoration: InputDecoration(
-              hintText: 'Search staff by name to register or edit',
-              prefixIcon: const Icon(Icons.search_rounded, size: 18),
-              filled: true,
-              fillColor: ac.surf3,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
-            ),
-            onChanged: _search,
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchCtrl,
+                  style: GoogleFonts.inter(fontSize: 13, color: ac.txt),
+                  decoration: InputDecoration(
+                    hintText: 'Search staff by name to register or edit',
+                    prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                    filled: true,
+                    fillColor: ac.surf3,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
+                  ),
+                  onChanged: _search,
+                ),
+              ),
+              const SizedBox(width: 12),
+              TextButton.icon(
+                onPressed: () async {
+                  await showDialog(
+                    context: context,
+                    builder: (_) => ManageSubjectsDialog(schoolId: _schoolId),
+                  );
+                  _loadSubjects();
+                },
+                icon: const Icon(Icons.library_books),
+                label: const Text('Subjects'),
+              ),
+            ],
           ),
           if (_searching) const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
           for (final r in _results)
@@ -182,8 +212,9 @@ class _StaffTile extends StatelessWidget {
 
 class _AssignmentEditorSheet extends StatefulWidget {
   final AppUser teacher;
+  final List<String> subjects;
   final VoidCallback onChanged;
-  const _AssignmentEditorSheet({required this.teacher, required this.onChanged});
+  const _AssignmentEditorSheet({required this.teacher, required this.subjects, required this.onChanged});
 
   @override
   State<_AssignmentEditorSheet> createState() => _AssignmentEditorSheetState();
@@ -193,7 +224,7 @@ class _AssignmentEditorSheetState extends State<_AssignmentEditorSheet> {
   late List<TeachingAssignment> _assignments = List.of(widget.teacher.teachingAssignments);
   late String? _classMaster = widget.teacher.classMasterOfClass;
   String _addClass = _schoolClassLevels.first;
-  String _addSubject = kAcademicSubjects.first;
+  late String _addSubject = widget.subjects.isNotEmpty ? widget.subjects.first : 'Mathematics';
   bool _saving = false;
 
   Future<void> _saveAssignments(List<TeachingAssignment> next) async {
@@ -274,7 +305,10 @@ class _AssignmentEditorSheetState extends State<_AssignmentEditorSheet> {
                 child: DropdownButtonFormField<String>(
                   initialValue: _addSubject,
                   decoration: const InputDecoration(labelText: 'Subject'),
-                  items: [for (final s in kAcademicSubjects) DropdownMenuItem(value: s, child: Text(s))],
+                  items: [
+                    if (widget.subjects.isEmpty) const DropdownMenuItem(value: 'Mathematics', child: Text('Mathematics')),
+                    for (final s in widget.subjects) DropdownMenuItem(value: s, child: Text(s))
+                  ],
                   onChanged: (v) => setState(() => _addSubject = v ?? _addSubject),
                 ),
               ),

@@ -8,9 +8,9 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import "../core/offline_cache.dart";
 import '../models/academic_content.dart';
 import '../core/result.dart';
-import '../core/core.dart';
 
 class AcademicContentRepository {
   AcademicContentRepository._();
@@ -20,11 +20,8 @@ class AcademicContentRepository {
   static const String _bucket = 'app-content';
 
   final SupabaseClient _db = Supabase.instance.client;
-  final _memoizer = Memoizer();
-  final _streamCache = StreamCache();
 
   // ─── Streams ──────────────────────────────────────────────────────────────
-
 
   /// Live stream of content. Filters by institution and optional
   /// type/subject/level/examBoard/year. supabase_flutter's realtime
@@ -41,47 +38,42 @@ class AcademicContentRepository {
     String? examBoard,
     int? year,
   }) {
-    final key = 'watch_${institutionId}_${contentType?.name}_${subject}_${level}_${examBoard}_$year';
-    return _streamCache.watch(key, () {
-      final hasClientFilter =
-          (level != null && level.isNotEmpty) || (examBoard != null && examBoard.isNotEmpty) || year != null;
-      var stream = _db.from(_table).stream(primaryKey: ['id']);
-      return stream.map((rows) {
-        var filtered = rows;
-        if (institutionId != null) {
-          filtered = filtered.where((r) => r['institution_id'] == institutionId).toList();
-        }
-        if (contentType != null) {
-          filtered = filtered.where((r) => r['content_type'] == contentType.name).toList();
-        }
-        if (subject != null && subject.isNotEmpty) {
-          filtered = filtered.where((r) => r['subject'] == subject).toList();
-        }
-        filtered.sort((a, b) => (b['upload_date'] as String).compareTo(a['upload_date'] as String));
-        var items = filtered.take(hasClientFilter ? 300 : 80).map(AcademicContent.fromSupabase).toList();
-        if (level != null && level.isNotEmpty) {
-          items = items.where((i) => i.level == level).toList();
-        }
-        if (examBoard != null && examBoard.isNotEmpty) {
-          items = items.where((i) => i.examBoard == examBoard).toList();
-        }
-        if (year != null) {
-          items = items.where((i) => i.year == year).toList();
-        }
-        return items;
-      });
+    final hasClientFilter =
+        (level != null && level.isNotEmpty) || (examBoard != null && examBoard.isNotEmpty) || year != null;
+    var stream = _db.from(_table).stream(primaryKey: ['id']);
+    return stream.map((rows) {
+      var filtered = rows;
+      if (institutionId != null) {
+        filtered = filtered.where((r) => r['institution_id'] == institutionId).toList();
+      }
+      if (contentType != null) {
+        filtered = filtered.where((r) => r['content_type'] == contentType.name).toList();
+      }
+      if (subject != null && subject.isNotEmpty) {
+        filtered = filtered.where((r) => r['subject'] == subject).toList();
+      }
+      filtered.sort((a, b) => (b['upload_date'] as String).compareTo(a['upload_date'] as String));
+      var items = filtered.take(hasClientFilter ? 300 : 80).map(AcademicContent.fromSupabase).toList();
+      if (level != null && level.isNotEmpty) {
+        items = items.where((i) => i.level == level).toList();
+      }
+      if (examBoard != null && examBoard.isNotEmpty) {
+        items = items.where((i) => i.examBoard == examBoard).toList();
+      }
+      if (year != null) {
+        items = items.where((i) => i.year == year).toList();
+      }
+      return items;
     });
   }
 
   /// One-shot real count of library resources in scope — powers the Home
   /// "Library" banner's resource count.
   Future<int> countAll({String? institutionId}) async {
-    return _memoizer.runOnce('countAll_$institutionId', () async {
-      var q = _db.from(_table).select();
-      if (institutionId != null) q = q.eq('institution_id', institutionId);
-      final rows = await q;
-      return rows.length;
-    });
+    var q = _db.from(_table).select();
+    if (institutionId != null) q = q.eq('institution_id', institutionId);
+    final rows = await q;
+    return rows.length;
   }
 
   /// The most recently uploaded thumbnail already used for [tag] (e.g. a
@@ -90,22 +82,20 @@ class AcademicContentRepository {
   /// asking the uploader to pick the same image over and over, and
   /// without re-uploading a duplicate copy of it each time.
   Future<String?> findThumbnailForTag(String tag, {String? institutionId}) async {
-    return _memoizer.runOnce('findThumbnailForTag_${tag}_$institutionId', () async {
-      var q = _db.from(_table).select('thumbnail_url').contains('tags', [tag]);
-      if (institutionId != null) q = q.eq('institution_id', institutionId);
-      final rows = await q.order('upload_date', ascending: false).limit(1);
-      if (rows.isEmpty) return null;
-      return rows.first['thumbnail_url'] as String?;
-    });
+    var q = _db.from(_table).select('thumbnail_url').contains('tags', [tag]);
+    if (institutionId != null) q = q.eq('institution_id', institutionId);
+    final rows = await q.order('upload_date', ascending: false).limit(1);
+    if (rows.isEmpty) return null;
+    return rows.first['thumbnail_url'] as String?;
   }
 
   /// Stream for a single row.
   Stream<AcademicContent?> watchOne(String id) {
-    return _streamCache.watch('watchOne_$id', () => _db
+    return _db
         .from(_table)
         .stream(primaryKey: ['id'])
         .eq('id', id)
-        .map((rows) => rows.isNotEmpty ? AcademicContent.fromSupabase(rows.first) : null));
+        .map((rows) => rows.isNotEmpty ? AcademicContent.fromSupabase(rows.first) : null);
   }
 
   // ─── Search ───────────────────────────────────────────────────────────────
@@ -145,7 +135,6 @@ class AcademicContentRepository {
   Future<Result<String>> add(AcademicContent content) async {
     try {
       final row = await _db.from(_table).insert(content.toSupabase()).select('id').single();
-      _memoizer.clear();
       return Success(row['id'] as String);
     } catch (e) {
       return Failure('Failed to add content', e);
@@ -155,7 +144,6 @@ class AcademicContentRepository {
   Future<Result<void>> update(AcademicContent content) async {
     try {
       await _db.from(_table).update(content.toSupabase()).eq('id', content.id);
-      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update content', e);
@@ -170,7 +158,6 @@ class AcademicContentRepository {
         await _tryDeleteStorageFile(row['thumbnail_url']);
       }
       await _db.from(_table).delete().eq('id', id);
-      _memoizer.clear();
       return const Success(null);
     } catch (e) {
       return Failure('Failed to delete content', e);
@@ -380,7 +367,7 @@ class AcademicContentRepository {
 
   /// Most-recently-viewed content for this user.
   Stream<List<AcademicContent>> watchRecentlyViewed(String userId, {int limit = 10}) {
-    return _db
+    final live = _db
         .from('content_recent_views')
         .stream(primaryKey: ['content_id', 'user_id'])
         .eq('user_id', userId)
@@ -390,10 +377,17 @@ class AcademicContentRepository {
       final ids = sorted.take(limit).map((r) => r['content_id'] as String).toList();
       if (ids.isEmpty) return <AcademicContent>[];
       final content = await _db.from(_table).select().inFilter('id', ids);
-      // Preserve recency order — inFilter doesn't guarantee row order.
       final byId = {for (final c in content) c['id'] as String: c};
       return ids.where(byId.containsKey).map((id) => AcademicContent.fromSupabase(byId[id]!)).toList();
     });
+
+    return OfflineCache.instance.watch<List<AcademicContent>>(
+      'recently_viewed_$userId',
+      live,
+      toJson: (list) => OfflineCache.listToJson(list, (c) => (c as AcademicContent).toSupabase()),
+      fromJson: (json) => OfflineCache.listFromJson(json, (j) => AcademicContent.fromSupabase(j)),
+      emptyValue: [],
+    );
   }
 
   // ─── Read position (real data — powers Home "Continue Reading") ────────
@@ -465,37 +459,35 @@ class AcademicContentRepository {
   // all day for a given user, a different one the next day — a real
   // rotation, not per-refresh randomness, and never a fabricated list.
 
-  Future<List<AcademicContent>> recommendedForUser(String? userId, {int limit = 5}) {
-    return _memoizer.runOnce('recommendedForUser_${userId}_$limit', () async {
-      final pool = await _db.from(_table).select().order('upload_date', ascending: false).limit(200);
-      var items = pool.map(AcademicContent.fromSupabase).toList();
-      if (items.isEmpty) return const <AcademicContent>[];
+  Future<List<AcademicContent>> recommendedForUser(String? userId, {int limit = 5}) async {
+    final pool = await _db.from(_table).select().order('upload_date', ascending: false).limit(200);
+    var items = pool.map(AcademicContent.fromSupabase).toList();
+    if (items.isEmpty) return const [];
 
-      Set<String> subjects = {};
-      if (userId != null) {
-        final recentRows = await _db
-            .from('content_recent_views')
-            .select('content_id')
-            .eq('user_id', userId)
-            .order('viewed_at', ascending: false)
-            .limit(20);
-        final recentIds = recentRows.map((r) => r['content_id'] as String).toSet();
-        subjects = items.where((c) => recentIds.contains(c.id) && c.subject.isNotEmpty)
-            .map((c) => c.subject).toSet();
-      }
+    Set<String> subjects = {};
+    if (userId != null) {
+      final recentRows = await _db
+          .from('content_recent_views')
+          .select('content_id')
+          .eq('user_id', userId)
+          .order('viewed_at', ascending: false)
+          .limit(20);
+      final recentIds = recentRows.map((r) => r['content_id'] as String).toSet();
+      subjects = items.where((c) => recentIds.contains(c.id) && c.subject.isNotEmpty)
+          .map((c) => c.subject).toSet();
+    }
 
-      final scored = items.where((c) => subjects.isEmpty || subjects.contains(c.subject)).toList();
-      final candidates = scored.length >= limit ? scored : items;
-      candidates.sort((a, b) {
-        final scoreA = a.views * 1.0 + a.downloads * 2.0;
-        final scoreB = b.views * 1.0 + b.downloads * 2.0;
-        return scoreB.compareTo(scoreA);
-      });
-      final top = candidates.take(limit * 3).toList();
-      final seed = DateTime.now().difference(DateTime(2020)).inDays + (userId?.hashCode ?? 0);
-      top.shuffle(Random(seed));
-      return top.take(limit).toList();
+    final scored = items.where((c) => subjects.isEmpty || subjects.contains(c.subject)).toList();
+    final candidates = scored.length >= limit ? scored : items;
+    candidates.sort((a, b) {
+      final scoreA = a.views * 1.0 + a.downloads * 2.0;
+      final scoreB = b.views * 1.0 + b.downloads * 2.0;
+      return scoreB.compareTo(scoreA);
     });
+    final top = candidates.take(limit * 3).toList();
+    final seed = DateTime.now().difference(DateTime(2020)).inDays + (userId?.hashCode ?? 0);
+    top.shuffle(Random(seed));
+    return top.take(limit).toList();
   }
 
   // ─── Storage Upload ───────────────────────────────────────────────────────
@@ -548,50 +540,44 @@ class AcademicContentRepository {
 
   /// Returns the list of distinct subjects from the table.
   Future<List<String>> getSubjects({String? institutionId}) async {
-    return _memoizer.runOnce('getSubjects_$institutionId', () async {
-      var q = _db.from(_table).select('subject');
-      if (institutionId != null) q = q.eq('institution_id', institutionId);
-      final rows = await q;
-      final subjects = rows
-          .map((r) => (r['subject'] as String?) ?? '')
-          .where((s) => s.isNotEmpty)
-          .toSet()
-          .toList()
-        ..sort();
-      return subjects;
-    });
+    var q = _db.from(_table).select('subject');
+    if (institutionId != null) q = q.eq('institution_id', institutionId);
+    final rows = await q;
+    final subjects = rows
+        .map((r) => (r['subject'] as String?) ?? '')
+        .where((s) => s.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    return subjects;
   }
 
   /// Distinct exam/publication years currently in use — drives the Year
   /// filter picker.
   Future<List<int>> yearsInUseOnce({String? institutionId}) async {
-    return _memoizer.runOnce('yearsInUseOnce_$institutionId', () async {
-      var q = _db.from(_table).select('year');
-      if (institutionId != null) q = q.eq('institution_id', institutionId);
-      final rows = await q.limit(500);
-      final years = rows
-          .map((r) => (r['year'] as num?)?.toInt())
-          .whereType<int>()
-          .toSet()
-          .toList()
-        ..sort((a, b) => b.compareTo(a));
-      return years;
-    });
+    var q = _db.from(_table).select('year');
+    if (institutionId != null) q = q.eq('institution_id', institutionId);
+    final rows = await q.limit(500);
+    final years = rows
+        .map((r) => (r['year'] as num?)?.toInt())
+        .whereType<int>()
+        .toSet()
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
+    return years;
   }
 
   /// Real per-subject item counts — powers the Categories grid.
   Future<Map<String, int>> subjectCountsOnce({String? institutionId}) async {
-    return _memoizer.runOnce('subjectCountsOnce_$institutionId', () async {
-      var q = _db.from(_table).select('subject');
-      if (institutionId != null) q = q.eq('institution_id', institutionId);
-      final rows = await q.limit(500);
-      final counts = <String, int>{};
-      for (final row in rows) {
-        final subject = (row['subject'] as String?) ?? '';
-        if (subject.isEmpty) continue;
-        counts[subject] = (counts[subject] ?? 0) + 1;
-      }
-      return counts;
-    });
+    var q = _db.from(_table).select('subject');
+    if (institutionId != null) q = q.eq('institution_id', institutionId);
+    final rows = await q.limit(500);
+    final counts = <String, int>{};
+    for (final row in rows) {
+      final subject = (row['subject'] as String?) ?? '';
+      if (subject.isEmpty) continue;
+      counts[subject] = (counts[subject] ?? 0) + 1;
+    }
+    return counts;
   }
 }

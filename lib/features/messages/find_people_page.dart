@@ -126,7 +126,7 @@ class _FindPeoplePageState extends State<FindPeoplePage> {
       if (_globalLoading)
         const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: LoadingView())
       else if (_globalResults == null || _globalResults!.isEmpty)
-        Text('No one else found.', style: AppText.bodySm)
+        Text('We couldn\'t find anyone with that exact name. Want to try searching for another name?', style: AppText.bodySm)
       else
         ..._globalResults!.map((p) => Padding(
           padding: const EdgeInsets.only(bottom: 10),

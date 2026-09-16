@@ -105,6 +105,30 @@ class _TestTakingPageState extends State<TestTakingPage> {
       showToast(context, 'Sign in to submit a test', isError: true);
       return;
     }
+
+    if (!_allAnswered) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: ac.bg,
+          title: Text('Unanswered Questions', style: AppText.title),
+          content: Text('You have not answered all questions. Are you sure you want to submit?', style: AppText.body),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text('Cancel', style: AppText.button.copyWith(color: ac.muted)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: ac.primary),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text('Submit Anyway', style: AppText.button.copyWith(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+    }
+
     setState(() => _submitting = true);
     final rawAnswers = <String, dynamic>{};
     for (final q in widget.test.questions) {
@@ -166,9 +190,9 @@ class _TestTakingPageState extends State<TestTakingPage> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: PrimaryBtn(
-            label: _allAnswered ? 'Submit Test' : 'Answer all questions to submit',
+            label: 'Submit Test',
             loading: _submitting,
-            onTap: _allAnswered ? _submit : () {},
+            onTap: _submit,
           ),
         ),
       ),

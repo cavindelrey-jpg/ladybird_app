@@ -77,9 +77,19 @@ class _LoginScreenState extends State<LoginScreen>
       }
     } catch (e) {
       if (!mounted) return;
-      TextInput.finishAutofillContext(shouldSave: false);
+      try { TextInput.finishAutofillContext(shouldSave: false); } catch (_) {}
+      
+      String errorMsg = e.toString().replaceFirst('Exception: ', '');
+      if (errorMsg.contains('Invalid login credentials') || errorMsg.contains('invalid_grant')) {
+        errorMsg = 'Hmm, that email and password combination didn\'t work. Have you forgotten your password? Try tapping "Forgot Password?" below.';
+      } else if (errorMsg.contains('SocketException') || errorMsg.contains('ClientException')) {
+        errorMsg = 'We couldn\'t connect to the internet. Please check your connection and try again.';
+      } else {
+        errorMsg = 'Something didn\'t quite work. Please try again in a moment.';
+      }
+      
       setState(() {
-        _error = e.toString().replaceFirst('Exception: ', '');
+        _error = errorMsg;
         _loading = false;
       });
     }

@@ -739,10 +739,17 @@ class BrandLogo extends StatelessWidget {
 void showToast(BuildContext context, String msg, {bool isError = false}) {
   final ac = AppColors.of(context);
   ScaffoldMessenger.of(context).clearSnackBars();
+
+  // Strip technical exception details if they leaked into the message
+  String cleanMsg = msg;
+  if (cleanMsg.contains('Exception:') || cleanMsg.contains('PostgrestException')) {
+    cleanMsg = 'Something didn\'t quite work. Please check your connection or try again later.';
+  }
+
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-    content: Text(msg, style: AppText.subtitle.copyWith(color: Colors.white, fontSize: 13)),
+    content: Text(cleanMsg, style: AppText.subtitle.copyWith(color: Colors.white, fontSize: 13)),
     behavior: SnackBarBehavior.floating,
-    backgroundColor: isError ? ac.red : ac.navy,
+    backgroundColor: ac.navy, // Avoid red for errors per user feedback
     elevation: 6,
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.sm)),
     margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),

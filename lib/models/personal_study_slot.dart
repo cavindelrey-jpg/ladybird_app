@@ -26,4 +26,24 @@ class PersonalStudySlot {
 
   static const dayNames = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   String get dayName => dayOfWeek >= 1 && dayOfWeek <= 7 ? dayNames[dayOfWeek] : '';
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'user_id': userId,
+    'day_of_week': dayOfWeek,
+    'start_time': startTime,
+    'end_time': endTime,
+    'activity': activity,
+    'subject': subject,
+  };
+
+  factory PersonalStudySlot.fromJson(Map<String, dynamic> json) => PersonalStudySlot(
+    id: json['id'] as String,
+    userId: json['user_id'] as String,
+    dayOfWeek: json['day_of_week'] as int,
+    startTime: json['start_time'] as String,
+    endTime: json['end_time'] as String,
+    activity: json['activity'] as String,
+    subject: json['subject'] as String?,
+  );
 }

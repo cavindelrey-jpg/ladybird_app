@@ -67,7 +67,7 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Mega Macro Dictionary', style: GoogleFonts.lora(color: ac.text, fontWeight: FontWeight.w600, fontSize: 18)),
+            Text('Academia Dictionary', style: GoogleFonts.lora(color: ac.text, fontWeight: FontWeight.w600, fontSize: 18)),
             if (all.isNotEmpty) Text('1,001 Precision Academic Concepts', style: TextStyle(color: ac.muted, fontSize: 12, fontWeight: FontWeight.normal)),
           ],
         ),

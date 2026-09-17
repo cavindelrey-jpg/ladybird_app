@@ -186,7 +186,7 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
                     decoration: BoxDecoration(
                       color: ac.surface,
                       borderRadius: BorderRadius.circular(8),
-                      border: BorderSide(color: ac.bdr),
+                      border: Border.all(color: ac.bdr),
                     ),
                     alignment: Alignment.center,
                     child: Text(letter, style: GoogleFonts.lora(fontWeight: FontWeight.bold, color: ac.primary)),
@@ -223,7 +223,7 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
                 decoration: BoxDecoration(
                   color: ac.primary.withValues(alpha: .1),
                   borderRadius: BorderRadius.circular(8),
-                  border: BorderSide(color: ac.primary.withValues(alpha: .3)),
+                  border: Border.all(color: ac.primary.withValues(alpha: .3)),
                 ),
                 child: Text(d, style: TextStyle(color: ac.primary, fontWeight: FontWeight.w500, fontSize: 13)),
               ),
@@ -284,7 +284,7 @@ class DictionaryEntryScreen extends StatelessWidget {
                 const SizedBox(width: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: ac.surface, borderRadius: BorderRadius.circular(4), border: BorderSide(color: ac.bdr)),
+                  decoration: BoxDecoration(color: ac.surface, borderRadius: BorderRadius.circular(4), border: Border.all(color: ac.bdr)),
                   child: Text(entry.discipline, style: TextStyle(color: ac.muted, fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(width: 8),
@@ -305,7 +305,7 @@ class DictionaryEntryScreen extends StatelessWidget {
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: ac.surface, borderRadius: BorderRadius.circular(8), border: BorderSide(color: ac.bdr2)),
+                decoration: BoxDecoration(color: ac.surface, borderRadius: BorderRadius.circular(8), border: Border.all(color: ac.bdr2)),
                 child: Text('"\${entry.example}"', style: TextStyle(color: ac.text, fontStyle: FontStyle.italic, fontSize: 15, height: 1.4)),
               ),
             ],

@@ -246,36 +246,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return '$startYear/${startYear + 1}';
   }
 
-  bool get _canManageHeroBanner => !_isGuest && _u!.canManageSchool;
-
-  Future<void> _pickHeroBanner(BuildContext context) async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
-    if (picked == null) return;
-    final upload = await HomeHeroRepository.instance.uploadImage(File(picked.path));
-    if (!context.mounted) return;
-    switch (upload) {
-      case Success(:final value):
-        final result = await HomeHeroRepository.instance.setImage(value);
-        if (!context.mounted) return;
-        if (result case Failure(:final message)) {
-          showToast(context, 'Could not save banner: $message', isError: true);
-        } else {
-          showToast(context, 'Banner updated');
-        }
-      case Failure(:final message):
-        showToast(context, 'Could not upload banner: $message', isError: true);
-    }
-
-  Future<void> _deleteHeroBanner(BuildContext context) async {
-    final result = await HomeHeroRepository.instance.setImage('');
-    if (!context.mounted) return;
-    if (result case Failure(:final message)) {
-      showToast(context, 'Could not remove banner: $message', isError: true);
-    } else {
-      showToast(context, 'Banner removed');
-    }
-  }
-  }
 
   /// Mockup has the stat/class-info box living INSIDE the hero card, to
   /// the right of the greeting text -- not as a separate card overlapping
@@ -287,108 +257,51 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   /// row so the two apps' banners never collide) -- everything else in
   /// this card (greeting, Resume Learning button, stat box) is unchanged.
   Widget _heroAndStats(BuildContext context) {
-    return StreamBuilder<String>(
-        stream: HomeHeroRepository.instance.watchImageUrl(),
-        builder: (context, snap) {
-          final imageUrl = snap.data ?? '';
-          final hasImage = imageUrl.isNotEmpty;
-          return Container(
-            width: double.infinity,
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              gradient: hasImage ? null : LinearGradient(
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-                colors: [ac.primary, ac.grn],
-              ),
-              borderRadius: BorderRadius.zero,
+    return Container(
+      width: double.infinity,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: [ac.primary, ac.grn],
+        ),
+        borderRadius: BorderRadius.zero,
+      ),
+      child: Stack(children: [
+        Positioned(
+          right: -16, top: 4,
+          child: Icon(Icons.auto_stories_rounded, size: 120, color: Colors.white.withValues(alpha: .06)),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              flex: 5,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('$_timeGreeting,',
+                    style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: .85))),
+                const SizedBox(height: 2),
+                Text.rich(
+                  TextSpan(children: [
+                    TextSpan(text: _isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name.split(' ').first)),
+                    const TextSpan(text: ' \u{1F44B}'),
+                  ]),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.sora(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white),
+                ),
+                const SizedBox(height: 10),
+                Text('"${Branding.current.tagline}"',
+                    style: GoogleFonts.inter(fontSize: 11.5, fontStyle: FontStyle.italic,
+                        color: Colors.white.withValues(alpha: .8), height: 1.3)),
+                const SizedBox(height: 16),
+                _resumeLearningButton(context),
+              ]),
             ),
-            child: Stack(children: [
-              if (hasImage)
-                Positioned.fill(
-                  child: Image.network(imageUrl, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        decoration: BoxDecoration(gradient: LinearGradient(
-                            begin: Alignment.topLeft, end: Alignment.bottomRight,
-                            colors: [ac.primary, ac.grn])),
-                      )),
-                )
-              else
-                Positioned(
-                  right: -16, top: 4,
-                  child: Icon(Icons.auto_stories_rounded, size: 120, color: Colors.white.withValues(alpha: .06)),
-                ),
-              if (hasImage)
-                // A real photo needs a dark scrim behind it for the white
-                // greeting text and stat box to stay legible regardless of
-                // what the uploaded photo looks like.
-                Positioned.fill(
-                  child: DecoratedBox(decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                          begin: Alignment.topLeft, end: Alignment.bottomRight,
-                          colors: [Colors.black.withValues(alpha: .4), Colors.black.withValues(alpha: .2)]))),
-                ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(
-                    flex: 5,
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('$_timeGreeting,',
-                          style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: .85))),
-                      const SizedBox(height: 2),
-                      Text.rich(
-                        TextSpan(children: [
-                          TextSpan(text: _isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name.split(' ').first)),
-                          const TextSpan(text: ' \u{1F44B}'),
-                        ]),
-                        maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.sora(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white),
-                      ),
-                      const SizedBox(height: 10),
-                      Text('"${Branding.current.tagline}"',
-                          style: GoogleFonts.inter(fontSize: 11.5, fontStyle: FontStyle.italic,
-                              color: Colors.white.withValues(alpha: .8), height: 1.3)),
-                      const SizedBox(height: 16),
-                      _resumeLearningButton(context),
-                    ]),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(flex: 6, child: _statCard()),
-                ]),
-              ),
-              if (_canManageHeroBanner)
-                Positioned(
-                  bottom: 10, right: 10,
-                  child: Row(
-                    children: [
-                      if (hasImage) ...[
-                        InkWell(
-                          borderRadius: BorderRadius.circular(14),
-                          onTap: () => _deleteHeroBanner(context),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(color: Colors.black.withValues(alpha: .35), shape: BoxShape.circle),
-                            child: Icon(Icons.delete_outline_rounded, size: 16, color: Colors.white),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      InkWell(
-                        borderRadius: BorderRadius.circular(14),
-                        onTap: () => _pickHeroBanner(context),
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(color: Colors.black.withValues(alpha: .35), shape: BoxShape.circle),
-                          child: Icon(hasImage ? Icons.edit_rounded : Icons.add_photo_alternate_outlined,
-                              size: 16, color: Colors.white),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ]),
-          );
-        },
+            const SizedBox(width: 12),
+            Expanded(flex: 6, child: _statCard()),
+          ]),
+        ),
+      ]),
     );
   }
 
@@ -652,6 +565,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             ),
           ]);
         },
+      ),
     );
   }
 

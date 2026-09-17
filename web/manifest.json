@@ -1,11 +1,11 @@
 {
-    "name": "Green Hills Academic Complex",
-    "short_name": "Green Hills",
+    "name": "Ladybird Group of Schools",
+    "short_name": "Ladybird",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",
     "theme_color": "#0A7A3B",
-    "description": "Green Hills Academic Complex - Solid Foundation. Discipline. Success.",
+    "description": "Ladybird Group of Schools - Solid Foundation. Discipline. Success.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

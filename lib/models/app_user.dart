@@ -286,6 +286,7 @@ class AppUser {
   /// subject; any other teacher only for a (subject, classLevel) pair
   /// they're actually assigned to.
   bool canRecordMarksFor({required String subject, required String classLevel}) {
+    if (isSuperAdmin) return true;
     if (!isSchoolMember) return false;
     if (hasMinRole(UserRole.schoolAdmin)) return true;
     if (isSchoolClassMaster && classMasterOfClass == classLevel) return true;
@@ -298,7 +299,7 @@ class AppUser {
   /// specific pair. `canUploadContent` (any lecturer+) used to gate these
   /// entry points; that was the item-22 bug (any teacher, any subject).
   bool get canRecordAnyMarks =>
-      isSchoolMember && (hasMinRole(UserRole.schoolAdmin) || isSchoolClassMaster || teachingAssignments.isNotEmpty);
+      isSuperAdmin || (isSchoolMember && (hasMinRole(UserRole.schoolAdmin) || isSchoolClassMaster || teachingAssignments.isNotEmpty));
 
   /// Whether this account can create/manage homework for this specific
   /// (subject, classLevel) pair. Deliberately does NOT mirror
@@ -309,6 +310,7 @@ class AppUser {
   /// would show a working "Add Homework" button that silently fails on
   /// submit.
   bool canManageHomeworkFor({required String subject, required String classLevel}) {
+    if (isSuperAdmin) return true;
     if (!isSchoolMember) return false;
     if (hasMinRole(UserRole.schoolAdmin)) return true;
     return teachingAssignments.contains(TeachingAssignment(subject: subject, classLevel: classLevel));
@@ -319,7 +321,7 @@ class AppUser {
   /// point, mirroring [canRecordAnyMarks]'s shape (minus the class-master
   /// bypass, for the same reason as [canManageHomeworkFor]).
   bool get canManageHomework =>
-      isSchoolMember && (hasMinRole(UserRole.schoolAdmin) || teachingAssignments.isNotEmpty);
+      isSuperAdmin || (isSchoolMember && (hasMinRole(UserRole.schoolAdmin) || teachingAssignments.isNotEmpty));
 
   // ── Privilege system ───────────────────────────────────────────────────────
   int get privilegeLevel {

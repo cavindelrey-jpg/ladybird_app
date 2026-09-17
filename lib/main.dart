@@ -2,6 +2,7 @@
 // Academia entry point.
 // Initialises Firebase, remote config, and analytics before painting a frame.
 
+import "dart:ui";
 import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -36,7 +37,11 @@ Future<void> main() async {
 
     // Firebase init — kept for Crashlytics/Analytics only (no Supabase
     // equivalent); Auth/Firestore/Storage now live on Supabase below.
-    await Firebase.initializeApp();
+    try {
+      await Firebase.initializeApp();
+    } catch (e) {
+      debugPrint('Firebase init failed (expected on web if unconfigured): $e');
+    }
 
     // Supabase init — auth/data/storage. Same shared project as
     // academia-cameroon (see core/supabase_config.dart's header).
@@ -46,7 +51,15 @@ Future<void> main() async {
     // fatal, instead of just printing to console and moving on.
     FlutterError.onError = (details) {
       FlutterError.presentError(details);
-      FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+      try {
+        FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+      } catch (_) {}
+    };
+    PlatformDispatcher.instance.onError = (error, stack) {
+      try {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      } catch (_) {}
+      return true;
     };
 
     // Remote config (non-blocking — uses defaults if Firestore is unavailable)

@@ -64,7 +64,7 @@ class AppDrawer extends StatelessWidget {
                 // (Content/Assessment/Communication/Settings) replacing
                 // what used to be a flatter, less organized list.
                 _sectionLabel(ac, 'Content'),
-                _item(context, ac, Icons.menu_book, 'Offline Dictionary', () {
+                _item(context, ac, Icons.menu_book, 'Academia Dictionary', () {
                   Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => const DictionaryScreen()));
                 }),

@@ -47,6 +47,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/result.dart';
+import "../../screens/command_center_screen.dart";
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../config/branding.dart';
@@ -770,7 +771,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Expanded(child: _panel(
               title: "Today's Schedule",
-              onTap: _isGuest ? null : () => _open(context, PersonalStudyPage(user: _u!)),
+              onTap: () => _open(context, PersonalStudyPage(user: _userOrGuest)),
               child: _todaysScheduleContent(context))),
           const SizedBox(width: 12),
           Expanded(child: _panel(title: 'My Tasks', child: _myTasksContent(context))),
@@ -923,17 +924,18 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           () => _open(context, QuizCategoriesPage(user: _userOrGuest))),
       ('Groups', Icons.groups_rounded, ac.grn,
           () => _open(context, ClubsPage(user: _userOrGuest))),
+      if (_u?.isSuperAdmin == true)
+        ('Command Center', Icons.admin_panel_settings, Colors.red,
+            () => _open(context, const CommandCenterScreen())),
       if (isSchoolMember)
         ('School Connect', Icons.forum_outlined, ac.pur,
             () => _open(context, SchoolConnectPage(user: _u!))),
       ('Magazine', Icons.auto_stories_rounded, ac.grn,
           () => _open(context, MagazineFeedPage(user: _userOrGuest))),
       ('Timetable', Icons.calendar_month_rounded, ac.gold,
-          _isGuest ? () => showToast(context, 'Sign in to build your study schedule.')
-                   : () => _open(context, PersonalStudyPage(user: _u!))),
+          () => _open(context, PersonalStudyPage(user: _userOrGuest))),
       ('Challenge', Icons.local_fire_department_rounded, ac.org,
-          _isGuest ? () => showToast(context, "Sign in to take today's challenge.")
-                   : () => _open(context, DailyLearningHubPage(user: _u!))),
+          () => _open(context, DailyLearningHubPage(user: _userOrGuest))),
     ];
     return SizedBox(
       height: 84,
@@ -1008,7 +1010,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           const SizedBox(width: 12),
           Expanded(child: _panel(
               title: 'My Group',
-              onTap: _isGuest ? null : () => _open(context, ClubsPage(user: _u!)),
+              onTap: () => _open(context, ClubsPage(user: _userOrGuest)),
               child: _myClubContent(context))),
         ]),
       ),

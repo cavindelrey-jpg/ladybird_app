@@ -12,6 +12,7 @@
 // this drawer only controls navigation, not the read/write gate itself.
 
 import 'package:flutter/material.dart';
+import '../screens/dictionary_screen.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 import '../models/app_user.dart';
@@ -63,6 +64,11 @@ class AppDrawer extends StatelessWidget {
                 // (Content/Assessment/Communication/Settings) replacing
                 // what used to be a flatter, less organized list.
                 _sectionLabel(ac, 'Content'),
+                _item(context, ac, Icons.menu_book, 'Offline Dictionary', () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const DictionaryScreen()));
+                }),
+
                 _item(context, ac, Icons.home_rounded, 'Home', () { if (onHomeTap != null) onHomeTap!(); }),
                 // "Course Navigation" used to be a separate top-level
                 // entry pointing at CourseNavigationPage -- but
@@ -75,19 +81,11 @@ class AppDrawer extends StatelessWidget {
                       builder: (_) => CoursesHomePage(user: user)));
                 }),
                 _item(context, ac, Icons.folder_copy_rounded, 'Academia Library', () {
-                  if (_isGuest) {
-                    _goSignIn(context);
-                  } else {
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => LibraryHomePage(user: user!)));
-                  }
+                  Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => LibraryHomePage(user: (user ?? AppUser.guest()))));
                 }),
                 _item(context, ac, Icons.description_rounded, 'Past Questions', () {
-                  if (_isGuest) {
-                    _goSignIn(context);
-                  } else {
-                    _openLibraryFolderByName(context, user!, 'Past Papers');
-                  }
+                  _openLibraryFolderByName(context, user ?? AppUser.guest(), 'Past Papers');
                 }),
 
                 _sectionLabel(ac, 'Assessment'),
@@ -157,49 +155,29 @@ class AppDrawer extends StatelessWidget {
                       builder: (_) => MagazineFeedPage(user: user)));
                 }),
                 _item(context, ac, Icons.chat_bubble_outline_rounded, 'Messaging', () {
-                  if (_isGuest) {
-                    _goSignIn(context);
-                  } else {
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => MessagesHomePage(user: user!)));
-                  }
+                  Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => MessagesHomePage(user: (user ?? AppUser.guest()))));
                 }),
                 _item(context, ac, Icons.groups_rounded, 'Groups', () {
-                  if (_isGuest) {
-                    _goSignIn(context);
-                  } else {
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => ClubsPage(user: user!)));
-                  }
+                  Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => ClubsPage(user: (user ?? AppUser.guest()))));
                 }),
 
                 _sectionLabel(ac, 'Settings & Personalization'),
                 _item(context, ac, Icons.settings_outlined, 'Settings', () {
-                  if (_isGuest) {
-                    _goSignIn(context);
-                  } else {
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => SettingsPage(user: user!)));
-                  }
+                  Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => SettingsPage(user: (user ?? AppUser.guest()))));
                 }),
                 _item(context, ac, Icons.notifications_outlined, 'Notifications', () {
-                  if (_isGuest) {
-                    _goSignIn(context);
-                  } else {
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => NotificationsPage(userId: user!.id)));
-                  }
+                  Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => NotificationsPage(userId: (user ?? AppUser.guest()).id)));
                 }),
                 _item(context, ac, Icons.help_outline_rounded, 'Support',
                     () => Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => const HelpSupportPage()))),
                 _item(context, ac, Icons.person_outline_rounded, 'Profile', () {
-                  if (_isGuest) {
-                    _goSignIn(context);
-                  } else {
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => ProfilePage(user: user!)));
-                  }
+                  Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => ProfilePage(user: (user ?? AppUser.guest()))));
                 }),
 
                 // Doesn't fit any of the 4 requested groups (it's an

@@ -10,6 +10,9 @@
 // same looseness SchoolAdminPage already lives with for voucher issuance.
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../data/local_database.dart';
+import '../services/connectivity_service.dart';
+
 import '../core/core.dart';
 import '../models/app_user.dart';
 import '../models/teaching_assignment.dart';

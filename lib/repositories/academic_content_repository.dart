@@ -2,6 +2,9 @@
 // Supabase Postgres + Storage operations for the Library feature.
 
 import 'dart:async';
+import '../data/local_database.dart';
+import '../services/connectivity_service.dart';
+
 import 'dart:io';
 import 'dart:math';
 import 'package:http/http.dart' as http;

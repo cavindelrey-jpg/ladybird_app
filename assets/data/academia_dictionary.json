@@ -1,0 +1,32 @@
+[
+  {
+    "word": "Algorithm",
+    "definition": "A step-by-step procedure or set of rules for solving a specific problem or performing a computation.",
+    "subject": "Computer Science",
+    "example": "A sorting algorithm arranges elements in a specific order."
+  },
+  {
+    "word": "Derivative",
+    "definition": "The rate at which a function is changing at any given point.",
+    "subject": "Mathematics",
+    "example": "The derivative of position with respect to time is velocity."
+  },
+  {
+    "word": "Photosynthesis",
+    "definition": "The process by which green plants and some other organisms use sunlight to synthesize foods with the help of chlorophyll.",
+    "subject": "Biology",
+    "example": "Photosynthesis produces oxygen as a byproduct."
+  },
+  {
+    "word": "Thermodynamics",
+    "definition": "The branch of physical science that deals with the relations between heat and other forms of energy.",
+    "subject": "Physics",
+    "example": "The second law of thermodynamics states that entropy always increases."
+  },
+  {
+    "word": "Demand",
+    "definition": "An economic principle referring to a consumer's desire to purchase goods and services and willingness to pay a price for a specific good or service.",
+    "subject": "Economics",
+    "example": "When the price of a good increases, the demand typically decreases."
+  }
+]

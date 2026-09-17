@@ -7,6 +7,9 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
+import 'services/connectivity_service.dart';
+import 'services/dictionary_service.dart';
+import 'services/sync_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
@@ -86,7 +89,10 @@ Future<void> main() async {
       DeviceOrientation.portraitDown,
     ]);
 
-    runApp(const AcademiaApp());
+    ConnectivityService().initialize();
+  await DictionaryService().loadDictionary();
+  SyncService().startSyncTimer();
+  runApp(const AcademiaApp());
   }, (error, stack) {
     // Anything not caught above (async errors, isolate-level) lands here.
     FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);

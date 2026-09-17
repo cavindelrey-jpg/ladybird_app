@@ -10,6 +10,9 @@
 // supabase/migrations/20260831000000_unified_voucher_authorization.sql).
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../data/local_database.dart';
+import '../services/connectivity_service.dart';
+
 import '../config/branding.dart';
 import '../core/result.dart';
 import '../models/school.dart';

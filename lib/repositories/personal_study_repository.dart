@@ -6,6 +6,9 @@
 // needed since there's no cross-user access at all.
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../data/local_database.dart';
+import '../services/connectivity_service.dart';
+
 import '../models/personal_study_slot.dart';
 import '../core/result.dart';
 import '../core/offline_cache.dart'; // Added offline cache

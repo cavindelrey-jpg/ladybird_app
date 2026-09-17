@@ -9,6 +9,9 @@
 // standard (see MagazineRepository's computed Featured/Trending).
 
 import '../models/academic_content.dart';
+import '../data/local_database.dart';
+import '../services/connectivity_service.dart';
+
 import '../models/club.dart';
 import '../models/magazine_article.dart';
 import '../models/public_course.dart';

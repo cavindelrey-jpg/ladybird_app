@@ -6,6 +6,9 @@
 // gate TimetableManagerPage already checks before showing its UI.
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../data/local_database.dart';
+import '../services/connectivity_service.dart';
+
 import '../core/result.dart';
 import '../models/school_timetable_slot.dart';
 

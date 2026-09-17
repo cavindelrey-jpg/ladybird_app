@@ -5,6 +5,9 @@
 // institution scoping elsewhere in this rewrite.
 
 import 'dart:io';
+import '../data/local_database.dart';
+import '../services/connectivity_service.dart';
+
 import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';

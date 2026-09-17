@@ -4,6 +4,9 @@
 // "never a fabricated number" guarantee the Firestore doc-per-day design had.
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../data/local_database.dart';
+import '../services/connectivity_service.dart';
+
 
 class StreakRepository {
   StreakRepository._();

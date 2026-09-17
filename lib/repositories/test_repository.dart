@@ -29,6 +29,9 @@
 // own Supabase rewrite made for this exact method.
 
 import 'dart:async';
+import '../data/local_database.dart';
+import '../services/connectivity_service.dart';
+
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/core.dart';

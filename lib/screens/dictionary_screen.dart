@@ -67,11 +67,11 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Academia Dictionary', style: GoogleFonts.lora(color: ac.text, fontWeight: FontWeight.w600, fontSize: 18)),
+            Text('Academia Dictionary', style: GoogleFonts.lora(color: ac.txt, fontWeight: FontWeight.w600, fontSize: 18)),
             if (all.isNotEmpty) Text('1,001 Precision Academic Concepts', style: TextStyle(color: ac.muted, fontSize: 12, fontWeight: FontWeight.normal)),
           ],
         ),
-        iconTheme: IconThemeData(color: ac.text),
+        iconTheme: IconThemeData(color: ac.txt),
         actions: [
           IconButton(
             icon: Icon(Icons.casino_outlined, color: ac.primary),
@@ -103,7 +103,7 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
                     )
                   : null,
                 filled: true,
-                fillColor: ac.surface,
+                fillColor: ac.surf,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -139,7 +139,7 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
         final entry = items[i];
         return Card(
           elevation: 0,
-          color: ac.surface,
+          color: ac.surf,
           margin: const EdgeInsets.only(bottom: 8),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: ac.bdr2)),
           child: ListTile(
@@ -151,7 +151,7 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
             ),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 4.0),
-              child: Text(entry.definition, style: TextStyle(color: ac.text, height: 1.3)),
+              child: Text(entry.definition, style: TextStyle(color: ac.txt, height: 1.3)),
             ),
             onTap: () => _openEntry(entry),
           ),
@@ -184,7 +184,7 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
                     width: 40,
                     margin: const EdgeInsets.only(right: 8),
                     decoration: BoxDecoration(
-                      color: ac.surface,
+                      color: ac.surf,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: ac.bdr),
                     ),
@@ -203,9 +203,9 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
             Wrap(
               spacing: 8, runSpacing: 8,
               children: recent.map((e) => ActionChip(
-                backgroundColor: ac.surface,
+                backgroundColor: ac.surf,
                 side: BorderSide(color: ac.bdr),
-                label: Text(e.word, style: TextStyle(color: ac.text)),
+                label: Text(e.word, style: TextStyle(color: ac.txt)),
                 onPressed: () => _openEntry(e),
               )).toList(),
             ),
@@ -263,7 +263,7 @@ class DictionaryEntryScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: ac.bg,
         elevation: 0,
-        iconTheme: IconThemeData(color: ac.text),
+        iconTheme: IconThemeData(color: ac.txt),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
@@ -274,7 +274,7 @@ class DictionaryEntryScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Expanded(child: Text(entry.word, style: GoogleFonts.lora(fontSize: 32, fontWeight: FontWeight.bold, color: ac.text))),
+                Expanded(child: Text(entry.word, style: GoogleFonts.lora(fontSize: 32, fontWeight: FontWeight.bold, color: ac.txt))),
               ],
             ),
             const SizedBox(height: 6),
@@ -284,7 +284,7 @@ class DictionaryEntryScreen extends StatelessWidget {
                 const SizedBox(width: 12),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: ac.surface, borderRadius: BorderRadius.circular(4), border: Border.all(color: ac.bdr)),
+                  decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(4), border: Border.all(color: ac.bdr)),
                   child: Text(entry.discipline, style: TextStyle(color: ac.muted, fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(width: 8),
@@ -297,7 +297,7 @@ class DictionaryEntryScreen extends StatelessWidget {
             
             Text('DEFINITION', style: TextStyle(color: ac.muted, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
             const SizedBox(height: 8),
-            Text(entry.definition, style: GoogleFonts.lora(fontSize: 22, color: ac.text, height: 1.3)),
+            Text(entry.definition, style: GoogleFonts.lora(fontSize: 22, color: ac.txt, height: 1.3)),
             
             if (entry.example.isNotEmpty) ...[
               const SizedBox(height: 24),
@@ -305,8 +305,8 @@ class DictionaryEntryScreen extends StatelessWidget {
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: ac.surface, borderRadius: BorderRadius.circular(8), border: Border.all(color: ac.bdr2)),
-                child: Text('"\${entry.example}"', style: TextStyle(color: ac.text, fontStyle: FontStyle.italic, fontSize: 15, height: 1.4)),
+                decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(8), border: Border.all(color: ac.bdr2)),
+                child: Text('"\${entry.example}"', style: TextStyle(color: ac.txt, fontStyle: FontStyle.italic, fontSize: 15, height: 1.4)),
               ),
             ],
             

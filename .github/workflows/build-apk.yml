@@ -80,7 +80,7 @@ jobs:
       - name: Build AppBundle and Split APKs
         run: |
           flutter build appbundle --release --flavor ladybird --dart-define=BRAND_ID=ladybird
-          flutter build apk --release --flavor ladybird --dart-define=BRAND_ID=ladybird --split-per-abi
+          flutter build apk --release --flavor ladybird --dart-define=BRAND_ID=ladybird --target-platform android-arm64
 
       - name: Upload AppBundle
         uses: actions/upload-artifact@v4

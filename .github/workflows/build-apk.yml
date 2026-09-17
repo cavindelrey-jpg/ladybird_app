@@ -77,16 +77,19 @@ jobs:
                   fh.write(content)
           PY
 
-      - name: Build APK
-        # This project defines 3 Gradle product flavors (academia/greenhill/
-        # ladybird) under the "brand" dimension for the shared white-label
-        # codebase -- without --flavor, Gradle builds all three sequentially
-        # (~20min instead of ~5) and the plain app-release.apk this workflow
-        # expects never gets produced, only the per-flavor ones.
-        run: flutter build apk --release --flavor ladybird --dart-define=BRAND_ID=ladybird
+      - name: Build AppBundle and Split APKs
+        run: |
+          flutter build appbundle --release --flavor ladybird --dart-define=BRAND_ID=ladybird
+          flutter build apk --release --flavor ladybird --dart-define=BRAND_ID=ladybird --split-per-abi
 
-      - name: Upload APK
+      - name: Upload AppBundle
         uses: actions/upload-artifact@v4
         with:
-          name: ladybird-release-apk
-          path: build/app/outputs/flutter-apk/app-ladybird-release.apk
+          name: ladybird-release-aab
+          path: build/app/outputs/bundle/ladybirdRelease/app-ladybird-release.aab
+
+      - name: Upload Split APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ladybird-release-apks
+          path: build/app/outputs/flutter-apk/app-*-release.apk

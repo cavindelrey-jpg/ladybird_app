@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/dictionary_service.dart';
-import '../widgets/theme.dart';
+import '../theme/app_colors.dart';
 
 class DictionaryScreen extends StatefulWidget {
   const DictionaryScreen({super.key});
@@ -56,7 +56,7 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors();
+    final ac = Theme.of(context).extension<AppColors>()!;
     final all = DictionaryService.instance.allEntries;
     
     return Scaffold(
@@ -256,7 +256,7 @@ class DictionaryEntryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors();
+    final ac = Theme.of(context).extension<AppColors>()!;
     
     return Scaffold(
       backgroundColor: ac.bg,

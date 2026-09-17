@@ -1,99 +1,354 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../services/dictionary_service.dart';
+import '../widgets/theme.dart';
 
 class DictionaryScreen extends StatefulWidget {
-  const DictionaryScreen({Key? key}) : super(key: key);
+  const DictionaryScreen({super.key});
 
   @override
-  _DictionaryScreenState createState() => _DictionaryScreenState();
+  State<DictionaryScreen> createState() => _DictionaryScreenState();
 }
 
 class _DictionaryScreenState extends State<DictionaryScreen> {
-  final DictionaryService _dictionaryService = DictionaryService();
-  List<DictionaryEntry> _results = [];
-  String _query = '';
-
+  final _searchController = TextEditingController();
+  List<DictionaryEntry> _searchResults = [];
+  bool _isSearching = false;
+  String? _selectedLetter;
+  String? _selectedDiscipline;
+  
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _load();
   }
 
-  Future<void> _loadData() async {
-    await _dictionaryService.loadDictionary();
+  Future<void> _load() async {
+    await DictionaryService.instance.loadDictionary();
+    if (mounted) setState(() {});
+  }
+  
+  void _onSearch(String q) {
+    if (q.trim().isEmpty) {
+      setState(() { _isSearching = false; _searchResults = []; });
+      return;
+    }
     setState(() {
-      _results = _dictionaryService.getAllEntries();
+      _isSearching = true;
+      _selectedLetter = null;
+      _selectedDiscipline = null;
+      _searchResults = DictionaryService.instance.search(q.trim());
     });
   }
-
-  void _onSearch(String query) {
-    setState(() {
-      _query = query;
-      _results = _dictionaryService.search(query);
-    });
+  
+  void _openEntry(DictionaryEntry entry) {
+    DictionaryService.instance.markAsViewed(entry.id);
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => DictionaryEntryScreen(entry: entry)));
+  }
+  
+  void _openRandom() {
+    final all = DictionaryService.instance.allEntries;
+    if (all.isEmpty) return;
+    final r = all[Random().nextInt(all.length)];
+    _openEntry(r);
   }
 
   @override
   Widget build(BuildContext context) {
+    final ac = AppColors();
+    final all = DictionaryService.instance.allEntries;
+    
     return Scaffold(
+      backgroundColor: ac.bg,
       appBar: AppBar(
-        title: const Text('Academia Dictionary'),
+        backgroundColor: ac.bg,
+        elevation: 0,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Mega Macro Dictionary', style: GoogleFonts.lora(color: ac.text, fontWeight: FontWeight.w600, fontSize: 18)),
+            if (all.isNotEmpty) Text('1,001 Precision Academic Concepts', style: TextStyle(color: ac.muted, fontSize: 12, fontWeight: FontWeight.normal)),
+          ],
+        ),
+        iconTheme: IconThemeData(color: ac.text),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.casino_outlined, color: ac.primary),
+            tooltip: 'Random Concept',
+            onPressed: _openRandom,
+          ),
+        ],
       ),
-      body: Column(
+      body: all.isEmpty 
+          ? Center(child: CircularProgressIndicator(color: ac.primary))
+          : Column(
         children: [
+          // Search Bar
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
-              decoration: const InputDecoration(
-                hintText: 'Search offline dictionary...',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-              ),
+              controller: _searchController,
               onChanged: _onSearch,
+              decoration: InputDecoration(
+                hintText: 'Search concepts, definitions, synonyms...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isNotEmpty 
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 20),
+                      onPressed: () {
+                        _searchController.clear();
+                        _onSearch('');
+                      },
+                    )
+                  : null,
+                filled: true,
+                fillColor: ac.surface,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
             ),
           ),
-          Expanded(
-            child: _results.isEmpty
-                ? const Center(child: Text('No entries found.'))
-                : ListView.builder(
-                    itemCount: _results.length,
-                    itemBuilder: (context, index) {
-                      final entry = _results[index];
-                      return ListTile(
-                        title: Text(entry.word, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text('${entry.subject}\n${entry.definition}'),
-                        isThreeLine: true,
-                        onTap: () {
-                          // Show detail dialog
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: Text(entry.word),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Subject: ${entry.subject}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                  const SizedBox(height: 8),
-                                  Text(entry.definition),
-                                  const SizedBox(height: 8),
-                                  if (entry.example.isNotEmpty) ...[
-                                    const Text('Example:', style: TextStyle(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic)),
-                                    Text(entry.example),
-                                  ]
-                                ],
-                              ),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))
-                              ],
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-          ),
+          
+          if (!_isSearching && _selectedLetter == null && _selectedDiscipline == null)
+            _buildLanding(ac),
+            
+          if (_isSearching || _selectedLetter != null || _selectedDiscipline != null)
+            Expanded(child: _buildResultsList(ac)),
         ],
+      ),
+    );
+  }
+  
+  Widget _buildResultsList(AppColors ac) {
+    List<DictionaryEntry> items = [];
+    if (_isSearching) items = _searchResults;
+    else if (_selectedLetter != null) items = DictionaryService.instance.getByLetter(_selectedLetter!);
+    else if (_selectedDiscipline != null) items = DictionaryService.instance.getByDiscipline(_selectedDiscipline!);
+    
+    if (items.isEmpty) {
+      return Center(child: Text('No concepts found.', style: TextStyle(color: ac.muted)));
+    }
+    
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      itemCount: items.length,
+      itemBuilder: (context, i) {
+        final entry = items[i];
+        return Card(
+          elevation: 0,
+          color: ac.surface,
+          margin: const EdgeInsets.only(bottom: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: ac.bdr2)),
+          child: ListTile(
+            title: Row(
+              children: [
+                Expanded(child: Text(entry.word, style: GoogleFonts.lora(fontWeight: FontWeight.bold, fontSize: 16))),
+                Text(entry.partOfSpeech, style: TextStyle(color: ac.muted, fontSize: 12, fontStyle: FontStyle.italic)),
+              ],
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 4.0),
+              child: Text(entry.definition, style: TextStyle(color: ac.text, height: 1.3)),
+            ),
+            onTap: () => _openEntry(entry),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLanding(AppColors ac) {
+    final recent = DictionaryService.instance.recentEntries;
+    final disciplines = DictionaryService.instance.getAllDisciplines();
+    
+    return Expanded(
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          // A-Z Strip
+          Text('A-Z Index', style: TextStyle(color: ac.muted, fontWeight: FontWeight.w600, fontSize: 12)),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 40,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: 26,
+              itemBuilder: (context, i) {
+                final letter = String.fromCharCode(65 + i);
+                return InkWell(
+                  onTap: () => setState(() { _selectedLetter = letter; _selectedDiscipline = null; }),
+                  child: Container(
+                    width: 40,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: ac.surface,
+                      borderRadius: BorderRadius.circular(8),
+                      border: BorderSide(color: ac.bdr),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(letter, style: GoogleFonts.lora(fontWeight: FontWeight.bold, color: ac.primary)),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          if (recent.isNotEmpty) ...[
+            Text('Recently Viewed', style: TextStyle(color: ac.muted, fontWeight: FontWeight.w600, fontSize: 12)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8, runSpacing: 8,
+              children: recent.map((e) => ActionChip(
+                backgroundColor: ac.surface,
+                side: BorderSide(color: ac.bdr),
+                label: Text(e.word, style: TextStyle(color: ac.text)),
+                onPressed: () => _openEntry(e),
+              )).toList(),
+            ),
+            const SizedBox(height: 24),
+          ],
+          
+          Text('Academic Disciplines', style: TextStyle(color: ac.muted, fontWeight: FontWeight.w600, fontSize: 12)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8, runSpacing: 8,
+            children: disciplines.map((d) => InkWell(
+              onTap: () => setState(() { _selectedDiscipline = d; _selectedLetter = null; }),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: ac.primary.withValues(alpha: .1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: BorderSide(color: ac.primary.withValues(alpha: .3)),
+                ),
+                child: Text(d, style: TextStyle(color: ac.primary, fontWeight: FontWeight.w500, fontSize: 13)),
+              ),
+            )).toList(),
+          ),
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+}
+
+class DictionaryEntryScreen extends StatelessWidget {
+  final DictionaryEntry entry;
+  const DictionaryEntryScreen({super.key, required this.entry});
+
+  Widget _linkChip(BuildContext context, String id, AppColors ac, Color color) {
+    final linked = DictionaryService.instance.getEntryById(id);
+    if (linked == null) return const SizedBox.shrink();
+    return ActionChip(
+      backgroundColor: color.withValues(alpha: .1),
+      side: BorderSide(color: color.withValues(alpha: .3)),
+      label: Text(linked.word, style: TextStyle(color: color, fontSize: 13)),
+      onPressed: () {
+        DictionaryService.instance.markAsViewed(linked.id);
+        Navigator.of(context).push(MaterialPageRoute(builder: (_) => DictionaryEntryScreen(entry: linked)));
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors();
+    
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        backgroundColor: ac.bg,
+        elevation: 0,
+        iconTheme: IconThemeData(color: ac.text),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Expanded(child: Text(entry.word, style: GoogleFonts.lora(fontSize: 32, fontWeight: FontWeight.bold, color: ac.text))),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Text(entry.partOfSpeech, style: TextStyle(color: ac.primary, fontStyle: FontStyle.italic, fontSize: 16)),
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: ac.surface, borderRadius: BorderRadius.circular(4), border: BorderSide(color: ac.bdr)),
+                  child: Text(entry.discipline, style: TextStyle(color: ac.muted, fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 8),
+                Text('Lvl \${entry.difficulty}', style: TextStyle(color: ac.muted, fontSize: 12)),
+                const SizedBox(width: 8),
+                Text('\${entry.syllableCount} syl', style: TextStyle(color: ac.muted, fontSize: 12)),
+              ],
+            ),
+            const SizedBox(height: 24),
+            
+            Text('DEFINITION', style: TextStyle(color: ac.muted, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+            const SizedBox(height: 8),
+            Text(entry.definition, style: GoogleFonts.lora(fontSize: 22, color: ac.text, height: 1.3)),
+            
+            if (entry.example.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Text('EXAMPLE', style: TextStyle(color: ac.muted, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: ac.surface, borderRadius: BorderRadius.circular(8), border: BorderSide(color: ac.bdr2)),
+                child: Text('"\${entry.example}"', style: TextStyle(color: ac.text, fontStyle: FontStyle.italic, fontSize: 15, height: 1.4)),
+              ),
+            ],
+            
+            const SizedBox(height: 32),
+            if (entry.synonyms.isNotEmpty) ...[
+              Text('SYNONYMS', style: TextStyle(color: ac.muted, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: entry.synonyms.map((id) => _linkChip(context, id, ac, ac.grn)).toList()),
+              const SizedBox(height: 20),
+            ],
+            
+            if (entry.antonyms.isNotEmpty) ...[
+              Text('ANTONYMS', style: TextStyle(color: ac.muted, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: entry.antonyms.map((id) => _linkChip(context, id, ac, Colors.red)).toList()),
+              const SizedBox(height: 20),
+            ],
+            
+            if (entry.relatedWords.isNotEmpty) ...[
+              Text('RELATED CONCEPTS', style: TextStyle(color: ac.muted, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: entry.relatedWords.map((id) => _linkChip(context, id, ac, ac.primary)).toList()),
+              const SizedBox(height: 20),
+            ],
+            
+            if (entry.broaderTerms.isNotEmpty) ...[
+              Text('BROADER TERMS', style: TextStyle(color: ac.muted, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: entry.broaderTerms.map((id) => _linkChip(context, id, ac, ac.gold)).toList()),
+              const SizedBox(height: 20),
+            ],
+            
+            if (entry.narrowerTerms.isNotEmpty) ...[
+              Text('NARROWER TERMS', style: TextStyle(color: ac.muted, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: entry.narrowerTerms.map((id) => _linkChip(context, id, ac, ac.pur)).toList()),
+              const SizedBox(height: 20),
+            ],
+            
+            const SizedBox(height: 60),
+          ],
+        ),
       ),
     );
   }

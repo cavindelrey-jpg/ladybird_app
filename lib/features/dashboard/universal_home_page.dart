@@ -43,6 +43,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../screens/dictionary_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -910,6 +911,9 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     // higher up the page now (see _marksAndCoursesRow / _campusInformationCard)
     // -- kept out of here to avoid duplicate entries to the same destination.
     final items = <(String, IconData, Color, VoidCallback)>[
+      ('Academia Dictionary', Icons.menu_book_rounded, ac.primary,
+          () => _open(context, const DictionaryScreen())),
+
       ('Academia Library', Icons.menu_book_rounded, ac.primary,
           () => _open(context, LibraryHomePage(user: _userOrGuest))),
       ('Past Questions', Icons.description_rounded, ac.grn,

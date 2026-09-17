@@ -6,6 +6,7 @@ class DictionaryEntry {
   final String id;
   final String word;
   final String definition;
+  final String explanation; // NEW FIELD
   final String partOfSpeech;
   final String example;
   final int syllableCount;
@@ -19,6 +20,7 @@ class DictionaryEntry {
 
   DictionaryEntry({
     required this.id, required this.word, required this.definition,
+    required this.explanation,
     required this.partOfSpeech, required this.example,
     required this.syllableCount, required this.difficulty,
     required this.discipline, required this.synonyms,
@@ -31,6 +33,7 @@ class DictionaryEntry {
       id: json['id'] ?? '',
       word: json['word'] ?? '',
       definition: json['definition'] ?? '',
+      explanation: json['explanation'] ?? '',
       partOfSpeech: json['part_of_speech'] ?? '',
       example: json['example'] ?? '',
       syllableCount: json['syllable_count'] ?? 1,
@@ -103,14 +106,15 @@ class DictionaryService {
     // partial word matches
     final partial = _entries.where((e) => e.word.toLowerCase().contains(q) && e.word.toLowerCase() != q).toList();
     
-    // definition matches
-    final inDef = _entries.where((e) => !e.word.toLowerCase().contains(q) && e.definition.toLowerCase().contains(q)).toList();
+    // definition & explanation matches
+    final inDef = _entries.where((e) {
+      if (e.word.toLowerCase().contains(q)) return false;
+      return e.definition.toLowerCase().contains(q) || e.explanation.toLowerCase().contains(q);
+    }).toList();
     
     // synonyms / related
     final related = _entries.where((e) {
-      if (e.word.toLowerCase().contains(q) || e.definition.toLowerCase().contains(q)) return false;
-      // We stored IDs in synonyms array, so we need to resolve them to words to search
-      // Actually we just check if the query matches the words of those linked IDs
+      if (e.word.toLowerCase().contains(q) || e.definition.toLowerCase().contains(q) || e.explanation.toLowerCase().contains(q)) return false;
       bool matchLinks(List<String> ids) {
         for (var id in ids) {
            final linked = _idMap[id];

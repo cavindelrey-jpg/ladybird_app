@@ -67,8 +67,8 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Academia Dictionary', style: GoogleFonts.lora(color: ac.txt, fontWeight: FontWeight.w600, fontSize: 18)),
-            if (all.isNotEmpty) Text('1,001 Precision Academic Concepts', style: TextStyle(color: ac.muted, fontSize: 12, fontWeight: FontWeight.normal)),
+            Text('Academia Library', style: GoogleFonts.lora(color: ac.txt, fontWeight: FontWeight.w600, fontSize: 18)),
+            if (all.isNotEmpty) Text('Currently \${all.length} Precision Academic Concepts', style: TextStyle(color: ac.muted, fontSize: 12, fontWeight: FontWeight.normal)),
           ],
         ),
         iconTheme: IconThemeData(color: ac.txt),
@@ -84,18 +84,19 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
           ? Center(child: CircularProgressIndicator(color: ac.primary))
           : Column(
         children: [
-          // Search Bar
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
               controller: _searchController,
               onChanged: _onSearch,
+              style: TextStyle(color: ac.txt),
               decoration: InputDecoration(
                 hintText: 'Search concepts, definitions, synonyms...',
-                prefixIcon: const Icon(Icons.search),
+                hintStyle: TextStyle(color: ac.muted),
+                prefixIcon: Icon(Icons.search, color: ac.muted),
                 suffixIcon: _searchController.text.isNotEmpty 
                   ? IconButton(
-                      icon: const Icon(Icons.clear, size: 20),
+                      icon: Icon(Icons.clear, size: 20, color: ac.muted),
                       onPressed: () {
                         _searchController.clear();
                         _onSearch('');
@@ -129,7 +130,46 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
     else if (_selectedDiscipline != null) items = DictionaryService.instance.getByDiscipline(_selectedDiscipline!);
     
     if (items.isEmpty) {
-      return Center(child: Text('No concepts found.', style: TextStyle(color: ac.muted)));
+      return Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(Icons.search_off, size: 48, color: ac.muted),
+            const SizedBox(height: 16),
+            Text('No concepts found', style: TextStyle(color: ac.txt, fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text('We couldn\'t find anything matching your search. Try adjusting your terms.', textAlign: TextAlign.center, style: TextStyle(color: ac.muted, fontSize: 14)),
+            const SizedBox(height: 24),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                ActionChip(
+                  label: const Text('Clear Search'),
+                  onPressed: () {
+                    _searchController.clear();
+                    _onSearch('');
+                  },
+                ),
+                ActionChip(
+                  label: const Text('Try a broader search'),
+                  onPressed: () {},
+                ),
+                ActionChip(
+                  label: const Text('Browse Academic Disciplines'),
+                  onPressed: () {
+                    _searchController.clear();
+                    _onSearch('');
+                  },
+                ),
+              ],
+            )
+          ],
+        ),
+      );
     }
     
     return ListView.builder(
@@ -145,13 +185,13 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
           child: ListTile(
             title: Row(
               children: [
-                Expanded(child: Text(entry.word, style: GoogleFonts.lora(fontWeight: FontWeight.bold, fontSize: 16))),
+                Expanded(child: Text(entry.word, style: GoogleFonts.lora(fontWeight: FontWeight.bold, fontSize: 16, color: ac.txt))),
                 Text(entry.partOfSpeech, style: TextStyle(color: ac.muted, fontSize: 12, fontStyle: FontStyle.italic)),
               ],
             ),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 4.0),
-              child: Text(entry.definition, style: TextStyle(color: ac.txt, height: 1.3)),
+              child: Text(entry.definition, style: TextStyle(color: ac.txt2, height: 1.3)),
             ),
             onTap: () => _openEntry(entry),
           ),
@@ -168,7 +208,6 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
       child: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
-          // A-Z Strip
           Text('A-Z Index', style: TextStyle(color: ac.muted, fontWeight: FontWeight.w600, fontSize: 12)),
           const SizedBox(height: 8),
           SizedBox(
@@ -298,6 +337,13 @@ class DictionaryEntryScreen extends StatelessWidget {
             Text('DEFINITION', style: TextStyle(color: ac.muted, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
             const SizedBox(height: 8),
             Text(entry.definition, style: GoogleFonts.lora(fontSize: 22, color: ac.txt, height: 1.3)),
+            
+            if (entry.explanation.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Text('EXPLANATION', style: TextStyle(color: ac.muted, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+              const SizedBox(height: 8),
+              Text(entry.explanation, style: TextStyle(color: ac.txt, fontSize: 16, height: 1.6)),
+            ],
             
             if (entry.example.isNotEmpty) ...[
               const SizedBox(height: 24),

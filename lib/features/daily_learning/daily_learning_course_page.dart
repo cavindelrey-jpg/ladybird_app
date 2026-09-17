@@ -33,7 +33,7 @@ class DailyLearningCoursePage extends StatelessWidget {
         title: Text(course.title, style: AppText.h2.copyWith(color: ac.txt)),
         iconTheme: IconThemeData(color: ac.txt),
       ),
-      body: isGuest
+      body: false
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),

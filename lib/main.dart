@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
+import 'widgets/action_error_widget.dart';
 import 'services/connectivity_service.dart';
 import 'services/dictionary_service.dart';
 import 'services/sync_service.dart';
@@ -188,7 +189,7 @@ class _MaintenanceScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
+    final ac = Theme.of(context).extension<AppColors>()!;
     return Scaffold(
       backgroundColor: ac.navy,
       body: SafeArea(child: Center(
@@ -247,28 +248,14 @@ class _ErrorFallback extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // We log the raw error silently for developers
     AnalyticsService.instance.track(AcademiaEvent.pageViewed,
         params: {'error': details.exception.toString()});
-    final ac = AppColors.of(context);
+    
     return Scaffold(
-      backgroundColor: ac.bg,
-      body: Center(child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 72, height: 72,
-            decoration: BoxDecoration(color: ac.redBg,
-                borderRadius: BorderRadius.circular(Rad.xl)),
-            child: Icon(Icons.error_outline_rounded, size: 36, color: ac.red)),
-          const SizedBox(height: 16),
-          Text('An unexpected error occurred',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
-          const SizedBox(height: 8),
-          Text(details.exception.toString(),
-              style: TextStyle(fontSize: 12, color: ac.txt2),
-              textAlign: TextAlign.center, maxLines: 3,
-              overflow: TextOverflow.ellipsis),
-        ]),
-      )),
+      backgroundColor: Theme.of(context).extension<AppColors>()?.bg ?? Colors.white,
+      appBar: AppBar(elevation: 0, backgroundColor: Colors.transparent, leading: const BackButton()),
+      body: ActionErrorWidget(error: details.exception, stackTrace: details.stack),
     );
   }
 }

@@ -3,6 +3,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'action_error_widget.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/public_course.dart';
@@ -387,40 +388,7 @@ class ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 68, height: 68,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: ac.redBg,
-              shape: BoxShape.circle,
-              border: Border.all(color: ac.red.withValues(alpha: .12), width: 1),
-            ),
-            child: Icon(Icons.wifi_off_rounded, size: 28, color: ac.red),
-          ),
-          const SizedBox(height: 20),
-          Text('Something went wrong', style: AppText.title.copyWith(fontSize: 16)),
-          const SizedBox(height: 6),
-          Text(message, style: AppText.bodySm,
-              textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis),
-          if (onRetry != null) ...[
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 44,
-              child: ElevatedButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh_rounded, size: 16),
-                label: Text('Try again', style: AppText.button.copyWith(fontSize: 13)),
-              ),
-            ),
-          ],
-        ]),
-      ),
-    );
+    return ActionErrorWidget(error: message, onRetry: onRetry);
   }
 }
 

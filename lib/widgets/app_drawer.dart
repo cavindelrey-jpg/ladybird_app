@@ -170,7 +170,7 @@ class AppDrawer extends StatelessWidget {
                 }),
                 _item(context, ac, Icons.notifications_outlined, 'Notifications', () {
                   Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => NotificationsPage(userId: (user ?? AppUser.guest()).id)));
+                        builder: (_) => NotificationsPage(user: user ?? AppUser.guest())));
                 }),
                 _item(context, ac, Icons.help_outline_rounded, 'Support',
                     () => Navigator.of(context).push(MaterialPageRoute(

@@ -519,8 +519,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return _cardShell(
       title: 'My Marks',
       viewAllLabel: 'View all',
-      onViewAll: () => _open(context, MarksPage(user: _userOrGuest))
-                           : () => _open(context, MarksPage(user: _u!)),
+      onViewAll: () => _open(context, MarksPage(user: _userOrGuest)),
       child: FutureBuilder<({double average, List<SchoolMark> subjects})?>(
         future: _latestMarksSummary(),
         builder: (context, snap) {

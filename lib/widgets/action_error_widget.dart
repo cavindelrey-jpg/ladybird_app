@@ -19,7 +19,7 @@ class ActionErrorWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = Theme.of(context).extension<AppColors>()!;
-    final isOffline = isOfflineOverride || !ConnectivityService.instance.isOnline;
+    final isOffline = isOfflineOverride || !ConnectivityService().isOnline;
     
     // Humanize the error
     String errStr = error.toString().toLowerCase();

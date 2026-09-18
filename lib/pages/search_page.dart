@@ -122,6 +122,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
 
   Widget _buildLibraryList(AppColors ac) {
     if (_contentFailed) return ErrorView(message: "Couldn't search the Library — check your connection.", onRetry: () => _performSearch(_ctrl.text));
+    if (_ctrl.text.isEmpty) return const EmptyState(icon: Icons.search, title: 'Search the library');
     if (_content.isEmpty) return const EmptyState(icon: Icons.search, title: 'No content found');
     return ListView.builder(
       itemCount: _content.length,
@@ -136,6 +137,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
 
   Widget _buildClubList() {
     if (_clubsFailed) return ErrorView(message: "Couldn't search Groups — check your connection.", onRetry: () => _performSearch(_ctrl.text));
+    if (_ctrl.text.isEmpty) return const EmptyState(icon: Icons.groups, title: 'Search for groups');
     if (_clubs.isEmpty) return const EmptyState(icon: Icons.groups, title: 'No groups found');
     return ListView.builder(
       itemCount: _clubs.length,
@@ -149,6 +151,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
 
   Widget _buildUserList() {
     if (_usersFailed) return ErrorView(message: "Couldn't search People — check your connection.", onRetry: () => _performSearch(_ctrl.text));
+    if (_ctrl.text.isEmpty) return const EmptyState(icon: Icons.person, title: 'Search for people');
     if (_users.isEmpty) return const EmptyState(icon: Icons.person, title: 'No users found');
     return ListView.builder(
       itemCount: _users.length,
@@ -165,6 +168,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
 
   Widget _buildCourseList() {
     if (_coursesFailed) return ErrorView(message: "Couldn't search Courses — check your connection.", onRetry: () => _performSearch(_ctrl.text));
+    if (_ctrl.text.isEmpty) return const EmptyState(icon: Icons.school, title: 'Search for courses');
     if (_courses.isEmpty) return const EmptyState(icon: Icons.school, title: 'No courses found');
     return ListView.builder(
       itemCount: _courses.length,

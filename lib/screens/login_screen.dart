@@ -371,15 +371,15 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: ac.red.withValues(alpha: .15),
+        color: ac.surf,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: ac.red.withValues(alpha: .3)),
+        border: Border.all(color: ac.bdr),
       ),
       child: Row(children: [
-        Icon(Icons.error_outline_rounded, color: ac.red, size: 18),
+        Icon(Icons.info_outline_rounded, color: ac.gold, size: 18),
         const SizedBox(width: 10),
         Expanded(child: Text(message,
-            style: AppText.bodySm.copyWith(color: Colors.white.withValues(alpha: .9)))),
+            style: AppText.bodySm.copyWith(color: ac.txt))),
       ]),
     );
   }

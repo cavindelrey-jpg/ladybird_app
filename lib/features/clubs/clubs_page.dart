@@ -280,7 +280,7 @@ class _ClubsPageState extends State<ClubsPage> {
   /// its own status resolves can leave this rail rendering mostly empty
   /// space.
   Widget _myClubsSection(BuildContext context, List<Club> allClubs) {
-    if (widget.user.isGuest) return const SizedBox.shrink();
+    
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -356,7 +356,7 @@ class _ClubsPageState extends State<ClubsPage> {
   /// render anything at all, matching the section's own "hide entirely"
   /// intent.
   Widget _recommendedClubsSection(BuildContext context, List<Club> allClubs) {
-    if (widget.user.isGuest || widget.user.favoriteSubjects.isEmpty) {
+    if (widget.user.favoriteSubjects.isEmpty) {
       return const SizedBox.shrink();
     }
     final candidates = RecommendationRepository.instance
@@ -1064,7 +1064,7 @@ class _Hero extends StatelessWidget {
 
   Widget _joinedButton(BuildContext context) {
     final ac = AppColors.of(context);
-    if (user.isGuest) return const SizedBox.shrink();
+    
     if (!_isMember) {
       return SizedBox(
         height: 32,

@@ -43,6 +43,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../screens/dictionary_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -141,8 +142,40 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   AppColors get ac => AppColors.of(context);
 
   @override
+  
+  Future<void> _generateDailyNotifications() async {
+    if (_isGuest) return;
+    final prefs = await SharedPreferences.getInstance();
+    final lastDate = prefs.getString('last_daily_notif');
+    final today = DateTime.now().toIso8601String().split('T')[0];
+    
+    if (lastDate != today) {
+      await NotificationRepository.instance.create(
+        uid: _u!.id,
+        type: NotificationType.recommendation,
+        title: "Today's Recommended Course",
+        body: "Dive into a new course handpicked for your learning journey today.",
+      );
+      await NotificationRepository.instance.create(
+        uid: _u!.id,
+        type: NotificationType.recommendation,
+        title: "Daily Past Paper",
+        body: "Practice makes perfect. We've selected a past paper for you.",
+      );
+      await NotificationRepository.instance.create(
+        uid: _u!.id,
+        type: NotificationType.message,
+        title: "Personal Message Review",
+        body: "Check your inbox for any pending messages or updates.",
+      );
+      await prefs.setString('last_daily_notif', today);
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
+    _generateDailyNotifications();
     if (!_isGuest) {
       // Fire-and-forget: decides streak continue/reset/no-op from the
       // user's own last-active date. Never blocks the first frame.
@@ -210,7 +243,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           IconButton(
             icon: Icon(Icons.notifications_outlined, color: ac.txt2),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => NotificationsPage(userId: _u?.id ?? ''))),
+                builder: (_) => NotificationsPage(user: _userOrGuest))),
           ),
           if (!_isGuest)
             Positioned(top: 8, right: 6, child: Container(

@@ -9,11 +9,13 @@ import '../theme/app_colors.dart';
 import '../models/app_notification.dart';
 import '../repositories/notification_repository.dart';
 import '../widgets/widgets.dart';
+import '../models/app_user.dart';
+import '../features/messages/messages_home_page.dart';
 
 import '../widgets/app_background.dart';
 class NotificationsPage extends StatelessWidget {
-  final String userId;
-  const NotificationsPage({super.key, required this.userId});
+  final AppUser user;
+  const NotificationsPage({super.key, required this.user});
 
   IconData _iconFor(NotificationType t) {
     switch (t) {
@@ -52,14 +54,14 @@ class NotificationsPage extends StatelessWidget {
             fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
         actions: [
           TextButton(
-            onPressed: () => NotificationRepository.instance.markAllRead(userId),
+            onPressed: () => NotificationRepository.instance.markAllRead(user.id),
             child: Text('Mark all read', style: GoogleFonts.inter(
                 fontSize: 12, fontWeight: FontWeight.w600, color: ac.primary)),
           ),
         ],
       ),
       body: AppBackground(child: StreamBuilder<List<AppNotification>>(
-        stream: NotificationRepository.instance.watchFeed(userId),
+        stream: NotificationRepository.instance.watchFeed(user.id),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const LoadingView();
@@ -80,7 +82,7 @@ class NotificationsPage extends StatelessWidget {
               return Dismissible(
                 key: ValueKey(n.id),
                 direction: DismissDirection.endToStart,
-                onDismissed: (_) => NotificationRepository.instance.delete(userId, n.id),
+                onDismissed: (_) => NotificationRepository.instance.delete(user.id, n.id),
                 background: Container(
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -98,7 +100,12 @@ class NotificationsPage extends StatelessWidget {
                   ),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(Rad.md),
-                    onTap: () => NotificationRepository.instance.markRead(userId, n.id),
+                    onTap: () {
+                      NotificationRepository.instance.markRead(user.id, n.id);
+                      if (n.type == NotificationType.message) {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => MessagesHomePage(user: user)));
+                      }
+                    },
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Container(
                         width: 36, height: 36,

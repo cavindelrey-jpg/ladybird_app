@@ -327,9 +327,9 @@ class DictionaryEntryScreen extends StatelessWidget {
                   child: Text(entry.discipline, style: TextStyle(color: ac.muted, fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(width: 8),
-                Text('Lvl \${entry.difficulty}', style: TextStyle(color: ac.muted, fontSize: 12)),
+                Text('Lvl ${entry.difficulty}', style: TextStyle(color: ac.muted, fontSize: 12)),
                 const SizedBox(width: 8),
-                Text('\${entry.syllableCount} syl', style: TextStyle(color: ac.muted, fontSize: 12)),
+                Text('${entry.syllableCount} syl', style: TextStyle(color: ac.muted, fontSize: 12)),
               ],
             ),
             const SizedBox(height: 24),
@@ -352,7 +352,7 @@ class DictionaryEntryScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(8), border: Border.all(color: ac.bdr2)),
-                child: Text('"\${entry.example}"', style: TextStyle(color: ac.txt, fontStyle: FontStyle.italic, fontSize: 15, height: 1.4)),
+                child: Text('"${entry.example}"', style: TextStyle(color: ac.txt, fontStyle: FontStyle.italic, fontSize: 15, height: 1.4)),
               ),
             ],
             

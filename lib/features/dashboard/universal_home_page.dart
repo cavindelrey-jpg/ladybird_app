@@ -519,7 +519,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return _cardShell(
       title: 'My Marks',
       viewAllLabel: 'View all',
-      onViewAll: _isGuest ? () => showToast(context, 'Sign in to see your marks.')
+      onViewAll: () => _open(context, MarksPage(user: _userOrGuest))
                            : () => _open(context, MarksPage(user: _u!)),
       child: FutureBuilder<({double average, List<SchoolMark> subjects})?>(
         future: _latestMarksSummary(),
@@ -631,9 +631,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               icon: Icons.chat_bubble_outline_rounded, color: ac.primary,
               label: 'Messages', sublabel: 'Chat with teachers and students',
               badge: (!_isGuest) ? _messagesUnreadBadge() : null,
-              onTap: _isGuest
-                  ? () => showToast(context, 'Sign in to message other members.')
-                  : () => _open(context, MessagesHomePage(user: _u!)),
+              onTap: () => _open(context, MessagesHomePage(user: _userOrGuest)),
             )),
             const SizedBox(width: 10),
             Expanded(child: _campusInfoTile(

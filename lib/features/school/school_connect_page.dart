@@ -52,7 +52,7 @@ class SchoolConnectPage extends StatelessWidget {
           IconButton(
             icon: Icon(Icons.notifications_outlined, color: ac.txt2),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => NotificationsPage(userId: user.id))),
+                builder: (_) => NotificationsPage(user: user))),
           ),
           if (user.canManageSchool || user.canUploadContent)
             IconButton(

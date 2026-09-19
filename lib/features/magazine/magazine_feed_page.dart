@@ -340,7 +340,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                     IconButton(
                       icon: Icon(Icons.notifications_outlined, color: ac.txt2),
                       onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => NotificationsPage(userId: widget.user!.id))),
+                          builder: (_) => NotificationsPage(user: widget.user!))),
                     ),
                     if (count > 0)
                       Positioned(

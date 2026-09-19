@@ -109,7 +109,7 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
           IconButton(
             icon: Icon(Icons.notifications_outlined, color: ac.txt2),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => NotificationsPage(userId: widget.user!.id))),
+                builder: (_) => NotificationsPage(user: widget.user!))),
           ),
         UserAvatar(
           initials: (widget.user?.name.isNotEmpty ?? false) ? widget.user!.name[0].toUpperCase() : '?',

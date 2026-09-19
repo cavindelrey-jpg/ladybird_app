@@ -181,7 +181,7 @@ class _ClubsPageState extends State<ClubsPage> {
         IconButton(
           icon: Icon(Icons.notifications_outlined, color: ac.txt2),
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => NotificationsPage(userId: widget.user.id))),
+              builder: (_) => NotificationsPage(user: widget.user))),
         ),
         UserAvatar(initials: widget.user.name.isEmpty ? '?' : widget.user.name[0].toUpperCase(),
             radius: 18, photoUrl: widget.user.photoUrl),

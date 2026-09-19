@@ -95,7 +95,7 @@ class LibraryHomePage extends StatelessWidget {
         ),
         IconButton(
           icon: Icon(Icons.notifications_outlined, color: ac.txt2),
-          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(userId: user.id))),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => NotificationsPage(user: user))),
         ),
         UserAvatar(
           initials: user.name.isEmpty ? '?' : user.name[0].toUpperCase(),

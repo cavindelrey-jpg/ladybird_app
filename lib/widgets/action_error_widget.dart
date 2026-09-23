@@ -24,17 +24,17 @@ class ActionErrorWidget extends StatelessWidget {
     // Humanize the error
     String errStr = error.toString().toLowerCase();
     String title = 'Something went wrong';
-    String message = 'We encountered an unexpected issue while trying to load this.';
-    IconData icon = Icons.error_outline_rounded;
-    Color iconColor = ac.red;
-    Color iconBg = ac.redBg;
+    String message = 'We couldn\'t load this content right now. Please check your connection and try again.';
+    IconData icon = Icons.info_outline_rounded;
+    Color iconColor = ac.muted;
+    Color iconBg = ac.surf;
     
     if (isOffline || errStr.contains('socketexception') || errStr.contains('network is unreachable') || errStr.contains('failed host lookup')) {
       title = 'You are offline';
-      message = 'An Internet connection is required to fetch new data.';
+      message = 'Please connect to the internet or browse your downloaded offline library.';
       icon = Icons.wifi_off_rounded;
-      iconColor = ac.org;
-      iconBg = ac.orgBg;
+      iconColor = ac.gold;
+      iconBg = ac.goldBg;
     } else if (errStr.contains('supabase') || errStr.contains('postgres') || errStr.contains('database')) {
       title = 'Content Unavailable';
       message = 'We could not retrieve this information right now. Please try again later.';

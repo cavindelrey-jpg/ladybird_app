@@ -298,44 +298,59 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       width: double.infinity,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [ac.primary, ac.grn],
+        color: ac.navy,
+        image: DecorationImage(
+          image: NetworkImage('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=800&auto=format&fit=crop'),
+          fit: BoxFit.cover,
+          colorFilter: ColorFilter.mode(Colors.black54, BlendMode.darken),
         ),
-        borderRadius: BorderRadius.zero,
       ),
       child: Stack(children: [
+        // Subtle geometric overlays for premium feel
         Positioned(
-          right: -16, top: 4,
-          child: Icon(Icons.auto_stories_rounded, size: 120, color: Colors.white.withValues(alpha: .06)),
+          left: -40, top: -40,
+          child: Container(
+            width: 150, height: 150,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: .05)),
+          ),
+        ),
+        Positioned(
+          right: -20, bottom: -50,
+          child: Container(
+            width: 250, height: 250,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: ac.primary.withValues(alpha: .15)),
+          ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(
-              flex: 5,
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('$_timeGreeting,',
-                    style: GoogleFonts.inter(fontSize: 13, color: Colors.white.withValues(alpha: .85))),
-                const SizedBox(height: 2),
-                Text.rich(
-                  TextSpan(children: [
-                    TextSpan(text: _isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name.split(' ').first)),
-                    const TextSpan(text: ' \u{1F44B}'),
-                  ]),
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.sora(fontSize: 19, fontWeight: FontWeight.w800, color: Colors.white),
-                ),
-                const SizedBox(height: 10),
-                Text('"${Branding.current.tagline}"',
-                    style: GoogleFonts.inter(fontSize: 11.5, fontStyle: FontStyle.italic,
-                        color: Colors.white.withValues(alpha: .8), height: 1.3)),
-                const SizedBox(height: 16),
-                _resumeLearningButton(context),
-              ]),
-            ),
-            const SizedBox(width: 12),
-            Expanded(flex: 6, child: _statCard()),
+          padding: const EdgeInsets.only(left: 20, right: 20, top: 32, bottom: 24),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('$_timeGreeting,',
+                      style: GoogleFonts.inter(fontSize: 14, color: Colors.white70)),
+                  const SizedBox(height: 4),
+                  Text.rich(
+                    TextSpan(children: [
+                      TextSpan(text: _isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name.split(' ').first)),
+                      const TextSpan(text: ' \u{1F44B}'),
+                    ]),
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.sora(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.5),
+                  ),
+                ]),
+              ),
+            ]),
+            const SizedBox(height: 16),
+            Text('"${Branding.current.tagline}"',
+                style: GoogleFonts.inter(fontSize: 14, fontStyle: FontStyle.italic,
+                    color: Colors.white.withValues(alpha: .9), height: 1.4)),
+            const SizedBox(height: 24),
+            Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+              Expanded(flex: 5, child: _resumeLearningButton(context)),
+              const SizedBox(width: 16),
+              Expanded(flex: 7, child: _statCard()),
+            ]),
           ]),
         ),
       ]),
@@ -435,7 +450,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             ];
             return Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md)),
+              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.85), borderRadius: BorderRadius.circular(Rad.md), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))]),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 _classInfoStrip(),
                 Row(children: [

@@ -64,13 +64,7 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
       appBar: AppBar(
         backgroundColor: ac.bg,
         elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Academia Library', style: GoogleFonts.lora(color: ac.txt, fontWeight: FontWeight.w600, fontSize: 18)),
-            if (all.isNotEmpty) Text('Currently \${all.length} Precision Academic Concepts', style: TextStyle(color: ac.muted, fontSize: 12, fontWeight: FontWeight.normal)),
-          ],
-        ),
+        title: Text('Academia Dictionary', style: GoogleFonts.lora(color: ac.txt, fontWeight: FontWeight.w600, fontSize: 18)),
         iconTheme: IconThemeData(color: ac.txt),
         actions: [
           IconButton(

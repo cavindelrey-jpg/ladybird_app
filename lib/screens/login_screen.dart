@@ -295,7 +295,7 @@ class _LoginScreenState extends State<LoginScreen>
                     const SizedBox(height: 40),
 
                     // Footer
-                    Center(child: Text(Branding.current.tagline,
+                    Center(child: Text('Academia Cameroon: Excellence every day.',
                         style: AppText.caption.copyWith(
                             color: Colors.white.withValues(alpha: .3)))),
                     ]),

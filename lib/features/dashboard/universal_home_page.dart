@@ -294,74 +294,111 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   /// row so the two apps' banners never collide) -- everything else in
   /// this card (greeting, Resume Learning button, stat box) is unchanged.
   Widget _heroAndStats(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: ac.navy,
-        image: DecorationImage(
-          image: NetworkImage('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=800&auto=format&fit=crop'),
-          fit: BoxFit.cover,
-          colorFilter: ColorFilter.mode(Colors.black54, BlendMode.darken),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(minHeight: 280),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          color: ac.navy,
+          image: const DecorationImage(
+            image: NetworkImage('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=800&auto=format&fit=crop'),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(Colors.black54, BlendMode.darken),
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Diagonal/curved gold accents flowing behind
+            Positioned(
+              right: -50, top: -80,
+              child: Transform.rotate(
+                angle: -0.2,
+                child: Container(width: 200, height: 300, color: ac.gold.withValues(alpha: .15)),
+              ),
+            ),
+            Positioned(
+              left: -100, bottom: -50,
+              child: Container(
+                width: 200, height: 200,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: ac.primary.withValues(alpha: .2)),
+              ),
+            ),
+            
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Left Column
+                  Expanded(
+                    flex: 6,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('☀️ $_timeGreeting,', style: GoogleFonts.inter(fontSize: 14, color: Colors.white70)),
+                        const SizedBox(height: 2),
+                        Text.rich(
+                          TextSpan(children: [
+                            TextSpan(text: _isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name.split(' ').first)),
+                            const TextSpan(text: ' 👋'),
+                          ]),
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.sora(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.5),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('Ready to conquer your goals today?', 
+                          style: GoogleFonts.inter(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.white.withValues(alpha: .9))),
+                        const SizedBox(height: 16),
+                        
+                        // 3 benefits
+                        Text('📚 Learn More', style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withValues(alpha: .85))),
+                        const SizedBox(height: 4),
+                        Text('📈 Track Progress', style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withValues(alpha: .85))),
+                        const SizedBox(height: 4),
+                        Text('🎯 Achieve Your Goals', style: GoogleFonts.inter(fontSize: 11, color: Colors.white.withValues(alpha: .85))),
+                        const SizedBox(height: 20),
+                        
+                        // Gold Button
+                        _resumeLearningButton(context),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  
+                  // Right Column - Stat Card layered
+                  Expanded(
+                    flex: 5,
+                    child: _statCard(),
+                  ),
+                ],
+              ),
+            ),
+            
+            // Carousel indicators bottom-right
+            Positioned(
+              bottom: 16, right: 24,
+              child: Row(
+                children: [
+                  Container(width: 16, height: 4, decoration: BoxDecoration(color: ac.gold, borderRadius: BorderRadius.circular(2))),
+                  const SizedBox(width: 4),
+                  Container(width: 4, height: 4, decoration: BoxDecoration(color: Colors.white54, borderRadius: BorderRadius.circular(2))),
+                  const SizedBox(width: 4),
+                  Container(width: 4, height: 4, decoration: BoxDecoration(color: Colors.white54, borderRadius: BorderRadius.circular(2))),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
-      child: Stack(children: [
-        // Subtle geometric overlays for premium feel
-        Positioned(
-          left: -40, top: -40,
-          child: Container(
-            width: 150, height: 150,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: .05)),
-          ),
-        ),
-        Positioned(
-          right: -20, bottom: -50,
-          child: Container(
-            width: 250, height: 250,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: ac.primary.withValues(alpha: .15)),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(left: 20, right: 20, top: 32, bottom: 24),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('$_timeGreeting,',
-                      style: GoogleFonts.inter(fontSize: 14, color: Colors.white70)),
-                  const SizedBox(height: 4),
-                  Text.rich(
-                    TextSpan(children: [
-                      TextSpan(text: _isGuest ? 'Guest' : (_u!.name.isEmpty ? 'Member' : _u!.name.split(' ').first)),
-                      const TextSpan(text: ' \u{1F44B}'),
-                    ]),
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.sora(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -0.5),
-                  ),
-                ]),
-              ),
-            ]),
-            const SizedBox(height: 16),
-            Text('"${Branding.current.tagline}"',
-                style: GoogleFonts.inter(fontSize: 14, fontStyle: FontStyle.italic,
-                    color: Colors.white.withValues(alpha: .9), height: 1.4)),
-            const SizedBox(height: 24),
-            Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-              Expanded(flex: 5, child: _resumeLearningButton(context)),
-              const SizedBox(width: 16),
-              Expanded(flex: 7, child: _statCard()),
-            ]),
-          ]),
-        ),
-      ]),
     );
   }
 
-  /// Button inside the gradient hero card -- reuses the same Continue
-  /// Reading position as My Tasks / the old standalone Continue Learning
-  /// section (see `_myTasksContent`), just a second entry point to the
-  /// same real data rather than a separate feature.
-  Widget _resumeLearningButton(BuildContext context) {
+  /// 
     return FutureBuilder<({AcademicContent content, int page, int totalPages})?>(
       future: _continueReadingFuture,
       builder: (context, snap) {

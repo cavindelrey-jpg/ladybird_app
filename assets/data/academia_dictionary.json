@@ -1,5 +1,45 @@
 [
   {
+    "word": "Aldehyde",
+    "partOfSpeech": "noun",
+    "definition": "An organic compound containing a formyl group.",
+    "difficulty": "Advanced",
+    "syllableCount": 3,
+    "explanation": "An aldehyde is an organic compound containing a formyl group. This functional group, with the structure R-CH=O, consists of a carbonyl center (a carbon double-bonded to oxygen) with the carbon atom also bonded to hydrogen and to an R group, which is any generic alkyl or side chain. The group without R is the aldehyde group, also known as the formyl group. Aldehydes are common in organic chemistry, and many fragrances are aldehydes."
+  },
+  {
+    "word": "Ethane",
+    "partOfSpeech": "noun",
+    "definition": "A colorless, odorless, flammable gas of the alkane series.",
+    "difficulty": "Intermediate",
+    "syllableCount": 2,
+    "explanation": "Ethane is an organic chemical compound with chemical formula C2H6. At standard temperature and pressure, ethane is a colorless, odorless gas. Like many hydrocarbons, ethane is isolated on an industrial scale from natural gas and as a petrochemical byproduct of petroleum refining. Its chief use is as feedstock for ethylene production.\\n\\nIn chemistry, ethane is the simplest alkane containing more than one carbon atom. It is a saturated hydrocarbon, meaning all of its carbon-carbon bonds are single bonds. Ethane is extremely flammable and poses a fire hazard if not handled properly."
+  },
+  {
+    "word": "Gravity",
+    "partOfSpeech": "noun",
+    "definition": "The force that attracts a body toward the center of the earth.",
+    "difficulty": "Beginner",
+    "syllableCount": 3,
+    "explanation": "Gravity, or gravitation, is a fundamental interaction which causes mutual attraction between all things with mass or energy. Gravity is, by far, the weakest of the four fundamental interactions, approximately 10^38 times weaker than the strong interaction, 10^36 times weaker than the electromagnetic force and 10^29 times weaker than the weak interaction. As a result, it has no significant influence at the level of subatomic particles. However, gravity is the most significant interaction between objects at the macroscopic scale, and it determines the motion of planets, stars, galaxies, and even light."
+  },
+  {
+    "word": "Mass",
+    "partOfSpeech": "noun",
+    "definition": "A measure of the amount of matter in an object.",
+    "difficulty": "Beginner",
+    "syllableCount": 1,
+    "explanation": "Mass is an intrinsic property of a body. It was traditionally believed to be related to the quantity of matter in a physical body, until the discovery of the atom and particle physics. It determines the body's resistance to being accelerated by a force, and the strength of its mutual gravitational attraction with other bodies. The SI base unit of mass is the kilogram (kg). In physics, mass is not the same as weight, even though mass is often determined by measuring the object's weight using a spring scale, rather than balance scale comparing it directly with known masses."
+  },
+  {
+    "word": "Ester",
+    "partOfSpeech": "noun",
+    "definition": "An organic compound made by replacing the hydrogen of an acid by an alkyl or other organic group.",
+    "difficulty": "Intermediate",
+    "syllableCount": 2,
+    "explanation": "In chemistry, an ester is a chemical compound derived from an acid (organic or inorganic) in which at least one -OH (hydroxyl) group is replaced by an -O-alkyl (alkoxy) group. Usually, esters are derived from substitution reaction of a carboxylic acid and an alcohol. Glycerides, which are fatty acid esters of glycerol, are important esters in biology, being one of the main classes of lipids, and making up the bulk of animal fats and vegetable oils.\\n\\nEsters with low molecular weight are commonly used as fragrances and found in essential oils and pheromones. They perform as high-grade solvents for a broad array of plastics, plasticizers, resins, and lacquers, and are one of the largest classes of synthetic lubricants on the commercial market. Polyesters are important plastics, with monomers linked by ester moieties. Phosphoesters form the backbone of DNA molecules. Nitrate esters, such as nitroglycerin, are known for their explosive properties."
+  },
+  {
     "word": "Eighteen",
     "partOfSpeech": "noun",
     "definition": "The number equivalent to the product of two and nine; one more than seventeen.",

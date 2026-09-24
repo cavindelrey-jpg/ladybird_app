@@ -45,15 +45,39 @@ class DailyLearningCoursePage extends StatelessWidget {
                 ]),
               ),
             )
-          : StreamBuilder<Set<String>>(
+          : StreamBuilder<(Set<String>, DateTime?)>(
               stream: DailyLearningRepository.instance.watchProgress(user.id, course.id),
               builder: (context, snap) {
-                final completed = snap.data ?? const <String>{};
+                final completed = snap.data?.$1 ?? const <String>{};
+                final updatedAt = snap.data?.$2;
+                
+                final now = DateTime.now();
+                bool lockedForToday = false;
+                if (updatedAt != null && 
+                    updatedAt.year == now.year && 
+                    updatedAt.month == now.month && 
+                    updatedAt.day == now.day && 
+                    completed.isNotEmpty) {
+                  lockedForToday = true;
+                }
+                
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
                     Text('${completed.length} of ${course.lessons.length} lessons complete',
                         style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: ac.txt2)),
+                    if (lockedForToday && completed.length < course.lessons.length) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: ac.orgBg, borderRadius: BorderRadius.circular(8)),
+                        child: Row(children: [
+                          Icon(Icons.timer_rounded, color: ac.org, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text("You've completed your daily lesson for today! Come back tomorrow to continue.", style: GoogleFonts.inter(fontSize: 12, color: ac.org, fontWeight: FontWeight.w600))),
+                        ]),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     for (var i = 0; i < course.lessons.length; i++)
                       _LessonNode(
@@ -63,6 +87,7 @@ class DailyLearningCoursePage extends StatelessWidget {
                         index: i,
                         isCompleted: completed.contains(course.lessons[i].id),
                         isUnlocked: i == 0 || completed.contains(course.lessons[i - 1].id),
+                        lockedForToday: lockedForToday,
                       ),
                   ],
                 );
@@ -79,9 +104,11 @@ class _LessonNode extends StatelessWidget {
   final int index;
   final bool isCompleted;
   final bool isUnlocked;
+  final bool lockedForToday;
   const _LessonNode({
     required this.user, required this.course, required this.lesson,
     required this.index, required this.isCompleted, required this.isUnlocked,
+    this.lockedForToday = false,
   });
 
   @override
@@ -99,6 +126,10 @@ class _LessonNode extends StatelessWidget {
           onTap: () {
             if (!isUnlocked) {
               showToast(context, 'Complete the previous lesson to unlock this one.');
+              return;
+            }
+            if (!isCompleted && lockedForToday) {
+              showToast(context, 'You have already completed a lesson today. Come back tomorrow!');
               return;
             }
             HapticFeedback.selectionClick();

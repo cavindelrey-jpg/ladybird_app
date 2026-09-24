@@ -161,23 +161,70 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       await NotificationRepository.instance.create(
         uid: _u!.id,
         type: NotificationType.recommendation,
-        title: "Daily Past Paper",
-        body: "Practice makes perfect. We've selected a past paper for you.",
+        title: "Daily Reading Recommendation",
+        body: "We've selected a great book and study paper for your review.",
       );
       await NotificationRepository.instance.create(
         uid: _u!.id,
-        type: NotificationType.message,
-        title: "Personal Message Review",
-        body: "Check your inbox for any pending messages or updates.",
+        type: NotificationType.system,
+        title: "Daily Challenge Reminder",
+        body: "Don't forget to complete your 60-day challenge lessons today!",
       );
       await prefs.setString('last_daily_notif', today);
     }
+  }
+  
+  void _showDailyChallengePopup() {
+    if (_isGuest) return;
+    SharedPreferences.getInstance().then((prefs) {
+      final lastPopup = prefs.getString('last_challenge_popup');
+      final today = DateTime.now().toIso8601String().split('T')[0];
+      if (lastPopup != today) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: ac.surf,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(children: [
+              const Text('🎯', style: TextStyle(fontSize: 24)),
+              const SizedBox(width: 8),
+              Text('Daily Challenge', style: GoogleFonts.sora(fontSize: 18, fontWeight: FontWeight.bold, color: ac.txt)),
+            ]),
+            content: Text('Your new lessons for Etymology, Logical Fallacies, and Taxonomy are ready! Complete them today to keep your streak alive.', 
+                style: GoogleFonts.inter(fontSize: 14, color: ac.txt2, height: 1.4)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text('Maybe Later', style: TextStyle(color: ac.muted)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ac.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  _open(context, DailyLearningHubPage(user: _userOrGuest));
+                },
+                child: const Text('Start Challenge'),
+              ),
+            ],
+          ),
+        );
+        prefs.setString('last_challenge_popup', today);
+      }
+    });
   }
 
   @override
   void initState() {
     super.initState();
     _generateDailyNotifications();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showDailyChallengePopup();
+    });
     if (!_isGuest) {
       // Fire-and-forget: decides streak continue/reset/no-op from the
       // user's own last-active date. Never blocks the first frame.

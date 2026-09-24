@@ -14,7 +14,7 @@ import '../services/connectivity_service.dart';
 import '../models/daily_learning.dart';
 import "../models/daily_learning_streak.dart";
 import '../models/xp_transaction.dart';
-import '../data/etymology_course.dart';
+import '../data/daily_learning_courses.dart';
 import '../core/result.dart';
 import 'xp_repository.dart';
 
@@ -38,15 +38,19 @@ class DailyLearningRepository {
 
   /// Completed lesson ids for [userId] in [courseId] -- empty set for a
   /// brand-new learner, never an error state.
-  Stream<Set<String>> watchProgress(String userId, String courseId) {
-    if (userId.isEmpty) return Stream.value(const <String>{});
+  Stream<(Set<String>, DateTime?)> watchProgress(String userId, String courseId) {
+    if (userId.isEmpty) return Stream.value((const <String>{}, null));
     return _progress
         .stream(primaryKey: ['user_id', 'course_id'])
         .eq('user_id', userId)
         .map((rows) {
       final mine = rows.where((r) => r['course_id'] == courseId);
-      if (mine.isEmpty) return const <String>{};
-      return Set<String>.from(mine.first['completed_lesson_ids'] ?? const []);
+      if (mine.isEmpty) return (const <String>{}, null);
+      final completed = Set<String>.from(mine.first['completed_lesson_ids'] ?? const []);
+      final updatedStr = mine.first['updated_at'] as String?;
+      DateTime? updated;
+      if (updatedStr != null) updated = DateTime.tryParse(updatedStr);
+      return (completed, updated);
     });
   }
 

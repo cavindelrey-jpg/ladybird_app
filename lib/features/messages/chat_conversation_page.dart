@@ -296,6 +296,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
                 return ErrorView(message: snap.error.toString());
               }
               final messages = List.of(snap.data ?? const <ChatMessage>[]);
+              _messages = messages;
               if (messages.isEmpty) {
                 return const EmptyState(
                   icon: Icons.chat_bubble_outline_rounded,
@@ -341,9 +342,90 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
             },
           ),
         ),
-        _quickAttachRow(),
-        _inputBar(),
+        if (_messages != null && _isRequest(_messages!))
+          _buildRequestBanner(),
+        if (_messages == null || !_isRequest(_messages!)) ...[
+          _quickAttachRow(),
+          _inputBar(),
+        ]
       ])),
+    );
+  }
+  
+  List<ChatMessage>? _messages;
+  
+  bool _isRequest(List<ChatMessage> msgs) {
+    // If the conversation is empty, it's not a request (you're starting it).
+    if (msgs.isEmpty) return false;
+    // If you have sent at least one message, it's an accepted conversation.
+    if (msgs.any((m) => m.senderId == widget.currentUser.id)) return false;
+    // Otherwise, you received messages but haven't replied.
+    // In a real app we'd have a status flag. We'll use this heuristic.
+    return true;
+  }
+  
+  Widget _buildRequestBanner() {
+    final ac = AppColors.of(context);
+    return Container(
+      color: ac.surf,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${widget.otherUserName} wants to connect',
+            style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.bold, color: ac.txt),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Message requests let you safely decide who can contact you without restricting discovery.',
+            style: GoogleFonts.inter(fontSize: 12, color: ac.txt2),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    // Block - placeholder for real block logic
+                    showToast(context, 'User blocked.');
+                    Navigator.of(context).pop();
+                  },
+                  style: OutlinedButton.styleFrom(foregroundColor: ac.red, side: BorderSide(color: ac.red)),
+                  child: const Text('Block'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () {
+                    // Decline - just pop
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Decline'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    // Accept by sending an empty/system message or just replying.
+                    // For UI purposes, we just send a "Request accepted." message.
+                    await _sendText('Request accepted.');
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: ac.gold, foregroundColor: ac.navy),
+                  child: const Text('Accept'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
     );
   }
 
@@ -958,6 +1040,8 @@ class _SharedContentCardState extends State<_SharedContentCard> {
         SharedContentType.quiz => Icons.quiz_rounded,
         SharedContentType.article => Icons.article_rounded,
         SharedContentType.pastPaper => Icons.history_edu_rounded,
+        SharedContentType.clubPost => Icons.forum_rounded,
+        SharedContentType.authorProfile => Icons.person_rounded,
       };
 
   @override

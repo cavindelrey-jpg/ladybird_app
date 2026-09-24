@@ -191,7 +191,7 @@ class Conversation {
 }
 
 /// What kind of real Academia content a shared-content message points at.
-enum SharedContentType { note, course, quiz, article, pastPaper }
+enum SharedContentType { note, course, quiz, article, pastPaper, clubPost, authorProfile }
 
 extension SharedContentTypeExt on SharedContentType {
   String get label => switch (this) {
@@ -200,6 +200,8 @@ extension SharedContentTypeExt on SharedContentType {
         SharedContentType.quiz => 'Quiz',
         SharedContentType.article => 'Article',
         SharedContentType.pastPaper => 'Past Paper',
+        SharedContentType.clubPost => 'Club Post',
+        SharedContentType.authorProfile => 'Author Profile',
       };
 
   static SharedContentType? fromKey(String? key) {

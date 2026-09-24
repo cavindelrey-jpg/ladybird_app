@@ -325,6 +325,8 @@ class MessagingRepository {
         SharedContentType.quiz => '❓',
         SharedContentType.article => '📰',
         SharedContentType.pastPaper => '📄',
+        SharedContentType.clubPost => '📢',
+        SharedContentType.authorProfile => '👤',
       };
 
   Future<Result<void>> sendMessage({

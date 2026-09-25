@@ -34,6 +34,8 @@ import '../models/magazine_gallery_post.dart';
 import '../models/magazine_video_post.dart';
 import '../models/xp_transaction.dart';
 import '../core/result.dart';
+import '../services/content_cache_service.dart';
+import 'dart:async';
 import 'xp_repository.dart';
 
 class MagazineRepository {
@@ -46,12 +48,33 @@ class MagazineRepository {
 
   // ── Feed variants ──────────────────────────────────────────────────────
 
-  Stream<List<MagazineArticle>> watchFeed({int limit = 30}) => _articles
-      .stream(primaryKey: ['id'])
-      .eq('published', true)
-      .order('created_at', ascending: false)
-      .limit(limit)
-      .map((rows) => rows.map(MagazineArticle.fromSupabase).toList());
+  Stream<List<MagazineArticle>> watchFeed({int limit = 30}) {
+    final controller = StreamController<List<MagazineArticle>>();
+    StreamSubscription? liveSub;
+
+    controller.onListen = () async {
+      final cached = await ContentCacheService.instance.getList('magazine_feed');
+      if (cached != null && !controller.isClosed) {
+        controller.add(cached.map(MagazineArticle.fromSupabase).toList());
+      }
+      liveSub = _articles
+          .stream(primaryKey: ['id'])
+          .eq('published', true)
+          .order('created_at', ascending: false)
+          .limit(limit)
+          .listen((rows) {
+        if (controller.isClosed) return;
+        final list = List<Map<String, dynamic>>.from(rows);
+        unawaited(ContentCacheService.instance.putList('magazine_feed', list));
+        controller.add(list.map(MagazineArticle.fromSupabase).toList());
+      }, onError: (e) {
+        if (cached == null && !controller.isClosed) controller.addError(e);
+      });
+    };
+
+    controller.onCancel = () => liveSub?.cancel();
+    return controller.stream;
+  }
 
   /// "Following" feed — articles by a specific set of authors.
   Stream<List<MagazineArticle>> watchFeedFromAuthors(List<String> authorIds) {

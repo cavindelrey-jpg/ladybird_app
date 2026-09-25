@@ -8,6 +8,8 @@ import '../services/connectivity_service.dart';
 
 import '../models/app_notification.dart';
 import '../core/result.dart';
+import '../services/content_cache_service.dart';
+import 'dart:async';
 
 class NotificationRepository {
   NotificationRepository._();

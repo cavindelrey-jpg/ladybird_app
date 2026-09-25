@@ -21,6 +21,8 @@ import '../models/xp_transaction.dart';
 import '../core/result.dart';
 import '../config/branding.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/content_cache_service.dart';
+import 'dart:async';
 
 class XpRepository {
   XpRepository._();
@@ -77,15 +79,34 @@ class XpRepository {
 
   /// Live version of getBalance — for a persistent header badge and the
   /// XP dashboard.
-  Stream<(int, int)> watchBalance(String userId) => _db
-      .from('users')
-      .stream(primaryKey: ['id'])
-      .eq('id', userId)
-      .map((rows) {
-    if (rows.isEmpty) return (0, 0);
-    final d = rows.first;
-    return ((d['xp_balance'] as num?)?.toInt() ?? 0, (d['lifetime_xp'] as num?)?.toInt() ?? 0);
-  });
+  Stream<(int, int)> watchBalance(String userId) {
+    final controller = StreamController<(int, int)>();
+    StreamSubscription? liveSub;
+    controller.onListen = () async {
+      final cacheKey = 'xp_$userId';
+      final cached = await ContentCacheService.instance.getList(cacheKey);
+      if (cached != null && cached.isNotEmpty && !controller.isClosed) {
+        controller.add((cached.first['xp_balance'] as int, cached.first['lifetime_xp'] as int));
+      }
+      liveSub = _db
+          .from('users')
+          .stream(primaryKey: ['id'])
+          .eq('id', userId)
+          .listen((rows) {
+        if (controller.isClosed) return;
+        if (rows.isEmpty) return;
+        final d = rows.first;
+        final xp = (d['xp_balance'] as num?)?.toInt() ?? 0;
+        final lifetime = (d['lifetime_xp'] as num?)?.toInt() ?? 0;
+        unawaited(ContentCacheService.instance.putList(cacheKey, [{'xp_balance': xp, 'lifetime_xp': lifetime}]));
+        controller.add((xp, lifetime));
+      }, onError: (e) {
+        if (cached == null && !controller.isClosed) controller.addError(e);
+      });
+    };
+    controller.onCancel = () => liveSub?.cancel();
+    return controller.stream;
+  }
 
   /// Today's earn progress toward the daily cap, live.
   Stream<int> watchXpEarnedToday(String userId) => _db

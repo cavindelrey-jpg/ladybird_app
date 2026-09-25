@@ -19,6 +19,8 @@ import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
 import '../core/result.dart';
+import '../services/content_cache_service.dart';
+import 'dart:async';
 import 'xp_repository.dart';
 
 class ClubRepository {
@@ -31,14 +33,33 @@ class ClubRepository {
   // ── Discovery ──────────────────────────────────────────
 
   Stream<List<Club>> watchClubs({String? schoolId}) {
-    final stream = _db.from('clubs').stream(primaryKey: ['id']);
-    if (schoolId == null) {
-      return stream.map((rows) => rows.map(Club.fromSupabase).toList());
-    }
-    return stream.map((rows) => rows
-        .where((r) => r['institution_id'] == schoolId)
-        .map(Club.fromSupabase)
-        .toList());
+    final controller = StreamController<List<Club>>();
+    StreamSubscription? liveSub;
+
+    controller.onListen = () async {
+      final cacheKey = schoolId == null ? 'clubs_all' : 'clubs_$schoolId';
+      final cached = await ContentCacheService.instance.getList(cacheKey);
+      if (cached != null && !controller.isClosed) {
+        controller.add(cached.map(Club.fromSupabase).toList());
+      }
+      
+      final stream = _db.from('clubs').stream(primaryKey: ['id']);
+      liveSub = stream.listen((rows) {
+        if (controller.isClosed) return;
+        var filtered = rows;
+        if (schoolId != null) {
+          filtered = rows.where((r) => r['institution_id'] == schoolId).toList();
+        }
+        final list = List<Map<String, dynamic>>.from(filtered);
+        unawaited(ContentCacheService.instance.putList(cacheKey, list));
+        controller.add(list.map(Club.fromSupabase).toList());
+      }, onError: (e) {
+        if (cached == null && !controller.isClosed) controller.addError(e);
+      });
+    };
+
+    controller.onCancel = () => liveSub?.cancel();
+    return controller.stream;
   }
 
   Future<List<Club>> searchClubs(String query, {String? category}) async {

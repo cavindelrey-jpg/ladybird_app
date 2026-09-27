@@ -445,7 +445,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     );
   }
 
-  /// 
+  Widget _resumeLearningButton(BuildContext context) {
     return FutureBuilder<({AcademicContent content, int page, int totalPages})?>(
       future: _continueReadingFuture,
       builder: (context, snap) {

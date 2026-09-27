@@ -49,6 +49,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../models/app_user.dart';
 import '../../models/messaging.dart';
 import '../../models/public_course.dart';
@@ -143,10 +144,10 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     super.dispose();
   }
 
-  Future<void> _sendText() async {
-    final text = _textCtrl.text.trim();
+  Future<void> _sendText([String? explicitText]) async {
+    final text = (explicitText ?? _textCtrl.text).trim();
     if (text.isEmpty) return;
-    _textCtrl.clear();
+    if (explicitText == null) _textCtrl.clear();
     HapticFeedback.lightImpact();
     final result = await MessagingRepository.instance.sendMessage(
       conversationId: widget.conversationId,
@@ -1027,6 +1028,10 @@ class _SharedContentCardState extends State<_SharedContentCard> {
             Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => ContentDetailsPage(contentId: id, user: widget.currentUser)));
           }
+          break;
+        case SharedContentType.clubPost:
+        case SharedContentType.authorProfile:
+          // Not implemented yet
           break;
       }
     } finally {

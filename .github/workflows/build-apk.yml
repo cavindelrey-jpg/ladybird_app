@@ -84,9 +84,11 @@ jobs:
         with:
           name: ladybird-release-aab
           path: build/app/outputs/bundle/ladybirdRelease/app-ladybird-release.aab
+          retention-days: 3
 
       - name: Upload Split APKs
         uses: actions/upload-artifact@v4
         with:
           name: ladybird-release-apks
           path: build/app/outputs/flutter-apk/app-*-release.apk
+          retention-days: 3

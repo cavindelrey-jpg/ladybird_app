@@ -564,11 +564,13 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _messagesTopUnreadBadge() {
+    final uid = _u?.id ?? '';
+    if (uid.isEmpty) return const SizedBox.shrink();
     return StreamBuilder<List<Conversation>>(
-      stream: MessagingRepository.instance.watchConversations(_u!.id),
+      stream: MessagingRepository.instance.watchConversations(uid),
       builder: (context, snap) {
         final total = (snap.data ?? const <Conversation>[])
-            .fold<int>(0, (sum, c) => sum + (c.unreadCount[_u!.id] ?? 0));
+            .fold<int>(0, (sum, c) => sum + (c.unreadCount[uid] ?? 0));
         if (total <= 0) return const SizedBox.shrink();
         return Positioned(
           top: 6,
@@ -1525,8 +1527,15 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   }
 
   Widget _personalStudySlotsFallback() {
+    final uid = _u?.id ?? '';
+    if (uid.isEmpty) {
+      return _emptyCardState(
+        icon: Icons.event_available_outlined,
+        message: 'No study slots planned for today. Tap to schedule.',
+      );
+    }
     return StreamBuilder<List<PersonalStudySlot>>(
-      stream: PersonalStudyRepository.instance.watchToday(_u!.id),
+      stream: PersonalStudyRepository.instance.watchToday(uid),
       builder: (context, snap) {
         final slots = snap.data ?? const <PersonalStudySlot>[];
         if (snap.connectionState == ConnectionState.waiting) {

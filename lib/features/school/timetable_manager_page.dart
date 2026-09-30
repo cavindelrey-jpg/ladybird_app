@@ -45,7 +45,7 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
     final ac = AppColors.of(context);
     final schoolId = widget.user.schoolId ?? '';
 
-    if (!widget.user.canManageSchool) {
+    if (!widget.user.canManageAnyTimetable) {
       return Scaffold(
         backgroundColor: ac.bg,
         appBar: AppBar(backgroundColor: ac.bg, elevation: 0),

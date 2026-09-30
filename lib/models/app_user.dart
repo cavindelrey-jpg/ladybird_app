@@ -1,6 +1,7 @@
 // lib/models/app_user.dart
 // 6-tier role system. Fully backward-compatible with prior 4-role enum.
 
+import '../config/branding.dart';
 import 'entitlement.dart';
 import 'school_voucher.dart' show SchoolRole, SchoolRoleX;
 import 'teaching_assignment.dart';
@@ -59,6 +60,12 @@ class AppUser {
   final AccountType accountType;
   final AccountStatus status;
   final String? schoolId;
+  final String _schoolName;
+
+  /// Display name of the user's school. If empty, falls back to the active brand's app name when [isSchoolMember] is true.
+  String get schoolName => _schoolName.isNotEmpty
+      ? _schoolName
+      : (isSchoolMember ? Branding.current.appName : '');
 
   /// The enrollment serial number this account was created with, if any.
   /// Kept for record-keeping / support (e.g. "which seat is this student
@@ -169,6 +176,7 @@ class AppUser {
     this.accountType = AccountType.independent,
     this.status = AccountStatus.active,
     this.schoolId,
+    String schoolName = '',
     this.serialNumber,
     this.departmentId,
     this.classLevel = '',
@@ -194,7 +202,8 @@ class AppUser {
     this.teachingAssignments = const [],
     this.classMasterOfClass,
     this.schoolVoucherRef,
-  }) : legacyIsPremium = isPremium;
+  }) : _schoolName = schoolName,
+       legacyIsPremium = isPremium;
 
   // ── Entitlement (production_plan.md §8) ────────────────────────────────────
   /// Whether this account currently has premium access, for ANY reason.
@@ -323,6 +332,10 @@ class AppUser {
   bool get canManageHomework =>
       isSuperAdmin || (isSchoolMember && (hasMinRole(UserRole.schoolAdmin) || teachingAssignments.isNotEmpty));
 
+  /// Whether this account can manage timetables for their school.
+  bool get canManageAnyTimetable =>
+      isSuperAdmin || canManageSchool || (isSchoolMember && (schoolRole == SchoolRole.admin || schoolRole == SchoolRole.itSupport));
+
   // ── Privilege system ───────────────────────────────────────────────────────
   int get privilegeLevel {
     switch (role) {
@@ -372,6 +385,7 @@ class AppUser {
     status: AccountStatus.values.firstWhere(
         (s) => s.name == d['status'], orElse: () => AccountStatus.active),
     schoolId: d['schoolId'],
+    schoolName: d['schoolName'] ?? d['school_name'] ?? '',
     serialNumber: d['serialNumber'],
     departmentId: d['departmentId'],
     classLevel: d['classLevel'] ?? '',
@@ -442,6 +456,7 @@ class AppUser {
     status: AccountStatus.values.firstWhere(
         (s) => s.name == d['status'], orElse: () => AccountStatus.active),
     schoolId: d['institution_id'],
+    schoolName: d['school_name'] ?? d['schoolName'] ?? '',
     serialNumber: d['serial_number'],
     departmentId: d['department_id'],
     classLevel: d['class_level'] ?? '',
@@ -488,7 +503,7 @@ class AppUser {
     'name': name, 'email': email, 'photo_url': photoUrl,
     'role': role.name, 'role_name': roleName,
     'account_type': accountType.name, 'status': status.name,
-    'institution_id': schoolId, 'serial_number': serialNumber, 'department_id': departmentId,
+    'institution_id': schoolId, 'school_name': _schoolName, 'serial_number': serialNumber, 'department_id': departmentId,
     'class_level': classLevel, 'subject': subject,
     'course_ids': courseIds,
     'is_first_login': isFirstLogin,
@@ -524,7 +539,7 @@ class AppUser {
     'name': name, 'email': email, 'photoUrl': photoUrl,
     'role': role.name, 'roleName': roleName,
     'accountType': accountType.name, 'status': status.name,
-    'schoolId': schoolId, 'serialNumber': serialNumber, 'departmentId': departmentId,
+    'schoolId': schoolId, 'schoolName': _schoolName, 'serialNumber': serialNumber, 'departmentId': departmentId,
     'classLevel': classLevel, 'subject': subject,
     'courseIds': courseIds,
     'isFirstLogin': isFirstLogin,
@@ -557,7 +572,7 @@ class AppUser {
     String? id, String? name, String? email, String? photoUrl,
     UserRole? role, String? roleName,
     AccountType? accountType, AccountStatus? status,
-    String? schoolId, String? serialNumber, String? departmentId,
+    String? schoolId, String? schoolName, String? serialNumber, String? departmentId,
     String? classLevel, String? subject, List<String>? courseIds,
     bool? isFirstLogin, bool? adminAccessRevoked, bool? isPremium,
     Entitlement? entitlement,
@@ -576,6 +591,7 @@ class AppUser {
     accountType: accountType ?? this.accountType,
     status: status ?? this.status,
     schoolId: schoolId ?? this.schoolId,
+    schoolName: schoolName ?? this._schoolName,
     serialNumber: serialNumber ?? this.serialNumber,
     departmentId: departmentId ?? this.departmentId,
     classLevel: classLevel ?? this.classLevel,

@@ -34,7 +34,7 @@ class TimetablePage extends StatelessWidget {
         title: 'Timetable',
         subtitle: 'Your class schedule at a glance',
         trailing: [
-          if (user.canManageSchool)
+          if (user.canManageAnyTimetable)
             IconButton(
               icon: Icon(Icons.edit_calendar_outlined, color: ac.txt2),
               tooltip: 'Manage timetable',

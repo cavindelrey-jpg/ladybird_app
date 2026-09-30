@@ -28,6 +28,7 @@ class NotificationsPage extends StatelessWidget {
       case NotificationType.dailyProgram:     return Icons.today_rounded;
       case NotificationType.message:          return Icons.chat_bubble_outline_rounded;
       case NotificationType.recommendation:   return Icons.auto_awesome_outlined;
+      default:                                return Icons.notifications_none_rounded;
     }
   }
 

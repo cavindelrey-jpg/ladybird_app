@@ -1464,9 +1464,10 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     }
 
     // If school member, check official school timetable first
-    if (_u!.isSchoolMember && _u!.schoolId.isNotEmpty && _u!.classLevel.isNotEmpty) {
+    final schoolId = _u!.schoolId;
+    if (_u!.isSchoolMember && schoolId != null && schoolId.isNotEmpty && _u!.classLevel.isNotEmpty) {
       return StreamBuilder<List<SchoolTimetableSlot>>(
-        stream: SchoolTimetableRepository.instance.watchTodayForClass(_u!.schoolId, _u!.classLevel),
+        stream: SchoolTimetableRepository.instance.watchTodayForClass(schoolId, _u!.classLevel),
         builder: (context, snap) {
           final slots = snap.data ?? const <SchoolTimetableSlot>[];
           if (snap.connectionState == ConnectionState.waiting) {
@@ -1601,9 +1602,10 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       );
     }
 
-    if (_u!.isSchoolMember && _u!.schoolId.isNotEmpty && _u!.classLevel.isNotEmpty) {
+    final schoolId = _u!.schoolId;
+    if (_u!.isSchoolMember && schoolId != null && schoolId.isNotEmpty && _u!.classLevel.isNotEmpty) {
       return StreamBuilder<List<Homework>>(
-        stream: HomeworkRepository.instance.watchForClass(_u!.schoolId, _u!.classLevel),
+        stream: HomeworkRepository.instance.watchForClass(schoolId, _u!.classLevel),
         builder: (context, snap) {
           final homeworkList = snap.data ?? const <Homework>[];
           if (snap.connectionState == ConnectionState.waiting) {

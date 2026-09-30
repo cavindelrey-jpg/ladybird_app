@@ -1033,6 +1033,8 @@ class _SharedContentCardState extends State<_SharedContentCard> {
         case SharedContentType.authorProfile:
           // Not implemented yet
           break;
+        default:
+          break;
       }
     } finally {
       if (mounted) setState(() => _opening = false);

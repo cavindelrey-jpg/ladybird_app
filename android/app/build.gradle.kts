@@ -78,21 +78,8 @@ android {
     // delete them once it's clear this repo will only ever ship Ladybird.
     flavorDimensions += "brand"
     productFlavors {
-        create("academia") {
-            dimension = "brand"
-            applicationId = "com.example.academia_app"
-            resValue("string", "app_name", "Academia")
-        }
-        create("greenhill") {
-            dimension = "brand"
-            applicationId = "com.example.academia_app.greenhill"
-            resValue("string", "app_name", "Green Hill Academy")
-        }
         create("ladybird") {
             dimension = "brand"
-            // Distinct package -- installs side-by-side with the other
-            // flavors rather than overwriting them, so multiple brands can
-            // be demoed on the same device at once.
             applicationId = "com.example.academia_app.ladybird"
             resValue("string", "app_name", "Ladybird Schools")
         }

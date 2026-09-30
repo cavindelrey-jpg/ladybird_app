@@ -3,6 +3,9 @@ name: Build Ladybird APK
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,46 +24,26 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      # Cache the debug keystore so every release build uses the exact same
+      # signing certificate. This enables in-place APK updates on Android devices
+      # without uninstalling or signature conflict errors.
+      - name: Cache debug keystore (keeps APK signing key stable across builds)
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-ladybird
+
       - name: Regenerate app icon + splash from Ladybird branding
-        # pubspec.yaml's flutter_launcher_icons/flutter_native_splash config
-        # points at assets/branding/ladybird_logo.jpg, but that only takes
-        # effect once these generators actually run -- only codemagic.yaml
-        # ran this step; this workflow never did, so the checked-in mipmap/
-        # splash files stayed whatever they were generated from last.
         run: |
           flutter pub run flutter_launcher_icons
           flutter pub run flutter_native_splash:create
 
       - name: Re-apply Android 12 splash crop fix (regeneration overwrites it)
-        # flutter_native_splash:create above just regenerated
-        # values-v31/styles.xml and values-night-v31/styles.xml pointing
-        # windowSplashScreenAnimatedIcon straight at the raw, unpadded
-        # @drawable/android12splash -- which Android's SplashScreen API
-        # crops into (no safe-zone margin on the source logo). The fix is
-        # @drawable/android12splash_inset (a committed, hand-written file
-        # the generator doesn't know about and won't delete/regenerate) --
-        # this step just re-points the two regenerated styles.xml files at
-        # it, every build. See android/app/src/main/res/drawable/
-        # android12splash_inset.xml's own header comment for the full
-        # explanation.
-        #
-        # This runner is ubuntu-latest (GNU sed) -- codemagic.yaml's own
-        # version of this step uses `sed -i ''` because IT runs on
-        # mac_mini_m2 (BSD sed, which treats -i's next argument as a
-        # backup-suffix). Using that same `-i ''` form here would make GNU
-        # sed treat '' as the script and the first real path as the script
-        # instead -- the exact bug that comment documents, just the other
-        # platform's version of it. Plain `-i` (no argument) is correct here.
         run: |
           sed -i 's|@drawable/android12splash</item>|@drawable/android12splash_inset</item>|' \
             android/app/src/main/res/values-v31/styles.xml \
             android/app/src/main/res/values-night-v31/styles.xml
 
-          # flutter_native_splash's own regenerated comment text contains a
-          # bare "--" mid-comment, which the Android resource merger's
-          # stricter-than-browsers XML parser rejects outright. Strip every
-          # XML comment from these two regenerated files rather than
-          # patching specific wording controlled by the plugin, not us.
           python3 - <<'PY'
           import re
           for f in [
@@ -79,16 +62,31 @@ jobs:
           flutter build appbundle --release --flavor ladybird --dart-define=BRAND_ID=ladybird
           flutter build apk --release --flavor ladybird --dart-define=BRAND_ID=ladybird --target-platform android-arm64
 
-      - name: Upload AppBundle
+      - name: Upload AppBundle (Artifact)
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: ladybird-release-aab
           path: build/app/outputs/bundle/ladybirdRelease/app-ladybird-release.aab
           retention-days: 3
 
-      - name: Upload Split APKs
+      - name: Upload Split APKs (Artifact)
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: ladybird-release-apks
           path: build/app/outputs/flutter-apk/app-*-release.apk
           retention-days: 3
+
+      - name: Publish Release Assets to GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: latest-ladybird
+          name: "Ladybird Schools - Latest Release (v2.0.1+2)"
+          draft: false
+          prerelease: false
+          files: |
+            build/app/outputs/bundle/ladybirdRelease/app-ladybird-release.aab
+            build/app/outputs/flutter-apk/app-*-release.apk
+

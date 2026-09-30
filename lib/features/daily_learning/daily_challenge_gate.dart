@@ -109,22 +109,32 @@ class _DailyChallengeGateState extends State<DailyChallengeGate> {
         return null;
       }
 
-      final course = DailyLearningRepository.instance.courses.first;
-      final progress = await DailyLearningRepository.instance.watchProgress(widget.user.id, course.id).first;
-      
+      final courses = DailyLearningRepository.instance.courses;
+      if (courses.isEmpty) return null;
+
+      DailyLearningCourse? targetCourse;
       DailyLearningLesson? nextLesson;
-      for (final l in course.lessons) {
-        if (!progress.contains(l.id)) {
-          nextLesson = l;
+
+      for (final course in courses) {
+        final progressRecord = await DailyLearningRepository.instance.watchProgress(widget.user.id, course.id).first;
+        final completed = progressRecord.$1;
+        for (final l in course.lessons) {
+          if (!completed.contains(l.id)) {
+            targetCourse = course;
+            nextLesson = l;
+            break;
+          }
+        }
+        if (nextLesson != null) {
           break;
         }
       }
       
-      if (nextLesson == null) {
+      if (targetCourse == null || nextLesson == null) {
         return null; // All done
       }
       
-      return _PendingChallenge(course: course, lesson: nextLesson, streak: streak);
+      return _PendingChallenge(course: targetCourse, lesson: nextLesson, streak: streak);
     } catch (e) {
       debugPrint('DailyChallengeGate error: $e');
       return null;

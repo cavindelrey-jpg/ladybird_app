@@ -70,28 +70,25 @@ class _ClubsPageState extends State<ClubsPage> {
   String? _selectedCategory; // null == "All Clubs"
   final _searchCtrl = TextEditingController();
 
-  // Created once and reused across rebuilds -- StreamBuilder resets to its
-  // "waiting" state (dropping the whole ListView, including the search bar
-  // itself) whenever it's handed a stream with a different identity, and
-  // building this inline in `build()` created a brand-new .snapshots()
-  // stream on every keystroke's setState. That's what made the Clubs
-  // search bar appear to vanish while typing.
-  //
-  // Was `watchClubs(schoolId: widget.user.schoolId)` -- this app's own
-  // architecture (see app_router.dart's header comment) is a single
-  // account model with NO institution/school-linking, so schoolId is
-  // null/unset for the overwhelming majority of accounts. Any club
-  // created under a different (or null-vs-set) schoolId than the
-  // viewer's silently vanished from Discover Clubs even though the
-  // query succeeded -- not a permission or index problem, just a filter
-  // that doesn't match how this app actually assigns accounts anymore.
-  // Discover should show every club platform-wide; a club's own
-  // schoolId still drives its "school-verified" badge (see
-  // ClubDetailPage), just not this list's visibility.
-  late final Stream<List<Club>> _clubsStream =
-      ClubRepository.instance.watchClubs();
+  late final Stream<List<Club>> _clubsStream;
+  late final Stream<List<String>> _myClubIdsStream;
+  late final Stream<List<String>> _myPendingIdsStream;
 
   bool get _canCreate => !widget.user.isGuest;
+
+  @override
+  void initState() {
+    super.initState();
+    _clubsStream = ClubRepository.instance.watchClubs();
+    _myClubIdsStream = ClubRepository.instance.watchMyClubIds(widget.user.id);
+    _myPendingIdsStream = ClubRepository.instance.watchMyPendingRequestClubIds(widget.user.id);
+    _searchCtrl.addListener(() {
+      final text = _searchCtrl.text.trim();
+      if (_searchQuery != text) {
+        setState(() => _searchQuery = text);
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -102,139 +99,181 @@ class _ClubsPageState extends State<ClubsPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      body: AppBackground(child: SafeArea(
-        child: StreamBuilder<List<Club>>(
-          stream: _clubsStream,
-          builder: (context, snap) {
-            if (snap.connectionState == ConnectionState.waiting) {
-              return const _ClubsSkeleton();
-            }
-            if (snap.hasError) {
-              return ErrorView(message: snap.error.toString());
-            }
-            final allClubs = snap.data ?? const <Club>[];
-            var filtered = _searchQuery.isEmpty
-                ? allClubs
-                : allClubs.where((c) =>
-                    c.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-                    c.category.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
-            if (_selectedCategory != null) {
-              filtered = filtered.where((c) => c.category == _selectedCategory).toList();
-            }
-            final categories = allClubs.map((c) => c.category).toSet().toList()..sort();
 
-            return ListView(
-              padding: const EdgeInsets.only(bottom: 100),
-              children: [
-                _header(context),
-                const SizedBox(height: 10),
-                _searchAndFilter(),
-                if (categories.length > 1) ...[
-                  const SizedBox(height: 12),
-                  _categoryChips(categories),
-                ],
-                const SizedBox(height: 20),
-                // production_plan.md §7B — "Contextual recommendations should
-                // exist throughout Academia." Only shown in the unfiltered
-                // view, same "don't stack a recommendation rail on top of a
-                // search/filter the user is already doing" gate every other
-                // surface's rail uses (Library/Courses/Past Papers).
-                if (_searchQuery.isEmpty && _selectedCategory == null) ...[
-                  _recommendedClubsSection(context, allClubs),
-                ],
-                _myClubsSection(context, filtered),
-                const SizedBox(height: 24),
-                _discoverClubsSection(context, filtered, allClubs),
-                const SizedBox(height: 20),
-                _infoCards(context),
-              ],
+    return StreamBuilder<List<Club>>(
+      stream: _clubsStream,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+          return Scaffold(
+            backgroundColor: ac.bg,
+            appBar: AppBar(
+              backgroundColor: ac.bg,
+              elevation: 0,
+              title: Text('Academic Groups', style: GoogleFonts.sora(fontSize: 22, fontWeight: FontWeight.bold, color: ac.navy)),
+              iconTheme: IconThemeData(color: ac.navy),
+            ),
+            body: const _ClubsSkeleton(),
+          );
+        }
+        if (snap.hasError && (!snap.hasData || snap.data!.isEmpty)) {
+          return Scaffold(
+            backgroundColor: ac.bg,
+            appBar: AppBar(
+              backgroundColor: ac.bg,
+              elevation: 0,
+              title: Text('Academic Groups', style: GoogleFonts.sora(fontSize: 22, fontWeight: FontWeight.bold, color: ac.navy)),
+              iconTheme: IconThemeData(color: ac.navy),
+            ),
+            body: Center(child: ErrorView(message: snap.error.toString())),
+          );
+        }
+
+        final allClubs = snap.data ?? const <Club>[];
+        var filtered = _searchQuery.isEmpty
+            ? allClubs
+            : allClubs.where((c) =>
+                c.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                c.category.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+        if (_selectedCategory != null) {
+          filtered = filtered.where((c) => c.category == _selectedCategory).toList();
+        }
+        final categories = allClubs.map((c) => c.category).toSet().toList()..sort();
+
+        return StreamBuilder<List<String>>(
+          stream: _myClubIdsStream,
+          builder: (context, joinedSnap) {
+            final joinedIds = (joinedSnap.data ?? const <String>[]).toSet();
+            return StreamBuilder<List<String>>(
+              stream: _myPendingIdsStream,
+              builder: (context, pendingSnap) {
+                final pendingIds = (pendingSnap.data ?? const <String>[]).toSet();
+
+                final myClubs = filtered.where((c) => joinedIds.contains(c.id) || pendingIds.contains(c.id)).toList();
+                final discoverClubs = filtered.where((c) => !joinedIds.contains(c.id) && !pendingIds.contains(c.id)).toList();
+
+                final candidates = widget.user.favoriteSubjects.isEmpty
+                    ? const <Club>[]
+                    : RecommendationRepository.instance.forClubs(pool: allClubs, favoriteSubjects: widget.user.favoriteSubjects);
+                final recommendedClubs = candidates.where((c) => !joinedIds.contains(c.id) && !pendingIds.contains(c.id)).toList();
+
+                return Scaffold(
+                  backgroundColor: ac.bg,
+                  appBar: AppBar(
+                    backgroundColor: ac.bg,
+                    elevation: 0,
+                    title: Text(
+                      'Academic Groups',
+                      style: GoogleFonts.sora(fontSize: 22, fontWeight: FontWeight.bold, color: ac.navy),
+                    ),
+                    iconTheme: IconThemeData(color: ac.navy),
+                    actions: [
+                      IconButton(
+                        icon: Icon(Icons.notifications_outlined, color: ac.txt2),
+                        onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => NotificationsPage(user: widget.user))),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(right: 16),
+                        child: Center(
+                          child: UserAvatar(
+                            initials: widget.user.name.isEmpty ? '?' : widget.user.name[0].toUpperCase(),
+                            radius: 17,
+                            photoUrl: widget.user.photoUrl,
+                          ),
+                        ),
+                      ),
+                    ],
+                    bottom: PreferredSize(
+                      preferredSize: Size.fromHeight(categories.length > 1 ? 104 : 58),
+                      child: Column(
+                        children: [
+                          _searchBar(ac),
+                          if (categories.length > 1) ...[
+                            const SizedBox(height: 8),
+                            _categoryChips(categories, ac),
+                          ],
+                          const SizedBox(height: 8),
+                        ],
+                      ),
+                    ),
+                  ),
+                  body: AppBackground(
+                    child: ListView(
+                      padding: const EdgeInsets.only(top: 12, bottom: 100),
+                      children: [
+                        if (_searchQuery.isEmpty && _selectedCategory == null && recommendedClubs.isNotEmpty) ...[
+                          _recommendedClubsSection(context, recommendedClubs),
+                        ],
+                        _myClubsSection(context, myClubs, joinedIds),
+                        const SizedBox(height: 24),
+                        _discoverClubsSection(context, discoverClubs, allClubs),
+                        const SizedBox(height: 20),
+                        _infoCards(context),
+                      ],
+                    ),
+                  ),
+                  floatingActionButton: _canCreate
+                      ? FloatingActionButton.extended(
+                          backgroundColor: ac.navy,
+                          onPressed: () {
+                            HapticFeedback.mediumImpact();
+                            Navigator.push(context, MaterialPageRoute(builder: (_) => CreateClubPage(user: widget.user)));
+                          },
+                          icon: Icon(Icons.add_rounded, color: ac.gold),
+                          label: Text('Create Group', style: AppText.button.copyWith(fontSize: 13)),
+                        )
+                      : null,
+                );
+              },
             );
           },
-        ),
-      )),
-      floatingActionButton: _canCreate
-          ? FloatingActionButton.extended(
-              backgroundColor: ac.navy,
-              onPressed: () {
-                HapticFeedback.mediumImpact();
-                Navigator.push(context, MaterialPageRoute(builder: (_) => CreateClubPage(user: widget.user)));
-              },
-              icon: Icon(Icons.add_rounded, color: ac.gold),
-              label: Text('Create Group', style: AppText.button.copyWith(fontSize: 13)),
-            )
-          : null,
+        );
+      },
     );
   }
 
-  Widget _header(BuildContext context) {
-    final ac = AppColors.of(context);
+  Widget _searchBar(AppColors ac) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-      child: Row(children: [
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Groups', style: AppText.h1.copyWith(fontSize: 22)),
-          ]),
-        ),
-        IconButton(
-          icon: Icon(Icons.notifications_outlined, color: ac.txt2),
-          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => NotificationsPage(user: widget.user))),
-        ),
-        UserAvatar(initials: widget.user.name.isEmpty ? '?' : widget.user.name[0].toUpperCase(),
-            radius: 18, photoUrl: widget.user.photoUrl),
-      ]),
-    );
-  }
-
-  Widget _searchAndFilter() {
-    final ac = AppColors.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(children: [
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(14), border: Border.all(color: ac.bdr)),
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: (v) => setState(() => _searchQuery = v),
-              style: AppText.bodySm.copyWith(color: ac.txt),
-              decoration: InputDecoration(
-                hintText: 'Search groups by name, interest or subject…',
-                hintStyle: AppText.bodySm.copyWith(color: ac.muted, fontSize: 12.5),
-                prefixIcon: Icon(Icons.search_rounded, size: 18, color: ac.muted),
-                border: InputBorder.none, isDense: true,
-              ),
-            ),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: TextField(
+        controller: _searchCtrl,
+        style: AppText.bodySm.copyWith(color: ac.txt),
+        decoration: InputDecoration(
+          hintText: 'Search groups by name, interest or subject…',
+          hintStyle: AppText.bodySm.copyWith(color: ac.muted, fontSize: 13),
+          prefixIcon: Icon(Icons.search_rounded, color: ac.muted, size: 20),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: Icon(Icons.clear_rounded, color: ac.muted, size: 18),
+                  onPressed: () => _searchCtrl.clear(),
+                )
+              : null,
+          filled: true,
+          fillColor: ac.surf,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: ac.bdr),
           ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: ac.bdr),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: ac.primary),
+          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
         ),
-        const SizedBox(width: 10),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(14), border: Border.all(color: ac.bdr)),
-          child: Row(children: [
-            Icon(Icons.filter_list_rounded, size: 18, color: ac.txt2),
-            const SizedBox(width: 6),
-            Text('Filter', style: AppText.caption.copyWith(fontSize: 12.5, fontWeight: FontWeight.w700)),
-          ]),
-        ),
-      ]),
+      ),
     );
   }
 
-  /// "All Clubs" + every real category currently in use, driven by
-  /// actual Club.category values (not a hardcoded list) — matches the
-  /// mockup's chip row without inventing categories no club actually has.
-  Widget _categoryChips(List<String> categories) {
-    final ac = AppColors.of(context);
+  Widget _categoryChips(List<String> categories, AppColors ac) {
     final chips = ['All Groups', ...categories];
     return SizedBox(
       height: 36,
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
         itemCount: chips.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
@@ -258,9 +297,14 @@ class _ClubsPageState extends State<ClubsPage> {
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: active ? ac.navy : ac.bdr),
                 ),
-                child: Text(label, style: AppText.caption.copyWith(
-                    fontSize: 12.5, fontWeight: FontWeight.w700,
-                    color: active ? ac.gold : ac.txt2)),
+                child: Text(
+                  label,
+                  style: AppText.caption.copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: active ? ac.gold : ac.txt2,
+                  ),
+                ),
               ),
             ),
           );
@@ -269,138 +313,70 @@ class _ClubsPageState extends State<ClubsPage> {
     );
   }
 
-  /// Horizontal photo-card rail of clubs the user has joined, plus any
-  /// they have a pending approval request for (kept visible so a pending
-  /// request doesn't just disappear — Discover Clubs hides its own card
-  /// for the same club once a request is pending). Pre-filtered against
-  /// watchMyClubIds/watchMyPendingRequestClubIds BEFORE building any
-  /// cards — same fix as _recommendedClubsSection below, and for the
-  /// same reason: building a card per club in the whole (possibly
-  /// search-filtered) pool and letting each one silently self-hide once
-  /// its own status resolves can leave this rail rendering mostly empty
-  /// space.
-  Widget _myClubsSection(BuildContext context, List<Club> allClubs) {
-    
+  Widget _myClubsSection(BuildContext context, List<Club> myClubs, Set<String> joinedIds) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text('My Groups', style: AppText.h2.copyWith(fontSize: 16))),
         ]),
         const SizedBox(height: 12),
-        StreamBuilder<List<String>>(
-          stream: ClubRepository.instance.watchMyClubIds(widget.user.id),
-          builder: (context, joinedSnap) {
-            if (joinedSnap.hasError) {
-              CrashService.instance.recordError(joinedSnap.error, joinedSnap.stackTrace,
-                  context: 'ClubsPage.watchMyClubIds(${widget.user.id})');
-            }
-            final joinedIds = (joinedSnap.data ?? const <String>[]).toSet();
-            return StreamBuilder<List<String>>(
-              stream: ClubRepository.instance.watchMyPendingRequestClubIds(widget.user.id),
-              builder: (context, pendingSnap) {
-                if (joinedSnap.connectionState == ConnectionState.waiting) {
-                  return SizedBox(
-                    height: 260,
-                    child: ListView(scrollDirection: Axis.horizontal, children: const [
-                      SizedBox(width: 200, child: ShimmerBlock(height: 260)),
-                      SizedBox(width: 12),
-                      SizedBox(width: 200, child: ShimmerBlock(height: 260)),
-                    ]),
-                  );
-                }
-                final pendingIds = (pendingSnap.data ?? const <String>[]).toSet();
-                final myClubs = allClubs.where((c) => joinedIds.contains(c.id) || pendingIds.contains(c.id)).toList();
-                if (myClubs.isEmpty) {
-                  return Text('No groups yet — discover one below or create your own.', style: AppText.bodySm);
-                }
-                return SizedBox(
-                  height: 260,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: myClubs.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (_, i) => _MyClubTile(
-                      club: myClubs[i],
-                      pending: !joinedIds.contains(myClubs[i].id),
-                      onOpen: () => Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => ClubDetailPage(club: myClubs[i], user: widget.user))),
-                    ),
-                  ),
-                );
-              },
-            );
-          },
-        ),
+        if (myClubs.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text('No groups yet — discover one below or create your own.', style: AppText.bodySm),
+          )
+        else
+          SizedBox(
+            height: 245,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: myClubs.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (_, i) => _MyClubTile(
+                club: myClubs[i],
+                pending: !joinedIds.contains(myClubs[i].id),
+                onOpen: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => ClubDetailPage(club: myClubs[i], user: widget.user))),
+              ),
+            ),
+          ),
       ]),
     );
   }
 
-  /// production_plan.md §7B — "Contextual recommendations should exist
-  /// throughout Academia," replacing the removed Clubs banner. Ranks the
-  /// club list this page already streamed (`allClubs`) against the
-  /// signed-in user's favorite subjects via
-  /// RecommendationRepository.forClubs -- no second Firestore read, same
-  /// "hide entirely rather than show an empty personalized rail"
-  /// treatment as every other surface's recommendation rail.
-  ///
-  /// FIX: this previously computed `recommended` from the whole club
-  /// pool without excluding clubs the user had already joined, then
-  /// relied on each `_DiscoverClubCard` to silently collapse to
-  /// `SizedBox.shrink()` once it separately discovered (async, per
-  /// card) that the user was a member. If someone had already joined
-  /// most or all of their category-matched clubs, this rendered a
-  /// "Recommended for You" header followed by a visually empty
-  /// 260px-tall strip — which reads as broken, not empty-and-hidden.
-  /// Now pre-filtered against watchMyClubIds before deciding whether to
-  /// render anything at all, matching the section's own "hide entirely"
-  /// intent.
-  Widget _recommendedClubsSection(BuildContext context, List<Club> allClubs) {
-    if (widget.user.favoriteSubjects.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    final candidates = RecommendationRepository.instance
-        .forClubs(pool: allClubs, favoriteSubjects: widget.user.favoriteSubjects);
-    if (candidates.isEmpty) return const SizedBox.shrink();
-    return StreamBuilder<List<String>>(
-      stream: ClubRepository.instance.watchMyClubIds(widget.user.id),
-      builder: (context, joinedSnap) {
-        if (joinedSnap.hasError) {
-          CrashService.instance.recordError(joinedSnap.error, joinedSnap.stackTrace,
-              context: 'ClubsPage._recommendedClubsSection.watchMyClubIds(${widget.user.id})');
-        }
-        final joinedIds = (joinedSnap.data ?? const <String>[]).toSet();
-        final recommended = candidates.where((c) => !joinedIds.contains(c.id)).toList();
-        if (recommended.isEmpty) return const SizedBox.shrink();
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Recommended for You', style: AppText.h2.copyWith(fontSize: 16)),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 260,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: recommended.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (_, i) => _DiscoverClubCard(
-                  club: recommended[i], user: widget.user,
-                  onOpen: () => Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => ClubDetailPage(club: recommended[i], user: widget.user))),
-                ),
-              ),
+  Widget _recommendedClubsSection(BuildContext context, List<Club> recommended) {
+    if (recommended.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Recommended for You', style: AppText.h2.copyWith(fontSize: 16)),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 275,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: recommended.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (_, i) => _DiscoverClubCard(
+              club: recommended[i],
+              user: widget.user,
+              isMember: false,
+              isPending: false,
+              onOpen: () => Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => ClubDetailPage(club: recommended[i], user: widget.user))),
             ),
-            const SizedBox(height: 24),
-          ]),
-        );
-      },
+          ),
+        ),
+        const SizedBox(height: 24),
+      ]),
     );
   }
 
-  Widget _discoverClubsSection(BuildContext context, List<Club> allClubs, List<Club> unfilteredClubs) {
+  Widget _discoverClubsSection(BuildContext context, List<Club> discoverClubs, List<Club> unfilteredClubs) {
     final ac = AppColors.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text('Discover Groups', style: AppText.h2.copyWith(fontSize: 16))),
@@ -419,19 +395,25 @@ class _ClubsPageState extends State<ClubsPage> {
           ),
         ]),
         const SizedBox(height: 12),
-        if (allClubs.isEmpty)
-          Text('No groups yet — be the first to create one.', style: AppText.bodySm)
+        if (discoverClubs.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text('No groups yet — be the first to create one.', style: AppText.bodySm),
+          )
         else
           SizedBox(
-            height: 260,
+            height: 275,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: allClubs.length,
+              itemCount: discoverClubs.length,
               separatorBuilder: (_, __) => const SizedBox(width: 12),
               itemBuilder: (_, i) => _DiscoverClubCard(
-                club: allClubs[i], user: widget.user,
+                club: discoverClubs[i],
+                user: widget.user,
+                isMember: false,
+                isPending: false,
                 onOpen: () => Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => ClubDetailPage(club: allClubs[i], user: widget.user))),
+                    builder: (_) => ClubDetailPage(club: discoverClubs[i], user: widget.user))),
               ),
             ),
           ),
@@ -442,7 +424,7 @@ class _ClubsPageState extends State<ClubsPage> {
   Widget _infoCards(BuildContext context) {
     final ac = AppColors.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Expanded(
           child: Container(
@@ -495,19 +477,40 @@ class _ClubsSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
+      physics: const NeverScrollableScrollPhysics(),
       children: [
-        const ShimmerLine(width: 100, height: 24),
-        const SizedBox(height: 20),
-        for (int i = 0; i < 3; i++)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 10),
-            child: Row(children: [
-              ShimmerCircle(size: 44),
-              SizedBox(width: 12),
-              Expanded(child: ShimmerLine(height: 14)),
-            ]),
+        const ShimmerLine(width: 120, height: 18),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 245,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 3,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (_, __) => const SizedBox(
+              width: 200,
+              child: ShimmerBlock(height: 245, radius: 14),
+            ),
           ),
+        ),
+        const SizedBox(height: 24),
+        const ShimmerLine(width: 140, height: 18),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 275,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 3,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (_, __) => const SizedBox(
+              width: 200,
+              child: ShimmerBlock(height: 275, radius: 14),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -577,20 +580,30 @@ class _MyClubTile extends StatelessWidget {
                 ),
               ),
             ]),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 20, 12, 12),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(club.name, style: AppText.title.copyWith(fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 3),
-                Text(club.description, style: AppText.caption.copyWith(fontSize: 10.5, height: 1.3),
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 8),
-                Row(children: [
-                  _MemberAvatarStack(clubId: club.id),
-                  const SizedBox(width: 6),
-                  Text('${club.memberCount} members', style: AppText.caption.copyWith(fontSize: 10.5)),
-                ]),
-              ]),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 18, 12, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(club.name, style: AppText.title.copyWith(fontSize: 13.5), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 3),
+                        Text(club.description, style: AppText.caption.copyWith(fontSize: 10.5, height: 1.25),
+                            maxLines: 2, overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
+                    Row(children: [
+                      _MemberAvatarStack(clubId: club.id),
+                      const SizedBox(width: 6),
+                      Text('${club.memberCount} members', style: AppText.caption.copyWith(fontSize: 10.5)),
+                    ]),
+                  ],
+                ),
+              ),
             ),
           ]),
         ),
@@ -613,24 +626,36 @@ class _DiscoverClubCard extends StatelessWidget {
   final AppUser user;
   final VoidCallback onOpen;
   final bool fullWidth;
-  const _DiscoverClubCard({required this.club, required this.user, required this.onOpen, this.fullWidth = false});
+  final bool? isMember;
+  final bool? isPending;
+  const _DiscoverClubCard({
+    required this.club,
+    required this.user,
+    required this.onOpen,
+    this.fullWidth = false,
+    this.isMember,
+    this.isPending,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (user.isGuest) return _card(context, joined: false, pending: false);
+
+    // If caller pre-filtered membership and pending status, skip all per-card stream subscriptions!
+    if (isMember != null && isPending != null) {
+      if (isMember! || isPending!) return const SizedBox.shrink();
+      return _card(context, joined: isMember!, pending: isPending!);
+    }
+
     return StreamBuilder<ClubRole>(
       stream: ClubRepository.instance.watchUserRole(club.id, user.id),
       builder: (context, roleSnap) {
-        final isMember = (roleSnap.data ?? ClubRole.visitor) != ClubRole.visitor;
-        if (isMember) return const SizedBox.shrink();
+        final isJoined = (roleSnap.data ?? ClubRole.visitor) != ClubRole.visitor;
+        if (isJoined) return const SizedBox.shrink();
         return StreamBuilder<ClubJoinRequestStatus?>(
           stream: ClubRepository.instance.watchMyRequestStatus(club.id, user.id),
           builder: (context, reqSnap) {
             if (reqSnap.hasError) {
-              // Same reasoning as _MyClubTile above: this only gates
-              // whether the join card still shows, so record the failure
-              // and fall back to showing the card rather than an ErrorView
-              // wedged into a horizontally-scrolling card list.
               CrashService.instance.recordError(reqSnap.error, reqSnap.stackTrace,
                   context: 'ClubsPage.watchMyRequestStatus(${club.id}, ${user.id})');
               return _card(context, joined: false, pending: false);
@@ -654,82 +679,129 @@ class _DiscoverClubCard extends StatelessWidget {
           alignment: Alignment.center,
           child: Icon(iconOption.icon, color: accent, size: 26),
         );
-    return Container(
-      width: fullWidth ? double.infinity : 200,
-      decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
-      clipBehavior: Clip.antiAlias,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Stack(children: [
-          SizedBox(
-            height: 84, width: double.infinity,
-            child: hasCover
-                ? Image.network(club.bannerUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback())
-                : fallback(),
-          ),
-          // Real uploaded club logo photo when the admin has set one —
-          // see ClubLogo / Club.thumbnailUrl.
-          Positioned(
-            left: 10, bottom: -14,
-            child: Container(
-              width: 36, height: 36,
-              foregroundDecoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: ac.surf, width: 2.5),
+
+    final cardContent = Padding(
+      padding: const EdgeInsets.fromLTRB(14, 18, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: fullWidth ? MainAxisAlignment.start : MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                club.name,
+                style: AppText.title.copyWith(fontSize: 13.5),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              child: ClubLogo(club: club, size: 36, borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-        ]),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 20, 14, 14),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(club.name, style: AppText.title.copyWith(fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 4),
-            Row(children: [
-              Icon(club.requiresApproval ? Icons.lock_outline_rounded : Icons.public_rounded,
-                  size: 12, color: club.requiresApproval ? ac.pur : ac.grn),
-              const SizedBox(width: 4),
-              Text(club.requiresApproval ? 'Approval required' : 'Open to all',
-                  style: AppText.caption.copyWith(fontSize: 10.5, fontWeight: FontWeight.w700,
-                      color: club.requiresApproval ? ac.pur : ac.grn)),
-            ]),
-            const SizedBox(height: 6),
-            // Expanded only makes sense inside the horizontal preview's fixed-
-            // height card; the vertical "See all" list has no bounded height
-            // to expand into, so it just wraps the text directly there.
-            if (fullWidth)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(club.description, style: AppText.caption.copyWith(fontSize: 10.5, height: 1.3),
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
-              )
-            else
-              Expanded(
-                child: Text(club.description, style: AppText.caption.copyWith(fontSize: 10.5, height: 1.3),
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
-              ),
-            Row(children: [
-              _MemberAvatarStack(clubId: club.id),
-              const SizedBox(width: 6),
-              Text('${club.memberCount} members', style: AppText.caption.copyWith(fontSize: 10.5)),
-            ]),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => _handleJoin(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ac.navy, foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              const SizedBox(height: 3),
+              Row(children: [
+                Icon(club.requiresApproval ? Icons.lock_outline_rounded : Icons.public_rounded,
+                    size: 12, color: club.requiresApproval ? ac.pur : ac.grn),
+                const SizedBox(width: 4),
+                Text(
+                  club.requiresApproval ? 'Approval required' : 'Open to all',
+                  style: AppText.caption.copyWith(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: club.requiresApproval ? ac.pur : ac.grn,
+                  ),
                 ),
-                child: Text(club.requiresApproval ? 'Request to Join' : 'Join Group',
-                    style: AppText.caption.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+              ]),
+              const SizedBox(height: 5),
+              Text(
+                club.description,
+                style: AppText.caption.copyWith(fontSize: 10.5, height: 1.25),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ]),
+            ],
+          ),
+          if (fullWidth) const SizedBox(height: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                _MemberAvatarStack(clubId: club.id),
+                const SizedBox(width: 6),
+                Text('${club.memberCount} members', style: AppText.caption.copyWith(fontSize: 10.5)),
+              ]),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                height: 32,
+                child: ElevatedButton(
+                  onPressed: () => _handleJoin(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ac.navy,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 0),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: Text(
+                    club.requiresApproval ? 'Request to Join' : 'Join Group',
+                    style: AppText.caption.copyWith(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Rad.md),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onOpen();
+        },
+        child: Container(
+          width: fullWidth ? double.infinity : 200,
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  SizedBox(
+                    height: 84,
+                    width: double.infinity,
+                    child: hasCover
+                        ? Image.network(club.bannerUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback())
+                        : fallback(),
+                  ),
+                  Positioned(
+                    left: 10,
+                    bottom: -14,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      foregroundDecoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: ac.surf, width: 2.5),
+                      ),
+                      child: ClubLogo(club: club, size: 36, borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ],
+              ),
+              if (fullWidth)
+                cardContent
+              else
+                Expanded(child: cardContent),
+            ],
+          ),
         ),
-      ]),
+      ),
     );
   }
 

@@ -32,4 +32,13 @@ class LibraryFolder {
     imageUrl: (d['image_url'] as String?)?.isEmpty ?? true ? null : d['image_url'] as String,
     sortOrder: (d['sort_order'] as num?)?.toDouble() ?? 0,
   );
+
+  Map<String, dynamic> toSupabase() => {
+    'id': id,
+    'parent_id': parentId,
+    'name': name,
+    'emoji': emoji,
+    'image_url': imageUrl,
+    'sort_order': sortOrder,
+  };
 }

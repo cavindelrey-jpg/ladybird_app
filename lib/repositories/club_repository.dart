@@ -204,13 +204,38 @@ class ClubRepository {
   });
 
   /// IDs of every club [userId] currently has a PENDING join request for.
-  Stream<List<String>> watchMyPendingRequestClubIds(String userId) => _joinRequests
-      .stream(primaryKey: ['id'])
-      .eq('user_id', userId)
-      .map((rows) => rows
-          .where((r) => r['status'] == 'pending')
-          .map((r) => r['club_id'] as String)
-          .toList());
+  Stream<List<String>> watchMyPendingRequestClubIds(String userId) {
+    final controller = StreamController<List<String>>();
+    StreamSubscription? liveSub;
+
+    controller.onListen = () async {
+      final cacheKey = 'my_pending_club_ids_$userId';
+      final cached = await ContentCacheService.instance.getList(cacheKey);
+      if (cached != null && !controller.isClosed) {
+        controller.add(cached.map((e) => e['id'] as String).toList());
+      }
+
+      final stream = _joinRequests
+          .stream(primaryKey: ['id'])
+          .eq('user_id', userId);
+
+      liveSub = stream.listen((rows) {
+        if (controller.isClosed) return;
+        final ids = rows
+            .where((r) => r['status'] == 'pending')
+            .map((r) => r['club_id'] as String)
+            .toList();
+        final cacheList = ids.map((id) => {'id': id}).toList();
+        unawaited(ContentCacheService.instance.putList(cacheKey, cacheList));
+        controller.add(ids);
+      }, onError: (e) {
+        if (cached == null && !controller.isClosed) controller.addError(e);
+      });
+    };
+
+    controller.onCancel = () => liveSub?.cancel();
+    return controller.stream;
+  }
 
   /// Pending requests for a club — for its admins/moderators to review.
   Stream<List<ClubJoinRequest>> watchPendingRequests(String clubId) => _joinRequests
@@ -281,11 +306,36 @@ class ClubRepository {
   // 1:1 conversations in one Messages list) ─────────────────────────
 
   /// IDs of every club [userId] belongs to.
-  Stream<List<String>> watchMyClubIds(String userId) => _db
-      .from('club_members')
-      .stream(primaryKey: ['club_id', 'user_id'])
-      .eq('user_id', userId)
-      .map((rows) => rows.map((r) => r['club_id'] as String).toList());
+  Stream<List<String>> watchMyClubIds(String userId) {
+    final controller = StreamController<List<String>>();
+    StreamSubscription? liveSub;
+
+    controller.onListen = () async {
+      final cacheKey = 'my_club_ids_$userId';
+      final cached = await ContentCacheService.instance.getList(cacheKey);
+      if (cached != null && !controller.isClosed) {
+        controller.add(cached.map((e) => e['id'] as String).toList());
+      }
+
+      final stream = _db
+          .from('club_members')
+          .stream(primaryKey: ['club_id', 'user_id'])
+          .eq('user_id', userId);
+
+      liveSub = stream.listen((rows) {
+        if (controller.isClosed) return;
+        final ids = rows.map((r) => r['club_id'] as String).toList();
+        final cacheList = ids.map((id) => {'id': id}).toList();
+        unawaited(ContentCacheService.instance.putList(cacheKey, cacheList));
+        controller.add(ids);
+      }, onError: (e) {
+        if (cached == null && !controller.isClosed) controller.addError(e);
+      });
+    };
+
+    controller.onCancel = () => liveSub?.cancel();
+    return controller.stream;
+  }
 
   /// Full Club rows for [watchMyClubIds] — the actual data the merged
   /// inbox renders (name, emoji, lastMessage*).

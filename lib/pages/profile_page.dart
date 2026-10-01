@@ -58,7 +58,7 @@ class ProfilePage extends StatelessWidget {
             tooltip: 'Settings',
           ),
           TextButton.icon(
-            onPressed: () => AuthService.instance.signOut(),
+            onPressed: () => AuthService.instance.performSignOut(context),
             icon: Icon(Icons.logout_rounded, size: 18, color: ac.red),
             label: Text('Sign Out',
                 style: GoogleFonts.inter(fontSize: 13, color: ac.red, fontWeight: FontWeight.w600)),

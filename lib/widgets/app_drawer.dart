@@ -310,7 +310,7 @@ class AppDrawer extends StatelessWidget {
         title: Text('Sign Out', style: AppText.subtitle.copyWith(fontSize: 13, color: ac.red)),
         onTap: () {
           Navigator.of(context).pop();
-          AuthService.instance.signOut();
+          AuthService.instance.performSignOut(context);
         },
         dense: true,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.xs)),

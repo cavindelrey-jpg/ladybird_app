@@ -77,7 +77,7 @@ class SettingsPage extends StatelessWidget {
 
           const SizedBox(height: 24),
           _tile(context, Icons.logout_rounded, 'Sign Out', null,
-              () => AuthService.instance.signOut(), color: ac.red),
+              () => AuthService.instance.performSignOut(context), color: ac.red),
         ],
       )),
     );

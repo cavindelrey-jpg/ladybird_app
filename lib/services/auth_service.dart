@@ -21,6 +21,8 @@
 //      same pattern as XpRepository's award_xp/spend_xp.
 
 import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/branding.dart';
@@ -30,8 +32,11 @@ import '../core/xp_rules.dart';
 import '../core/result.dart';
 import '../repositories/school_repository.dart';
 import '../repositories/xp_repository.dart';
+import '../screens/app_router.dart';
+import '../widgets/widgets.dart';
 import 'analytics_service.dart' show AuditService, AuditSeverity;
 import 'app_user_cache_service.dart';
+import 'message_cache_service.dart';
 
 class AuthService {
   AuthService._();
@@ -267,6 +272,76 @@ class AuthService {
 
   Future<void> reactivateUser(String userId) =>
       _supabase.from('users').update({'status': AccountStatus.active.name}).eq('id', userId);
+
+  bool _isSigningOut = false;
+  bool get isSigningOut => _isSigningOut;
+
+  /// Explicit, immediate asynchronous logout with UI feedback.
+  /// Shows a non-dismissible loading indicator, prevents duplicate taps,
+  /// executes sign-out, and automatically cleans the navigation stack so the
+  /// user transitions immediately to the signed-out state without needing
+  /// to press the Android Back button.
+  Future<void> performSignOut(BuildContext context) async {
+    if (_isSigningOut) return;
+    _isSigningOut = true;
+
+    final nav = Navigator.of(context, rootNavigator: true);
+
+    // Show immediate progress dialog
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (dialogCtx) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          content: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+                const SizedBox(width: 20),
+                Text(
+                  'Signing out…',
+                  style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      await signOut();
+      unawaited(MessageCacheService.instance.clearAll());
+
+      // Pop all routes and land clean at AppRouter root
+      nav.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const AppRouter()),
+        (route) => false,
+      );
+    } catch (e) {
+      if (nav.canPop()) {
+        nav.pop();
+      }
+      if (context.mounted) {
+        showToast(
+          context,
+          'Failed to sign out: ${e.toString().replaceAll("Exception:", "").trim()}. Please try again.',
+          isError: true,
+        );
+      }
+    } finally {
+      _isSigningOut = false;
+    }
+  }
 
   Future<void> signOut() async {
     final uid = _supabase.auth.currentUser?.id;

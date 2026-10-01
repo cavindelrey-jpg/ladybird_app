@@ -36,6 +36,7 @@ import 'content_details_page.dart';
 import 'content_upload_page.dart';
 import 'recommended_library_page.dart';
 import 'folder_thumbnail_editor.dart';
+import 'content_viewer_page.dart';
 
 class LibraryHomePage extends StatelessWidget {
   final AppUser user;
@@ -66,6 +67,10 @@ class LibraryHomePage extends StatelessWidget {
             _sectionHeader('Recent Reads', ac),
             const SizedBox(height: 12),
             _recentReads(context, ac),
+            const SizedBox(height: 24),
+            _sectionHeader('Available Offline', ac, badge: 'Downloaded'),
+            const SizedBox(height: 12),
+            _offlineSection(context, ac),
           ],
         ),
       )),
@@ -106,13 +111,25 @@ class LibraryHomePage extends StatelessWidget {
     );
   }
 
-  Widget _sectionHeader(String title, AppColors ac, {VoidCallback? onSeeAll}) {
+  Widget _sectionHeader(String title, AppColors ac, {VoidCallback? onSeeAll, String? badge}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(children: [
         Container(width: 4, height: 18, decoration: BoxDecoration(color: ac.primary, borderRadius: BorderRadius.circular(2))),
         const SizedBox(width: 8),
-        Expanded(child: Text(title, style: AppText.h2.copyWith(fontSize: 16, color: ac.txt))),
+        Expanded(child: Row(
+          children: [
+            Text(title, style: AppText.h2.copyWith(fontSize: 16, color: ac.txt)),
+            if (badge != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: ac.grnBg, borderRadius: BorderRadius.circular(10)),
+                child: Text(badge, style: AppText.label.copyWith(fontSize: 9.5, color: ac.grn, fontWeight: FontWeight.bold, letterSpacing: 0)),
+              ),
+            ],
+          ],
+        )),
         if (onSeeAll != null)
           Material(
             color: Colors.transparent,
@@ -287,6 +304,89 @@ class LibraryHomePage extends StatelessWidget {
                   builder: (_) => ContentDetailsPage(contentId: c.id, user: user))),
             )).toList());
           },
+        );
+      },
+    );
+  }
+
+  Widget _offlineSection(BuildContext context, AppColors ac) {
+    return StreamBuilder<List<AcademicContent>>(
+      stream: AcademicContentRepository.instance.watchOfflineContent(),
+      builder: (context, snap) {
+        final items = snap.data ?? const <AcademicContent>[];
+        if (items.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: ac.surf,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: ac.bdr),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: ac.primary.withValues(alpha: .1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.cloud_download_outlined, color: ac.primary, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'No offline downloads yet',
+                          style: AppText.title.copyWith(fontSize: 14, color: ac.txt),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Save books, past papers, and documents to access them anywhere without internet.',
+                          style: AppText.caption.copyWith(fontSize: 11, color: ac.txt2, height: 1.3),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return SizedBox(
+          height: 180,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, i) {
+              final item = items[i];
+              return _OfflineContentCard(
+                item: item,
+                onTap: () async {
+                  HapticFeedback.selectionClick();
+                  final path = await AcademicContentRepository.instance.offlineFilePath(item.id);
+                  if (!context.mounted) return;
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ContentViewerPage(
+                      fileUrl: item.fileUrl,
+                      title: item.title,
+                      kind: ViewableFileKind.fromUrlOrExtension(item.fileUrl, item.fileType),
+                      contentId: item.id,
+                      userId: user.id,
+                      localFilePath: path,
+                    ),
+                  ));
+                },
+              );
+            },
+          ),
         );
       },
     );
@@ -474,3 +574,104 @@ class _RecentReadTile extends StatelessWidget {
     );
   }
 }
+
+class _OfflineContentCard extends StatelessWidget {
+  final AcademicContent item;
+  final VoidCallback onTap;
+  const _OfflineContentCard({required this.item, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final hasThumb = (item.thumbnailUrl ?? '').isNotEmpty;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          width: 148,
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: ac.bdr),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  SizedBox(
+                    height: 84,
+                    width: double.infinity,
+                    child: hasThumb
+                        ? Image.network(
+                            item.thumbnailUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _thumbFallback(ac),
+                          )
+                        : _thumbFallback(ac),
+                  ),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: ac.grnBg,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.offline_pin_rounded, size: 10, color: ac.grn),
+                          const SizedBox(width: 3),
+                          Text(
+                            'Offline',
+                            style: AppText.label.copyWith(fontSize: 8.5, color: ac.grn, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      style: AppText.title.copyWith(fontSize: 12.5),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.subject.isNotEmpty ? item.subject : item.contentType.label,
+                      style: AppText.caption.copyWith(fontSize: 10, color: ac.txt2),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _thumbFallback(AppColors ac) {
+    return Container(
+      color: ac.surf2,
+      alignment: Alignment.center,
+      child: Icon(item.contentType.icon, color: ac.primary, size: 28),
+    );
+  }
+}
+

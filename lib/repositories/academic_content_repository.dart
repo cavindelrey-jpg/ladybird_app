@@ -238,6 +238,10 @@ class AcademicContentRepository {
   // ─── Offline download (real on-device file caching) ─────────────────────
 
   static const _offlinePrefsPrefix = 'offline_content_path_';
+  static const _offlineMetaPrefix = 'offline_content_meta_';
+  static const _offlineIdsKey = 'offline_downloaded_ids';
+
+  final StreamController<void> _offlineNotifier = StreamController<void>.broadcast();
 
   /// Local file path for [contentId] if it's actually been downloaded to
   /// this device, else null. Cheap SharedPreferences lookup plus an
@@ -250,8 +254,44 @@ class AcademicContentRepository {
     return File(path).existsSync() ? path : null;
   }
 
+  /// All content items currently cached/downloaded to this device and available offline.
+  Future<List<AcademicContent>> getOfflineContent() async {
+    final prefs = await SharedPreferences.getInstance();
+    final ids = prefs.getStringList(_offlineIdsKey) ?? <String>[];
+    final validItems = <AcademicContent>[];
+    final cleanIds = <String>[];
+
+    for (final id in ids) {
+      final path = prefs.getString('$_offlinePrefsPrefix$id');
+      if (path != null && File(path).existsSync()) {
+        final metaStr = prefs.getString('$_offlineMetaPrefix$id');
+        if (metaStr != null && metaStr.isNotEmpty) {
+          try {
+            final json = jsonDecode(metaStr) as Map<String, dynamic>;
+            validItems.add(AcademicContent.fromSupabase(json));
+            cleanIds.add(id);
+          } catch (_) {}
+        }
+      }
+    }
+
+    if (cleanIds.length != ids.length) {
+      await prefs.setStringList(_offlineIdsKey, cleanIds);
+    }
+
+    return validItems;
+  }
+
+  /// Real-time stream of all offline-ready books, papers, and documents on this device.
+  Stream<List<AcademicContent>> watchOfflineContent() async* {
+    yield await getOfflineContent();
+    await for (final _ in _offlineNotifier.stream) {
+      yield await getOfflineContent();
+    }
+  }
+
   /// Downloads the content's file to app-local storage and records the
-  /// path so it can be opened without network afterward. Reports 0.0-1.0
+  /// path and metadata so it can be opened without network afterward. Reports 0.0-1.0
   /// progress where the response provides a content-length.
   Future<Result<String>> downloadForOffline(
     AcademicContent item, {
@@ -263,6 +303,14 @@ class AcademicContentRepository {
     }
     try {
       final path = await _streamToCache(item.id, url, onProgress: onProgress);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('$_offlineMetaPrefix${item.id}', jsonEncode(item.toSupabase()));
+      final ids = prefs.getStringList(_offlineIdsKey) ?? <String>[];
+      if (!ids.contains(item.id)) {
+        ids.add(item.id);
+        await prefs.setStringList(_offlineIdsKey, ids);
+      }
+      _offlineNotifier.add(null);
       return Success(path);
     } catch (e) {
       return Failure('Download failed — check your connection and try again.', e);
@@ -279,11 +327,35 @@ class AcademicContentRepository {
   Future<String> ensureLocalCopy({
     required String contentId,
     required String fileUrl,
+    AcademicContent? content,
     void Function(double)? onProgress,
   }) async {
     final existing = await offlineFilePath(contentId);
-    if (existing != null) return existing;
-    return _streamToCache(contentId, fileUrl, onProgress: onProgress);
+    if (existing != null) {
+      if (content != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('$_offlineMetaPrefix$contentId', jsonEncode(content.toSupabase()));
+        final ids = prefs.getStringList(_offlineIdsKey) ?? <String>[];
+        if (!ids.contains(contentId)) {
+          ids.add(contentId);
+          await prefs.setStringList(_offlineIdsKey, ids);
+          _offlineNotifier.add(null);
+        }
+      }
+      return existing;
+    }
+    final localPath = await _streamToCache(contentId, fileUrl, onProgress: onProgress);
+    if (content != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('$_offlineMetaPrefix$contentId', jsonEncode(content.toSupabase()));
+      final ids = prefs.getStringList(_offlineIdsKey) ?? <String>[];
+      if (!ids.contains(contentId)) {
+        ids.add(contentId);
+        await prefs.setStringList(_offlineIdsKey, ids);
+        _offlineNotifier.add(null);
+      }
+    }
+    return localPath;
   }
 
   /// Shared streaming-download core for [downloadForOffline] and
@@ -352,6 +424,13 @@ class AcademicContentRepository {
         // best-effort
       }
       await prefs.remove('$_offlinePrefsPrefix$contentId');
+      await prefs.remove('$_offlineMetaPrefix$contentId');
+      final ids = prefs.getStringList(_offlineIdsKey) ?? <String>[];
+      if (ids.contains(contentId)) {
+        ids.remove(contentId);
+        await prefs.setStringList(_offlineIdsKey, ids);
+      }
+      _offlineNotifier.add(null);
     }
   }
 

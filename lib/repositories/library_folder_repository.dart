@@ -14,6 +14,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/library_folder.dart';
 import '../models/academic_content.dart';
 import '../core/core.dart';
+import '../core/offline_cache.dart';
 
 /// Which root folder a given [ContentType] backfills into by default —
 /// mirrors the mapping in academia-cameroon's
@@ -41,18 +42,39 @@ class LibraryFolderRepository {
   final _memoizer = Memoizer();
 
   /// The top-level categories (Past Papers, Notes, Documents, Books, plus
-  /// anything an admin has added) — never a Dart-side constant list.
+  /// anything an admin has added) — cached offline so they load instantly
+  /// and remain available even without internet.
   Stream<List<LibraryFolder>> watchRootFolders() {
-    return _streamCache.watch('watchRootFolders', () => 
-      _folders.stream(primaryKey: ['id']).order('sort_order').map(
-          (rows) => rows.where((r) => r['parent_id'] == null).map(LibraryFolder.fromSupabase).toList())
+    final live = _folders
+        .stream(primaryKey: ['id'])
+        .order('sort_order')
+        .map((rows) => rows
+            .where((r) => r['parent_id'] == null)
+            .map(LibraryFolder.fromSupabase)
+            .toList());
+
+    return OfflineCache.instance.watch<List<LibraryFolder>>(
+      'library_root_folders',
+      live,
+      toJson: (list) => OfflineCache.listToJson(list, (f) => (f as LibraryFolder).toSupabase()),
+      fromJson: (json) => OfflineCache.listFromJson(json, (j) => LibraryFolder.fromSupabase(j)),
+      emptyValue: [],
     );
   }
 
   Stream<List<LibraryFolder>> watchChildFolders(String parentId) {
-    return _streamCache.watch('watchChildFolders_$parentId', () => 
-      _folders.stream(primaryKey: ['id']).eq('parent_id', parentId).order('sort_order').map(
-          (rows) => rows.map(LibraryFolder.fromSupabase).toList())
+    final live = _folders
+        .stream(primaryKey: ['id'])
+        .eq('parent_id', parentId)
+        .order('sort_order')
+        .map((rows) => rows.map(LibraryFolder.fromSupabase).toList());
+
+    return OfflineCache.instance.watch<List<LibraryFolder>>(
+      'library_child_folders_$parentId',
+      live,
+      toJson: (list) => OfflineCache.listToJson(list, (f) => (f as LibraryFolder).toSupabase()),
+      fromJson: (json) => OfflineCache.listFromJson(json, (j) => LibraryFolder.fromSupabase(j)),
+      emptyValue: [],
     );
   }
 

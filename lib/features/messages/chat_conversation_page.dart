@@ -101,10 +101,13 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   Timer? _presenceHeartbeat;
   StreamSubscription<Conversation?>? _convSub;
   Conversation? _conversation;
+  late final Stream<List<ChatMessage>> _messagesStream;
+  List<ChatMessage>? _lastKnownMessages;
 
   @override
   void initState() {
     super.initState();
+    _messagesStream = MessagingRepository.instance.watchMessages(widget.conversationId);
     MessagingRepository.instance.markConversationRead(widget.conversationId, widget.currentUser.id);
     MessagingRepository.instance.pingActive(widget.conversationId, widget.currentUser.id);
     _presenceHeartbeat = Timer.periodic(const Duration(seconds: 45), (_) {
@@ -288,16 +291,22 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       body: AppBackground(child: Column(children: [
         Expanded(
           child: StreamBuilder<List<ChatMessage>>(
-            stream: MessagingRepository.instance.watchMessages(widget.conversationId),
+            stream: _messagesStream,
             builder: (context, snap) {
-              if (snap.connectionState == ConnectionState.waiting) {
+              if (snap.hasData && snap.data != null) {
+                _lastKnownMessages = snap.data;
+              }
+              final messages = _lastKnownMessages != null
+                  ? List<ChatMessage>.from(_lastKnownMessages!)
+                  : <ChatMessage>[];
+              _messages = messages;
+
+              if (snap.connectionState == ConnectionState.waiting && messages.isEmpty) {
                 return const LoadingView();
               }
-              if (snap.hasError) {
-                return ErrorView(message: snap.error.toString());
+              if (snap.hasError && messages.isEmpty) {
+                return Center(child: ErrorView(message: snap.error.toString()));
               }
-              final messages = List.of(snap.data ?? const <ChatMessage>[]);
-              _messages = messages;
               if (messages.isEmpty) {
                 return const EmptyState(
                   icon: Icons.chat_bubble_outline_rounded,
@@ -305,19 +314,18 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
                   subtitle: 'Say hello to start the conversation.',
                 );
               }
-              
+
               // Sort newest first
               messages.sort((a, b) => b.sentAt.compareTo(a.sentAt));
 
               final items = <dynamic>[];
               DateTime? lastDay;
-              
+
               // Since we are reversed, items[0] is rendered at the absolute bottom.
               // We iterate newest -> oldest.
               for (final m in messages) {
                 final day = DateTime(m.sentAt.year, m.sentAt.month, m.sentAt.day);
                 if (lastDay != null && day != lastDay) {
-                  // Add date separator for the *previous* group we just finished iterating (which is newer)
                   items.add(lastDay);
                 }
                 items.add(m);
@@ -325,20 +333,47 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
               }
               if (lastDay != null) items.add(lastDay); // Separator for the oldest group at the very top
 
-              return ListView.builder(
-                controller: _scrollCtrl,
-                reverse: true,
-                padding: const EdgeInsets.all(16),
-                itemCount: items.length,
-                itemBuilder: (_, i) {
-                  final item = items[i];
-                  if (item is DateTime) return _DateSeparator(date: item);
-                  final m = item as ChatMessage;
-                  return _MessageBubble(
-                    message: m, isMe: m.senderId == widget.currentUser.id,
-                    otherUserId: widget.otherUserId, currentUser: widget.currentUser,
-                  );
-                },
+              final isOfflineOrError = snap.hasError;
+
+              return Column(
+                children: [
+                  if (isOfflineOrError)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
+                      color: ac.orgBg,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.wifi_off_rounded, size: 14, color: ac.org),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Offline — showing cached messages',
+                            style: AppText.caption.copyWith(fontSize: 11, color: ac.org, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: _scrollCtrl,
+                      reverse: true,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: items.length,
+                      itemBuilder: (_, i) {
+                        final item = items[i];
+                        if (item is DateTime) return _DateSeparator(date: item);
+                        final m = item as ChatMessage;
+                        return _MessageBubble(
+                          message: m,
+                          isMe: m.senderId == widget.currentUser.id,
+                          otherUserId: widget.otherUserId,
+                          currentUser: widget.currentUser,
+                        );
+                      },
+                    ),
+                  ),
+                ],
               );
             },
           ),
@@ -346,7 +381,8 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         if (_messages != null && _isRequest(_messages!))
           _buildRequestBanner(),
         if (_messages == null || !_isRequest(_messages!)) ...[
-          _quickAttachRow(),
+          if (MediaQuery.viewInsetsOf(context).bottom == 0)
+            _quickAttachRow(),
           _inputBar(),
         ]
       ])),
@@ -431,21 +467,18 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   }
 
   /// The mockup's five-icon row (Note/Course/Quiz/Article/Past Paper),
-  /// always visible above the input bar rather than buried in a bottom
-  /// sheet. Colors match each content type's existing color elsewhere in
-  /// the app (see the old bottom-sheet ListTile icon colors below, kept
-  /// identical here).
+  /// visible above the input bar when the keyboard is not open.
   Widget _quickAttachRow() {
     final ac = AppColors.of(context);
     return Container(
-      height: 78,
+      height: 70,
       decoration: BoxDecoration(
         color: ac.surf,
         border: Border(top: BorderSide(color: ac.bdr)),
       ),
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         children: [
           QuickAttachTile(icon: Icons.sticky_note_2_outlined, label: 'Note',
               color: ac.blu, bg: ac.bluBg, onTap: _pickNote),
@@ -521,31 +554,57 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     );
   }
 
-  /// Photo/Video/File only now — the five content shares live in the
-  /// always-visible row above (see _quickAttachRow).
   void _showAttachSheet() {
     final ac = AppColors.of(context);
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: Icon(Icons.image_outlined, color: ac.primary),
-            title: const Text('Photo'),
-            onTap: () { Navigator.pop(context); _pickAndSendMedia(isVideo: false); },
-          ),
-          ListTile(
-            leading: Icon(Icons.videocam_outlined, color: ac.primary),
-            title: const Text('Video'),
-            onTap: () { Navigator.pop(context); _pickAndSendMedia(isVideo: true); },
-          ),
-          ListTile(
-            leading: Icon(Icons.attach_file_rounded, color: ac.primary),
-            title: const Text('File'),
-            onTap: () { Navigator.pop(context); _pickAndSendFile(); },
-          ),
-        ]),
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            ListTile(
+              leading: Icon(Icons.image_outlined, color: ac.primary),
+              title: const Text('Photo'),
+              onTap: () { Navigator.pop(context); _pickAndSendMedia(isVideo: false); },
+            ),
+            ListTile(
+              leading: Icon(Icons.videocam_outlined, color: ac.primary),
+              title: const Text('Video'),
+              onTap: () { Navigator.pop(context); _pickAndSendMedia(isVideo: true); },
+            ),
+            ListTile(
+              leading: Icon(Icons.attach_file_rounded, color: ac.primary),
+              title: const Text('File'),
+              onTap: () { Navigator.pop(context); _pickAndSendFile(); },
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: Icon(Icons.sticky_note_2_outlined, color: ac.blu),
+              title: const Text('Share Note'),
+              onTap: () { Navigator.pop(context); _pickNote(); },
+            ),
+            ListTile(
+              leading: Icon(Icons.menu_book_rounded, color: ac.grn),
+              title: const Text('Share Course'),
+              onTap: () { Navigator.pop(context); _pickCourse(); },
+            ),
+            ListTile(
+              leading: Icon(Icons.quiz_rounded, color: ac.pur),
+              title: const Text('Share Quiz'),
+              onTap: () { Navigator.pop(context); _pickQuiz(); },
+            ),
+            ListTile(
+              leading: Icon(Icons.article_rounded, color: ac.org),
+              title: const Text('Share Article'),
+              onTap: () { Navigator.pop(context); _pickArticle(); },
+            ),
+            ListTile(
+              leading: Icon(Icons.history_edu_rounded, color: ac.gold),
+              title: const Text('Share Past Paper'),
+              onTap: () { Navigator.pop(context); _pickPastPaper(); },
+            ),
+          ]),
+        ),
       ),
     );
   }

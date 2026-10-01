@@ -243,7 +243,7 @@ class _SuspendedScreen extends StatelessWidget {
               style: GoogleFonts.inter(color: ac.txt2), textAlign: TextAlign.center),
           const SizedBox(height: 24),
           OutlinedButton(
-              onPressed: () => AuthService.instance.signOut(),
+              onPressed: () => AuthService.instance.performSignOut(context),
               child: const Text('Sign Out')),
         ]),
       )),

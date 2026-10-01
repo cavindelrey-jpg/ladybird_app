@@ -199,15 +199,101 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     });
   }
 
+  // ── Cached Streams & Futures (Prevent infinite rebuild loops) ───────
+  Stream<List<Conversation>>? _conversationsStream;
+  Stream<DailyLearningStreak?>? _streakStream;
+  Stream<(int, int)>? _xpStream;
+  Future<Map<String, int>>? _completionCountsFuture;
+  Future<({DailyLearningCourse course, DailyLearningLesson lesson, int completedCount, int totalCount})?>? _pendingDailyLessonFuture;
+  Future<({double average, List<SchoolMark> subjects})?>? _latestMarksFuture;
+  Stream<List<SchoolTimetableSlot>>? _timetableStream;
+  Stream<List<PersonalStudySlot>>? _personalStudyStream;
+  Stream<List<Homework>>? _homeworkStream;
+  Stream<List<Announcement>>? _announcementsStream;
+  Future<List<({String clubName, ClubEvent event})>>? _upcomingClubEventsFuture;
+
+  void _initStreamsAndFutures() {
+    final uid = _u?.id ?? '';
+    final schoolId = _u?.schoolId;
+    final classLevel = _u?.classLevel ?? '';
+
+    if (_isGuest || uid.isEmpty) {
+      _conversationsStream = const Stream.empty();
+      _streakStream = const Stream.empty();
+      _xpStream = const Stream.empty();
+      _completionCountsFuture = Future.value(const {});
+      _pendingDailyLessonFuture = Future.value(null);
+      _latestMarksFuture = Future.value(null);
+      _timetableStream = const Stream.empty();
+      _personalStudyStream = const Stream.empty();
+      _homeworkStream = const Stream.empty();
+      _announcementsStream = const Stream.empty();
+      _upcomingClubEventsFuture = Future.value(const []);
+      return;
+    }
+
+    _conversationsStream = MessagingRepository.instance.watchConversations(uid);
+    _streakStream = DailyLearningRepository.instance.watchStreak(uid);
+    _xpStream = XpRepository.instance.watchBalance(uid);
+    _completionCountsFuture = TestRepository.instance.subjectCompletionCountsOnce(uid);
+    _pendingDailyLessonFuture = _getPendingDailyLesson();
+
+    if (_u!.isSchoolMember) {
+      _latestMarksFuture = _latestMarksSummary();
+    } else {
+      _latestMarksFuture = Future.value(null);
+    }
+
+    if (_u!.isSchoolMember && schoolId != null && schoolId.isNotEmpty && classLevel.isNotEmpty) {
+      _timetableStream = SchoolTimetableRepository.instance.watchTodayForClass(schoolId, classLevel);
+      _homeworkStream = HomeworkRepository.instance.watchForClass(schoolId, classLevel);
+    } else {
+      _timetableStream = const Stream.empty();
+      _homeworkStream = const Stream.empty();
+    }
+
+    _personalStudyStream = PersonalStudyRepository.instance.watchToday(uid);
+    _announcementsStream = AnnouncementRepository.instance.watchAnnouncements(schoolId: schoolId);
+    _upcomingClubEventsFuture = _upcomingClubEvents();
+  }
+
+  Future<void> _handleRefresh() async {
+    _continueReadingKey = null;
+    _cachedContinueReadingFuture = null;
+    _recommendedKey = null;
+    _cachedRecommendedFuture = null;
+    if (mounted) {
+      setState(() {
+        _initStreamsAndFutures();
+      });
+    }
+    await Future.delayed(const Duration(milliseconds: 300));
+  }
+
   @override
   void initState() {
     super.initState();
+    _initStreamsAndFutures();
     _generateDailyNotifications();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showDailyChallengePopup();
     });
     if (!_isGuest) {
       AuthService.instance.recordDailyActivity(_u!);
+    }
+  }
+
+  @override
+  void didUpdateWidget(UniversalHomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.user?.id != widget.user?.id ||
+        oldWidget.user?.schoolId != widget.user?.schoolId ||
+        oldWidget.user?.classLevel != widget.user?.classLevel) {
+      _continueReadingKey = null;
+      _cachedContinueReadingFuture = null;
+      _recommendedKey = null;
+      _cachedRecommendedFuture = null;
+      _initStreamsAndFutures();
     }
   }
 
@@ -437,40 +523,45 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     return Container(
       color: ac.bg,
       child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.only(bottom: 32),
-          children: [
-            _topBar(context),
-            const SizedBox(height: 12),
-            _greetingHeader(context),
-            const SizedBox(height: 14),
-            _commandCenterHero(context),
-            const SizedBox(height: 18),
-            _progressAndGoalsStrip(context),
-            const SizedBox(height: 24),
-            _sectionHeader('Academic Hubs'),
-            const SizedBox(height: 12),
-            _academicHubsGrid(context),
-            const SizedBox(height: 12),
-            _secondaryToolsRow(context),
-            const SizedBox(height: 24),
-            _sectionHeader("Today's Schedule & Tasks"),
-            const SizedBox(height: 12),
-            _scheduleAndTasksRow(context),
-            const SizedBox(height: 24),
-            _sectionHeader("Campus & Community"),
-            const SizedBox(height: 12),
-            _campusAndCommunityRow(context),
-            const SizedBox(height: 24),
-            _sectionHeader(
-              'Recommended for You',
-              onViewAll: () => _open(context, LibraryHomePage(user: _userOrGuest)),
-            ),
-            const SizedBox(height: 12),
-            _recommendedRow(context),
-            const SizedBox(height: 24),
-            _academicProfileSummaryCard(context),
-          ],
+        child: RefreshIndicator(
+          color: ac.primary,
+          backgroundColor: ac.surf,
+          onRefresh: _handleRefresh,
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: 32),
+            children: [
+              _topBar(context),
+              const SizedBox(height: 12),
+              _greetingHeader(context),
+              const SizedBox(height: 14),
+              _commandCenterHero(context),
+              const SizedBox(height: 18),
+              _progressAndGoalsStrip(context),
+              const SizedBox(height: 24),
+              _sectionHeader('Academic Hubs'),
+              const SizedBox(height: 12),
+              _academicHubsGrid(context),
+              const SizedBox(height: 12),
+              _secondaryToolsRow(context),
+              const SizedBox(height: 24),
+              _sectionHeader("Today's Schedule & Tasks"),
+              const SizedBox(height: 12),
+              _scheduleAndTasksRow(context),
+              const SizedBox(height: 24),
+              _sectionHeader("Campus & Community"),
+              const SizedBox(height: 12),
+              _campusAndCommunityRow(context),
+              const SizedBox(height: 24),
+              _sectionHeader(
+                'Recommended for You',
+                onViewAll: () => _open(context, LibraryHomePage(user: _userOrGuest)),
+              ),
+              const SizedBox(height: 12),
+              _recommendedRow(context),
+              const SizedBox(height: 24),
+              _academicProfileSummaryCard(context),
+            ],
+          ),
         ),
       ),
     );
@@ -567,7 +658,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     final uid = _u?.id ?? '';
     if (uid.isEmpty) return const SizedBox.shrink();
     return StreamBuilder<List<Conversation>>(
-      stream: MessagingRepository.instance.watchConversations(uid),
+      stream: _conversationsStream ?? const Stream.empty(),
       builder: (context, snap) {
         final total = (snap.data ?? const <Conversation>[])
             .fold<int>(0, (sum, c) => sum + (c.unreadCount[uid] ?? 0));
@@ -662,7 +753,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           final readingData = readSnap.data;
 
           return StreamBuilder<DailyLearningStreak?>(
-            stream: _isGuest ? const Stream.empty() : DailyLearningRepository.instance.watchStreak(_u!.id),
+            stream: _streakStream ?? const Stream.empty(),
             builder: (context, streakSnap) {
               final streak = streakSnap.data;
               final now = DateTime.now();
@@ -678,7 +769,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                     int completedCount,
                     int totalCount
                   })?>(
-                future: _getPendingDailyLesson(),
+                future: _pendingDailyLessonFuture,
                 builder: (context, pendingSnap) {
                   final pending = pendingSnap.data;
 
@@ -1027,7 +1118,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             ),
             const SizedBox(height: 14),
             StreamBuilder<DailyLearningStreak?>(
-              stream: _isGuest ? const Stream.empty() : DailyLearningRepository.instance.watchStreak(_u!.id),
+              stream: _streakStream ?? const Stream.empty(),
               builder: (context, streakSnap) {
                 final streak = streakSnap.data;
                 final streakCount = streak?.currentStreak ?? 0;
@@ -1038,14 +1129,12 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                     streak.lastCompletedDate!.day == now.day;
 
                 return StreamBuilder<(int, int)>(
-                  stream: _isGuest ? const Stream.empty() : XpRepository.instance.watchBalance(_u!.id),
+                  stream: _xpStream ?? const Stream.empty(),
                   builder: (context, xpSnap) {
                     final lifetimeXp = _isGuest ? 0 : (xpSnap.data?.$2 ?? 0);
 
                     return FutureBuilder<Map<String, int>>(
-                      future: _isGuest
-                          ? Future.value(const {})
-                          : TestRepository.instance.subjectCompletionCountsOnce(_u!.id),
+                      future: _completionCountsFuture ?? Future.value(const {}),
                       builder: (context, badgeSnap) {
                         final quizzesPassed =
                             (badgeSnap.data ?? const {}).values.fold<int>(0, (s, v) => s + v);
@@ -1110,7 +1199,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
               Divider(height: 1, color: ac.bdr.withValues(alpha: 0.6)),
               const SizedBox(height: 12),
               FutureBuilder<({double average, List<SchoolMark> subjects})?>(
-                future: _latestMarksSummary(),
+                future: _latestMarksFuture,
                 builder: (context, marksSnap) {
                   final marksData = marksSnap.data;
                   if (marksData == null || marksData.subjects.isEmpty) {
@@ -1467,7 +1556,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     final schoolId = _u!.schoolId;
     if (_u!.isSchoolMember && schoolId != null && schoolId.isNotEmpty && _u!.classLevel.isNotEmpty) {
       return StreamBuilder<List<SchoolTimetableSlot>>(
-        stream: SchoolTimetableRepository.instance.watchTodayForClass(schoolId, _u!.classLevel),
+        stream: _timetableStream ?? const Stream.empty(),
         builder: (context, snap) {
           final slots = snap.data ?? const <SchoolTimetableSlot>[];
           if (snap.connectionState == ConnectionState.waiting) {
@@ -1536,7 +1625,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       );
     }
     return StreamBuilder<List<PersonalStudySlot>>(
-      stream: PersonalStudyRepository.instance.watchToday(uid),
+      stream: _personalStudyStream ?? const Stream.empty(),
       builder: (context, snap) {
         final slots = snap.data ?? const <PersonalStudySlot>[];
         if (snap.connectionState == ConnectionState.waiting) {
@@ -1605,7 +1694,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     final schoolId = _u!.schoolId;
     if (_u!.isSchoolMember && schoolId != null && schoolId.isNotEmpty && _u!.classLevel.isNotEmpty) {
       return StreamBuilder<List<Homework>>(
-        stream: HomeworkRepository.instance.watchForClass(schoolId, _u!.classLevel),
+        stream: _homeworkStream ?? const Stream.empty(),
         builder: (context, snap) {
           final homeworkList = snap.data ?? const <Homework>[];
           if (snap.connectionState == ConnectionState.waiting) {
@@ -1838,7 +1927,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
 
   Widget _announcementsContent() {
     return StreamBuilder<List<Announcement>>(
-      stream: AnnouncementRepository.instance.watchAnnouncements(schoolId: _u?.schoolId),
+      stream: _announcementsStream ?? const Stream.empty(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const SizedBox(height: 50, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
@@ -1902,7 +1991,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       );
     }
     return FutureBuilder<List<({String clubName, ClubEvent event})>>(
-      future: _upcomingClubEvents(),
+      future: _upcomingClubEventsFuture,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const SizedBox(height: 40, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));

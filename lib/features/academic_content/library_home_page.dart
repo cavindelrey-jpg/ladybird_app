@@ -670,7 +670,7 @@ class _OfflineContentCard extends StatelessWidget {
     return Container(
       color: ac.surf2,
       alignment: Alignment.center,
-      child: Icon(item.contentType.icon, color: ac.primary, size: 28),
+      child: Text(item.contentType.emoji, style: const TextStyle(fontSize: 26)),
     );
   }
 }

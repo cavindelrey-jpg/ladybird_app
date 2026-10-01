@@ -491,7 +491,7 @@ class _ClubsSkeleton extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (_, __) => const SizedBox(
               width: 200,
-              child: ShimmerBlock(height: 245, radius: 14),
+              child: ShimmerBlock(height: 245, borderRadius: Rad.md),
             ),
           ),
         ),
@@ -507,7 +507,7 @@ class _ClubsSkeleton extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (_, __) => const SizedBox(
               width: 200,
-              child: ShimmerBlock(height: 275, radius: 14),
+              child: ShimmerBlock(height: 275, borderRadius: Rad.md),
             ),
           ),
         ),

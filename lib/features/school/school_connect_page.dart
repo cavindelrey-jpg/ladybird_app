@@ -27,6 +27,7 @@ import '../../repositories/school_event_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../pages/notifications_page.dart';
+import '../announcements/announcements_page.dart';
 import 'daily_notices/daily_notices_page.dart';
 import 'exam_composer/exam_list_page.dart';
 import 'school_calendar_manager_page.dart';

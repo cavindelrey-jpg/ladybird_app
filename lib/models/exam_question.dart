@@ -7,6 +7,8 @@
 import 'essay_key_point.dart';
 import 'test.dart';
 
+export 'test.dart' show QuestionType, QuestionTypeExt;
+
 class ExamQuestion {
   final String id;
   final String content; // Question prompt / text
@@ -116,7 +118,7 @@ class ExamQuestion {
       correctOptionIndex: (json['correct_option_index'] as num?)?.toInt() ?? (json['correctIndex'] as num?)?.toInt(),
       rubric: json['rubric'] as String? ?? json['rubric_guidance'] as String?,
       expectedPoints: (json['expected_points'] as List<dynamic>? ?? [])
-          .map((e) => EssayKeyPoint.fromSupabase(e as Map<String, dynamic>))
+          .map((e) => EssayKeyPoint.fromMap(e as Map<String, dynamic>))
           .toList(),
       tags: (json['tags'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
       schoolId: json['school_id'] as String?,
@@ -141,7 +143,7 @@ class ExamQuestion {
         'options': options,
         'correct_option_index': correctOptionIndex,
         'rubric': rubric,
-        'expected_points': expectedPoints.map((e) => e.toSupabase()).toList(),
+        'expected_points': expectedPoints.map((e) => e.toMap()).toList(),
         'tags': tags,
         'school_id': schoolId,
         'created_by': createdBy,

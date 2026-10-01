@@ -101,6 +101,7 @@ class _TestTakingPageState extends State<TestTakingPage> {
   }
 
   Future<void> _submit() async {
+    final ac = AppColors.of(context);
     if (widget.user.isGuest) {
       showToast(context, 'Sign in to submit a test', isError: true);
       return;

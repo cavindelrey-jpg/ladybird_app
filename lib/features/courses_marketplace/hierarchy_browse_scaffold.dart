@@ -1,9 +1,7 @@
 // lib/features/courses_marketplace/hierarchy_browse_scaffold.dart
 // Shared shell for every "browse one level of the hierarchy" screen
-// (Subjects-in-Level, Topics-in-Subject, Courses-in-Topic, Lessons-in-
-// Course): header with a live count, search field, and the persistent
-// grid/list toggle (CoursesViewModeService) — only the item content
-// differs between screens, so only that's passed in.
+// (Subjects-in-Level, Topics-in-Subject, Courses-in-Topic, Lessons-in-Course,
+// Library folders). Supports search, grid/list toggle, and multi-select mode.
 
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
@@ -24,6 +22,12 @@ class HierarchyBrowseScaffold<T> extends StatefulWidget {
   final String emptyMessage;
   final Widget? floatingActionButton;
 
+  // Multi-select support
+  final bool isSelecting;
+  final String? selectionTitle;
+  final List<Widget>? selectionActions;
+  final VoidCallback? onCancelSelection;
+
   const HierarchyBrowseScaffold({
     super.key,
     required this.title,
@@ -36,6 +40,10 @@ class HierarchyBrowseScaffold<T> extends StatefulWidget {
     required this.listTileBuilder,
     this.emptyMessage = 'Nothing here yet.',
     this.floatingActionButton,
+    this.isSelecting = false,
+    this.selectionTitle,
+    this.selectionActions,
+    this.onCancelSelection,
   });
 
   @override
@@ -63,43 +71,65 @@ class _HierarchyBrowseScaffoldState<T> extends State<HierarchyBrowseScaffold<T>>
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
+    final isSelecting = widget.isSelecting;
+
     return Scaffold(
       backgroundColor: ac.bg,
-      floatingActionButton: widget.floatingActionButton,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(widget.title, style: AppText.title.copyWith(fontSize: 16)),
-          if (widget.subtitle != null)
-            Text(widget.subtitle!, style: AppText.caption.copyWith(fontSize: 11)),
-        ]),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: HierarchyViewToggle(isGrid: _isGrid, onChanged: (grid) {
-              setState(() => _isGrid = grid);
-              CoursesViewModeService.setGrid(grid);
-            }),
-          ),
-        ],
-      ),
+      floatingActionButton: isSelecting ? null : widget.floatingActionButton,
+      appBar: isSelecting
+          ? AppBar(
+              backgroundColor: ac.surf,
+              elevation: 1,
+              leading: IconButton(
+                icon: const Icon(Icons.close_rounded),
+                onPressed: widget.onCancelSelection,
+              ),
+              title: Text(widget.selectionTitle ?? 'Select Items',
+                  style: AppText.title.copyWith(fontSize: 16, color: ac.txt)),
+              actions: [
+                if (widget.selectionActions != null) ...widget.selectionActions!,
+              ],
+            )
+          : AppBar(
+              backgroundColor: ac.bg,
+              elevation: 0,
+              iconTheme: IconThemeData(color: ac.txt),
+              title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(widget.title, style: AppText.title.copyWith(fontSize: 16)),
+                if (widget.subtitle != null)
+                  Text(widget.subtitle!, style: AppText.caption.copyWith(fontSize: 11)),
+              ]),
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: HierarchyViewToggle(
+                    isGrid: _isGrid,
+                    onChanged: (grid) {
+                      setState(() => _isGrid = grid);
+                      CoursesViewModeService.setGrid(grid);
+                    },
+                  ),
+                ),
+              ],
+            ),
       body: AppBackground(
         child: Column(children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: TextField(
-              onChanged: (v) => setState(() => _query = v),
-              style: AppText.bodySm.copyWith(color: ac.txt),
-              decoration: InputDecoration(
-                hintText: widget.searchHint,
-                hintStyle: AppText.bodySm.copyWith(color: ac.muted),
-                prefixIcon: Icon(Icons.search_rounded, size: 18, color: ac.muted),
-                filled: true, fillColor: ac.surf2,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          if (!isSelecting)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: TextField(
+                onChanged: (v) => setState(() => _query = v),
+                style: AppText.bodySm.copyWith(color: ac.txt),
+                decoration: InputDecoration(
+                  hintText: widget.searchHint,
+                  hintStyle: AppText.bodySm.copyWith(color: ac.muted),
+                  prefixIcon: Icon(Icons.search_rounded, size: 18, color: ac.muted),
+                  filled: true,
+                  fillColor: ac.surf2,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
               ),
             ),
-          ),
           Expanded(child: _body(ac)),
         ]),
       ),

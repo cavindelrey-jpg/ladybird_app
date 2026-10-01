@@ -19,3 +19,6 @@ export 'school.dart';
 export 'school_voucher.dart';
 export 'academia_voucher.dart';
 export 'teaching_assignment.dart';
+export 'exam_question.dart';
+export 'examination.dart';
+export 'daily_notice.dart';

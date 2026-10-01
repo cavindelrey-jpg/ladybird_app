@@ -11,6 +11,7 @@ import '../repositories/notification_repository.dart';
 import '../widgets/widgets.dart';
 import '../models/app_user.dart';
 import '../features/messages/messages_home_page.dart';
+import '../features/school/daily_notices/daily_notices_page.dart';
 
 import '../widgets/app_background.dart';
 class NotificationsPage extends StatelessWidget {
@@ -105,6 +106,8 @@ class NotificationsPage extends StatelessWidget {
                       NotificationRepository.instance.markRead(user.id, n.id);
                       if (n.type == NotificationType.message) {
                         Navigator.push(context, MaterialPageRoute(builder: (_) => MessagesHomePage(user: user)));
+                      } else if (n.type == NotificationType.dailyProgram || n.type == NotificationType.announcement || n.type == NotificationType.homework) {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => DailyNoticesPage(user: user)));
                       }
                     },
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -1,8 +1,7 @@
 // lib/features/academic_content/library_folder_page.dart
 // One level of the Academia Library's File Explorer: shows this folder's
-// subfolders and the items filed directly in it. Tapping a subfolder
-// recurses into another instance of this same page — the tree has no
-// fixed depth, per the user's "just like a computer file explorer" spec.
+// subfolders and the items filed directly in it. Supports grid/list modes
+// and multi-select mode with batch offline downloads.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +10,7 @@ import '../../models/app_user.dart';
 import '../../models/library_folder.dart';
 import '../../models/academic_content.dart';
 import '../../repositories/library_folder_repository.dart';
+import '../../repositories/academic_content_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
@@ -44,6 +44,65 @@ class _Entry {
 class _LibraryFolderPageState extends State<LibraryFolderPage> {
   bool get _canManage => widget.user.canUploadContent;
 
+  bool _isSelecting = false;
+  final Set<String> _selectedIds = {};
+  bool _batchDownloading = false;
+
+  void _enterSelection(String? initialId) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _isSelecting = true;
+      _selectedIds.clear();
+      if (initialId != null) _selectedIds.add(initialId);
+    });
+  }
+
+  void _exitSelection() {
+    setState(() {
+      _isSelecting = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _toggleItem(String id) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+        if (_selectedIds.isEmpty) _isSelecting = false;
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _batchDownloadOffline(List<AcademicContent> allItems) async {
+    final toDownload = allItems.where((i) => _selectedIds.contains(i.id)).toList();
+    if (toDownload.isEmpty) return;
+
+    setState(() => _batchDownloading = true);
+    int successCount = 0;
+
+    for (final item in toDownload) {
+      if ((item.fileUrl ?? '').isNotEmpty) {
+        try {
+          await AcademicContentRepository.instance.downloadForOffline(item);
+          successCount++;
+        } catch (_) {}
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _batchDownloading = false;
+        _exitSelection();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Downloaded $successCount item${successCount == 1 ? '' : 's'} for offline access.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
@@ -59,9 +118,15 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
                   context: 'LibraryFolderPage(${widget.folderId})');
               return Scaffold(
                 backgroundColor: ac.bg,
-                appBar: AppBar(backgroundColor: ac.bg, elevation: 0, iconTheme: IconThemeData(color: ac.txt),
-                    title: Text(widget.folderName, style: AppText.title.copyWith(fontSize: 16, color: ac.txt))),
-                body: AppBackground(child: ErrorView(message: "Couldn't load this folder — ${folderSnap.error ?? itemSnap.error}")),
+                appBar: AppBar(
+                  backgroundColor: ac.bg,
+                  elevation: 0,
+                  iconTheme: IconThemeData(color: ac.txt),
+                  title: Text(widget.folderName, style: AppText.title.copyWith(fontSize: 16, color: ac.txt)),
+                ),
+                body: AppBackground(
+                  child: ErrorView(message: "Couldn't load this folder — ${folderSnap.error ?? itemSnap.error}"),
+                ),
               );
             }
             final items = itemSnap.data ?? const <AcademicContent>[];
@@ -74,6 +139,7 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
                 if (a.isFolder != b.isFolder) return a.isFolder ? -1 : 1;
                 return a.sortKey.toLowerCase().compareTo(b.sortKey.toLowerCase());
               });
+
             return HierarchyBrowseScaffold<_Entry>(
               title: widget.folderName,
               subtitle: '${folders.length} folder${folders.length == 1 ? '' : 's'} · '
@@ -82,20 +148,70 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
               loading: loading,
               items: entries,
               searchableText: (e) => e.sortKey,
-              emptyMessage: _canManage
-                  ? 'Empty — use + below to add a folder or file.'
-                  : 'Nothing here yet.',
+              emptyMessage: _canManage ? 'Empty — use + below to add a folder or file.' : 'Nothing here yet.',
+              isSelecting: _isSelecting,
+              selectionTitle: '${_selectedIds.length} selected',
+              onCancelSelection: _exitSelection,
+              selectionActions: [
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedIds.addAll(items.map((i) => i.id));
+                    });
+                  },
+                  child: const Text('Select All'),
+                ),
+                if (_batchDownloading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  )
+                else
+                  IconButton(
+                    icon: const Icon(Icons.download_rounded),
+                    tooltip: 'Save selected offline',
+                    onPressed: _selectedIds.isEmpty ? null : () => _batchDownloadOffline(items),
+                  ),
+              ],
               gridTileBuilder: (context, e) => _EntryTile(
-                entry: e, isGrid: true, canManage: _canManage,
-                onOpen: () => _open(context, e),
+                entry: e,
+                isGrid: true,
+                canManage: _canManage,
+                isSelecting: _isSelecting,
+                isSelected: e.content != null && _selectedIds.contains(e.content!.id),
+                onOpen: () {
+                  if (_isSelecting && e.content != null) {
+                    _toggleItem(e.content!.id);
+                  } else {
+                    _open(context, e);
+                  }
+                },
+                onLongPress: e.content != null ? () => _enterSelection(e.content!.id) : null,
                 onRename: () => _renameFolder(context, e.folder!),
                 onDelete: () => _deleteFolder(context, e.folder!),
                 onMoveFolder: () => _moveFolder(context, e.folder!),
                 onMove: () => _moveItem(context, e.content!),
               ),
               listTileBuilder: (context, e) => _EntryTile(
-                entry: e, isGrid: false, canManage: _canManage,
-                onOpen: () => _open(context, e),
+                entry: e,
+                isGrid: false,
+                canManage: _canManage,
+                isSelecting: _isSelecting,
+                isSelected: e.content != null && _selectedIds.contains(e.content!.id),
+                onOpen: () {
+                  if (_isSelecting && e.content != null) {
+                    _toggleItem(e.content!.id);
+                  } else {
+                    _open(context, e);
+                  }
+                },
+                onLongPress: e.content != null ? () => _enterSelection(e.content!.id) : null,
                 onRename: () => _renameFolder(context, e.folder!),
                 onDelete: () => _deleteFolder(context, e.folder!),
                 onMoveFolder: () => _moveFolder(context, e.folder!),
@@ -119,8 +235,9 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
   void _open(BuildContext context, _Entry e) {
     HapticFeedback.selectionClick();
     if (e.isFolder) {
-      Navigator.of(context).push(MaterialPageRoute(builder: (_) => LibraryFolderPage(
-          folderId: e.folder!.id, folderName: e.folder!.name, user: widget.user)));
+      Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => LibraryFolderPage(
+              folderId: e.folder!.id, folderName: e.folder!.name, user: widget.user)));
     } else {
       Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => ContentDetailsPage(contentId: e.content!.id, user: widget.user)));
@@ -150,6 +267,14 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
               Navigator.pop(sheetContext);
               Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => ContentUploadPage(user: widget.user, initialFolderId: widget.folderId)));
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.checklist_rounded, color: ac.primary),
+            title: const Text('Select multiple files'),
+            onTap: () {
+              Navigator.pop(sheetContext);
+              _enterSelection(null);
             },
           ),
         ]),
@@ -232,15 +357,27 @@ class _EntryTile extends StatelessWidget {
   final _Entry entry;
   final bool isGrid;
   final bool canManage;
+  final bool isSelecting;
+  final bool isSelected;
   final VoidCallback onOpen;
+  final VoidCallback? onLongPress;
   final VoidCallback onRename;
   final VoidCallback onDelete;
   final VoidCallback onMoveFolder;
   final VoidCallback onMove;
+
   const _EntryTile({
-    required this.entry, required this.isGrid, required this.canManage,
-    required this.onOpen, required this.onRename, required this.onDelete,
-    required this.onMoveFolder, required this.onMove,
+    required this.entry,
+    required this.isGrid,
+    required this.canManage,
+    this.isSelecting = false,
+    this.isSelected = false,
+    required this.onOpen,
+    this.onLongPress,
+    required this.onRename,
+    required this.onDelete,
+    required this.onMoveFolder,
+    required this.onMove,
   });
 
   @override
@@ -348,24 +485,51 @@ class _EntryTile extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(Rad.md),
           onTap: onOpen,
-          onLongPress: canManage ? () => _showFileMenu(context) : null,
+          onLongPress: onLongPress ?? (canManage ? () => _showFileMenu(context) : null),
           child: Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: (item.thumbnailUrl ?? '').isNotEmpty
-                      ? Image.network(item.thumbnailUrl!, fit: BoxFit.cover, width: double.infinity,
-                          errorBuilder: (_, __, ___) => _filePlaceholder(ac, item))
-                      : _filePlaceholder(ac, item),
-                ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(Rad.md),
+              border: Border.all(
+                color: isSelected ? ac.primary : ac.bdr2,
+                width: isSelected ? 2 : 1,
               ),
-              const SizedBox(height: 6),
-              Text(item.title, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5, color: ac.txt),
-                  maxLines: 2, overflow: TextOverflow.ellipsis),
-            ]),
+            ),
+            child: Stack(
+              children: [
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: (item.thumbnailUrl ?? '').isNotEmpty
+                          ? Image.network(item.thumbnailUrl!, fit: BoxFit.cover, width: double.infinity,
+                              errorBuilder: (_, __, ___) => _filePlaceholder(ac, item))
+                          : _filePlaceholder(ac, item),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(item.title, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5, color: ac.txt),
+                      maxLines: 2, overflow: TextOverflow.ellipsis),
+                ]),
+                if (isSelecting)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isSelected ? ac.primary : Colors.black45,
+                        shape: BoxShape.circle,
+                      ),
+                      padding: const EdgeInsets.all(2),
+                      child: Icon(
+                        isSelected ? Icons.check : Icons.circle_outlined,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       );
@@ -376,11 +540,26 @@ class _EntryTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(Rad.md),
         onTap: onOpen,
-        onLongPress: canManage ? () => _showFileMenu(context) : null,
+        onLongPress: onLongPress ?? (canManage ? () => _showFileMenu(context) : null),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(
+              color: isSelected ? ac.primary : ac.bdr2,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
           child: Row(children: [
+            if (isSelecting)
+              Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: Icon(
+                  isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                  color: isSelected ? ac.primary : ac.muted,
+                  size: 20,
+                ),
+              ),
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: SizedBox(width: 44, height: 44,

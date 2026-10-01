@@ -72,6 +72,8 @@ import '../daily_learning/daily_learning_hub_page.dart';
 import '../daily_learning/daily_learning_lesson_page.dart';
 import '../magazine/magazine_feed_page.dart';
 import '../messages/messages_home_page.dart';
+import '../school/daily_notices/daily_notices_page.dart';
+import '../school/exam_composer/exam_list_page.dart';
 import '../school/homework_page.dart';
 import '../school/marks_page.dart';
 import '../school/school_connect_page.dart';
@@ -79,6 +81,7 @@ import '../school/timetable_page.dart';
 import '../testing/quiz_categories_page.dart';
 import '../testing/xp_dashboard_page.dart';
 import '../timetable/personal_study_page.dart';
+import '../../services/timetable_notification_service.dart';
 
 /// Card shadow used throughout this page — soft, physical elevation.
 const List<BoxShadow> _glow = [
@@ -247,6 +250,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     if (_u!.isSchoolMember && schoolId != null && schoolId.isNotEmpty && classLevel.isNotEmpty) {
       _timetableStream = SchoolTimetableRepository.instance.watchTodayForClass(schoolId, classLevel);
       _homeworkStream = HomeworkRepository.instance.watchForClass(schoolId, classLevel);
+      TimetableNotificationService.instance.checkNow(_u!);
     } else {
       _timetableStream = const Stream.empty();
       _homeworkStream = const Stream.empty();
@@ -1465,9 +1469,15 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           () => _open(context, DailyLearningHubPage(user: _userOrGuest))),
       ('Magazine', Icons.auto_stories_rounded, ac.gold,
           () => _open(context, MagazineFeedPage(user: _userOrGuest))),
-      if (isSchoolMember)
+      if (isSchoolMember) ...[
         ('School Connect', Icons.forum_outlined, ac.pur,
             () => _open(context, SchoolConnectPage(user: _u!))),
+        ('Daily Notices', Icons.campaign_outlined, ac.org,
+            () => _open(context, DailyNoticesPage(user: _u!))),
+        if (_u!.isAdmin || _u!.isTeacher || _u!.isSchoolClassMaster || _u!.canManageSchool)
+          ('Exam Composer', Icons.assignment_outlined, ac.primary,
+              () => _open(context, ExamListPage(user: _u!))),
+      ],
       if (_u?.isSuperAdmin == true)
         ('Command Center', Icons.admin_panel_settings, Colors.red,
             () => _open(context, const CommandCenterScreen())),

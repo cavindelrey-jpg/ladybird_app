@@ -27,7 +27,8 @@ import '../../repositories/school_event_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../pages/notifications_page.dart';
-import '../announcements/announcements_page.dart';
+import 'daily_notices/daily_notices_page.dart';
+import 'exam_composer/exam_list_page.dart';
 import 'school_calendar_manager_page.dart';
 import 'school_request_form_page.dart';
 import 'school_requests_admin_page.dart';
@@ -70,6 +71,8 @@ class SchoolConnectPage extends StatelessWidget {
               children: [
                 StudentInfoCard(user: user),
                 const SizedBox(height: 16),
+                _academicToolsRow(context, ac),
+                const SizedBox(height: 16),
                 _quickActionBox(context, ac),
                 const SizedBox(height: 20),
                 _sectionLabel(ac, 'How can we help you today?'),
@@ -81,6 +84,96 @@ class SchoolConnectPage extends StatelessWidget {
                 _contactFooter(context, ac),
               ],
             ),
+    );
+  }
+
+  Widget _academicToolsRow(BuildContext context, AppColors ac) {
+    final canComposeExam = user.isAdmin || user.isTeacher || user.isSchoolClassMaster || user.canManageSchool;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Material(
+              color: ac.surf,
+              borderRadius: BorderRadius.circular(Rad.md),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(Rad.md),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => DailyNoticesPage(user: user),
+                )),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(Rad.md),
+                    border: Border.all(color: ac.bdr2),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: ac.orgBg, borderRadius: BorderRadius.circular(8)),
+                        child: Icon(Icons.campaign_outlined, color: ac.org, size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Daily Notices', style: AppText.title.copyWith(fontSize: 13, color: ac.txt)),
+                            Text("Tomorrow's Programme", style: AppText.caption.copyWith(color: ac.muted, fontSize: 10)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (canComposeExam) ...[
+            const SizedBox(width: 10),
+            Expanded(
+              child: Material(
+                color: ac.surf,
+                borderRadius: BorderRadius.circular(Rad.md),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Rad.md),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ExamListPage(user: user),
+                  )),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(Rad.md),
+                      border: Border.all(color: ac.bdr2),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(8)),
+                          child: Icon(Icons.assignment_outlined, color: ac.primary, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Exam Composer', style: AppText.title.copyWith(fontSize: 13, color: ac.txt)),
+                              Text('Question Bank', style: AppText.caption.copyWith(color: ac.muted, fontSize: 10)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

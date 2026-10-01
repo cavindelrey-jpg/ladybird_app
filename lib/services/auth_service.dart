@@ -49,12 +49,21 @@ class AuthService {
   Stream<User?> get authStateChanges =>
       _supabase.auth.onAuthStateChange.map((state) => state.session?.user);
 
+  AppUser? _lastKnownUser;
+  AppUser? get lastKnownUser =>
+      _lastKnownUser ??
+      (firebaseUser != null
+          ? AppUserCacheService.instance.getCachedInMemory(firebaseUser!.id)
+          : null);
+
   Future<AppUser?> currentAppUser() async {
     final u = _supabase.auth.currentUser;
     if (u == null) return null;
     final row = await _supabase.from('users').select().eq('id', u.id).maybeSingle();
     if (row == null) return null;
-    return AppUser.fromSupabase(row);
+    final user = AppUser.fromSupabase(row);
+    _lastKnownUser = user;
+    return user;
   }
 
   /// Live-updates whenever the user's row changes (XP awarded, streak
@@ -79,12 +88,14 @@ class AuthService {
     Future<void> emitCacheThenFetch() async {
       final cached = await AppUserCacheService.instance.getUser(uid);
       if (cached != null && !controller.isClosed) {
+        _lastKnownUser = cached;
         controller.add(cached);
       }
       try {
         final fresh = await currentAppUser();
         if (controller.isClosed) return;
         if (fresh != null) {
+          _lastKnownUser = fresh;
           unawaited(AppUserCacheService.instance.putUser(fresh));
           controller.add(fresh);
         } else if (cached == null) {
@@ -112,6 +123,7 @@ class AuthService {
             if (controller.isClosed) return;
             if (rows.isNotEmpty) {
               final user = AppUser.fromSupabase(rows.first);
+              _lastKnownUser = user;
               unawaited(AppUserCacheService.instance.putUser(user));
               controller.add(user);
             }
@@ -344,6 +356,7 @@ class AuthService {
   }
 
   Future<void> signOut() async {
+    _lastKnownUser = null;
     final uid = _supabase.auth.currentUser?.id;
     if (uid != null) unawaited(AppUserCacheService.instance.clear(uid));
     await _google.signOut();

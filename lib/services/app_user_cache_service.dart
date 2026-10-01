@@ -22,6 +22,9 @@ class AppUserCacheService {
   /// disk-backed storage every time.
   final Map<String, AppUser> _memory = {};
 
+  /// Synchronous in-memory lookup for instant paints and initialData.
+  AppUser? getCachedInMemory(String userId) => _memory[userId];
+
   Future<AppUser?> getUser(String userId) async {
     final mem = _memory[userId];
     if (mem != null) return mem;

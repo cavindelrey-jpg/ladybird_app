@@ -35,6 +35,7 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   Future<void> setMode(ThemeMode mode) async {
+    if (_mode == mode) return;
     _mode = mode;
     notifyListeners();
     try {

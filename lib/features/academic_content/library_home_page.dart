@@ -373,11 +373,12 @@ class LibraryHomePage extends StatelessWidget {
                   HapticFeedback.selectionClick();
                   final path = await AcademicContentRepository.instance.offlineFilePath(item.id);
                   if (!context.mounted) return;
+                  final kind = viewableKindFor(path ?? item.fileUrl ?? '') ?? ViewableFileKind.pdf;
                   Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => ContentViewerPage(
-                      fileUrl: item.fileUrl,
+                      fileUrl: item.fileUrl ?? path ?? '',
                       title: item.title,
-                      kind: ViewableFileKind.fromUrlOrExtension(item.fileUrl, item.fileType),
+                      kind: kind,
                       contentId: item.id,
                       userId: user.id,
                       localFilePath: path,

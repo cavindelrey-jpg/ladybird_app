@@ -130,6 +130,7 @@ class AcademiaApp extends StatelessWidget {
             }),
           ),
           themeMode: themeProvider.mode,
+          themeAnimationDuration: Duration.zero,
           home: const _MaintenanceGate(),
           // Missing entirely before this fix — flutter_quill's toolbar
           // buttons (used in both the Article and Course composers) call

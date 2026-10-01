@@ -43,15 +43,29 @@ import '../features/onboarding/voucher_entry_screen.dart';
 //  2. Somebody IS signed in → HomeShell (via _AppUserGate).
 // ────────────────────────────────────────────────────────────────────────────
 
-class AppRouter extends StatelessWidget {
+class AppRouter extends StatefulWidget {
   const AppRouter({super.key});
+
+  @override
+  State<AppRouter> createState() => _AppRouterState();
+}
+
+class _AppRouterState extends State<AppRouter> {
+  late Stream<User?> _authStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _authStream = AuthService.instance.authStateChanges;
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream: AuthService.instance.authStateChanges,
+      stream: _authStream,
+      initialData: AuthService.instance.firebaseUser,
       builder: (ctx, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
+        if (snap.connectionState == ConnectionState.waiting && snap.data == null) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
         if (snap.data == null) {
@@ -193,15 +207,29 @@ class _GuestGateTab extends StatelessWidget {
 
 /// Gate for signed-in users — resolves the account (suspended / first-login
 /// / normal) and lands on HomeShell.
-class _AppUserGate extends StatelessWidget {
+class _AppUserGate extends StatefulWidget {
   const _AppUserGate();
+
+  @override
+  State<_AppUserGate> createState() => _AppUserGateState();
+}
+
+class _AppUserGateState extends State<_AppUserGate> {
+  late Stream<AppUser?> _userStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _userStream = AuthService.instance.currentAppUserStream();
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<AppUser?>(
-      stream: AuthService.instance.currentAppUserStream(),
+      stream: _userStream,
+      initialData: AuthService.instance.lastKnownUser,
       builder: (ctx, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
+        if (snap.connectionState == ConnectionState.waiting && snap.data == null) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
         final user = snap.data;

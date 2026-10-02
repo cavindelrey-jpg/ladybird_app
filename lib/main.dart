@@ -96,7 +96,13 @@ Future<void> main() async {
   runApp(const AcademiaApp());
   }, (error, stack) {
     // Anything not caught above (async errors, isolate-level) lands here.
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    // Guarded like the handlers above: if Firebase.initializeApp() failed
+    // (no network on first launch, unsupported platform) Crashlytics
+    // itself throws, which would turn every async error into two.
+    debugPrint('Uncaught: $error');
+    try {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    } catch (_) {}
   });
 }
 

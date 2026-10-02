@@ -5,14 +5,12 @@
 // existing entry rather than duplicating it, keyed on that same tuple.
 
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../data/local_database.dart';
-import '../services/connectivity_service.dart';
-
+import '../core/marks_csv.dart' show RosterStudent;
+import '../core/offline_cache.dart';
 import '../core/result.dart';
 import '../models/school_mark.dart';
 
 /// Overall grade for a whole sequence -- same percentage scale as a
-import "../core/offline_cache.dart";
 /// single SchoolMark.grade, applied to the AVERAGE percentage across
 /// every subject rather than one subject's own score.
 String overallGradeFor(double averagePercentage) {
@@ -110,6 +108,89 @@ class SchoolMarksRepository {
     } catch (e) {
       return Failure('Couldn\'t delete that mark', e);
     }
+  }
+
+  /// Every student enrolled in [classLevel] at [schoolId], sorted by
+  /// name -- the marks grid's row source. One query per class instead
+  /// of a name search per student. RLS (users_select_self_or_institution)
+  /// already lets same-school staff read these rows.
+  Future<Result<List<RosterStudent>>> classRoster(String schoolId, String classLevel) async {
+    if (schoolId.isEmpty || classLevel.isEmpty) return const Success([]);
+    try {
+      final rows = await _db
+          .from('users')
+          .select('id, name, class_level')
+          .eq('institution_id', schoolId)
+          .eq('class_level', classLevel)
+          .eq('role', 'student')
+          .order('name_lower');
+      return Success([
+        for (final r in rows)
+          RosterStudent(
+            id: r['id'] as String,
+            name: (r['name'] as String?)?.trim().isNotEmpty == true ? r['name'] as String : 'Unnamed student',
+            classLevel: r['class_level']?.toString() ?? classLevel,
+          ),
+      ]);
+    } catch (e) {
+      return Failure('Couldn\'t load the $classLevel class list. Check your connection and try again.', e);
+    }
+  }
+
+  /// Existing marks for one (class, subject, sequence, year), keyed by
+  /// student id -- prefills the grid and feeds CSV export.
+  Future<Result<Map<String, SchoolMark>>> marksForClass({
+    required String schoolId,
+    required String classLevel,
+    required String subject,
+    required AcademicSequence sequence,
+    required String academicYear,
+  }) async {
+    try {
+      final rows = await _marks
+          .select()
+          .eq('school_id', schoolId)
+          .eq('class_level', classLevel)
+          .eq('subject', subject)
+          .eq('sequence', sequence.name)
+          .eq('academic_year', academicYear);
+      return Success({for (final r in rows) r['student_id'] as String: _fromRow(r)});
+    } catch (e) {
+      return Failure('Couldn\'t load existing marks. Check your connection and try again.', e);
+    }
+  }
+
+  /// Saves many marks in as few round trips as possible. Each chunk is
+  /// one bulk upsert; if a chunk is rejected (one bad row fails the
+  /// whole statement) it's retried row by row so only the genuinely bad
+  /// rows fail. Returns the student ids that did NOT save, with a reason.
+  Future<Map<String, String>> upsertMany(List<SchoolMark> marks, {int chunkSize = 100}) async {
+    final failures = <String, String>{};
+    for (var i = 0; i < marks.length; i += chunkSize) {
+      final chunk = marks.sublist(i, (i + chunkSize).clamp(0, marks.length));
+      try {
+        await _marks.upsert(chunk.map(_toRow).toList(), onConflict: 'student_id,subject,sequence,academic_year');
+      } catch (_) {
+        for (final m in chunk) {
+          try {
+            await _marks.upsert(_toRow(m), onConflict: 'student_id,subject,sequence,academic_year');
+          } on PostgrestException catch (e) {
+            failures[m.studentId] = _friendly(e);
+          } catch (e) {
+            failures[m.studentId] = 'Not saved — no connection.';
+          }
+        }
+      }
+    }
+    return failures;
+  }
+
+  static String _friendly(PostgrestException e) {
+    final msg = e.message;
+    if (msg.contains('school_marks_score_range')) return 'Score is outside 0–max.';
+    if (msg.contains('row-level security')) return 'You\'re not allowed to record this subject for this class.';
+    if (msg.contains('isn\'t enrolled') || msg.contains('isn\'t in')) return msg;
+    return 'Not saved: $msg';
   }
 
   /// Every distinct student the caller (a teacher/admin) has entered

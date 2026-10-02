@@ -9,6 +9,11 @@
 // per-assignment restriction items 22-24 establish; each row still
 // becomes an individual write, so firestore.rules' marks/{id} rule
 // enforces this server-side too, row by row.
+//
+// Parsing/validation/matching lives in core/marks_csv.dart (unit tested
+// with a 60-student class in test/marks_csv_test.dart). Students are
+// matched against each class's roster -- one query per class -- instead
+// of a platform-wide name search per row.
 
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
@@ -19,98 +24,11 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/result.dart';
 import '../../models/app_user.dart';
 import '../../models/school_mark.dart';
-import '../../repositories/messaging_repository.dart';
+import '../../core/marks_csv.dart';
 import '../../repositories/school_marks_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-
-const List<String> _kTemplateColumns = [
-  'studentName', 'classLevel', 'subject', 'sequence', 'academicYear', 'score', 'maxScore',
-];
-
-/// Minimal RFC4180-style CSV encoder. Written directly rather than via
-/// package:csv -- a real `flutter analyze` run reported both of that
-/// package's expected classes (CsvToListConverter/ListToCsvConverter) as
-/// "isn't a class" against the version actually pinned in pubspec.lock
-/// (8.0.0), which can't be verified further in this sandbox (no network
-/// to check the real published API for that version). Only the shape
-/// this page actually needs (a simple comma-delimited grid with basic
-/// quoting) -- not a general-purpose CSV library replacement.
-String _encodeCsv(List<List<String>> rows) {
-  String encodeField(String f) {
-    if (f.contains(',') || f.contains('"') || f.contains('\n')) {
-      return '"${f.replaceAll('"', '""')}"';
-    }
-    return f;
-  }
-  return rows.map((row) => row.map(encodeField).join(',')).join('\n');
-}
-
-/// Matching decoder -- handles quoted fields, escaped "" quotes, and
-/// \n/\r\n line endings (including newlines embedded inside a quoted
-/// field), which is what a real spreadsheet export can produce.
-List<List<String>> _decodeCsv(String content) {
-  final rows = <List<String>>[];
-  var row = <String>[];
-  final field = StringBuffer();
-  var inQuotes = false;
-  var i = 0;
-  while (i < content.length) {
-    final ch = content[i];
-    if (inQuotes) {
-      if (ch == '"') {
-        if (i + 1 < content.length && content[i + 1] == '"') {
-          field.write('"');
-          i += 2;
-        } else {
-          inQuotes = false;
-          i++;
-        }
-      } else {
-        field.write(ch);
-        i++;
-      }
-      continue;
-    }
-    if (ch == '"') {
-      inQuotes = true;
-      i++;
-    } else if (ch == ',') {
-      row.add(field.toString());
-      field.clear();
-      i++;
-    } else if (ch == '\n' || ch == '\r') {
-      row.add(field.toString());
-      field.clear();
-      rows.add(row);
-      row = [];
-      if (ch == '\r' && i + 1 < content.length && content[i + 1] == '\n') {
-        i += 2;
-      } else {
-        i++;
-      }
-    } else {
-      field.write(ch);
-      i++;
-    }
-  }
-  if (field.isNotEmpty || row.isNotEmpty) {
-    row.add(field.toString());
-    rows.add(row);
-  }
-  return rows;
-}
-
-class _ImportRow {
-  final int lineNumber;
-  final Map<String, String> raw;
-  String? error;
-  SchoolMark? resolved;
-  String? studentDisplayName;
-  _ImportRow({required this.lineNumber, required this.raw});
-  bool get isValid => error == null && resolved != null;
-}
 
 class MarksCsvImportPage extends StatefulWidget {
   final AppUser staff;
@@ -123,20 +41,21 @@ class MarksCsvImportPage extends StatefulWidget {
 class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
   bool _busy = false;
   String? _fileName;
-  List<_ImportRow> _rows = [];
+  List<MarksImportRow> _rows = [];
   int _importedCount = 0;
+  int _failedCount = 0;
   String? _importError;
 
   Future<void> _downloadTemplate() async {
     setState(() => _busy = true);
     try {
-      final csv = _encodeCsv([
-        _kTemplateColumns,
-        ['Ada Lovelace', 'Form 5', 'Physics', 't1s1', DateTime.now().year.toString(), '15', '20'],
+      final csv = encodeCsv([
+        kMarksCsvColumns,
+        ['Brice Ngono', 'Form 5', 'Mathematics', 't1s1', DateTime.now().year.toString(), '15', '20'],
       ]);
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/marks_template.csv');
-      await file.writeAsString(csv);
+      await file.writeAsString('\uFEFF$csv');
       if (!mounted) return;
       await Share.shareXFiles([XFile(file.path)], text: 'Ladybird marks import template');
     } catch (e) {
@@ -158,35 +77,46 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
       _busy = true;
       _rows = [];
       _importedCount = 0;
+      _failedCount = 0;
       _importError = null;
       _fileName = result!.files.single.name;
     });
 
     try {
-      final content = await File(path).readAsString();
-      final table = _decodeCsv(content);
-      if (table.isEmpty) {
-        setState(() => _importError = 'The file is empty.');
+      final String content;
+      try {
+        content = await File(path).readAsString();
+      } on FileSystemException {
+        setState(() => _importError = 'That file couldn\'t be opened. Save it as "CSV UTF-8" and try again.');
+        return;
+      } on FormatException {
+        setState(() => _importError = 'That file isn\'t readable text — is it an .xlsx renamed to .csv? Export it as "CSV UTF-8".');
         return;
       }
-      final header = table.first.map((c) => c.toString().trim()).toList();
-      final missing = _kTemplateColumns.where((c) => !header.contains(c)).toList();
-      if (missing.isNotEmpty) {
-        setState(() => _importError = 'Missing column(s): ${missing.join(', ')}. Download the template to see the exact format.');
-        return;
+      final table = decodeCsv(content);
+      final rosters = <String, List<RosterStudent>>{};
+      for (final cls in MarksImportPlan.classLevelsIn(table)) {
+        final res = await SchoolMarksRepository.instance.classRoster(widget.staff.schoolId ?? '', cls);
+        if (res is Failure<List<RosterStudent>>) {
+          setState(() => _importError = res.message);
+          return;
+        }
+        rosters[cls] = (res as Success<List<RosterStudent>>).value;
       }
-
-      final rows = <_ImportRow>[];
-      for (var i = 1; i < table.length; i++) {
-        final cells = table[i];
-        if (cells.every((c) => c.toString().trim().isEmpty)) continue; // skip blank lines
-        final raw = <String, String>{
-          for (var c = 0; c < header.length && c < cells.length; c++)
-            header[c]: cells[c].toString().trim(),
-        };
-        rows.add(await _validateRow(lineNumber: i + 1, raw: raw));
-      }
-      setState(() => _rows = rows);
+      final plan = planMarksImport(
+        table: table,
+        rosters: rosters,
+        canRecord: (subject, cls) => widget.staff.canRecordMarksFor(subject: subject, classLevel: cls),
+        schoolId: widget.staff.schoolId ?? '',
+        teacherName: widget.staff.name,
+        gradedBy: widget.staff.id,
+        defaultYear: DateTime.now().year.toString(),
+      );
+      setState(() {
+        _importError = plan.fileError;
+        _rows = plan.rows;
+        if (plan.fileError == null && plan.rows.isEmpty) _importError = 'The file has a header but no marks.';
+      });
     } catch (e) {
       setState(() => _importError = 'Could not read that file as CSV.');
     } finally {
@@ -194,93 +124,27 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
     }
   }
 
-  Future<_ImportRow> _validateRow({required int lineNumber, required Map<String, String> raw}) async {
-    final row = _ImportRow(lineNumber: lineNumber, raw: raw);
-    final studentName = raw['studentName'] ?? '';
-    final classLevel = raw['classLevel'] ?? '';
-    final subject = raw['subject'] ?? '';
-    final sequenceKey = raw['sequence'] ?? '';
-    final academicYear = raw['academicYear'] ?? '';
-    final scoreStr = raw['score'] ?? '';
-    final maxScoreStr = raw['maxScore'] ?? '';
-
-    if (studentName.isEmpty || classLevel.isEmpty || subject.isEmpty) {
-      row.error = 'studentName, classLevel, and subject are required.';
-      return row;
-    }
-    final sequence = AcademicSequence.fromKey(sequenceKey);
-    if (sequence == null) {
-      row.error = 'Unknown sequence "$sequenceKey" -- use one of: ${AcademicSequence.values.map((s) => s.name).join(', ')}.';
-      return row;
-    }
-    final score = double.tryParse(scoreStr);
-    final maxScore = double.tryParse(maxScoreStr);
-    if (score == null || maxScore == null || maxScore <= 0) {
-      row.error = 'score/maxScore must be numbers, and maxScore must be greater than 0.';
-      return row;
-    }
-    if (score < 0 || score > maxScore) {
-      row.error = 'score ($score) must be between 0 and maxScore ($maxScore).';
-      return row;
-    }
-    if (!widget.staff.canRecordMarksFor(subject: subject, classLevel: classLevel)) {
-      row.error = 'You\'re not assigned to teach $subject in $classLevel.';
-      return row;
-    }
-
-    // Resolve studentName -> a real studentId, scoped to this school +
-    // class to cut down on same-name collisions. Ambiguous or missing
-    // matches fail closed rather than guessing.
-    final candidates = await MessagingRepository.instance.searchUsers(studentName);
-    final matches = candidates.where((c) =>
-        (c['name'] as String? ?? '').trim().toLowerCase() == studentName.trim().toLowerCase() &&
-        (c['institution_id'] as String? ?? '') == (widget.staff.schoolId ?? '') &&
-        (c['class_level'] as String? ?? '') == classLevel).toList();
-    if (matches.isEmpty) {
-      row.error = 'No student named "$studentName" found in $classLevel at your school.';
-      return row;
-    }
-    if (matches.length > 1) {
-      row.error = 'Multiple students named "$studentName" in $classLevel -- resolve manually.';
-      return row;
-    }
-
-    row.studentDisplayName = studentName;
-    row.resolved = SchoolMark(
-      id: '',
-      schoolId: widget.staff.schoolId ?? '',
-      studentId: matches.first['id'] as String,
-      classLevel: classLevel,
-      subject: subject,
-      teacherName: widget.staff.name,
-      sequence: sequence,
-      academicYear: academicYear.isEmpty ? DateTime.now().year.toString() : academicYear,
-      score: score,
-      maxScore: maxScore,
-      gradedBy: widget.staff.id,
-    );
-    return row;
-  }
-
   Future<void> _importValidRows() async {
     final valid = _rows.where((r) => r.isValid).toList();
     if (valid.isEmpty) return;
     setState(() => _busy = true);
-    var count = 0;
-    for (final row in valid) {
-      final result = await SchoolMarksRepository.instance.upsert(row.resolved!);
-      if (result is Success<void>) {
-        count++;
-      } else if (result is Failure<void>) {
-        row.error = result.message;
+    final failures = await SchoolMarksRepository.instance.upsertMany([for (final r in valid) r.resolved!]);
+    if (!mounted) return;
+    for (final r in valid) {
+      final err = failures[r.resolved!.studentId];
+      if (err != null) {
+        r.error = err;
+        r.resolved = null;
       }
     }
-    if (!mounted) return;
     setState(() {
-      _importedCount = count;
+      _importedCount = valid.length - failures.length;
+      _failedCount = failures.length;
       _busy = false;
     });
-    showToast(context, 'Imported $count of ${valid.length} rows.');
+    showToast(context,
+        failures.isEmpty ? 'Imported all $_importedCount marks.' : 'Imported $_importedCount, ${failures.length} failed.',
+        isError: failures.isNotEmpty);
   }
 
   @override
@@ -364,7 +228,7 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Line ${r.lineNumber}: ${r.raw['studentName'] ?? ''} · ${r.raw['subject'] ?? ''} '
+                        'Line ${r.lineNumber}: ${r.studentName} · ${r.raw['subject'] ?? ''} '
                         '${r.isValid ? '— ready' : '— ${r.error}'}',
                         style: GoogleFonts.inter(fontSize: 12, color: r.isValid ? ac.grn : ac.red),
                       ),
@@ -378,9 +242,9 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
               onTap: validCount == 0 ? () {} : _importValidRows,
             ),
           ],
-          if (_importedCount > 0) ...[
+          if (_importedCount > 0 || _failedCount > 0) ...[
             const SizedBox(height: 16),
-            Text('Imported $_importedCount row(s).',
+            Text('Imported $_importedCount row(s)${_failedCount > 0 ? ', $_failedCount failed (marked in red above)' : ''}.',
                 style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: ac.grn)),
           ],
         ],

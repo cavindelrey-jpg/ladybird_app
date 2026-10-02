@@ -1,133 +1,23 @@
 -- 20260916060000_school_memberships_multi_tenant.sql
--- Establishes a strict multi-tenant boundary model by extracting school-specific
--- enrollments out of the global public.users table into a dedicated school_memberships table.
--- This ensures a student's Academia identity is preserved while isolating official school data.
-
-CREATE TABLE IF NOT EXISTS public.school_memberships (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-    school_id UUID NOT NULL, -- references institutions, but avoiding strict FK in case of loose coupling
-    role TEXT NOT NULL DEFAULT 'guest',
-    class_level TEXT,
-    department_id UUID,
-    teaching_assignments JSONB DEFAULT '[]'::jsonb,
-    class_master_of_class TEXT,
-    school_voucher_ref TEXT,
-    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(user_id, school_id)
-);
-
-ALTER TABLE public.school_memberships ENABLE ROW LEVEL SECURITY;
-
--- Users can read their own memberships. Admins can read memberships in their school.
-CREATE POLICY "Users can view their own memberships"
-    ON public.school_memberships FOR SELECT
-    USING (user_id = auth.uid() OR school_id IN (
-        SELECT school_id FROM public.school_memberships 
-        WHERE user_id = auth.uid() AND role IN ('school_admin', 'super_admin', 'department_admin')
-    ));
-
--- Migrate existing data
-INSERT INTO public.school_memberships (
-    user_id, school_id, role, class_level, department_id, 
-    teaching_assignments, class_master_of_class, school_voucher_ref
-)
-SELECT 
-    id, institution_id, COALESCE(school_role, 'guest'), class_level, department_id,
-    COALESCE(teaching_assignments, '[]'::jsonb), class_master_of_class, school_voucher_ref
-FROM public.users
-WHERE institution_id IS NOT NULL
-ON CONFLICT (user_id, school_id) DO NOTHING;
-
--- Update RLS on school_marks to use the new multi-tenant layer
-DROP POLICY IF EXISTS "school marks select" ON public.school_marks;
-CREATE POLICY "school marks select" ON public.school_marks
-  FOR SELECT
-  USING (
-    student_id = auth.uid()
-    OR school_id IN (
-      SELECT school_id FROM public.school_memberships
-      WHERE user_id = auth.uid() AND role IN ('lecturer', 'department_admin', 'school_admin', 'super_admin', 'teacher', 'admin')
-    )
-  );
-
-DROP POLICY IF EXISTS "school marks insert" ON public.school_marks;
-CREATE POLICY "school marks insert" ON public.school_marks
-  FOR INSERT
-  WITH CHECK (
-    school_id IN (
-      SELECT school_id FROM public.school_memberships
-      WHERE user_id = auth.uid() AND role IN ('lecturer', 'department_admin', 'school_admin', 'super_admin', 'teacher', 'admin')
-    )
-  );
-
-DROP POLICY IF EXISTS "school marks update" ON public.school_marks;
-CREATE POLICY "school marks update" ON public.school_marks
-  FOR UPDATE
-  USING (
-    school_id IN (
-      SELECT school_id FROM public.school_memberships
-      WHERE user_id = auth.uid() AND role IN ('lecturer', 'department_admin', 'school_admin', 'super_admin', 'teacher', 'admin')
-    )
-  )
-  WITH CHECK (
-    school_id IN (
-      SELECT school_id FROM public.school_memberships
-      WHERE user_id = auth.uid() AND role IN ('lecturer', 'department_admin', 'school_admin', 'super_admin', 'teacher', 'admin')
-    )
-  );
-
-DROP POLICY IF EXISTS "school marks delete" ON public.school_marks;
-CREATE POLICY "school marks delete" ON public.school_marks
-  FOR DELETE
-  USING (
-    school_id IN (
-      SELECT school_id FROM public.school_memberships
-      WHERE user_id = auth.uid() AND role IN ('lecturer', 'department_admin', 'school_admin', 'super_admin', 'teacher', 'admin')
-    )
-  );
-
--- Update timetable policies
-DROP POLICY IF EXISTS "school timetable select" ON public.school_timetable_slots;
-CREATE POLICY "school timetable select" ON public.school_timetable_slots
-  FOR SELECT
-  USING (school_id IN (SELECT school_id FROM public.school_memberships WHERE user_id = auth.uid()));
-
-DROP POLICY IF EXISTS "school timetable insert" ON public.school_timetable_slots;
-CREATE POLICY "school timetable insert" ON public.school_timetable_slots
-  FOR INSERT
-  WITH CHECK (
-    school_id IN (
-      SELECT school_id FROM public.school_memberships
-      WHERE user_id = auth.uid() AND role IN ('school_admin', 'super_admin', 'admin')
-    )
-  );
-
-DROP POLICY IF EXISTS "school timetable update" ON public.school_timetable_slots;
-CREATE POLICY "school timetable update" ON public.school_timetable_slots
-  FOR UPDATE
-  USING (
-    school_id IN (
-      SELECT school_id FROM public.school_memberships
-      WHERE user_id = auth.uid() AND role IN ('school_admin', 'super_admin', 'admin')
-    )
-  )
-  WITH CHECK (
-    school_id IN (
-      SELECT school_id FROM public.school_memberships
-      WHERE user_id = auth.uid() AND role IN ('school_admin', 'super_admin', 'admin')
-    )
-  );
-
-DROP POLICY IF EXISTS "school timetable delete" ON public.school_timetable_slots;
-CREATE POLICY "school timetable delete" ON public.school_timetable_slots
-  FOR DELETE
-  USING (
-    school_id IN (
-      SELECT school_id FROM public.school_memberships
-      WHERE user_id = auth.uid() AND role IN ('school_admin', 'super_admin', 'admin')
-    )
-  );
-
--- Note: In a subsequent migration, the old columns (institution_id, school_role, class_level)
--- will be dropped from public.users once all clients are on the new AppUser model.
+-- INTENTIONALLY A NO-OP (replaced 2026-10-02, QA pass).
+--
+-- The original body could never apply against the shared Supabase
+-- project: academia-cameroon's 20260909190000_school_memberships_
+-- architecture.sql (earlier timestamp, same project) already creates
+-- public.school_memberships with a different shape (role user_role, no
+-- department_id / teaching_assignments), so `create table if not
+-- exists` here was skipped and the follow-up INSERT failed with
+--   ERROR: column "department_id" of relation "school_memberships" does not exist
+-- (reproduced on a local replica of all three repos' migrations).
+--
+-- Had it applied, it would also have:
+--   * created a SELECT policy on school_memberships that queries
+--     school_memberships itself (Postgres: "infinite recursion detected
+--     in policy"), breaking every marks/timetable policy that reads it;
+--   * replaced the school_marks insert/update policies WITHOUT the
+--     per-(subject, class) is_teacher_authorized_for_marks() check from
+--     20260904000000, letting any teacher write any subject's marks.
+--
+-- Nothing in lib/ reads school_memberships; the app's school identity is
+-- still public.users.institution_id/school_role/teaching_assignments.
+select 1;

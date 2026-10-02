@@ -5452,3 +5452,13 @@ narrower, purpose-built SECURITY DEFINER RPC could avoid needing to
 touch/guess an invisible table's RLS at all (get_linked_students,
 get_school_leaderboard, get_global_leaderboard), that was preferred
 over broadening an unseen policy.
+
+## 2026-10-02 — Full-system QA / role simulation (branch qa/full-system-sim-2026-10-02)
+
+Environment decisions:
+- Installed Flutter 3.47.6 locally (~/flutter); csv ^8.0.0 needs Dart >= 3.10 so 3.35 wasn't enough. Baseline: analyze 0 errors / 118 warnings, 115/115 tests pass.
+- Backend testing uses a LOCAL replica (docker supabase/postgres 17) with academia-cameroon + greenhills_app + this repo's migrations applied in timestamp order (all three apps share project ccumxxysaaphhgdzlagk). Never wrote to production. A read-only OpenAPI probe of prod with the anon key was refused (needs service_role) — stopped there.
+- Seeded: 2 schools, super admin, school admin, 3 teachers (Math F5 / none / Science F4+F5), class master F5, parent, 60 Form 5 + 25 Form 4 students (Cameroonian names).
+- RLS harness: `set role authenticated` + request.jwt.claims (+ legacy claim.sub, since the plain postgres image ships the legacy auth.uid()).
+- Neutralized 20260916060000_school_memberships_multi_tenant.sql to a no-op (could never apply on the shared DB; would have added a self-recursive policy and dropped per-subject marks auth). Assumed safe because no lib/ code reads school_memberships.
+- New migration 20261002000000: guard trigger on public.users (SECURITY INVOKER so definer RPCs stay exempt), has_school_role() tenant-scoped, school_marks range CHECK (NOT VALID) + student-enrolment/class guard. NOT applied to prod — needs a human `supabase db push`, and it affects the two sibling apps sharing the DB.

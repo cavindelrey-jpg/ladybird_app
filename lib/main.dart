@@ -54,6 +54,10 @@ Future<void> main() async {
     // Route Flutter framework errors (build/layout/paint) to Crashlytics as
     // fatal, instead of just printing to console and moving on.
     FlutterError.onError = (details) {
+      // Always leave a one-line trace: the framework's console reporter
+      // throttles repeats, which once hid a page-killing error entirely.
+      debugPrint('FlutterError: ${details.exceptionAsString().split('\n').first} '
+          '(${details.library ?? 'unknown library'})');
       FlutterError.presentError(details);
       try {
         FirebaseCrashlytics.instance.recordFlutterFatalError(details);
@@ -262,21 +266,36 @@ class _ErrorFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = Theme.of(context).extension<AppColors>();
+    final color = ac?.red ?? Colors.red;
     return Material(
       color: Colors.transparent,
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 24),
-        padding: const EdgeInsets.all(8),
-        color: ac?.redBg ?? const Color(0xFFFFEBEE),
-        alignment: Alignment.center,
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.error_outline_rounded, size: 16, color: ac?.red ?? Colors.red),
-          const SizedBox(width: 6),
-          Flexible(child: Text('Something went wrong here.',
-              maxLines: 2, overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: ac?.red ?? Colors.red))),
-        ]),
-      ),
+      child: LayoutBuilder(builder: (context, c) {
+        // When a whole page failed there must be a way out -- the compact
+        // notice alone left people stuck on a page with no back button.
+        final roomForButton = !c.hasBoundedHeight || c.maxHeight >= 120;
+        final canPop = Navigator.maybeOf(context)?.canPop() ?? false;
+        return Container(
+          constraints: const BoxConstraints(minHeight: 24),
+          padding: const EdgeInsets.all(8),
+          color: ac?.redBg ?? const Color(0xFFFFEBEE),
+          alignment: Alignment.center,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.error_outline_rounded, size: 16, color: color),
+              const SizedBox(width: 6),
+              Flexible(child: Text('Something went wrong here.',
+                  maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: color))),
+            ]),
+            if (roomForButton && canPop)
+              TextButton.icon(
+                onPressed: () => Navigator.maybeOf(context)?.maybePop(),
+                icon: const Icon(Icons.arrow_back_rounded, size: 16),
+                label: const Text('Go back'),
+              ),
+          ]),
+        );
+      }),
     );
   }
 }

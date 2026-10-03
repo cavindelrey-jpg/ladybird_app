@@ -123,7 +123,8 @@ class SchoolMarksRepository {
           .eq('institution_id', schoolId)
           .eq('class_level', classLevel)
           .eq('role', 'student')
-          .order('name_lower');
+          // postgrest-dart's order() defaults to DESCENDING.
+          .order('name_lower', ascending: true);
       return Success([
         for (final r in rows)
           RosterStudent(

@@ -117,7 +117,7 @@ class AcademicContentRepository {
     var q = _db.from(_table).select();
     if (institutionId != null) q = q.eq('institution_id', institutionId);
     if (contentType != null) q = q.eq('content_type', contentType.name);
-    final rows = await q.order('title');
+    final rows = await q.order('title', ascending: true);
     return rows
         .map(AcademicContent.fromSupabase)
         .where((item) =>

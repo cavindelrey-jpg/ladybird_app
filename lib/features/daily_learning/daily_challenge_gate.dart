@@ -20,73 +20,75 @@ class DailyChallengeGate extends StatefulWidget {
 }
 
 class _DailyChallengeGateState extends State<DailyChallengeGate> {
-  bool _checked = false;
+  // Resolved ONCE per signed-in user, not per build. This gate wraps
+  // HomeShell, and _AppUserGate rebuilds it every time the user row
+  // changes (XP awarded, profile edit...). Creating the future inside
+  // build() used to restart it on each of those rebuilds, swapping the
+  // whole HomeShell for a spinner and back -- losing the current tab and
+  // scroll position and re-firing every Home query.
+  late Future<_PendingChallenge?> _pending;
   bool _dismissed = false;
+
+  /// Never let this gate hold the whole app hostage: a stalled (not
+  /// failed) connection used to leave users on a spinner forever.
+  static const _timeout = Duration(seconds: 6);
 
   @override
   void initState() {
     super.initState();
-    _checkDailyChallenge();
+    _pending = _resolve();
   }
 
-  Future<void> _checkDailyChallenge() async {
+  @override
+  void didUpdateWidget(covariant DailyChallengeGate oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.user.id != widget.user.id) {
+      _dismissed = false;
+      _pending = _resolve();
+    }
+  }
+
+  static String _todayKey() {
+    final now = DateTime.now();
+    return '${now.year}-${now.month}-${now.day}';
+  }
+
+  static bool _isToday(DateTime? d) {
+    if (d == null) return false;
+    final now = DateTime.now();
+    return d.year == now.year && d.month == now.month && d.day == now.day;
+  }
+
+  Future<_PendingChallenge?> _resolve() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final now = DateTime.now();
-      final todayStr = "${now.year}-${now.month}-${now.day}";
-      final lastDismissed = prefs.getString('daily_challenge_dismissed_${widget.user.id}');
-      if (lastDismissed == todayStr) {
-        if (mounted) setState(() => _checked = true);
-        return;
-      }
-
-      final streakStream = DailyLearningRepository.instance.watchStreak(widget.user.id);
-      final streak = await streakStream.first;
-      
-      final lastCompleted = streak?.lastCompletedDate;
-      if (lastCompleted != null && lastCompleted.year == now.year && lastCompleted.month == now.month && lastCompleted.day == now.day) {
-        // Completed today
-        if (mounted) setState(() => _checked = true);
-        return;
-      }
+      if (prefs.getString('daily_challenge_dismissed_${widget.user.id}') == _todayKey()) return null;
+      return await _getPendingChallenge().timeout(_timeout, onTimeout: () => null);
     } catch (e) {
-      // If table doesn't exist yet or offline, fail open to avoid boot loop
       debugPrint('DailyChallengeGate error: $e');
+      return null; // fail open -- the app matters more than the prompt
     }
-
-    // Show the modal! (or fail open if errored, but we can't show modal without data, so if we errored, _getPendingChallenge will probably also error and we handle it there).
-    if (mounted) setState(() => _checked = true);
   }
 
   void _dismiss() async {
-    final prefs = await SharedPreferences.getInstance();
-    final now = DateTime.now();
-    final todayStr = "${now.year}-${now.month}-${now.day}";
-    await prefs.setString('daily_challenge_dismissed_${widget.user.id}', todayStr);
     setState(() => _dismissed = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('daily_challenge_dismissed_${widget.user.id}', _todayKey());
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_checked) {
-      return Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-    
-    // If they already did it today or dismissed it, show the real app
     if (_dismissed) return widget.child;
-
-    return FutureBuilder(
-      future: _getPendingChallenge(),
-      builder: (context, AsyncSnapshot<_PendingChallenge?> snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return Scaffold(body: Center(child: CircularProgressIndicator()));
+    return FutureBuilder<_PendingChallenge?>(
+      future: _pending,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
-        
         final pending = snap.data;
-        if (pending == null) {
-          return widget.child;
-        }
-
+        if (pending == null) return widget.child;
         return _DailyChallengeOverlay(
           user: widget.user,
           course: pending.course,
@@ -99,46 +101,20 @@ class _DailyChallengeGateState extends State<DailyChallengeGate> {
   }
 
   Future<_PendingChallenge?> _getPendingChallenge() async {
-    try {
-      final streak = await DailyLearningRepository.instance.watchStreak(widget.user.id).first;
-      final now = DateTime.now();
-      if (streak?.lastCompletedDate != null && 
-          streak!.lastCompletedDate!.year == now.year && 
-          streak.lastCompletedDate!.month == now.month && 
-          streak.lastCompletedDate!.day == now.day) {
-        return null;
-      }
+    final streak = await DailyLearningRepository.instance.watchStreak(widget.user.id).first;
+    if (_isToday(streak?.lastCompletedDate)) return null; // already done today
 
-      final courses = DailyLearningRepository.instance.courses;
-      if (courses.isEmpty) return null;
-
-      DailyLearningCourse? targetCourse;
-      DailyLearningLesson? nextLesson;
-
-      for (final course in courses) {
-        final progressRecord = await DailyLearningRepository.instance.watchProgress(widget.user.id, course.id).first;
-        final completed = progressRecord.$1;
-        for (final l in course.lessons) {
-          if (!completed.contains(l.id)) {
-            targetCourse = course;
-            nextLesson = l;
-            break;
-          }
-        }
-        if (nextLesson != null) {
-          break;
+    final courses = DailyLearningRepository.instance.courses;
+    for (final course in courses) {
+      final progress = await DailyLearningRepository.instance.watchProgress(widget.user.id, course.id).first;
+      final completed = progress.$1;
+      for (final l in course.lessons) {
+        if (!completed.contains(l.id)) {
+          return _PendingChallenge(course: course, lesson: l, streak: streak);
         }
       }
-      
-      if (targetCourse == null || nextLesson == null) {
-        return null; // All done
-      }
-      
-      return _PendingChallenge(course: targetCourse, lesson: nextLesson, streak: streak);
-    } catch (e) {
-      debugPrint('DailyChallengeGate error: $e');
-      return null;
     }
+    return null; // every lesson done
   }
 }
 

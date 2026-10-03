@@ -26,7 +26,7 @@ class PersonalStudyRepository {
     final live = _slots
         .stream(primaryKey: ['id'])
         .eq('user_id', userId)
-        .order('day_of_week')
+        .order('day_of_week', ascending: true)
         .map((rows) => rows.map(_fromRow).toList());
         
     return OfflineCache.instance.watch<List<PersonalStudySlot>>(

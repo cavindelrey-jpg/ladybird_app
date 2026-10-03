@@ -86,7 +86,7 @@ class SchoolRepository {
   Stream<List<School>> watchAll() => _supabase
       .from('institutions')
       .stream(primaryKey: ['id'])
-      .order('school_name')
+      .order('school_name', ascending: true)
       .map((rows) {
         final schools = rows.map(School.fromSupabase).toList();
         for (final s in schools) {
@@ -98,7 +98,7 @@ class SchoolRepository {
 
   Future<Result<List<String>>> getSubjects(String schoolId) async {
     try {
-      final rows = await _supabase.from('school_subjects').select('name').eq('school_id', schoolId).order('name');
+      final rows = await _supabase.from('school_subjects').select('name').eq('school_id', schoolId).order('name', ascending: true);
       final list = (rows as List).map((r) => r['name'] as String).toList();
       return Success(list);
     } catch (e) {

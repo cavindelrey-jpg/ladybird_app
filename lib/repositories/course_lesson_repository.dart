@@ -27,12 +27,12 @@ class CourseLessonRepository {
       () => _lessons
           .stream(primaryKey: ['id'])
           .eq('course_id', courseId)
-          .order('sort_order')
+          .order('sort_order', ascending: true)
           .map((rows) => rows.map(CourseLesson.fromSupabase).toList()));
 
   Future<List<CourseLesson>> lessonsOnce(String courseId) async {
     return _memoizer.runOnce('lessonsOnce_$courseId', () async {
-      final rows = await _lessons.select().eq('course_id', courseId).order('sort_order');
+      final rows = await _lessons.select().eq('course_id', courseId).order('sort_order', ascending: true);
       return rows.map(CourseLesson.fromSupabase).toList();
     });
   }

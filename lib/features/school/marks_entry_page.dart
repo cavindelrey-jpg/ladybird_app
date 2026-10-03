@@ -110,7 +110,16 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
     return v == v.roundToDouble() ? v.toInt().toString() : double.parse(v.toStringAsFixed(2)).toString();
   }
 
-  bool _isDirty(String id) => (_ctrls[id]?.text.trim() ?? '') != _initialText(id);
+  /// Compares VALUES, not text: "12,5" typed and "12.5" saved are the
+  /// same mark (comparing text left a saved row stuck on "Not saved yet").
+  bool _isDirty(String id) {
+    final text = _ctrls[id]?.text ?? '';
+    final existing = _existing[id];
+    if (existing == null) return text.trim().isNotEmpty;
+    final parsed = parseScoreInput(text, _maxScore);
+    if (parsed.error != null || parsed.value == null) return true;
+    return (parsed.value! - existing.scoreOutOf(_maxScore)).abs() > 0.001;
+  }
 
   String? _fieldError(String id) {
     final text = _ctrls[id]?.text ?? '';
@@ -338,7 +347,7 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
         Row(children: [
           Expanded(flex: 5, child: DropdownButtonFormField<AcademicSequence>(
             initialValue: _sequence, isExpanded: true, decoration: deco('Sequence'),
-            items: [for (final s in AcademicSequence.values) DropdownMenuItem(value: s, child: Text(s.label, overflow: TextOverflow.ellipsis))],
+            items: [for (final s in AcademicSequence.values) DropdownMenuItem(value: s, child: Text(_shortSeq(s), overflow: TextOverflow.ellipsis))],
             onChanged: (v) {
               if (v == null || v == _sequence) return;
               _changeSelection(() => _sequence = v);
@@ -381,6 +390,8 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
       ]),
     );
   }
+
+  static String _shortSeq(AcademicSequence s) => '${s.term.replaceAll('Term ', 'T')} · ${s.sequenceLabel.replaceAll('Sequence ', 'Seq ')}';
 
   Widget _body(AppColors ac) {
     if (_subject == null) {
@@ -483,8 +494,8 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
             style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: dirtyCount == 0 ? ac.muted : ac.txt),
           )),
           SizedBox(
-            width: 160,
-            child: PrimaryBtn(label: 'Save Marks', icon: Icons.save_rounded, loading: _saving,
+            width: 150,
+            child: PrimaryBtn(label: 'Save Marks', loading: _saving,
                 onTap: _saving || dirtyCount == 0 ? () {} : _saveAll),
           ),
         ]),

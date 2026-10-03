@@ -47,7 +47,7 @@ class LibraryFolderRepository {
   Stream<List<LibraryFolder>> watchRootFolders() {
     final live = _folders
         .stream(primaryKey: ['id'])
-        .order('sort_order')
+        .order('sort_order', ascending: true)
         .map((rows) => rows
             .where((r) => r['parent_id'] == null)
             .map(LibraryFolder.fromSupabase)
@@ -66,7 +66,7 @@ class LibraryFolderRepository {
     final live = _folders
         .stream(primaryKey: ['id'])
         .eq('parent_id', parentId)
-        .order('sort_order')
+        .order('sort_order', ascending: true)
         .map((rows) => rows.map(LibraryFolder.fromSupabase).toList());
 
     return OfflineCache.instance.watch<List<LibraryFolder>>(

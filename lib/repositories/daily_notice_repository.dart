@@ -106,7 +106,7 @@ class DailyNoticeRepository {
           .eq('school_id', schoolId)
           .eq('class_level', classLevel)
           .eq('day_of_week', tomorrowWeekday)
-          .order('start_time');
+          .order('start_time', ascending: true);
 
       final slots = rows.map((r) => SchoolTimetableSlot(
             id: r['id']?.toString() ?? '',

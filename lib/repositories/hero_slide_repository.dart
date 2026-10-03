@@ -17,7 +17,7 @@ class HeroSlideRepository {
 
   Stream<List<HeroSlide>> watchActive({HeroPlacement placement = HeroPlacement.home}) => _table
       .stream(primaryKey: ['id'])
-      .order('sort_order')
+      .order('sort_order', ascending: true)
       .map((rows) => rows
           .where((r) => r['active'] == true && r['placement'] == placement.name)
           .map(HeroSlide.fromSupabase)
@@ -27,7 +27,7 @@ class HeroSlideRepository {
   /// manager UI's per-surface tab.
   Stream<List<HeroSlide>> watchAll({HeroPlacement placement = HeroPlacement.home}) => _table
       .stream(primaryKey: ['id'])
-      .order('sort_order')
+      .order('sort_order', ascending: true)
       .map((rows) => rows
           .where((r) => r['placement'] == placement.name)
           .map(HeroSlide.fromSupabase)

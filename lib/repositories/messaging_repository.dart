@@ -296,7 +296,11 @@ class MessagingRepository {
             .from('direct_messages')
             .stream(primaryKey: ['id'])
             .eq('conversation_id', conversationId)
-            .order('sent_at')
+            // ascending: the window below keeps the NEWEST [limit]
+            // messages. With postgrest's default (descending) it kept the
+            // oldest ones, so a conversation past [limit] messages stopped
+            // showing anything new.
+            .order('sent_at', ascending: true)
             .listen(
               (rows) {
                 if (controller.isClosed) return;
@@ -485,7 +489,7 @@ class MessagingRepository {
         .from('users')
         .select()
         .ilike('name_lower', '$q%')
-        .order('name_lower')
+        .order('name_lower', ascending: true)
         .limit(limit);
     return rows;
   }

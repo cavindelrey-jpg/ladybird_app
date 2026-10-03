@@ -281,9 +281,12 @@ class ClubRepository {
         .from('club_messages')
         .stream(primaryKey: ['id'])
         .eq('club_id', clubId)
-        .order('sent_at')
+        .order('sent_at') // newest 100 (descending) ...
         .limit(100)
-        .map((rows) => rows.map(ClubMessage.fromSupabase).toList());
+        // ... shown oldest-first, newest at the bottom by the input bar,
+        // like any chat. Rendering the descending list directly put the
+        // latest message at the very top.
+        .map((rows) => rows.reversed.map(ClubMessage.fromSupabase).toList());
   }
 
   Future<Result<void>> sendMessage(String clubId, ClubMessage message) async {
@@ -703,7 +706,7 @@ class ClubRepository {
       .from('club_events')
       .stream(primaryKey: ['id'])
       .eq('club_id', clubId)
-      .order('start_at')
+      .order('start_at', ascending: true) // soonest upcoming first
       .map((rows) => rows.map(ClubEvent.fromSupabase).toList());
 
   Future<Result<void>> addEvent(String clubId, ClubEvent event) async {

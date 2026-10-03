@@ -45,10 +45,10 @@ class AcademicSectionRepository {
   /// there's no cache to fall back on either.
   Future<List<AcademicSection>> sectionsOnce() async {
     try {
-      final rows = await _sections.select().order('sort_order');
+      final rows = await _sections.select().order('sort_order', ascending: true);
       if (rows.isEmpty) {
         await _seedDefaults();
-        final reRows = await _sections.select().order('sort_order');
+        final reRows = await _sections.select().order('sort_order', ascending: true);
         final list = List<Map<String, dynamic>>.from(reRows);
         unawaited(ContentCacheService.instance.putList(_cacheKey, list));
         return list.map(AcademicSection.fromSupabase).toList();

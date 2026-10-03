@@ -229,7 +229,7 @@ class PublicCourseRepository {
   Future<List<CourseLevelInfo>> levelsOnce() async {
     return _memoizer.runOnce('levelsOnce', () async {
       final results = await Future.wait([
-        _courseLevels.select().order('sort_order'),
+        _courseLevels.select().order('sort_order', ascending: true),
         _courses.select('level').eq('published', true).limit(5000),
       ]);
       final levelRows = results[0] as List<Map<String, dynamic>>;
@@ -280,7 +280,7 @@ class PublicCourseRepository {
       final rows = await _courses
           .select()
           .eq('published', true).eq('level', level).eq('category', subject).eq('topic', topic)
-          .order('sort_order');
+          .order('sort_order', ascending: true);
       return rows.map(PublicCourse.fromSupabase).toList();
     });
   }

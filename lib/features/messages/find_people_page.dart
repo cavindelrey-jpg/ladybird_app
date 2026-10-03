@@ -390,20 +390,21 @@ class _PersonRowState extends State<_PersonRow> {
 
     return ACard(
       onTap: () async {
-        final isFriend = await MessagingRepository.instance.isFriend(widget.user.id, personId);
+        // The server decides (friends, or staff <-> student of the same
+        // school) -- a client-side friendship check used to block
+        // teachers from messaging their own students.
+        final convResult = await MessagingRepository.instance.getOrCreateConversation(
+          userAId: widget.user.id, userAName: widget.user.name, userAPhoto: widget.user.photoUrl,
+          userBId: personId, userBName: name, userBPhoto: photoUrl,
+        );
         if (!context.mounted) return;
-        if (isFriend) {
-          final convResult = await MessagingRepository.instance.getOrCreateConversation(
-            userAId: widget.user.id, userAName: widget.user.name, userAPhoto: widget.user.photoUrl,
-            userBId: personId, userBName: name, userBPhoto: photoUrl,
-          );
-          if (convResult is Success<String> && context.mounted) {
+        switch (convResult) {
+          case Success(:final value):
             Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatConversationPage(
-                conversationId: convResult.value, currentUser: widget.user,
+                conversationId: value, currentUser: widget.user,
                 otherUserId: personId, otherUserName: name, otherUserPhoto: photoUrl)));
-          }
-        } else {
-          showToast(context, 'Send a friend request first to start messaging.');
+          case Failure(:final message):
+            showToast(context, message);
         }
       },
       child: Row(children: [

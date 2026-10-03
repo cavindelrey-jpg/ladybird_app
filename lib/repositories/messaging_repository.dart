@@ -176,30 +176,23 @@ class MessagingRepository {
   // ── Conversations ────────────────────────────────────────
 
   /// Finds the existing 1:1 conversation between two people, or creates
-  /// one. Requires friendship.
+  /// one, via get_or_create_direct_conversation(): friends may always
+  /// message; a teacher / class master and a student of the same school
+  /// may too, without a friend request. (A direct insert used to fail on
+  /// any environment without an undocumented INSERT policy.) The name/
+  /// photo arguments are kept for call-site compatibility; the server
+  /// reads them from public.users.
   Future<Result<String>> getOrCreateConversation({
     required String userAId, required String userAName, String? userAPhoto,
     required String userBId, required String userBName, String? userBPhoto,
   }) async {
     try {
-      if (!await isFriend(userAId, userBId)) {
-        return const Failure('You need to be friends to message each other', null);
-      }
-      final existing = await _conversations.select().contains('participant_ids', [userAId, userBId]);
-      for (final row in existing) {
-        final ids = List<String>.from(row['participant_ids'] ?? []);
-        if (ids.length == 2) return Success(row['id'] as String);
-      }
-      final row = await _conversations.insert(Conversation(
-        id: '',
-        participantIds: [userAId, userBId],
-        participantNames: {userAId: userAName, userBId: userBName},
-        participantPhotos: {userAId: userAPhoto, userBId: userBPhoto},
-        lastMessageAt: DateTime.now(),
-      ).toSupabase()).select('id').single();
-      return Success(row['id'] as String);
+      final id = await _db.rpc('get_or_create_direct_conversation', params: {'p_other': userBId});
+      return Success(id as String);
+    } on PostgrestException catch (e) {
+      return Failure(e.code == '42501' ? 'Send a friend request first to start messaging.' : e.message, e);
     } catch (e) {
-      return Failure('Failed to open conversation', e);
+      return Failure('Couldn\'t open the conversation. Check your connection.', e);
     }
   }
 

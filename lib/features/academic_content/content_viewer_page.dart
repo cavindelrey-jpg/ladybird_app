@@ -14,13 +14,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:http/http.dart' as http;
-import 'package:pdfx/pdfx.dart';
+import 'package:pdfrx/pdfrx.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 import '../../core/docx_parser.dart';
 import '../../core/epub_parser.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/widgets.dart' show showToast;
 
 enum ViewableFileKind { image, pdf, video, docx, epub }
 
@@ -316,12 +318,7 @@ class _PdfViewerState extends State<_PdfViewer> {
       future: _readyFuture,
       builder: (context, snap) {
         if (snap.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text('Could not open this PDF: ${snap.error}', textAlign: TextAlign.center),
-            ),
-          );
+          return _PdfViewerBodyState.friendlyError(snap.error!);
         }
         if (!snap.hasData) {
           return Center(
@@ -369,32 +366,20 @@ class _PdfViewerBody extends StatefulWidget {
 }
 
 class _PdfViewerBodyState extends State<_PdfViewerBody> {
-  late final PdfControllerPinch _controller;
+  // pdfrx (PDFium) instead of pdfx: pdfx rasterised each page to an image,
+  // so "select text -> copy -> share" was impossible on any PDF even
+  // though this file's header promised it. pdfrx keeps the text layer.
+  final _controller = PdfViewerController();
   Timer? _saveDebounce;
+  PdfTextSelection? _selection;
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = PdfControllerPinch(
-      document: widget.localFilePath != null
-          ? PdfDocument.openFile(widget.localFilePath!)
-          : PdfDocument.openData(_fetchBytes(widget.url)),
-      initialPage: widget.initialPage,
-    );
-  }
-
-  Future<Uint8List> _fetchBytes(String url) async {
-    final resp = await http.get(Uri.parse(url));
-    return resp.bodyBytes;
-  }
-
-  void _onPageChanged(int page) {
+  void _onPageChanged(int? page) {
     final contentId = widget.contentId;
     final userId = widget.userId;
-    if (contentId == null || userId == null) return;
+    if (page == null || contentId == null || userId == null) return;
     _saveDebounce?.cancel();
     _saveDebounce = Timer(const Duration(seconds: 2), () {
-      final total = _controller.pagesCount ?? page;
+      final total = _controller.isReady ? _controller.pageCount : page;
       AcademicContentRepository.instance.recordReadPosition(
         contentId: contentId,
         userId: userId,
@@ -404,25 +389,88 @@ class _PdfViewerBodyState extends State<_PdfViewerBody> {
     });
   }
 
+  Future<String> _selectedText() async => (await _selection?.getSelectedText())?.trim() ?? '';
+
+  Future<void> _copySelection() async {
+    final text = await _selectedText();
+    if (text.isEmpty || !mounted) return;
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) showToast(context, 'Copied ${text.length} characters');
+  }
+
+  Future<void> _shareSelection() async {
+    final text = await _selectedText();
+    if (text.isEmpty) return;
+    try {
+      await Share.share(text);
+    } catch (_) {
+      await Clipboard.setData(ClipboardData(text: text));
+      if (mounted) showToast(context, 'Sharing isn\'t available here — copied instead.');
+    }
+  }
+
   @override
   void dispose() {
     _saveDebounce?.cancel();
-    _controller.dispose();
     super.dispose();
+  }
+
+  Widget _error(BuildContext context, Object error) => friendlyError(error);
+
+  /// Never show raw exception text to a student.
+  static Widget friendlyError(Object error) {
+    final offline = error is SocketException || error.toString().contains('SocketException') ||
+        error.toString().contains('ClientException');
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          offline
+              ? 'This document isn\'t saved on your device and you\'re offline. Connect to open it — and tap "Save for offline" to read it without internet next time.'
+              : 'This PDF couldn\'t be opened. The file may be damaged or no longer available.',
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return PdfViewPinch(
-      controller: _controller,
+    final params = PdfViewerParams(
       onPageChanged: _onPageChanged,
-      onDocumentError: (error) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text('Could not open this PDF: $error', textAlign: TextAlign.center),
-        ),
+      errorBannerBuilder: (context, error, stack, ref) => _error(context, error),
+      textSelectionParams: PdfTextSelectionParams(
+        onTextSelectionChange: (sel) {
+          if (!mounted) return;
+          setState(() => _selection = sel.hasSelectedText ? sel : null);
+        },
       ),
     );
+    final viewer = widget.localFilePath != null
+        ? PdfViewer.file(widget.localFilePath!, controller: _controller, params: params, initialPageNumber: widget.initialPage)
+        : PdfViewer.uri(Uri.parse(widget.url), controller: _controller, params: params, initialPageNumber: widget.initialPage);
+    final ac = AppColors.of(context);
+    return Stack(children: [
+      Positioned.fill(child: viewer),
+      if (_selection != null)
+        Positioned(
+          left: 16, right: 16, bottom: 16,
+          child: SafeArea(
+            child: Material(
+              elevation: 6,
+              color: ac.surf,
+              borderRadius: BorderRadius.circular(Rad.md),
+              child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+                TextButton.icon(onPressed: _copySelection, icon: const Icon(Icons.copy_rounded, size: 18), label: const Text('Copy')),
+                TextButton.icon(onPressed: _shareSelection, icon: const Icon(Icons.share_rounded, size: 18), label: const Text('Share')),
+                TextButton.icon(
+                  onPressed: () => _controller.textSelectionDelegate.clearTextSelection(),
+                  icon: const Icon(Icons.close_rounded, size: 18), label: const Text('Clear')),
+              ]),
+            ),
+          ),
+        ),
+    ]);
   }
 }
 
@@ -531,7 +579,7 @@ class _DocxViewerState extends State<_DocxViewer> {
         _warnings = parsed.warnings;
       });
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not open this document: $e');
+      if (mounted) setState(() => _error = _friendlyLoadError(e, 'document'));
     }
   }
 
@@ -624,7 +672,7 @@ class _EpubViewerState extends State<_EpubViewer> {
         _doc = parsed;
       });
     } catch (e) {
-      if (mounted) setState(() => _error = 'Could not open this EPUB: $e');
+      if (mounted) setState(() => _error = _friendlyLoadError(e, 'book'));
     }
   }
 
@@ -817,4 +865,14 @@ class _EpubViewerState extends State<_EpubViewer> {
       ],
     );
   }
+}
+
+
+String _friendlyLoadError(Object e, String what) {
+  final msg = e.toString();
+  if (e is SocketException || e is TimeoutException || msg.contains('ClientException') || msg.contains('SocketException')) {
+    return 'This $what isn\'t saved on your device and you\'re offline. Connect to open it — '
+        'and tap "Save for offline" to read it without internet next time.';
+  }
+  return 'This $what couldn\'t be opened. The file may be damaged or no longer available.';
 }

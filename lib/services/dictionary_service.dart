@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -28,23 +29,44 @@ class DictionaryEntry {
     required this.broaderTerms, required this.narrowerTerms,
   });
 
+  /// Tolerates both shapes found in academia_dictionary.json: 10,001
+  /// entries use snake_case with an int difficulty, but 8 (Aldehyde,
+  /// Gravity, Addition...) use camelCase, a text difficulty ("Advanced")
+  /// and no id. A single one of those used to throw and abort loading the
+  /// WHOLE dictionary, so the Dictionary screen was empty for everyone.
   factory DictionaryEntry.fromJson(Map<String, dynamic> json) {
+    T? pick<T>(String snake, String camel) => (json[snake] ?? json[camel]) as T?;
+    List<String> list(String snake, String camel) =>
+        ((json[snake] ?? json[camel]) as List?)?.map((e) => e.toString()).toList() ?? const [];
+    final word = (json['word'] ?? '').toString();
     return DictionaryEntry(
-      id: json['id'] ?? '',
-      word: json['word'] ?? '',
-      definition: json['definition'] ?? '',
-      explanation: json['explanation'] ?? '',
-      partOfSpeech: json['part_of_speech'] ?? '',
-      example: json['example'] ?? '',
-      syllableCount: json['syllable_count'] ?? 1,
-      difficulty: json['difficulty'] ?? 1,
-      discipline: json['discipline'] ?? 'General',
-      synonyms: List<String>.from(json['synonyms'] ?? []),
-      antonyms: List<String>.from(json['antonyms'] ?? []),
-      relatedWords: List<String>.from(json['related_words'] ?? []),
-      broaderTerms: List<String>.from(json['broader_terms'] ?? []),
-      narrowerTerms: List<String>.from(json['narrower_terms'] ?? []),
+      id: (json['id'] ?? 'dict_${word.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_')}').toString(),
+      word: word,
+      definition: (json['definition'] ?? '').toString(),
+      explanation: (json['explanation'] ?? '').toString(),
+      partOfSpeech: pick<String>('part_of_speech', 'partOfSpeech') ?? '',
+      example: (json['example'] ?? '').toString(),
+      syllableCount: (pick<num>('syllable_count', 'syllableCount') ?? 1).toInt(),
+      difficulty: _difficulty(json['difficulty']),
+      discipline: (json['discipline'] ?? 'General').toString(),
+      synonyms: list('synonyms', 'synonyms'),
+      antonyms: list('antonyms', 'antonyms'),
+      relatedWords: list('related_words', 'relatedWords'),
+      broaderTerms: list('broader_terms', 'broaderTerms'),
+      narrowerTerms: list('narrower_terms', 'narrowerTerms'),
     );
+  }
+
+  static int _difficulty(Object? v) {
+    if (v is num) return v.toInt();
+    switch (v?.toString().toLowerCase()) {
+      case 'beginner': return 1;
+      case 'elementary': return 2;
+      case 'intermediate': return 3;
+      case 'advanced': return 4;
+      case 'expert': return 5;
+    }
+    return 3;
   }
 }
 
@@ -69,7 +91,12 @@ class DictionaryService {
       final jsonString = await rootBundle.loadString('assets/data/academia_dictionary.json');
       final List<dynamic> jsonList = jsonDecode(jsonString);
       
-      _entries = jsonList.map((e) => DictionaryEntry.fromJson(e)).toList();
+      // Per-entry: one malformed entry must never empty the dictionary.
+      _entries = [
+        for (final e in jsonList)
+          if (e is Map<String, dynamic>)
+            if (_tryParse(e) case final entry?) entry,
+      ];
       _entries.sort((a, b) => a.word.toLowerCase().compareTo(b.word.toLowerCase()));
       
       for (var e in _entries) {
@@ -81,10 +108,20 @@ class DictionaryService {
       
       _isLoaded = true;
     } catch (e) {
-      print('Error loading Dictionary: \$e');
+      debugPrint('Error loading Dictionary: $e');
     }
   }
   
+  static DictionaryEntry? _tryParse(Map<String, dynamic> json) {
+    try {
+      final entry = DictionaryEntry.fromJson(json);
+      return entry.word.isEmpty ? null : entry;
+    } catch (e) {
+      debugPrint('Skipping malformed dictionary entry ${json['word']}: $e');
+      return null;
+    }
+  }
+
   DictionaryEntry? getEntryById(String id) => _idMap[id];
   
   void markAsViewed(String id) {

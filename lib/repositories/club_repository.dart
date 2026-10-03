@@ -274,6 +274,45 @@ class ClubRepository {
 
   // ── Chat ───────────────────────────────────────────────
 
+  /// The class group for [classLevel] at [schoolId], or null if the class
+  /// master hasn't created one yet.
+  Future<Result<Club?>> classGroup(String schoolId, String classLevel) async {
+    try {
+      final row = await _db.from('clubs').select()
+          .eq('institution_id', schoolId).eq('class_level', classLevel).maybeSingle();
+      return Success(row == null ? null : Club.fromSupabase(row));
+    } catch (e) {
+      return Failure('Couldn\'t load the class group. Check your connection.', e);
+    }
+  }
+
+  /// Creates (or returns the existing) class group and enrols every
+  /// current student of the class. Class master / school admin only --
+  /// enforced by the create_class_group RPC.
+  Future<Result<Club>> createClassGroup(String classLevel) async {
+    try {
+      final id = await _db.rpc('create_class_group', params: {'p_class_level': classLevel}) as String;
+      final row = await _db.from('clubs').select().eq('id', id).single();
+      return Success(Club.fromSupabase(row));
+    } on PostgrestException catch (e) {
+      return Failure(e.message, e);
+    } catch (e) {
+      return Failure('Couldn\'t create the class group.', e);
+    }
+  }
+
+  /// Adds students who joined the class after the group was created.
+  Future<Result<int>> syncClassGroup(String clubId) async {
+    try {
+      final added = await _db.rpc('sync_class_group_members', params: {'p_club_id': clubId}) as int;
+      return Success(added);
+    } on PostgrestException catch (e) {
+      return Failure(e.message, e);
+    } catch (e) {
+      return Failure('Couldn\'t update the class group.', e);
+    }
+  }
+
   Stream<List<ClubMessage>> watchMessages(String clubId) {
     return _db
         .from('club_messages')

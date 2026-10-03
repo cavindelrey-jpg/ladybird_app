@@ -149,12 +149,12 @@ class _ClubsPageState extends State<ClubsPage> {
                 final pendingIds = (pendingSnap.data ?? const <String>[]).toSet();
 
                 final myClubs = filtered.where((c) => joinedIds.contains(c.id) || pendingIds.contains(c.id)).toList();
-                final discoverClubs = filtered.where((c) => !joinedIds.contains(c.id) && !pendingIds.contains(c.id)).toList();
+                final discoverClubs = filtered.where((c) => !c.isClassGroup && !joinedIds.contains(c.id) && !pendingIds.contains(c.id)).toList();
 
                 final candidates = widget.user.favoriteSubjects.isEmpty
                     ? const <Club>[]
                     : RecommendationRepository.instance.forClubs(pool: allClubs, favoriteSubjects: widget.user.favoriteSubjects);
-                final recommendedClubs = candidates.where((c) => !joinedIds.contains(c.id) && !pendingIds.contains(c.id)).toList();
+                final recommendedClubs = candidates.where((c) => !c.isClassGroup && !joinedIds.contains(c.id) && !pendingIds.contains(c.id)).toList();
 
                 return Scaffold(
                   backgroundColor: ac.bg,

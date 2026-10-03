@@ -40,6 +40,7 @@ import '../features/school/homework_page.dart';
 import '../features/school/teacher_management_page.dart';
 import '../features/onboarding/school_admin_page.dart';
 import '../features/school/school_calendar_page.dart';
+import '../features/school/class_group_launcher.dart';
 
 class AppDrawer extends StatelessWidget {
   final AppUser? user;
@@ -140,6 +141,11 @@ class AppDrawer extends StatelessWidget {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => SchoolCalendarPage(user: user!)));
                   }),
+                  if (canOpenClassGroup(user!))
+                    _item(context, ac, Icons.forum_outlined, 'Class Group',
+                        // The drawer's context is gone once it closes; the launcher awaits
+                        // network calls, so it needs the Navigator's long-lived context.
+                        () => openClassGroup(Navigator.of(context).context, user!)),
                 ],
 
                 if (!_isGuest && user!.isAdmin) ...[

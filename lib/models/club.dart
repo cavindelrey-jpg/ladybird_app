@@ -57,6 +57,10 @@ class Club {
   final int memberCount;
   final String? schoolId;
   final bool requiresApproval;
+  /// Set only for a class group (create_class_group RPC) -- never shown in
+  /// Discover, never self-joinable.
+  final String? classLevel;
+  bool get isClassGroup => (classLevel ?? '').isNotEmpty;
 
   /// Denormalized preview of the club chat's most recent message — same
   /// shape/purpose as Conversation's lastMessage* fields, so a club can
@@ -79,6 +83,7 @@ class Club {
     this.memberCount = 0,
     this.schoolId,
     this.requiresApproval = false,
+    this.classLevel,
     this.lastMessageText = '',
     this.lastMessageSenderId,
     this.lastMessageAt,
@@ -98,6 +103,7 @@ class Club {
       memberCount: (d['member_count'] as num?)?.toInt() ?? 0,
       schoolId: d['institution_id'],
       requiresApproval: d['requires_approval'] ?? false,
+      classLevel: d['class_level'] as String?,
       lastMessageText: d['last_message_text'] ?? '',
       lastMessageSenderId: d['last_message_sender_id'],
       lastMessageAt: DateTime.tryParse(d['last_message_at']?.toString() ?? ''),

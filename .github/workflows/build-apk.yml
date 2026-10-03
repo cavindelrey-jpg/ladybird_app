@@ -79,14 +79,28 @@ jobs:
           retention-days: 3
 
       - name: Publish Release Assets to GitHub Release
-        uses: softprops/action-gh-release@v2
         if: success()
-        with:
-          tag_name: latest-ladybird
-          name: "Ladybird Schools - Latest Release (v2.0.1+2)"
-          draft: false
-          prerelease: false
-          files: |
-            build/app/outputs/bundle/ladybirdRelease/app-ladybird-release.aab
-            build/app/outputs/flutter-apk/app-*-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Ensure release exists
+          gh release view latest-ladybird || gh release create latest-ladybird \
+            --title "Ladybird Schools - Latest Release (v2.0.1+2)" \
+            --notes "Automated build release"
+
+          # Upload and overwrite assets with retry
+          for attempt in 1 2 3; do
+            echo "Uploading release assets (attempt $attempt)..."
+            if gh release upload latest-ladybird \
+              build/app/outputs/bundle/ladybirdRelease/app-ladybird-release.aab \
+              build/app/outputs/flutter-apk/app-*-release.apk \
+              --clobber; then
+              echo "Successfully uploaded release assets!"
+              exit 0
+            fi
+            echo "Upload failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "Failed to upload release assets after 3 attempts."
+          exit 1
 

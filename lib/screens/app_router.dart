@@ -20,6 +20,7 @@ import '../models/models.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 import '../services/auth_service.dart';
+import '../services/connectivity_service.dart';
 import '../repositories/magazine_repository.dart';
 import 'first_login_screen.dart';
 // pages
@@ -360,11 +361,16 @@ class _HomeShellState extends State<HomeShell> {
     return Scaffold(
       drawer: AppDrawer(user: widget.user, onHomeTap: () => setState(() => _tab = 0)),
       body: SafeArea(
-        child: IndexedStack(
-          index: safeTab,
-          children: List.generate(nav.length,
-              (i) => _visitedTabs.contains(i) ? _buildPage(ac, nav[i]) : const SizedBox.shrink()),
-        ),
+        child: Column(children: [
+          const _OfflineBanner(),
+          Expanded(
+            child: IndexedStack(
+              index: safeTab,
+              children: List.generate(nav.length,
+                  (i) => _visitedTabs.contains(i) ? _buildPage(ac, nav[i]) : const SizedBox.shrink()),
+            ),
+          ),
+        ]),
       ),
       // Architecture brief item 14: content creation lives behind this
       // one "+" button instead of permanent per-page CTA cards -- see
@@ -406,4 +412,35 @@ class _NavDef {
   final IconData filledIcon, outlinedIcon;
   final UserRole minRole;
   const _NavDef(this.label, this.filledIcon, this.outlinedIcon, this.minRole);
+}
+
+
+/// Tells the student they're offline and what still works, instead of
+/// sections silently showing "nothing here yet".
+class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return StreamBuilder<bool>(
+      stream: ConnectivityService().watchOffline(),
+      builder: (context, snap) {
+        if (snap.data != true) return const SizedBox.shrink();
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          color: ac.orgBg,
+          child: Row(children: [
+            Icon(Icons.wifi_off_rounded, size: 16, color: ac.org),
+            const SizedBox(width: 8),
+            Expanded(child: Text(
+              "You're offline — your downloads in Library still open. Everything else updates when you reconnect.",
+              style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w600, color: ac.org),
+            )),
+          ]),
+        );
+      },
+    );
+  }
 }

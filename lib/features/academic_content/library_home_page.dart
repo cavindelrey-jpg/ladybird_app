@@ -22,6 +22,7 @@ import '../../models/library_folder.dart';
 import '../../models/academic_content.dart';
 import '../../repositories/library_folder_repository.dart';
 import '../../repositories/academic_content_repository.dart';
+import '../../services/connectivity_service.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
@@ -234,7 +235,11 @@ class LibraryHomePage extends StatelessWidget {
         if (items.isEmpty) {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('No resources to recommend yet — check back soon.', style: AppText.bodySm.copyWith(color: ac.txt2)),
+            child: Text(
+                ConnectivityService().isOffline
+                    ? 'Recommendations need an internet connection. Your downloads are below.'
+                    : 'No resources to recommend yet — check back soon.',
+                style: AppText.bodySm.copyWith(color: ac.txt2)),
           );
         }
         return SizedBox(
@@ -275,7 +280,8 @@ class LibraryHomePage extends StatelessWidget {
           CrashService.instance.recordError(recentSnap.error, null, context: 'LibraryHomePage._recentReads');
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text("Couldn't load: ${recentSnap.error}", style: AppText.caption.copyWith(color: ac.red, fontSize: 11)),
+            child: Text("Recent reads need an internet connection. Your downloads are below.",
+                style: AppText.bodySm.copyWith(color: ac.txt2)),
           );
         }
         final recent = recentSnap.data ?? const <AcademicContent>[];
@@ -293,7 +299,10 @@ class LibraryHomePage extends StatelessWidget {
             if (fill.isEmpty) {
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text('Nothing here yet — open something from the Library and it\'ll show up here.',
+                child: Text(
+                    ConnectivityService().isOffline
+                        ? 'Recent reads need an internet connection. Your downloads are below.'
+                        : 'Nothing here yet — open something from the Library and it\'ll show up here.',
                     style: AppText.bodySm.copyWith(color: ac.txt2)),
               );
             }

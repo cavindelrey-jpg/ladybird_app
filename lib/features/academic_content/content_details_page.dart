@@ -11,6 +11,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/app_user.dart';
 import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
+import '../../core/result.dart';
+import '../../widgets/widgets.dart' show showToast;
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import 'content_edit_page.dart';
@@ -99,7 +101,12 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
                         // here still leaves the bookmark saved, and the
                         // content simply opens over the network like
                         // before.
-                        unawaited(AcademicContentRepository.instance.downloadForOffline(item));
+                        showToast(context, 'Downloading for offline…');
+                        final res = await AcademicContentRepository.instance.downloadForOffline(item);
+                        if (!context.mounted) return;
+                        showToast(context,
+                            res is Failure<String> ? res.message : 'Saved — available offline in your Library.',
+                            isError: res is Failure<String>);
                       }
                     },
                   );

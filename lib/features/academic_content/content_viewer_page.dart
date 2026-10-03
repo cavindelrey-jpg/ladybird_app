@@ -19,6 +19,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 import '../../core/docx_parser.dart';
 import '../../core/epub_parser.dart';
+import '../../core/result.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
@@ -153,11 +154,8 @@ class _ViewerSaveOfflineActionState extends State<_ViewerSaveOfflineAction> {
       return;
     }
     final contentId = widget.contentId;
-    if (contentId != null) {
-      final path = await AcademicContentRepository.instance.offlineFilePath(contentId);
-      if (mounted && path != null) {
-        setState(() => _isSaved = true);
-      }
+    if (contentId != null && await AcademicContentRepository.instance.isSavedForOffline(contentId)) {
+      if (mounted) setState(() => _isSaved = true);
     }
   }
 
@@ -175,31 +173,24 @@ class _ViewerSaveOfflineActionState extends State<_ViewerSaveOfflineAction> {
       _progress = 0;
     });
 
-    try {
-      await AcademicContentRepository.instance.ensureLocalCopy(
-        contentId: contentId,
-        fileUrl: widget.fileUrl,
-        onProgress: (p) {
-          if (mounted) setState(() => _progress = p);
-        },
-      );
-      if (mounted) {
-        setState(() {
-          _isSaved = true;
-          _downloading = false;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Saved for offline use. Accessible anytime in Offline section.')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _downloading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save offline: $e')),
-        );
-      }
-    }
+    final res = await AcademicContentRepository.instance.saveForOffline(
+      contentId: contentId,
+      fileUrl: widget.fileUrl,
+      title: widget.title,
+      onProgress: (p) {
+        if (mounted) setState(() => _progress = p);
+      },
+    );
+    if (!mounted) return;
+    setState(() {
+      _downloading = false;
+      _isSaved = res is Success<void>;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(res is Failure<void>
+          ? res.message
+          : 'Saved for offline. Find it under Library → Available Offline.'),
+    ));
   }
 
   @override

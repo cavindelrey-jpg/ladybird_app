@@ -321,6 +321,50 @@ class AcademicContentRepository {
     }
   }
 
+  /// True only for items the user explicitly saved for offline (listed in
+  /// "Available Offline"), with the file still on disk. NOT the same as
+  /// [offlineFilePath]: the viewer silently caches every file it opens,
+  /// and treating that cache as "saved" showed a green "saved offline"
+  /// check for items that never appeared in the offline section.
+  Future<bool> isSavedForOffline(String contentId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final ids = prefs.getStringList(_offlineIdsKey) ?? const <String>[];
+    return ids.contains(contentId) && await offlineFilePath(contentId) != null;
+  }
+
+  /// Explicit "Save for offline" from the viewer, which only knows the
+  /// id/url/title: downloads (or reuses the cached file), then registers
+  /// the item with its metadata so it's listed and openable offline.
+  Future<Result<void>> saveForOffline({
+    required String contentId,
+    required String fileUrl,
+    required String title,
+    void Function(double)? onProgress,
+  }) async {
+    try {
+      await ensureLocalCopy(contentId: contentId, fileUrl: fileUrl, onProgress: onProgress);
+    } catch (e) {
+      return Failure('Download failed — check your connection and try again.', e);
+    }
+    Map<String, dynamic> meta;
+    try {
+      meta = await _db.from('academic_content').select().eq('id', contentId).single()
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // File is on the device; list it with what we know rather than fail.
+      meta = {'id': contentId, 'title': title, 'file_url': fileUrl};
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_offlineMetaPrefix$contentId', jsonEncode(meta));
+    final ids = prefs.getStringList(_offlineIdsKey) ?? <String>[];
+    if (!ids.contains(contentId)) {
+      ids.add(contentId);
+      await prefs.setStringList(_offlineIdsKey, ids);
+    }
+    _offlineNotifier.add(null);
+    return const Success(null);
+  }
+
   /// The viewer-facing counterpart to [downloadForOffline] -- same cache
   /// slot, but silent/automatic: ContentViewerPage calls this on open so
   /// PDFs/Word docs open from a real local file instead of the whole
@@ -487,6 +531,11 @@ class AcademicContentRepository {
     required int page,
     required int totalPages,
   }) async {
+    // Local first, so the position survives (and is used) offline.
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('read_page_${userId}_$contentId', page);
+    } catch (_) {}
     try {
       await _db.from('content_read_positions').upsert({
         'content_id': contentId,
@@ -501,20 +550,28 @@ class AcademicContentRepository {
   }
 
   /// The page [userId] last left off on for [contentId], or 1 if there's
-  /// no saved position yet.
+  /// no saved position yet. The server copy (another device may be ahead)
+  /// wins when it answers within 3 s; otherwise this device's own last
+  /// page is used -- offline it used to fall back to page 1, after the
+  /// viewer had waited on the failing request before opening at all.
   Future<int> savedReadPage({required String contentId, required String userId}) async {
+    int? local;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      local = prefs.getInt('read_page_${userId}_$contentId');
+    } catch (_) {}
     try {
       final row = await _db
           .from('content_read_positions')
           .select('page')
           .eq('content_id', contentId)
           .eq('user_id', userId)
-          .maybeSingle();
+          .maybeSingle()
+          .timeout(const Duration(seconds: 3));
       final page = (row?['page'] as num?)?.toInt();
-      return (page != null && page > 0) ? page : 1;
-    } catch (_) {
-      return 1;
-    }
+      if (page != null && page > 0) return page;
+    } catch (_) {}
+    return (local != null && local > 0) ? local : 1;
   }
 
   /// Most-recent real reading position for [userId] across all content —

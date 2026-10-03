@@ -208,6 +208,10 @@ class EpubParser {
   static String _htmlToPlainText(String html) {
     var text = html;
 
+    // The <head> (its <title>, meta) isn't reading text -- keeping it made
+    // every chapter start with its title twice (head <title> + body <h1>).
+    text = text.replaceAll(RegExp(r'<head[^>]*>[\s\S]*?</head>', caseSensitive: false), '');
+
     // Remove scripts and styles
     text = text.replaceAll(RegExp(r'<style[^>]*>[\s\S]*?</style>', caseSensitive: false), '');
     text = text.replaceAll(RegExp(r'<script[^>]*>[\s\S]*?</script>', caseSensitive: false), '');

@@ -291,7 +291,7 @@ class _MarksPageState extends State<MarksPage> {
         Expanded(flex: 3, child: Text(mark.teacherName.isEmpty ? '—' : mark.teacherName,
             maxLines: 1, overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2))),
-        Expanded(flex: 2, child: Text(markOnScale.toStringAsFixed(1),
+        Expanded(flex: 2, child: Text(formatMark(double.parse(markOnScale.toStringAsFixed(2))),
             textAlign: TextAlign.center,
             style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: ac.txt))),
         Expanded(flex: 1, child: Text(mark.grade,

@@ -111,3 +111,11 @@ class SchoolMark {
     return 'F';
   }
 }
+
+/// How a mark is shown everywhere: exact, never rounded (a parent once saw
+/// 6.5/20 as "7/20"), without a trailing ".0" -- 14, 13.5, 12.25.
+String formatMark(double v) {
+  if (v == v.roundToDouble()) return v.toInt().toString();
+  final s = v.toStringAsFixed(2);
+  return s.endsWith('0') ? s.substring(0, s.length - 1) : s;
+}

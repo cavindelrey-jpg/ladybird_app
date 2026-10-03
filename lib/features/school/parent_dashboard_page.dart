@@ -161,7 +161,7 @@ class _StudentDetail extends StatelessWidget {
             final items = snap.data ?? const <Homework>[];
             if (snap.connectionState == ConnectionState.waiting) return const ShimmerBlock(height: 80);
             if (items.isEmpty) return _emptyRow(ac, 'No homework assigned right now.');
-            return Column(children: items.take(10).map((h) => Padding(
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: items.take(10).map((h) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: ACard(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -192,7 +192,8 @@ class _StudentDetail extends StatelessWidget {
                     Text(m.subject, style: AppText.title.copyWith(fontSize: 14)),
                     Text(m.sequence.label, style: AppText.bodySm.copyWith(fontSize: 11.5, color: ac.muted)),
                   ])),
-                  Text('${m.score.toStringAsFixed(0)}/${m.maxScore.toStringAsFixed(0)}',
+                  // Never round a child's mark: 6.5 used to read as "7/20".
+                  Text('${formatMark(m.score)}/${formatMark(m.maxScore)}',
                       style: AppText.title.copyWith(fontSize: 15, color: ac.primary)),
                 ]),
               ),

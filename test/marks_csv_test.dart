@@ -174,4 +174,11 @@ void main() {
     test('too precise', () => expect(parseScoreInput('12.345', 20).error, '2 decimals max'));
     test('out of 100', () => expect(parseScoreInput('87', 100).value, 87));
   });
+
+  test('formatMark never rounds a mark', () {
+    expect(formatMark(6.5), '6.5');
+    expect(formatMark(14), '14');
+    expect(formatMark(12.25), '12.25');
+    expect(formatMark(19.5), '19.5');
+  });
 }

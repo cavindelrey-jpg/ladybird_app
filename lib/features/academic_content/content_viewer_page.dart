@@ -428,6 +428,7 @@ class _PdfViewerBodyState extends State<_PdfViewerBody> {
   @override
   Widget build(BuildContext context) {
     final params = PdfViewerParams(
+      backgroundColor: AppColors.of(context).surf3,
       onPageChanged: _onPageChanged,
       errorBannerBuilder: (context, error, stack, ref) => _error(context, error),
       textSelectionParams: PdfTextSelectionParams(

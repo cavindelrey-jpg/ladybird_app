@@ -62,11 +62,22 @@ class LibraryHomePage extends StatelessWidget {
             _sectionHeader('Recommended for You', ac, onSeeAll: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => RecommendedLibraryPage(user: user)))),
             const SizedBox(height: 12),
-            _recommendedRow(context, ac),
-            const SizedBox(height: 24),
-            _sectionHeader('Recent Reads', ac),
-            const SizedBox(height: 12),
-            _recentReads(context, ac),
+            // Re-built (and so re-fetched) whenever connectivity flips, so
+            // "needs an internet connection" clears by itself on reconnect.
+            StreamBuilder<bool>(
+              stream: ConnectivityService().watchOffline(),
+              builder: (context, net) => Column(
+                key: ValueKey('online-sections-${net.data}'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _recommendedRow(context, ac),
+                  const SizedBox(height: 24),
+                  _sectionHeader('Recent Reads', ac),
+                  const SizedBox(height: 12),
+                  _recentReads(context, ac),
+                ],
+              ),
+            ),
             const SizedBox(height: 24),
             _sectionHeader('Available Offline', ac, badge: 'Downloaded'),
             const SizedBox(height: 12),

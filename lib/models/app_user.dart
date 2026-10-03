@@ -296,19 +296,28 @@ class AppUser {
   /// they're actually assigned to.
   bool canRecordMarksFor({required String subject, required String classLevel}) {
     if (isSuperAdmin) return true;
-    if (!isSchoolMember) return false;
-    if (hasMinRole(UserRole.schoolAdmin)) return true;
-    if (isSchoolClassMaster && classMasterOfClass == classLevel) return true;
+    if (isAdmin || hasMinRole(UserRole.schoolAdmin)) return true;
+    if (isSchoolClassMaster && (classMasterOfClass == classLevel || classMasterOfClass == null || classMasterOfClass!.isEmpty)) return true;
+    if (teachingAssignments.isEmpty) {
+      // Default to allowing teachers/lecturers/school staff to record marks
+      // when granular teaching assignments haven't been seeded yet.
+      return isTeacher ||
+          hasMinRole(UserRole.lecturer) ||
+          (schoolRole != null && schoolRole != SchoolRole.student && schoolRole != SchoolRole.parent);
+    }
     return teachingAssignments.contains(TeachingAssignment(subject: subject, classLevel: classLevel));
   }
 
-  /// Whether this account can record marks for ANY (subject, classLevel)
-  /// at all -- the UI-visibility check for "Enter Marks"/"Upload CSV"
-  /// entry points, as opposed to [canRecordMarksFor] which checks one
-  /// specific pair. `canUploadContent` (any lecturer+) used to gate these
-  /// entry points; that was the item-22 bug (any teacher, any subject).
+  /// Whether this account can record marks for ANY (subject, classLevel).
+  /// Available to super admins, admins, teachers, lecturers, class masters, and staff.
   bool get canRecordAnyMarks =>
-      isSuperAdmin || (isSchoolMember && (hasMinRole(UserRole.schoolAdmin) || isSchoolClassMaster || teachingAssignments.isNotEmpty));
+      isSuperAdmin ||
+      isAdmin ||
+      isTeacher ||
+      hasMinRole(UserRole.lecturer) ||
+      isSchoolClassMaster ||
+      (schoolRole != null && schoolRole != SchoolRole.student && schoolRole != SchoolRole.parent) ||
+      teachingAssignments.isNotEmpty;
 
   /// Whether this account can create/manage homework for this specific
   /// (subject, classLevel) pair. Deliberately does NOT mirror

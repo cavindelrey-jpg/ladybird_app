@@ -143,9 +143,9 @@ class _QuestionBankPickerSheetState extends State<QuestionBankPickerSheet> {
                   },
                   style: AppText.bodySm.copyWith(color: ac.txt),
                   decoration: InputDecoration(
-                    hintText: 'Search topic, keyword, or past paper…',
-                    hintStyle: AppText.bodySm.copyWith(color: ac.muted),
-                    prefixIcon: Icon(Icons.search_rounded, size: 20, color: ac.muted),
+                    hintText: 'Search topic, past paper, or keyword (e.g. algebra, GCE 2024, mechanics)…',
+                    hintStyle: AppText.bodySm.copyWith(color: ac.muted, fontSize: 12),
+                    prefixIcon: Icon(Icons.search_rounded, size: 20, color: ac.primary),
                     filled: true,
                     fillColor: ac.surf2,
                     contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -163,6 +163,48 @@ class _QuestionBankPickerSheetState extends State<QuestionBankPickerSheet> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: Row(
                   children: [
+                    // Source Filter Tabs
+                    _filterChip(
+                      ac: ac,
+                      label: 'All Sources',
+                      isSelected: _source.isEmpty,
+                      onTap: () {
+                        setState(() => _source = '');
+                        _fetch();
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    _filterChip(
+                      ac: ac,
+                      label: '📄 PDF Past Papers',
+                      isSelected: _source == 'Past Paper',
+                      onTap: () {
+                        setState(() => _source = 'Past Paper');
+                        _fetch();
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    _filterChip(
+                      ac: ac,
+                      label: '🏛️ Question Bank',
+                      isSelected: _source == 'Question Bank',
+                      onTap: () {
+                        setState(() => _source = 'Question Bank');
+                        _fetch();
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    _filterChip(
+                      ac: ac,
+                      label: '📚 Library & Books',
+                      isSelected: _source == 'Library',
+                      onTap: () {
+                        setState(() => _source = 'Library');
+                        _fetch();
+                      },
+                    ),
+                    const SizedBox(width: 8),
+
                     // Difficulty Filter
                     _filterChip(
                       ac: ac,
@@ -178,28 +220,6 @@ class _QuestionBankPickerSheetState extends State<QuestionBankPickerSheet> {
                             _difficulty = 'hard';
                           } else {
                             _difficulty = '';
-                          }
-                        });
-                        _fetch();
-                      },
-                    ),
-                    const SizedBox(width: 8),
-
-                    // Source Filter
-                    _filterChip(
-                      ac: ac,
-                      label: _source.isEmpty ? 'Source: All' : 'Source: $_source',
-                      isSelected: _source.isNotEmpty,
-                      onTap: () {
-                        setState(() {
-                          if (_source.isEmpty) {
-                            _source = 'Past Paper';
-                          } else if (_source == 'Past Paper') {
-                            _source = 'Question Bank';
-                          } else if (_source == 'Question Bank') {
-                            _source = 'Library';
-                          } else {
-                            _source = '';
                           }
                         });
                         _fetch();
@@ -359,9 +379,37 @@ class _QuestionSearchCard extends StatelessWidget {
                 ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: ac.goldBg, borderRadius: BorderRadius.circular(6)),
-                child: Text(question.source,
-                    style: AppText.caption.copyWith(fontSize: 10, color: ac.gold, fontWeight: FontWeight.w600)),
+                decoration: BoxDecoration(
+                  color: question.source.contains('Past Paper') || question.source.contains('GCE')
+                      ? ac.bluBg
+                      : (question.source.contains('Library') ? ac.purBg : ac.goldBg),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      question.source.contains('Past Paper') || question.source.contains('GCE')
+                          ? Icons.picture_as_pdf_rounded
+                          : (question.source.contains('Library') ? Icons.menu_book_rounded : Icons.account_balance_rounded),
+                      size: 11,
+                      color: question.source.contains('Past Paper') || question.source.contains('GCE')
+                          ? ac.blu
+                          : (question.source.contains('Library') ? ac.pur : ac.gold),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      question.source,
+                      style: AppText.caption.copyWith(
+                        fontSize: 10,
+                        color: question.source.contains('Past Paper') || question.source.contains('GCE')
+                            ? ac.blu
+                            : (question.source.contains('Library') ? ac.pur : ac.gold),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

@@ -28,6 +28,7 @@ import '../../repositories/school_marks_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
+import 'marks_csv_import_page.dart';
 import 'widgets/management_scaffold.dart';
 
 /// Real classes only -- 'Undergraduate'/'All Levels' are content scopes.
@@ -35,18 +36,25 @@ List<String> get _schoolClassLevels => kAcademicLevels.take(7).toList();
 
 /// Classes this staff member can record ANY subject for.
 List<String> recordableClassesFor(AppUser staff) {
-  if (staff.isSuperAdmin || staff.hasMinRole(UserRole.schoolAdmin)) return _schoolClassLevels;
-  return {
+  if (staff.isSuperAdmin || staff.isAdmin || staff.hasMinRole(UserRole.schoolAdmin)) return _schoolClassLevels;
+  final assigned = {
     if ((staff.classMasterOfClass ?? '').isNotEmpty) staff.classMasterOfClass!,
     for (final a in staff.teachingAssignments) a.classLevel,
-  }.where((c) => c.isNotEmpty).toList()
-    ..sort((a, b) => _schoolClassLevels.indexOf(a).compareTo(_schoolClassLevels.indexOf(b)));
+  }.where((c) => c.isNotEmpty).toList();
+  if (assigned.isNotEmpty) {
+    return assigned..sort((a, b) => _schoolClassLevels.indexOf(a).compareTo(_schoolClassLevels.indexOf(b)));
+  }
+  // Fallback: When explicit assignments are not yet configured, all classes are available
+  return _schoolClassLevels;
 }
 
 /// Subjects this staff member can record in [classLevel].
-List<String> recordableSubjectsFor(AppUser staff, String classLevel) => kAcademicSubjects
-    .where((s) => staff.canRecordMarksFor(subject: s, classLevel: classLevel))
-    .toList();
+List<String> recordableSubjectsFor(AppUser staff, String classLevel) {
+  final filtered = kAcademicSubjects
+      .where((s) => staff.canRecordMarksFor(subject: s, classLevel: classLevel))
+      .toList();
+  return filtered.isNotEmpty ? filtered : kAcademicSubjects;
+}
 
 class MarksEntryPage extends StatefulWidget {
   final AppUser staff;
@@ -266,6 +274,43 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
     }
   }
 
+  Future<void> _promptAddStudent() async {
+    final nameCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Add Student to ${_class ?? 'Class'}'),
+        content: TextField(
+          controller: nameCtrl,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Student Full Name',
+            hintText: 'e.g. Marie Claire',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Add Student'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && nameCtrl.text.trim().isNotEmpty) {
+      final name = nameCtrl.text.trim();
+      final newId = 'std_${DateTime.now().millisecondsSinceEpoch}_${name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')}';
+      final newStudent = RosterStudent(id: newId, name: name, classLevel: _class ?? '');
+      setState(() {
+        _roster = [..._roster, newStudent]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        _ctrls[newId] = TextEditingController();
+        _focus[newId] = FocusNode();
+      });
+      if (mounted) showToast(context, 'Added $name to ${_class ?? 'class'} roster.');
+    }
+  }
+
   // ── UI ────────────────────────────────────────────────────────────────
 
   @override
@@ -297,6 +342,11 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
         title: 'Enter Marks',
         sidebarItems: const [ManagementNavItem(icon: Icons.assessment_outlined, label: 'Marks', selected: true)],
         actions: [
+          IconButton(
+            tooltip: 'Add Student',
+            icon: const Icon(Icons.person_add_rounded),
+            onPressed: _promptAddStudent,
+          ),
           IconButton(
             tooltip: 'Export CSV',
             icon: const Icon(Icons.ios_share_rounded),
@@ -407,8 +457,55 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
         onPressed: _load, icon: const Icon(Icons.refresh_rounded), label: const Text('Retry')));
     }
     if (_roster.isEmpty) {
-      return _message(ac, Icons.groups_outlined,
-          'No students are enrolled in $_class yet. Students appear here once they redeem a $_class code.');
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.groups_outlined, size: 54, color: ac.muted),
+              const SizedBox(height: 14),
+              Text(
+                'No students in $_class yet',
+                style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Add students directly to record marks, or import a complete marks CSV spreadsheet.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2, height: 1.4),
+              ),
+              const SizedBox(height: 20),
+              Wrap(
+                spacing: 12,
+                runSpacing: 10,
+                alignment: WrapAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: _promptAddStudent,
+                    icon: const Icon(Icons.person_add_rounded, size: 18),
+                    label: Text('Add Student to $_class'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ac.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => MarksCsvImportPage(staff: widget.staff))),
+                    icon: const Icon(Icons.upload_file_rounded, size: 18),
+                    label: const Text('Import CSV'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
     }
     final q = _filterCtrl.text.trim().toLowerCase();
     final visible = q.isEmpty ? _roster : _roster.where((s) => s.name.toLowerCase().contains(q)).toList();

@@ -6,11 +6,9 @@
 import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/local_database.dart';
-import '../models/academic_content.dart';
 import '../models/exam_question.dart';
 import '../models/examination.dart';
-import '../models/test.dart';
-import 'academic_content_repository.dart';
+import '../services/exam_content_indexer_service.dart';
 import '../core/realtime_tolerant.dart';
 
 class ExamRepository {
@@ -18,10 +16,6 @@ class ExamRepository {
   static final ExamRepository instance = ExamRepository._();
 
   final SupabaseClient _db = Supabase.instance.client;
-
-  // In-memory cache for fast responsive UI
-  final Map<String, List<ExamQuestion>> _cachedQuestionsBySubject = {};
-  final Map<String, List<SchoolExamTemplate>> _cachedTemplatesBySchool = {};
 
   // ─── Examinations ─────────────────────────────────────────────────────────
 
@@ -224,36 +218,17 @@ class ExamRepository {
       results.addAll(local.map(ExamQuestion.fromJson));
     }
 
-    // 2. Integrate with Academia Library (Past papers, Textbooks, Notes)
+    // 2. Search indexed PDF/EPUB past papers and Academia Library resources
     try {
-      final libraryItems = await AcademicContentRepository.instance.search(
-        query ?? '',
+      final libraryQuestions = await ExamContentIndexerService.instance.searchIndexedLibraryQuestions(
+        schoolId: schoolId,
+        query: query,
         subject: subject,
-        level: classLevel,
+        classLevel: classLevel,
         year: year,
+        difficulty: difficulty,
       );
-
-      for (final item in libraryItems.take(20)) {
-        // Synthesize structured authorized question items from library resources
-        results.add(ExamQuestion(
-          id: 'lib_${item.id}',
-          content: 'Excerpts and questions from ${item.title}:\n\n${item.description.isNotEmpty ? item.description : 'Official curriculum assessment material.'}',
-          marks: item.contentType == ContentType.pastPaper ? 20 : 10,
-          type: item.contentType == ContentType.pastPaper ? QuestionType.structured : QuestionType.longForm,
-          subject: item.subject,
-          classLevel: item.level.isNotEmpty ? item.level : (classLevel ?? ''),
-          topic: item.tags.isNotEmpty ? item.tags.first : 'General',
-          subtopic: item.tags.length > 1 ? item.tags[1] : '',
-          difficulty: 'medium',
-          source: item.contentType == ContentType.pastPaper
-              ? '${item.examBoard} Past Paper (${item.year ?? 'General'})'
-              : 'Academia Library: ${item.title}',
-          sourceRef: item.id,
-          year: item.year,
-          schoolId: schoolId,
-          createdAt: item.uploadDate,
-        ));
-      }
+      results.addAll(libraryQuestions);
     } catch (_) {}
 
     // 3. Fallback built-in foundational curriculum questions if bank is empty

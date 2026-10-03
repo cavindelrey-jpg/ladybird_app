@@ -77,7 +77,7 @@ class SchoolMarksRepository {
         final rows = await _marks.select().eq('student_id', studentId);
         return rows.map(_fromRow).toList();
       },
-      toJson: (list) => OfflineCache.listToJson(list, (m) => _toRow(m as SchoolMark)),
+      toJson: (list) => OfflineCache.listToJson(list, (m) => _toRow(m)),
       fromJson: (json) => OfflineCache.listFromJson(json, (j) => _fromRow(j)),
     );
   }
@@ -119,22 +119,54 @@ class SchoolMarksRepository {
   Future<Result<List<RosterStudent>>> classRoster(String schoolId, String classLevel) async {
     if (schoolId.isEmpty || classLevel.isEmpty) return const Success([]);
     try {
-      final rows = await _db
-          .from('users')
-          .select('id, name, class_level')
-          .eq('institution_id', schoolId)
-          .eq('class_level', classLevel)
-          .eq('role', 'student')
-          // postgrest-dart's order() defaults to DESCENDING.
-          .order('name_lower', ascending: true);
-      return Success([
+      List<dynamic> rows;
+      try {
+        rows = await _db
+            .from('users')
+            .select('id, name, class_level')
+            .eq('institution_id', schoolId)
+            .eq('class_level', classLevel)
+            .eq('role', 'student');
+      } catch (_) {
+        rows = await _db
+            .from('users')
+            .select('id, name, class_level')
+            .eq('institution_id', schoolId)
+            .eq('class_level', classLevel);
+      }
+
+      final students = <RosterStudent>[
         for (final r in rows)
           RosterStudent(
             id: r['id'] as String,
             name: (r['name'] as String?)?.trim().isNotEmpty == true ? r['name'] as String : 'Unnamed student',
             classLevel: r['class_level']?.toString() ?? classLevel,
           ),
-      ]);
+      ];
+
+      // If no students registered in users yet, check previously graded students in school_marks
+      if (students.isEmpty) {
+        try {
+          final markRows = await _marks
+              .select('student_id, teacher_name')
+              .eq('school_id', schoolId)
+              .eq('class_level', classLevel);
+          final seen = <String>{};
+          for (final m in markRows) {
+            final sid = m['student_id'] as String;
+            if (seen.add(sid)) {
+              students.add(RosterStudent(
+                id: sid,
+                name: 'Student ${sid.length > 8 ? sid.substring(0, 8) : sid}',
+                classLevel: classLevel,
+              ));
+            }
+          }
+        } catch (_) {}
+      }
+
+      students.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      return Success(students);
     } catch (e) {
       return Failure('Couldn\'t load the $classLevel class list. Check your connection and try again.', e);
     }

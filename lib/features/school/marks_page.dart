@@ -84,13 +84,13 @@ class _MarksPageState extends State<MarksPage> {
         trailing: [
           if (u.canRecordAnyMarks) ...[
             IconButton(
-              icon: Icon(Icons.edit_note_rounded, color: ac.txt2),
+              icon: Icon(Icons.edit_note_rounded, color: ac.primary),
               tooltip: 'Enter marks',
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => MarksEntryPage(staff: u))).then((_) => _refresh()),
             ),
             IconButton(
-              icon: Icon(Icons.upload_file_rounded, color: ac.txt2),
+              icon: Icon(Icons.upload_file_rounded, color: ac.primary),
               tooltip: 'Upload CSV',
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => MarksCsvImportPage(staff: u))).then((_) => _refresh()),
@@ -99,6 +99,49 @@ class _MarksPageState extends State<MarksPage> {
         ],
       ),
       body: Column(children: [
+        if (u.canRecordAnyMarks)
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: ac.primaryBg,
+              borderRadius: BorderRadius.circular(Rad.md),
+              border: Border.all(color: ac.primary.withValues(alpha: .3)),
+            ),
+            child: Row(children: [
+              Icon(Icons.edit_note_rounded, color: ac.primary, size: 24),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Teacher Marks Console', style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: ac.txt)),
+                  Text('Record marks or import class results spreadsheet', style: GoogleFonts.inter(fontSize: 11, color: ac.txt2)),
+                ]),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => MarksEntryPage(staff: u))).then((_) => _refresh()),
+                icon: const Icon(Icons.edit_rounded, size: 14),
+                label: const Text('Record Marks'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ac.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  textStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(width: 6),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => MarksCsvImportPage(staff: u))).then((_) => _refresh()),
+                icon: const Icon(Icons.upload_file_rounded, size: 14),
+                label: const Text('CSV'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  textStyle: const TextStyle(fontSize: 11.5),
+                ),
+              ),
+            ]),
+          ),
         StudentInfoCard(user: u),
         _controls(ac),
         Expanded(
@@ -344,9 +387,8 @@ class _MarksPageState extends State<MarksPage> {
       );
 }
 
-
-/// What a teacher / class master / admin sees on "Marks": one card per
-/// (class, subject) they can record, each opening the class grid.
+/// What a teacher / class master / admin sees on "Marks":
+/// Prominent "Record Marks" and "Upload CSV" controls, plus one card per class/subject.
 class _StaffMarksHome extends StatelessWidget {
   final AppUser staff;
   const _StaffMarksHome({required this.staff});
@@ -354,23 +396,35 @@ class _StaffMarksHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final pairs = <(String, String)>[
-      for (final c in recordableClassesFor(staff))
-        for (final s in recordableSubjectsFor(staff, c))
-          if (staff.hasMinRole(UserRole.schoolAdmin) ||
-              staff.classMasterOfClass == c ||
-              staff.teachingAssignments.any((a) => a.classLevel == c && a.subject == s))
-            (c, s),
-    ];
-    // A class master can record every subject for their class -- show
-    // one card for the class rather than eight near-identical ones.
+    final availableClasses = recordableClassesFor(staff);
+
     final cards = <(String, String?)>[];
-    for (final (c, s) in pairs) {
-      final wholeClass = staff.hasMinRole(UserRole.schoolAdmin) || staff.classMasterOfClass == c;
-      if (wholeClass) {
-        if (!cards.any((e) => e.$1 == c && e.$2 == null)) cards.add((c, null));
-      } else {
-        cards.add((c, s));
+    if (staff.teachingAssignments.isEmpty) {
+      // Default: All classes are accessible with "All subjects"
+      for (final c in availableClasses) {
+        cards.add((c, null));
+      }
+    } else {
+      final pairs = <(String, String)>[
+        for (final c in availableClasses)
+          for (final s in recordableSubjectsFor(staff, c))
+            if (staff.hasMinRole(UserRole.schoolAdmin) ||
+                staff.classMasterOfClass == c ||
+                staff.teachingAssignments.any((a) => a.classLevel == c && a.subject == s))
+              (c, s),
+      ];
+      for (final (c, s) in pairs) {
+        final wholeClass = staff.hasMinRole(UserRole.schoolAdmin) || staff.classMasterOfClass == c;
+        if (wholeClass) {
+          if (!cards.any((e) => e.$1 == c && e.$2 == null)) cards.add((c, null));
+        } else {
+          cards.add((c, s));
+        }
+      }
+      if (cards.isEmpty) {
+        for (final c in availableClasses) {
+          cards.add((c, null));
+        }
       }
     }
 
@@ -379,11 +433,100 @@ class _StaffMarksHome extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: ac.bg,
-      appBar: schoolAppBar(context: context, title: 'Marks', subtitle: 'Record and export your classes\' marks'),
+      appBar: schoolAppBar(
+        context: context,
+        title: 'Marks Recording',
+        subtitle: 'Record and export your classes\' marks',
+        trailing: [
+          IconButton(
+            icon: Icon(Icons.upload_file_rounded, color: ac.primary),
+            tooltip: 'Upload CSV',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => MarksCsvImportPage(staff: staff))),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
-          Text('Your classes', style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
+          // ── Prominent Teacher Marks Action Card ──────────────────────────
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [ac.primaryBg, ac.surf],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(Rad.lg),
+              border: Border.all(color: ac.primary.withValues(alpha: .35)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: .04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: ac.primary, borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.edit_note_rounded, color: Colors.white, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Record Student Marks',
+                          style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w800, color: ac.txt)),
+                      const SizedBox(height: 2),
+                      Text('Enter scores directly for any class or import via CSV spreadsheet.',
+                          style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
+                    ]),
+                  ),
+                ]),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => open(cards.isNotEmpty ? cards.first.$1 : null, null),
+                      icon: const Icon(Icons.edit_rounded, size: 16),
+                      label: const Text('Record / Enter Marks'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ac.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        elevation: 1,
+                        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => MarksCsvImportPage(staff: staff))),
+                      icon: const Icon(Icons.upload_file_rounded, size: 16),
+                      label: const Text('Upload Marks CSV'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        side: BorderSide(color: ac.primary.withValues(alpha: .5)),
+                        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ]),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          Text('Classes & Subjects', style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
           const SizedBox(height: 10),
           for (final (cls, subject) in cards)
             Container(
@@ -398,23 +541,33 @@ class _StaffMarksHome extends StatelessWidget {
                 title: Text(cls, style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
                 subtitle: Text(subject ?? (staff.classMasterOfClass == cls ? 'All subjects · Class master' : 'All subjects'),
                     style: GoogleFonts.inter(fontSize: 12, color: ac.txt2)),
-                trailing: Text('Enter marks', style: GoogleFonts.inter(
-                    fontSize: 12.5, fontWeight: FontWeight.w600, color: ac.primary)),
+                trailing: ElevatedButton(
+                  onPressed: () => open(cls, subject),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ac.primaryBg,
+                    foregroundColor: ac.primary,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Enter Marks', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
                 onTap: () => open(cls, subject),
               ),
             ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => MarksCsvImportPage(staff: staff))),
-            icon: const Icon(Icons.upload_file_rounded, size: 18),
-            label: const Text('Import marks from CSV'),
-            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: ac.surf2, borderRadius: BorderRadius.circular(Rad.sm)),
+            child: Row(children: [
+              Icon(Icons.info_outline_rounded, size: 16, color: ac.muted),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Tip: Tap any class to view, enter, or edit student marks. You can also export class marks as CSV anytime.',
+                    style: GoogleFonts.inter(fontSize: 11.5, color: ac.muted, height: 1.4)),
+              ),
+            ]),
           ),
-          const SizedBox(height: 8),
-          Text('Tip: open a class and use the share icon to export its marks as CSV — '
-              'the file can be edited in Excel and imported back unchanged.',
-              style: GoogleFonts.inter(fontSize: 11.5, color: ac.muted, height: 1.5)),
         ],
       ),
     );

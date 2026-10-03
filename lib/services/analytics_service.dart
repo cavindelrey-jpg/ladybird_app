@@ -40,7 +40,18 @@ class AnalyticsService {
   AnalyticsService._();
   static final AnalyticsService instance = AnalyticsService._();
 
-  final FirebaseAnalytics _fa = FirebaseAnalytics.instance;
+  /// Null when Firebase isn't initialised (main.dart tolerates
+  /// initializeApp() failing). Grabbing FirebaseAnalytics.instance eagerly
+  /// in a field initializer used to make the FIRST use of analytics throw
+  /// -- including from the global error screen, which then failed itself
+  /// in a loop and froze the app.
+  FirebaseAnalytics? get _fa {
+    try {
+      return FirebaseAnalytics.instance;
+    } catch (_) {
+      return null;
+    }
+  }
 
   AppUser? _currentUser;
   String? _institutionId;
@@ -49,15 +60,15 @@ class AnalyticsService {
   void setUser(AppUser user, {String? institutionId}) {
     _currentUser = user;
     _institutionId = institutionId;
-    _fa.setUserId(id: user.id);
-    _fa.setUserProperty(name: 'role', value: user.role.name);
+    _fa?.setUserId(id: user.id);
+    _fa?.setUserProperty(name: 'role', value: user.role.name);
     debugPrint('[Analytics] User context set: ${user.id} (${user.role.name})');
   }
 
   void clearUser() {
     _currentUser = null;
     _institutionId = null;
-    _fa.setUserId(id: null);
+    _fa?.setUserId(id: null);
   }
 
   /// Track a named event with optional parameters.
@@ -75,7 +86,7 @@ class AnalyticsService {
 
     debugPrint('[Analytics] ${event.name}: $payload');
 
-    _fa.logEvent(
+    _fa?.logEvent(
       name: event.name,
       parameters: params?.map((k, v) => MapEntry(k, v is num || v is bool ? v : v.toString())),
     );
@@ -84,7 +95,7 @@ class AnalyticsService {
   /// Track screen/page view.
   void trackScreen(String screenName) {
     debugPrint('[Analytics] Screen: $screenName');
-    _fa.logScreenView(screenName: screenName);
+    _fa?.logScreenView(screenName: screenName);
     track(AcademiaEvent.pageViewed, params: {'screen': screenName});
   }
 }

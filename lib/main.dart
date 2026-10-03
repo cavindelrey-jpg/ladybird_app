@@ -249,20 +249,34 @@ class _AcademiaPageTransition extends PageTransitionsBuilder {
   }
 }
 
+/// What a widget that failed to build is replaced with. Must never throw
+/// and must lay out anywhere: it can replace a whole page OR one tile in a
+/// list or a dropdown menu entry. It used to be a full Scaffold with an
+/// AppBar that also logged to Firebase Analytics during build(); with
+/// Firebase unavailable that threw, which produced another error screen,
+/// which threw again -- an endless error loop that froze the app.
 class _ErrorFallback extends StatelessWidget {
   final FlutterErrorDetails details;
   const _ErrorFallback({required this.details});
 
   @override
   Widget build(BuildContext context) {
-    // We log the raw error silently for developers
-    AnalyticsService.instance.track(AcademiaEvent.pageViewed,
-        params: {'error': details.exception.toString()});
-    
-    return Scaffold(
-      backgroundColor: Theme.of(context).extension<AppColors>()?.bg ?? Colors.white,
-      appBar: AppBar(elevation: 0, backgroundColor: Colors.transparent, leading: const BackButton()),
-      body: ActionErrorWidget(error: details.exception, stackTrace: details.stack),
+    final ac = Theme.of(context).extension<AppColors>();
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 24),
+        padding: const EdgeInsets.all(8),
+        color: ac?.redBg ?? const Color(0xFFFFEBEE),
+        alignment: Alignment.center,
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.error_outline_rounded, size: 16, color: ac?.red ?? Colors.red),
+          const SizedBox(width: 6),
+          Flexible(child: Text('Something went wrong here.',
+              maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: ac?.red ?? Colors.red))),
+        ]),
+      ),
     );
   }
 }

@@ -38,6 +38,7 @@ import '../features/school/marks_page.dart';
 import '../features/school/timetable_page.dart';
 import '../features/school/homework_page.dart';
 import '../features/school/teacher_management_page.dart';
+import '../features/onboarding/school_admin_page.dart';
 import '../features/school/school_calendar_page.dart';
 
 class AppDrawer extends StatelessWidget {
@@ -147,6 +148,11 @@ class AppDrawer extends StatelessWidget {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => TeacherManagementPage(admin: user!)));
                   }),
+                  if (user!.canManageUsers)
+                    _item(context, ac, Icons.vpn_key_outlined, 'Access Codes', () {
+                      Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => SchoolAdminPage(user: user!)));
+                    }),
                 ],
 
                 _sectionLabel(ac, 'Communication'),

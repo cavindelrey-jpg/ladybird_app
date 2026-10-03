@@ -7,7 +7,10 @@
 // school_access_page.dart has nothing to redeem — codes have to come
 // from somewhere real, not be typed in by hand into Firestore.
 
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 import '../../core/result.dart';
 import '../../models/app_user.dart';
@@ -73,9 +76,22 @@ class _SchoolAdminPageState extends State<SchoolAdminPage> {
     }
   }
 
+  int _listVersion = 0;
+
   Future<void> _issue() async {
     final school = _selectedSchool;
-    if (school == null) return;
+    if (school == null) {
+      // Used to return silently -- a dead button for a super admin who
+      // hadn't picked a school yet.
+      setState(() => _error = 'Choose a school first.');
+      return;
+    }
+    final count = int.tryParse(_countCtrl.text.trim());
+    if (count == null || count < 1 || count > 200) {
+      setState(() => _error = 'Enter how many codes to generate (1–200).');
+      return;
+    }
+    _count = count;
     HapticFeedback.mediumImpact();
     setState(() {
       _issuing = true;
@@ -93,10 +109,18 @@ class _SchoolAdminPageState extends State<SchoolAdminPage> {
     setState(() => _issuing = false);
     switch (result) {
       case Success(:final value):
-        setState(() => _issued = value);
+        setState(() {
+          _issued = value;
+          _listVersion++;
+        });
       case Failure(:final message):
         setState(() => _error = message);
     }
+  }
+
+  void _copy(String text, String what) {
+    Clipboard.setData(ClipboardData(text: text));
+    showToast(context, '$what copied');
   }
 
   @override
@@ -247,22 +271,217 @@ class _SchoolAdminPageState extends State<SchoolAdminPage> {
 
             if (_issued.isNotEmpty) ...[
               const SizedBox(height: 20),
-              Text('Generated — write these down or print them now:',
-                  style: AppText.bodySm.copyWith(color: ac.txt2)),
+              Row(children: [
+                Expanded(child: Text('Generated ${_issued.length} code${_issued.length == 1 ? '' : 's'}:',
+                    style: AppText.bodySm.copyWith(color: ac.txt2))),
+                TextButton.icon(
+                  onPressed: () => _copy(_issued.map((v) => '${v.code}\t${v.role.label}').join('\n'), 'All codes'),
+                  icon: const Icon(Icons.copy_all_rounded, size: 16),
+                  label: const Text('Copy all'),
+                ),
+              ]),
               const SizedBox(height: 8),
               ..._issued.map((v) => Container(
                     margin: const EdgeInsets.only(bottom: 6),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(color: ac.grnBg, borderRadius: BorderRadius.circular(Rad.sm)),
                     child: Row(children: [
-                      Expanded(child: Text(v.code, style: AppText.body.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1))),
+                      Expanded(child: SelectableText(v.code, style: AppText.body.copyWith(fontWeight: FontWeight.w700, letterSpacing: 1))),
                       Text(v.role.label, style: AppText.bodySm.copyWith(color: ac.txt2)),
+                      IconButton(
+                        tooltip: 'Copy',
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.copy_rounded, size: 16),
+                        onPressed: () => _copy(v.code, 'Code'),
+                      ),
                     ]),
                   )),
+            ],
+            if (_selectedSchool != null) ...[
+              const SizedBox(height: 28),
+              Divider(color: ac.bdr),
+              const SizedBox(height: 16),
+              IssuedVouchersSection(key: ValueKey('${_selectedSchool!.id}-$_listVersion'), school: _selectedSchool!),
             ],
           ],
         ),
       ),
+    );
+  }
+}
+
+enum _VoucherFilter { unused, used, all }
+
+/// Every code issued for one school: search, Unused/Used filter, copy,
+/// and CSV export. Before this, generated codes were only ever shown
+/// once ("write these down or print them now") and were lost on leaving
+/// the page.
+class IssuedVouchersSection extends StatefulWidget {
+  final School school;
+  const IssuedVouchersSection({super.key, required this.school});
+
+  @override
+  State<IssuedVouchersSection> createState() => _IssuedVouchersSectionState();
+}
+
+class _IssuedVouchersSectionState extends State<IssuedVouchersSection> {
+  late Future<Result<List<IssuedVoucher>>> _future = _load();
+  final _searchCtrl = TextEditingController();
+  _VoucherFilter _filter = _VoucherFilter.unused;
+
+  Future<Result<List<IssuedVoucher>>> _load() => SchoolAccessRepository.instance.listVouchers(widget.school.id);
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<IssuedVoucher> _visible(List<IssuedVoucher> all) {
+    final q = _searchCtrl.text.trim().toUpperCase();
+    return all.where((v) {
+      if (_filter == _VoucherFilter.unused && v.voucher.status != SchoolVoucherStatus.unused) return false;
+      if (_filter == _VoucherFilter.used && !v.isUsed) return false;
+      if (q.isEmpty) return true;
+      return v.voucher.code.toUpperCase().contains(q) ||
+          v.voucher.role.label.toUpperCase().contains(q) ||
+          (v.redeemedByName ?? '').toUpperCase().contains(q);
+    }).toList();
+  }
+
+  Future<void> _export(List<IssuedVoucher> rows) async {
+    String esc(String s) => s.contains(',') || s.contains('"') ? '"${s.replaceAll('"', '""')}"' : s;
+    final csv = StringBuffer('code,role,premium,status,issued,redeemed_by,redeemed_at\r\n');
+    for (final v in rows) {
+      csv.write([
+        v.voucher.code, v.voucher.role.label, v.voucher.premiumTier?.label ?? 'None', v.voucher.status.name,
+        v.voucher.createdAt.toIso8601String().substring(0, 10), v.redeemedByName ?? '',
+        v.redeemedAt?.toIso8601String().substring(0, 16).replaceAll('T', ' ') ?? '',
+      ].map(esc).join(','));
+      csv.write('\r\n');
+    }
+    try {
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/codes_${widget.school.code}_${_filter.name}.csv');
+      await file.writeAsString('﻿$csv');
+      await Share.shareXFiles([XFile(file.path, mimeType: 'text/csv')], text: '${widget.school.name} codes');
+    } catch (_) {
+      if (mounted) showToast(context, 'Couldn\'t create the export file.', isError: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return FutureBuilder<Result<List<IssuedVoucher>>>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+        }
+        final res = snap.data;
+        if (res is! Success<List<IssuedVoucher>>) {
+          return Column(children: [
+            Text(res is Failure<List<IssuedVoucher>> ? res.message : 'Couldn\'t load issued codes.',
+                style: AppText.bodySm.copyWith(color: ac.red)),
+            TextButton.icon(
+              onPressed: () => setState(() => _future = _load()),
+              icon: const Icon(Icons.refresh_rounded), label: const Text('Retry')),
+          ]);
+        }
+        final all = res.value;
+        final unused = all.where((v) => v.voucher.status == SchoolVoucherStatus.unused).length;
+        final used = all.where((v) => v.isUsed).length;
+        final rows = _visible(all);
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Issued codes · ${widget.school.name}', style: AppText.title.copyWith(fontSize: 14)),
+          const SizedBox(height: 4),
+          Text('${all.length} issued · $unused unused · $used used', style: AppText.bodySm.copyWith(color: ac.txt2)),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _searchCtrl,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              hintText: 'Search code, role or student name',
+              prefixIcon: const Icon(Icons.search_rounded, size: 18),
+              isDense: true, filled: true, fillColor: ac.surf3,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SegmentedButton<_VoucherFilter>(
+            segments: [
+              ButtonSegment(value: _VoucherFilter.unused, label: Text('Unused ($unused)')),
+              ButtonSegment(value: _VoucherFilter.used, label: Text('Used ($used)')),
+              const ButtonSegment(value: _VoucherFilter.all, label: Text('All')),
+            ],
+            selected: {_filter},
+            showSelectedIcon: false,
+            onSelectionChanged: (s) => setState(() => _filter = s.first),
+          ),
+          const SizedBox(height: 6),
+          Row(children: [
+            TextButton.icon(
+              onPressed: rows.isEmpty ? null : () {
+                Clipboard.setData(ClipboardData(text: rows.map((v) => '${v.voucher.code}\t${v.voucher.role.label}').join('\n')));
+                showToast(context, '${rows.length} codes copied');
+              },
+              icon: const Icon(Icons.copy_all_rounded, size: 16),
+              label: const Text('Copy list'),
+            ),
+            TextButton.icon(
+              onPressed: rows.isEmpty ? null : () => _export(rows),
+              icon: const Icon(Icons.ios_share_rounded, size: 16),
+              label: const Text('Export CSV'),
+            ),
+          ]),
+          if (rows.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text(all.isEmpty ? 'No codes issued for this school yet.' : 'No codes match.',
+                  style: AppText.bodySm.copyWith(color: ac.muted)),
+            ),
+          for (final v in rows.take(300))
+            Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+              decoration: BoxDecoration(
+                color: ac.surf, borderRadius: BorderRadius.circular(Rad.sm), border: Border.all(color: ac.bdr2)),
+              child: Row(children: [
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  SelectableText(v.voucher.code,
+                      style: AppText.body.copyWith(fontWeight: FontWeight.w700, letterSpacing: 0.8,
+                          color: v.isUsed ? ac.muted : ac.txt,
+                          decoration: v.isUsed ? TextDecoration.lineThrough : null)),
+                  const SizedBox(height: 2),
+                  Text(
+                    [
+                      v.voucher.role.label,
+                      if (v.voucher.premiumTier != null) v.voucher.premiumTier!.label,
+                      if (v.isUsed) 'used by ${v.redeemedByName?.isNotEmpty == true ? v.redeemedByName : 'someone'}'
+                          '${v.redeemedAt != null ? ' · ${v.redeemedAt!.day}/${v.redeemedAt!.month}/${v.redeemedAt!.year}' : ''}'
+                      else if (v.voucher.status == SchoolVoucherStatus.revoked) 'revoked'
+                      else 'unused',
+                    ].join(' · '),
+                    style: AppText.bodySm.copyWith(fontSize: 11.5, color: v.isUsed ? ac.muted : ac.grn),
+                  ),
+                ])),
+                if (!v.isUsed)
+                  IconButton(
+                    tooltip: 'Copy',
+                    icon: const Icon(Icons.copy_rounded, size: 16),
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: v.voucher.code));
+                      showToast(context, 'Code copied');
+                    },
+                  ),
+              ]),
+            ),
+          if (rows.length > 300)
+            Text('Showing 300 of ${rows.length} — narrow with search or export the full list.',
+                style: AppText.bodySm.copyWith(color: ac.muted)),
+        ]);
+      },
     );
   }
 }

@@ -104,6 +104,42 @@ class SchoolAccessRepository {
     }
   }
 
+  /// Every code issued for [schoolId], newest first, with who redeemed
+  /// each one. RLS (school_vouchers_select_staff) limits this to that
+  /// school's own admins and super admins.
+  Future<Result<List<IssuedVoucher>>> listVouchers(String schoolId) async {
+    if (schoolId.isEmpty) return const Success([]);
+    try {
+      final rows = await _supabase
+          .from('school_vouchers')
+          .select()
+          .eq('school_id', schoolId)
+          .order('created_at')
+          .limit(2000);
+      final redeemerIds = {
+        for (final r in rows)
+          if (r['redeemed_by_user_id'] != null) r['redeemed_by_user_id'] as String,
+      };
+      final names = <String, String>{};
+      if (redeemerIds.isNotEmpty) {
+        final users = await _supabase.from('users').select('id, name').inFilter('id', redeemerIds.toList());
+        for (final u in users) {
+          names[u['id'] as String] = (u['name'] as String?) ?? '';
+        }
+      }
+      return Success([
+        for (final r in rows)
+          IssuedVoucher(
+            voucher: SchoolVoucher.fromSupabase(r),
+            redeemedByName: names[r['redeemed_by_user_id']],
+            redeemedAt: DateTime.tryParse(r['redeemed_at']?.toString() ?? ''),
+          ),
+      ]);
+    } catch (e) {
+      return Failure('Couldn\'t load issued codes. Check your connection and try again.', e);
+    }
+  }
+
   /// [classLevel] folds "which class am I in" into the same redemption
   /// step for student vouchers, rather than granting access and then
   /// presenting a separate wall right after.
@@ -152,4 +188,12 @@ class SchoolAccessRepository {
     if (v == null || v == 'free') return null;
     return VoucherPremiumTier.values.firstWhere((t) => t.name == v, orElse: () => VoucherPremiumTier.silver);
   }
+}
+
+class IssuedVoucher {
+  final SchoolVoucher voucher;
+  final String? redeemedByName;
+  final DateTime? redeemedAt;
+  const IssuedVoucher({required this.voucher, this.redeemedByName, this.redeemedAt});
+  bool get isUsed => voucher.status == SchoolVoucherStatus.redeemed;
 }

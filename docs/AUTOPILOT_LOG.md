@@ -5470,3 +5470,4 @@ Environment decisions:
 - Teachers' "tomorrow" programme matches timetable slots by teacher_name (slots have no teacher_id) — assumption; documented.
 - Real device push (FCM / local notifications) NOT added: no push infra/plugin exists, it needs Firebase server credentials + native Android/iOS config that can't be built or verified here. Delivery remains in-app (notifications table + feed).
 - Regression caught by re-running the matrix: tenant-scoping has_school_role broke has_school_role(NULL, ...) (platform-wide content). NULL now means "global role" again.
+- Vouchers: AC (Academia-brand) codes have issuance code but no UI; NOT added — they can't be redeemed in the LB build anyway (prefix check). The Ladybird super-admin console is SchoolAdminPage, now with an issued-codes list (search, unused/used, copy, CSV export).

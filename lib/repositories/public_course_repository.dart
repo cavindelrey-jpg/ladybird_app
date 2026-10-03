@@ -170,10 +170,10 @@ class PublicCourseRepository {
   /// bounded sample.
   Future<Map<String, int>> categoryCountsOnce() async {
     return _memoizer.runOnce('categoryCountsOnce', () async {
-      final rows = await _courses.select('category').eq('published', true).limit(500);
+      final rows = await _courses.select().eq('published', true).limit(5000);
       final counts = <String, int>{};
-      for (final row in rows) {
-        final cat = row['category'] ?? 'Other';
+      for (final c in cleanCourses(rows.map(PublicCourse.fromSupabase))) {
+        final cat = c.subject.trim().isEmpty ? 'Other' : c.subject;
         counts[cat] = (counts[cat] ?? 0) + 1;
       }
       return counts;
@@ -245,14 +245,15 @@ class PublicCourseRepository {
     return _memoizer.runOnce('levelsOnce', () async {
       final results = await Future.wait([
         _courseLevels.select().order('sort_order', ascending: true),
-        _courses.select('level').eq('published', true).limit(5000),
+        _courses.select().eq('published', true).limit(5000),
       ]);
       final levelRows = results[0] as List<Map<String, dynamic>>;
-      final courseRows = results[1] as List<Map<String, dynamic>>;
+      // Count only what students can actually see (no filler, de-duplicated),
+      // so the level tiles' numbers match the lists behind them.
+      final courses = cleanCourses((results[1] as List<Map<String, dynamic>>).map(PublicCourse.fromSupabase));
       final counts = <String, int>{};
-      for (final row in courseRows) {
-        final level = row['level'] as String?;
-        if (level != null && level.trim().isNotEmpty) counts[level] = (counts[level] ?? 0) + 1;
+      for (final c in courses) {
+        if (c.level.trim().isNotEmpty) counts[c.level] = (counts[c.level] ?? 0) + 1;
       }
       return levelRows
           .map((r) => CourseLevelInfo(name: r['name'] as String, courseCount: counts[r['name']] ?? 0))
@@ -262,31 +263,31 @@ class PublicCourseRepository {
 
   Future<List<String>> subjectsInLevel(String level) async {
     return _memoizer.runOnce('subjectsInLevel_$level', () async {
-      final rows = await _courses.select('category').eq('published', true).eq('level', level).limit(500);
-      return _distinctNonEmpty(rows.map((r) => r['category'] as String?));
+      final rows = await _courses.select().eq('published', true).eq('level', level).limit(5000);
+      return _distinctNonEmpty(cleanCourses(rows.map(PublicCourse.fromSupabase)).map((c) => c.subject));
     });
   }
 
   Future<Map<String, int>> subjectCountsInLevel(String level) async {
     return _memoizer.runOnce('subjectCountsInLevel_$level', () async {
-      final rows = await _courses.select('category').eq('published', true).eq('level', level).limit(5000);
-      return _countBy(rows.map((r) => r['category'] as String?));
+      final rows = await _courses.select().eq('published', true).eq('level', level).limit(5000);
+      return _countBy(cleanCourses(rows.map(PublicCourse.fromSupabase)).map((c) => c.subject));
     });
   }
 
   Future<List<String>> topicsInSubject(String level, String subject) async {
     return _memoizer.runOnce('topicsInSubject_${level}_$subject', () async {
       final rows = await _courses
-          .select('topic').eq('published', true).eq('level', level).eq('category', subject).limit(500);
-      return _distinctNonEmpty(rows.map((r) => r['topic'] as String?));
+          .select().eq('published', true).eq('level', level).eq('category', subject).limit(5000);
+      return _distinctNonEmpty(cleanCourses(rows.map(PublicCourse.fromSupabase)).map((c) => c.topic));
     });
   }
 
   Future<Map<String, int>> topicCountsInSubject(String level, String subject) async {
     return _memoizer.runOnce('topicCountsInSubject_${level}_$subject', () async {
       final rows = await _courses
-          .select('topic').eq('published', true).eq('level', level).eq('category', subject).limit(5000);
-      return _countBy(rows.map((r) => r['topic'] as String?));
+          .select().eq('published', true).eq('level', level).eq('category', subject).limit(5000);
+      return _countBy(cleanCourses(rows.map(PublicCourse.fromSupabase)).map((c) => c.topic));
     });
   }
 

@@ -151,7 +151,10 @@ class TestRepository {
   /// one education level (see [distinctSubjectsOnce]).
   Future<Map<String, int>> subjectTestCountsOnce({String? category}) async {
     return _memoizer.runOnce('subjectTestCountsOnce_$category', () async {
-      final rows = await _tests.select('subject,category').eq('published', true);
+      // Full rows (not just subject,category): the count must match the
+      // list the student sees, so placeholder/filler quizzes are excluded
+      // via isPlaceholderQuiz -- which needs the questions column.
+      final rows = await _tests.select().eq('published', true);
       final counts = <String, int>{};
       for (final row in rows) {
         if (category != null && category.isNotEmpty) {
@@ -162,6 +165,7 @@ class TestRepository {
         }
         final subject = (row['subject'] as String?) ?? '';
         if (subject.isEmpty) continue;
+        if (isPlaceholderQuiz(Test.fromSupabase(row))) continue;
         counts[subject] = (counts[subject] ?? 0) + 1;
       }
       return counts;
@@ -181,7 +185,7 @@ class TestRepository {
   Future<Map<String, int>> categoryTestCountsOnce() async {
     List<Map<String, dynamic>> rawRows;
     try {
-      final rows = await _tests.select('category').eq('published', true);
+      final rows = await _tests.select().eq('published', true);
       rawRows = List<Map<String, dynamic>>.from(rows);
       unawaited(ContentCacheService.instance.putList(_categoryCountsCacheKey, rawRows));
     } catch (e) {
@@ -191,6 +195,7 @@ class TestRepository {
     }
     final counts = <String, int>{};
     for (final row in rawRows) {
+      if (isPlaceholderQuiz(Test.fromSupabase(row))) continue;
       final raw = (row['category'] as String?) ?? '';
       final category = raw.isEmpty ? kUncategorizedQuizBucket : raw;
       counts[category] = (counts[category] ?? 0) + 1;
@@ -206,13 +211,14 @@ class TestRepository {
     required String subject,
   }) async {
     return _memoizer.runOnce('topicTestCountsOnce_${category}_$subject', () async {
-      final rows = await _tests.select('category,topic').eq('subject', subject).eq('published', true);
+      final rows = await _tests.select().eq('subject', subject).eq('published', true);
       final counts = <String, int>{};
       for (final row in rows) {
         final rowCategory = (row['category'] as String? ?? '').isEmpty
             ? kUncategorizedQuizBucket
             : row['category'] as String;
         if (rowCategory != category) continue;
+        if (isPlaceholderQuiz(Test.fromSupabase(row))) continue;
         final raw = (row['topic'] as String?) ?? '';
         final topic = raw.isEmpty ? kGeneralQuizTopicBucket : raw;
         counts[topic] = (counts[topic] ?? 0) + 1;

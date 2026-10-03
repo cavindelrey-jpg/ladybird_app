@@ -36,6 +36,7 @@ class _DailyLearningLessonPageState extends State<DailyLearningLessonPage> {
   bool _answered = false;
   int _correctCount = 0;
   int _xpAwarded = 0;
+  bool _wasReplay = false;
   bool _saving = false;
 
   DailyLearningQuestion get _question => widget.lesson.questions[_questionIndex];
@@ -67,7 +68,8 @@ class _DailyLearningLessonPageState extends State<DailyLearningLessonPage> {
     );
     if (!mounted) return;
     setState(() {
-      _xpAwarded = awarded;
+      _wasReplay = awarded == null;
+      _xpAwarded = awarded ?? 0;
       _saving = false;
       _phase = _Phase.result;
     });
@@ -205,8 +207,8 @@ class _DailyLearningLessonPageState extends State<DailyLearningLessonPage> {
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(Icons.star_rounded, color: ac.gold, size: 18),
           const SizedBox(width: 4),
-          Text('+$_xpAwarded XP', style: GoogleFonts.sora(
-              fontSize: 14, fontWeight: FontWeight.w700, color: ac.gold)),
+          Text(_wasReplay ? 'Practice round — XP was earned the first time' : '+$_xpAwarded XP',
+              style: GoogleFonts.sora(fontSize: _wasReplay ? 12.5 : 14, fontWeight: FontWeight.w700, color: ac.gold)),
         ]),
         const SizedBox(height: 28),
         PrimaryBtn(

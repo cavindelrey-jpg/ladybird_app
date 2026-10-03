@@ -56,11 +56,11 @@ class DailyLearningRepository {
 
   /// Records a finished lesson and awards real XP for the questions
   /// answered correctly (same rate as a standard MCQ, XpSource.
-  /// dailyLearning). Idempotent on the progress side -- replaying an
-  /// already-completed lesson just re-unions the same id into the set --
-  /// but XP is awarded again per real row semantics (every attempt earns
-  /// XP again, capped by the shared daily XP ceiling, same as quiz retakes).
-  Future<int> completeLesson({
+  /// dailyLearning). Returns null when the lesson was ALREADY completed:
+  /// replaying it is practice -- no XP and no streak credit. Re-awarding
+  /// XP on every replay (the old behaviour) let a student farm XP by
+  /// repeating the same lesson.
+  Future<int?> completeLesson({
     required String userId,
     required String courseId,
     required String lessonId,
@@ -72,7 +72,9 @@ class DailyLearningRepository {
         .eq('user_id', userId)
         .eq('course_id', courseId)
         .maybeSingle();
-    final ids = {...Set<String>.from(existing?['completed_lesson_ids'] ?? const []), lessonId}.toList();
+    final done = Set<String>.from(existing?['completed_lesson_ids'] ?? const []);
+    if (done.contains(lessonId)) return null;
+    final ids = {...done, lessonId}.toList();
     await _progress.upsert({
       'user_id': userId,
       'course_id': courseId,

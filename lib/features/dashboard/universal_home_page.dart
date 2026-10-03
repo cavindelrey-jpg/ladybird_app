@@ -1399,6 +1399,19 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     final isSchoolMember = !_isGuest && _u!.isSchoolMember;
 
     final tools = <(String, IconData, Color, VoidCallback)>[
+      ('Marks', Icons.assessment_outlined, ac.primary,
+          () => _open(context, MarksPage(user: _userOrGuest))),
+      ('Homework', Icons.menu_book_outlined, ac.org,
+          () => _open(context, HomeworkPage(user: _userOrGuest))),
+      ('Timetable', Icons.calendar_month_outlined, ac.grn,
+          () => _open(context, TimetablePage(user: _userOrGuest))),
+      ('School Connect', Icons.forum_outlined, ac.pur,
+          () => _open(context, SchoolConnectPage(user: _userOrGuest))),
+      ('Daily Notices', Icons.campaign_outlined, ac.org,
+          () => _open(context, DailyNoticesPage(user: _userOrGuest))),
+      if (!_isGuest && (_u!.isAdmin || _u!.isTeacher || _u!.isSchoolClassMaster || _u!.canManageSchool))
+        ('Exam Composer', Icons.assignment_outlined, ac.primary,
+            () => _open(context, ExamListPage(user: _u!))),
       ('Dictionary', Icons.spellcheck_rounded, ac.primary,
           () => _open(context, const DictionaryScreen())),
       ('Study Groups', Icons.groups_rounded, ac.grn,
@@ -1407,15 +1420,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           () => _open(context, DailyLearningHubPage(user: _userOrGuest))),
       ('Magazine', Icons.auto_stories_rounded, ac.gold,
           () => _open(context, MagazineFeedPage(user: _userOrGuest))),
-      if (isSchoolMember) ...[
-        ('School Connect', Icons.forum_outlined, ac.pur,
-            () => _open(context, SchoolConnectPage(user: _u!))),
-        ('Daily Notices', Icons.campaign_outlined, ac.org,
-            () => _open(context, DailyNoticesPage(user: _u!))),
-        if (_u!.isAdmin || _u!.isTeacher || _u!.isSchoolClassMaster || _u!.canManageSchool)
-          ('Exam Composer', Icons.assignment_outlined, ac.primary,
-              () => _open(context, ExamListPage(user: _u!))),
-      ],
       if (_u?.isSuperAdmin == true)
         ('Command Center', Icons.admin_panel_settings, Colors.red,
             () => _open(context, const CommandCenterScreen())),

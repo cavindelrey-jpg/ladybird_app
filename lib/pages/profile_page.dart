@@ -7,6 +7,7 @@ import '../models/models.dart';
 import '../services/auth_service.dart';
 import '../features/timetable/personal_study_page.dart';
 import '../features/testing/xp_dashboard_page.dart';
+import '../features/school/homework_page.dart';
 import '../features/school/timetable_page.dart';
 import '../features/school/marks_page.dart';
 import '../features/school/school_connect_page.dart';
@@ -142,7 +143,7 @@ class ProfilePage extends StatelessWidget {
           // first launch, by voucher_signup_screen.dart; there's no
           // second code to enter later, so this section simply doesn't
           // show until membership already exists.
-          if (user.isSchoolMember) ...[
+          if (user.isSchoolMember || Branding.current.brandId != 'academia') ...[
             const SizedBox(height: 8),
             _SectionHeader('School Navigation'),
             _InfoRow(Icons.forum_outlined, 'School Connect', '',
@@ -151,6 +152,9 @@ class ProfilePage extends StatelessWidget {
             _InfoRow(Icons.assessment_outlined, 'Marks', '',
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => MarksPage(user: user)))),
+            _InfoRow(Icons.menu_book_outlined, 'Homework', '',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => HomeworkPage(user: user)))),
             _InfoRow(Icons.calendar_month_outlined, 'Timetable', '',
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => TimetablePage(user: user)))),

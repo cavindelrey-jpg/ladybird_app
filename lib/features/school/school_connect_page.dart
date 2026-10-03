@@ -30,6 +30,9 @@ import '../../pages/notifications_page.dart';
 import '../announcements/announcements_page.dart';
 import 'daily_notices/daily_notices_page.dart';
 import 'exam_composer/exam_list_page.dart';
+import 'homework_page.dart';
+import 'marks_page.dart';
+import 'timetable_page.dart';
 import 'school_calendar_manager_page.dart';
 import 'school_request_form_page.dart';
 import 'school_requests_admin_page.dart';
@@ -72,6 +75,8 @@ class SchoolConnectPage extends StatelessWidget {
               children: [
                 StudentInfoCard(user: user),
                 const SizedBox(height: 16),
+                _coreAcademicsRow(context, ac),
+                const SizedBox(height: 12),
                 _academicToolsRow(context, ac),
                 const SizedBox(height: 16),
                 _quickActionBox(context, ac),
@@ -85,6 +90,100 @@ class SchoolConnectPage extends StatelessWidget {
                 _contactFooter(context, ac),
               ],
             ),
+    );
+  }
+
+  Widget _coreAcademicsRow(BuildContext context, AppColors ac) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: _schoolQuickCard(
+              context,
+              ac: ac,
+              icon: Icons.assessment_outlined,
+              iconColor: ac.primary,
+              iconBg: ac.primaryBg,
+              title: 'Marks',
+              subtitle: 'Grades & Reports',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => MarksPage(user: user),
+              )),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _schoolQuickCard(
+              context,
+              ac: ac,
+              icon: Icons.menu_book_outlined,
+              iconColor: ac.org,
+              iconBg: ac.orgBg,
+              title: 'Homework',
+              subtitle: 'Tasks & Quizzes',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => HomeworkPage(user: user),
+              )),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: _schoolQuickCard(
+              context,
+              ac: ac,
+              icon: Icons.calendar_month_outlined,
+              iconColor: ac.grn,
+              iconBg: ac.grnBg,
+              title: 'Timetable',
+              subtitle: 'Class Schedule',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => TimetablePage(user: user),
+              )),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _schoolQuickCard(
+    BuildContext context, {
+    required AppColors ac,
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: ac.surf,
+      borderRadius: BorderRadius.circular(Rad.md),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Rad.md),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr2),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(8)),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+              const SizedBox(height: 8),
+              Text(title, style: AppText.title.copyWith(fontSize: 13, color: ac.txt)),
+              Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.caption.copyWith(color: ac.muted, fontSize: 10)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

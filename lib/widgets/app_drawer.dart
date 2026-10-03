@@ -41,6 +41,8 @@ import '../features/school/teacher_management_page.dart';
 import '../features/onboarding/school_admin_page.dart';
 import '../features/school/school_calendar_page.dart';
 import '../features/school/class_group_launcher.dart';
+import '../features/school/daily_notices/daily_notices_page.dart';
+import '../features/school/exam_composer/exam_list_page.dart';
 
 class AppDrawer extends StatelessWidget {
   final AppUser? user;
@@ -119,34 +121,41 @@ class AppDrawer extends StatelessWidget {
                 // section -- surfaced here too, since the drawer is the
                 // one navigation surface open from anywhere in the app,
                 // not just after scrolling into Profile.
-                if (!_isGuest && user!.isSchoolMember) ...[
-                  _sectionLabel(ac, 'My School'),
-                  _item(context, ac, Icons.forum_outlined, 'School Connect', () {
+                _sectionLabel(ac, 'My School'),
+                _item(context, ac, Icons.forum_outlined, 'School Connect', () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => SchoolConnectPage(user: user ?? AppUser.guest())));
+                }),
+                _item(context, ac, Icons.assessment_outlined, 'Marks', () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => MarksPage(user: user ?? AppUser.guest())));
+                }),
+                _item(context, ac, Icons.menu_book_outlined, 'Homework', () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => HomeworkPage(user: user ?? AppUser.guest())));
+                }),
+                _item(context, ac, Icons.calendar_month_outlined, 'Timetable', () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => TimetablePage(user: user ?? AppUser.guest())));
+                }),
+                _item(context, ac, Icons.campaign_outlined, 'Daily Notices', () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => DailyNoticesPage(user: user ?? AppUser.guest())));
+                }),
+                _item(context, ac, Icons.event_note_outlined, 'School Calendar', () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => SchoolCalendarPage(user: user ?? AppUser.guest())));
+                }),
+                if (!_isGuest && (user!.isAdmin || user!.isTeacher || user!.isSchoolClassMaster || user!.canManageSchool))
+                  _item(context, ac, Icons.assignment_outlined, 'Exam Composer', () {
                     Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => SchoolConnectPage(user: user!)));
+                        builder: (_) => ExamListPage(user: user!)));
                   }),
-                  _item(context, ac, Icons.assessment_outlined, 'Marks', () {
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => MarksPage(user: user!)));
-                  }),
-                  _item(context, ac, Icons.calendar_month_outlined, 'Timetable', () {
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => TimetablePage(user: user!)));
-                  }),
-                  _item(context, ac, Icons.menu_book_outlined, 'Homework', () {
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => HomeworkPage(user: user!)));
-                  }),
-                  _item(context, ac, Icons.event_note_outlined, 'School Calendar', () {
-                    Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => SchoolCalendarPage(user: user!)));
-                  }),
-                  if (canOpenClassGroup(user!))
-                    _item(context, ac, Icons.forum_outlined, 'Class Group',
-                        // The drawer's context is gone once it closes; the launcher awaits
-                        // network calls, so it needs the Navigator's long-lived context.
-                        () => openClassGroup(Navigator.of(context).context, user!)),
-                ],
+                if (!_isGuest && canOpenClassGroup(user!))
+                  _item(context, ac, Icons.forum_outlined, 'Class Group',
+                      // The drawer's context is gone once it closes; the launcher awaits
+                      // network calls, so it needs the Navigator's long-lived context.
+                      () => openClassGroup(Navigator.of(context).context, user!)),
 
                 if (!_isGuest && user!.isAdmin) ...[
                   _sectionLabel(ac, 'School Administration'),

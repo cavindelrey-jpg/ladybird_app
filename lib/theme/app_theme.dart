@@ -426,42 +426,55 @@ class RoleColors {
 class AppText {
   AppText._();
 
+  // Text colours follow the ACTIVE theme. They used to be the fixed
+  // light-palette constants (C.txt...), and ~435 call sites use these
+  // styles without overriding the colour -- so in dark mode titles and
+  // body text went dark-on-dark (e.g. the contact name in a chat header
+  // was invisible). Synced from MaterialApp.builder, which re-runs on
+  // every theme change; pages that read AppColors.of(context) rebuild
+  // with it.
+  static AppColors _palette = AppColors.light;
+  static void syncWith(BuildContext context) => _palette = AppColors.of(context);
+  static Color get _txt => _palette.txt;
+  static Color get _txt2 => _palette.txt2;
+  static Color get _muted => _palette.muted;
+
   static TextStyle get display => GoogleFonts.sora(
       fontSize: 30, fontWeight: FontWeight.w800, height: 1.15,
-      letterSpacing: -0.5, color: C.txt);
+      letterSpacing: -0.5, color: _txt);
 
   static TextStyle get h1 => GoogleFonts.sora(
       fontSize: 23, fontWeight: FontWeight.w800, height: 1.2,
-      letterSpacing: -0.4, color: C.txt);
+      letterSpacing: -0.4, color: _txt);
 
   static TextStyle get h2 => GoogleFonts.sora(
       fontSize: 18, fontWeight: FontWeight.w700, height: 1.3,
-      letterSpacing: -0.2, color: C.txt);
+      letterSpacing: -0.2, color: _txt);
 
   /// Card titles, list-item primary text, section headers.
   static TextStyle get title => GoogleFonts.sora(
-      fontSize: 15, fontWeight: FontWeight.w700, height: 1.35, color: C.txt);
+      fontSize: 15, fontWeight: FontWeight.w700, height: 1.35, color: _txt);
 
   /// Secondary line under a title — byline, role, metadata row.
   static TextStyle get subtitle => GoogleFonts.inter(
-      fontSize: 13, fontWeight: FontWeight.w600, height: 1.4, color: C.txt2);
+      fontSize: 13, fontWeight: FontWeight.w600, height: 1.4, color: _txt2);
 
   /// Long-form reading text — article bodies, descriptions.
   static TextStyle get body => GoogleFonts.inter(
-      fontSize: 15, fontWeight: FontWeight.w400, height: 1.65, color: C.txt);
+      fontSize: 15, fontWeight: FontWeight.w400, height: 1.65, color: _txt);
 
   /// Compact body text — comments, list secondary text.
   static TextStyle get bodySm => GoogleFonts.inter(
-      fontSize: 13, fontWeight: FontWeight.w400, height: 1.5, color: C.txt2);
+      fontSize: 13, fontWeight: FontWeight.w400, height: 1.5, color: _txt2);
 
   /// Timestamps, counts, fine print.
   static TextStyle get caption => GoogleFonts.inter(
-      fontSize: 11.5, fontWeight: FontWeight.w500, height: 1.4, color: C.muted);
+      fontSize: 11.5, fontWeight: FontWeight.w500, height: 1.4, color: _muted);
 
   /// Badges, overline tags, all-caps labels.
   static TextStyle get label => GoogleFonts.inter(
       fontSize: 10.5, fontWeight: FontWeight.w700, height: 1.2,
-      letterSpacing: 0.6, color: C.muted);
+      letterSpacing: 0.6, color: _muted);
 
   /// Button label text.
   static TextStyle get button => GoogleFonts.sora(

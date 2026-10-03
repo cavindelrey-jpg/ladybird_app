@@ -173,7 +173,10 @@ class AcademiaApp extends StatelessWidget {
           // supported locale) is what actually does the "follow system
           // language" work.
           supportedLocales: const [Locale('en'), Locale('fr')],
-          builder: (ctx, child) => child ?? const SizedBox.shrink(),
+          builder: (ctx, child) {
+            AppText.syncWith(ctx); // text colours follow light/dark
+            return child ?? const SizedBox.shrink();
+          },
         ),
       ),
     );

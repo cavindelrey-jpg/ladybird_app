@@ -278,43 +278,81 @@ class MessagingRepository {
     }
   }
 
+  /// Open chats, so a send can refresh the sender's view immediately.
+  final Map<String, Future<void> Function()> _openChats = {};
+
+  /// Re-reads [conversationId] now if it's open on screen. Called after a
+  /// successful send: the list used to update only through the realtime
+  /// socket, so with realtime slow or down the sender's message seemed
+  /// to vanish -- and people resent it.
+  Future<void> refreshMessages(String conversationId) async => _openChats[conversationId]?.call();
+
   /// Live message stream, most-recent [limit] messages. Emits a cached
   /// snapshot first (see watchConversations doc comment — same pattern),
-  /// then the live window takes over.
+  /// then the live window takes over. A light REST poll (every 15 s)
+  /// keeps incoming messages arriving when the realtime channel is down;
+  /// identical snapshots aren't re-emitted.
   Stream<List<ChatMessage>> watchMessages(String conversationId, {int limit = 60}) {
     late final StreamController<List<ChatMessage>> controller;
     StreamSubscription<List<Map<String, dynamic>>>? liveSub;
+    Timer? poll;
+    String? lastSignature;
+
+    void emit(List<Map<String, dynamic>> ascendingRows) {
+      if (controller.isClosed) return;
+      final window = ascendingRows.length > limit
+          ? ascendingRows.sublist(ascendingRows.length - limit)
+          : ascendingRows;
+      final signature = window.map((r) => '${r['id']}:${r['deleted']}:${(r['read_by'] as List?)?.length}').join(',');
+      if (signature == lastSignature) return;
+      lastSignature = signature;
+      final live = window.map(ChatMessage.fromSupabase).toList();
+      controller.add(live);
+      unawaited(MessageCacheService.instance.putMessages(conversationId, live));
+    }
+
+    Future<void> fetch() async {
+      try {
+        final rows = await _db
+            .from('direct_messages')
+            .select()
+            .eq('conversation_id', conversationId)
+            .order('sent_at', ascending: false)
+            .limit(limit)
+            .timeout(const Duration(seconds: 10));
+        emit(rows.reversed.toList());
+      } catch (_) {
+        // offline: keep showing what we have; the live stream reports errors
+      }
+    }
 
     controller = StreamController<List<ChatMessage>>(
       onListen: () {
         MessageCacheService.instance.getMessages(conversationId).then((cached) {
-          if (cached.isNotEmpty && !controller.isClosed) controller.add(cached);
+          if (cached.isNotEmpty && !controller.isClosed && lastSignature == null) controller.add(cached);
         });
+        _openChats[conversationId] = fetch;
+        poll = Timer.periodic(const Duration(seconds: 15), (_) => fetch());
         liveSub = _db
             .from('direct_messages')
             .stream(primaryKey: ['id'])
             .eq('conversation_id', conversationId)
-            // ascending: the window below keeps the NEWEST [limit]
-            // messages. With postgrest's default (descending) it kept the
-            // oldest ones, so a conversation past [limit] messages stopped
+            // ascending: the window keeps the NEWEST [limit] messages.
+            // With postgrest's default (descending) it kept the oldest
+            // ones, so a conversation past [limit] messages stopped
             // showing anything new.
             .order('sent_at', ascending: true)
             .realtimeTolerant()
             .listen(
-              (rows) {
-                if (controller.isClosed) return;
-                final live = rows.reversed.take(limit).toList().reversed
-                    .map(ChatMessage.fromSupabase)
-                    .toList();
-                controller.add(live);
-                unawaited(MessageCacheService.instance.putMessages(conversationId, live));
-              },
+              emit,
               onError: (Object e, StackTrace st) {
                 if (!controller.isClosed) controller.addError(e, st);
               },
             );
       },
       onCancel: () async {
+        poll?.cancel();
+        if (_openChats[conversationId] == fetch) _openChats.remove(conversationId);
         await liveSub?.cancel();
         if (!controller.isClosed) await controller.close();
       },
@@ -374,6 +412,7 @@ class MessagingRepository {
         'p_preview': preview,
         'p_recipient_id': recipientId,
       });
+      unawaited(refreshMessages(conversationId));
       return const Success(null);
     } catch (e) {
       return Failure('Failed to send message', e);

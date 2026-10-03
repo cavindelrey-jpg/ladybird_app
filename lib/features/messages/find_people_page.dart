@@ -385,7 +385,11 @@ class _PersonRowState extends State<_PersonRow> {
     final ac = AppColors.of(context);
     final name = widget.person['name'] ?? 'Unknown';
     final photoUrl = widget.person['photo_url'];
-    final roleLabel = widget.person['role_name'] ?? '';
+    // Students have no role_name; their class tells two same-named
+    // students apart.
+    final roleLabel = (widget.person['role_name'] as String?)?.isNotEmpty == true
+        ? widget.person['role_name']
+        : (widget.person['class_level'] ?? '');
     final personId = widget.person['id'] as String;
 
     return ACard(

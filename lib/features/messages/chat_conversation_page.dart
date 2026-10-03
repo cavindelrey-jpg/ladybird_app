@@ -282,10 +282,6 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
           ),
         ]),
         actions: [
-          IconButton(icon: Icon(Icons.call_outlined, color: ac.txt2),
-              onPressed: () => showToast(context, 'Voice calling isn\'t built yet.')),
-          IconButton(icon: Icon(Icons.videocam_outlined, color: ac.txt2),
-              onPressed: () => showToast(context, 'Video calling isn\'t built yet.')),
         ],
       ),
       body: AppBackground(child: Column(children: [
@@ -471,7 +467,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   Widget _quickAttachRow() {
     final ac = AppColors.of(context);
     return Container(
-      height: 70,
+      height: 86, // tiles are ~76px tall; 70 overflowed by 14px
       decoration: BoxDecoration(
         color: ac.surf,
         border: Border(top: BorderSide(color: ac.bdr)),

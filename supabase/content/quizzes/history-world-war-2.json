@@ -1,0 +1,142 @@
+{
+  "subject": "History",
+  "title": "World War II: Causes, Course and Consequences",
+  "description": "From the rise of fascism to the end of the war in 1945 and its effects on Africa.",
+  "difficulty": "medium",
+  "category": "Senior Secondary School",
+  "topic": "World War 2",
+  "createdByName": "Academia",
+  "published": true,
+  "questions": [
+    {
+      "id": "q1",
+      "type": "mcq",
+      "prompt": "World War II began in Europe when Germany invaded which country in September 1939?",
+      "options": [
+        "France",
+        "Poland",
+        "Czechoslovakia",
+        "Belgium"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q2",
+      "type": "mcq",
+      "prompt": "Which treaty, signed in 1919, was resented in Germany and is often seen as a cause of the war?",
+      "options": [
+        "The Treaty of Westphalia",
+        "The Treaty of Rome",
+        "The Treaty of Paris (1856)",
+        "The Treaty of Versailles"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q3",
+      "type": "mcq",
+      "prompt": "The policy of giving in to Hitler's demands in the 1930s, as at Munich in 1938, is called…",
+      "options": [
+        "Appeasement",
+        "Containment",
+        "Isolationism",
+        "Decolonisation"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q4",
+      "type": "mcq",
+      "prompt": "The United States entered the war after Japan attacked…",
+      "options": [
+        "London",
+        "Hiroshima",
+        "Pearl Harbor (December 1941)",
+        "Moscow"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q5",
+      "type": "mcq",
+      "prompt": "The Allied landing in Normandy on 6 June 1944 is known as…",
+      "options": [
+        "Operation Barbarossa",
+        "D-Day",
+        "The Blitz",
+        "Dunkirk"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q6",
+      "type": "mcq",
+      "prompt": "The war in Europe ended with Germany's surrender in…",
+      "options": [
+        "August 1946",
+        "November 1918",
+        "September 1939",
+        "May 1945"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q7",
+      "type": "mcq",
+      "prompt": "Atomic bombs were dropped on which two Japanese cities in August 1945?",
+      "options": [
+        "Hiroshima and Nagasaki",
+        "Tokyo and Osaka",
+        "Kyoto and Kobe",
+        "Nagoya and Yokohama"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q8",
+      "type": "mcq",
+      "prompt": "Africans from the British and French colonies, including Cameroon, served in the war as…",
+      "options": [
+        "Members of the German army",
+        "Neutral observers only",
+        "Soldiers and labourers for the Allied armies",
+        "They did not take part at all"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q9",
+      "type": "mcq",
+      "prompt": "Which international organisation was founded in 1945 to maintain world peace?",
+      "options": [
+        "The League of Nations",
+        "The United Nations",
+        "The African Union",
+        "NATO"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q10",
+      "type": "mcq",
+      "prompt": "One major consequence of the war for Africa was…",
+      "options": [
+        "The creation of the Berlin Conference",
+        "The return of German rule over Cameroon",
+        "The end of all trade with Europe",
+        "The growth of nationalist movements demanding independence"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    }
+  ]
+}

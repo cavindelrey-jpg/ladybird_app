@@ -1,0 +1,142 @@
+{
+  "subject": "Biology",
+  "title": "High School Biology Quiz 14 on Genetics",
+  "description": "A comprehensive high school quiz on Genetics for Biology.",
+  "difficulty": "medium",
+  "category": "Senior Secondary School",
+  "topic": "Genetics",
+  "createdBy": "ai-import",
+  "createdByName": "AI Import",
+  "published": true,
+  "questions": [
+    {
+      "id": "q1",
+      "type": "mcq",
+      "prompt": "What is an important concept in Genetics (Biology) part 1?",
+      "options": [
+        "Option A",
+        "Option B",
+        "Option C",
+        "Option D"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q2",
+      "type": "mcq",
+      "prompt": "What is an important concept in Genetics (Biology) part 2?",
+      "options": [
+        "Option A",
+        "Option B",
+        "Option C",
+        "Option D"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q3",
+      "type": "mcq",
+      "prompt": "What is an important concept in Genetics (Biology) part 3?",
+      "options": [
+        "Option A",
+        "Option B",
+        "Option C",
+        "Option D"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q4",
+      "type": "mcq",
+      "prompt": "What is an important concept in Genetics (Biology) part 4?",
+      "options": [
+        "Option A",
+        "Option B",
+        "Option C",
+        "Option D"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q5",
+      "type": "mcq",
+      "prompt": "What is an important concept in Genetics (Biology) part 5?",
+      "options": [
+        "Option A",
+        "Option B",
+        "Option C",
+        "Option D"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q6",
+      "type": "structured",
+      "prompt": "Explain the main principles of Genetics.",
+      "points": 15,
+      "lineCount": 4,
+      "rubricGuidance": "Check for understanding.",
+      "expectedPoints": [
+        {
+          "id": "kp1",
+          "text": "Structured point 1",
+          "keywords": []
+        },
+        {
+          "id": "kp2",
+          "text": "Structured point 2",
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "id": "q7",
+      "type": "longForm",
+      "prompt": "Discuss the impact of Genetics in depth.",
+      "points": 35,
+      "rubricGuidance": "Award points for deep understanding.",
+      "keyPoints": [
+        {
+          "id": "kp1",
+          "text": "Essay point 1",
+          "keywords": []
+        },
+        {
+          "id": "kp2",
+          "text": "Essay point 2",
+          "keywords": []
+        },
+        {
+          "id": "kp3",
+          "text": "Essay point 3",
+          "keywords": []
+        },
+        {
+          "id": "kp4",
+          "text": "Essay point 4",
+          "keywords": []
+        },
+        {
+          "id": "kp5",
+          "text": "Essay point 5",
+          "keywords": []
+        },
+        {
+          "id": "kp6",
+          "text": "Essay point 6",
+          "keywords": []
+        },
+        {
+          "id": "kp7",
+          "text": "Essay point 7",
+          "keywords": []
+        }
+      ]
+    }
+  ]
+}

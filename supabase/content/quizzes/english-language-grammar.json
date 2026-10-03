@@ -1,0 +1,142 @@
+{
+  "subject": "English Language",
+  "title": "Grammar: Parts of Speech, Tenses and Agreement",
+  "description": "Identifying parts of speech, tenses, subject–verb agreement and common usage errors.",
+  "difficulty": "easy",
+  "category": "Senior Secondary School",
+  "topic": "Grammar",
+  "createdByName": "Academia",
+  "published": true,
+  "questions": [
+    {
+      "id": "q1",
+      "type": "mcq",
+      "prompt": "Choose the correct sentence.",
+      "options": [
+        "Neither of the boys have finished their work.",
+        "Neither of the boys has finished his work.",
+        "Neither of the boy has finished his work.",
+        "Neither of the boys have finished his work."
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q2",
+      "type": "mcq",
+      "prompt": "In 'She sang beautifully', the word 'beautifully' is…",
+      "options": [
+        "A preposition",
+        "An adjective",
+        "A noun",
+        "An adverb"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q3",
+      "type": "mcq",
+      "prompt": "Which word is a conjunction?",
+      "options": [
+        "Although",
+        "Quickly",
+        "Beneath",
+        "Happiness"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q4",
+      "type": "mcq",
+      "prompt": "'By next June, I ___ in this school for five years.' Choose the correct form.",
+      "options": [
+        "have been",
+        "will be",
+        "will have been",
+        "was"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q5",
+      "type": "mcq",
+      "prompt": "Choose the correctly punctuated sentence.",
+      "options": [
+        "Its raining, so the match has lost it's audience.",
+        "It's raining, so the match has lost its audience.",
+        "It's raining, so the match has lost it's audience.",
+        "Its raining so the match has lost its audience."
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q6",
+      "type": "mcq",
+      "prompt": "'The committee ___ reached a decision.' Choose the best verb.",
+      "options": [
+        "were",
+        "have",
+        "are",
+        "has"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q7",
+      "type": "mcq",
+      "prompt": "Change to reported speech: He said, 'I am tired.'",
+      "options": [
+        "He said that he was tired.",
+        "He said that I am tired.",
+        "He said that he is tired yesterday.",
+        "He says that he was tired."
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q8",
+      "type": "mcq",
+      "prompt": "Which sentence is in the passive voice?",
+      "options": [
+        "Amina is writing a letter.",
+        "Amina wrote the letter.",
+        "The letter was written by Amina.",
+        "Amina will write the letter."
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q9",
+      "type": "mcq",
+      "prompt": "In 'The man who called you is my uncle', 'who called you' is…",
+      "options": [
+        "An adverbial clause",
+        "A relative (adjective) clause",
+        "A noun clause",
+        "A main clause"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q10",
+      "type": "mcq",
+      "prompt": "Choose the correct word: 'The new policy will ___ every student.'",
+      "options": [
+        "effective",
+        "effect",
+        "affection",
+        "affect"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    }
+  ]
+}

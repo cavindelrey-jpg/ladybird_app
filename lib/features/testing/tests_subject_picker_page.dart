@@ -22,6 +22,7 @@ import 'quiz_icon_editor.dart';
 import 'test_taking_page.dart';
 import 'tests_topic_picker_page.dart';
 import 'xp_dashboard_page.dart';
+import '../../core/content_quality.dart';
 
 class TestsSubjectPickerPage extends StatefulWidget {
   final AppUser user;
@@ -196,7 +197,7 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(t.subject, style: AppText.caption.copyWith(color: ac.primary, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 4),
-                      Text(t.title, style: AppText.title.copyWith(fontSize: 13),
+                      Text(displayQuizTitle(t), style: AppText.title.copyWith(fontSize: 13),
                           maxLines: 2, overflow: TextOverflow.ellipsis),
                       const Spacer(),
                       Text('${t.questionCount} question${t.questionCount == 1 ? '' : 's'}',

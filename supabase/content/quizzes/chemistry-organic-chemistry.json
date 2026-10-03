@@ -1,0 +1,142 @@
+{
+  "subject": "Chemistry",
+  "title": "Organic Chemistry: Homologous Series",
+  "description": "Alkanes, alkenes, alcohols and carboxylic acids: formulae, naming, reactions and tests.",
+  "difficulty": "medium",
+  "category": "Senior Secondary School",
+  "topic": "Organic Chemistry",
+  "createdByName": "Academia",
+  "published": true,
+  "questions": [
+    {
+      "id": "q1",
+      "type": "mcq",
+      "prompt": "What is the general formula of the alkanes?",
+      "options": [
+        "CnH2n+2",
+        "CnH2n",
+        "CnH2n-2",
+        "CnH2n+1OH"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q2",
+      "type": "mcq",
+      "prompt": "Which compound is the third member of the alkane series?",
+      "options": [
+        "Butane, C4H10",
+        "Ethene, C2H4",
+        "Propane, C3H8",
+        "Methanol, CH3OH"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q3",
+      "type": "mcq",
+      "prompt": "Which reagent is used to test for a carbon–carbon double bond?",
+      "options": [
+        "Limewater, which turns milky",
+        "Bromine water, which is decolourised",
+        "Universal indicator, which turns red",
+        "Silver nitrate, which forms a white precipitate"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q4",
+      "type": "mcq",
+      "prompt": "Ethene reacts with steam in the presence of a catalyst to form…",
+      "options": [
+        "Poly(ethene)",
+        "Ethane",
+        "Ethanoic acid",
+        "Ethanol"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q5",
+      "type": "mcq",
+      "prompt": "The functional group of the alcohols is…",
+      "options": [
+        "–OH (hydroxyl)",
+        "–COOH (carboxyl)",
+        "C=C (double bond)",
+        "–CHO (aldehyde)"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q6",
+      "type": "mcq",
+      "prompt": "Methane reacts with chlorine in sunlight. This is an example of…",
+      "options": [
+        "Polymerisation",
+        "Addition",
+        "Substitution",
+        "Neutralisation"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q7",
+      "type": "mcq",
+      "prompt": "Ethanol is oxidised (e.g. by acidified potassium dichromate) to form…",
+      "options": [
+        "Ethene",
+        "Ethanoic acid",
+        "Ethyl ethanoate",
+        "Methanol"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q8",
+      "type": "mcq",
+      "prompt": "An alcohol reacts with a carboxylic acid to form an ester and…",
+      "options": [
+        "Oxygen",
+        "Hydrogen",
+        "Carbon dioxide",
+        "Water"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q9",
+      "type": "mcq",
+      "prompt": "Members of a homologous series have the same…",
+      "options": [
+        "General formula and functional group",
+        "Molecular mass",
+        "Boiling point",
+        "Number of carbon atoms"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q10",
+      "type": "mcq",
+      "prompt": "Butane and 2-methylpropane both have the formula C4H10. They are…",
+      "options": [
+        "Isotopes",
+        "Allotropes",
+        "Structural isomers",
+        "Polymers"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    }
+  ]
+}

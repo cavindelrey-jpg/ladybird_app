@@ -33,6 +33,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../core/result.dart';
 import 'test_result_page.dart';
+import '../../core/content_quality.dart';
 
 class TestTakingPage extends StatefulWidget {
   final AppUser user;
@@ -177,7 +178,7 @@ class _TestTakingPageState extends State<TestTakingPage> {
     final test = widget.test;
     return Scaffold(
       backgroundColor: ac.bg,
-      appBar: AppBar(title: Text(test.title, style: AppText.h2)),
+      appBar: AppBar(title: Text(displayQuizTitle(test), style: AppText.h2)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         children: [

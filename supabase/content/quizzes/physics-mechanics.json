@@ -1,0 +1,142 @@
+{
+  "subject": "Physics",
+  "title": "Mechanics: Motion, Forces and Energy",
+  "description": "Speed, velocity and acceleration, Newton's laws, momentum, work, energy and power (take g = 10 m/s²).",
+  "difficulty": "medium",
+  "category": "Senior Secondary School",
+  "topic": "Mechanics",
+  "createdByName": "Academia",
+  "published": true,
+  "questions": [
+    {
+      "id": "q1",
+      "type": "mcq",
+      "prompt": "A car travels 150 m in 10 s at constant speed. What is its speed?",
+      "options": [
+        "15 m/s",
+        "1.5 m/s",
+        "1500 m/s",
+        "160 m/s"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q2",
+      "type": "mcq",
+      "prompt": "A body accelerates uniformly from rest to 20 m/s in 4 s. Its acceleration is…",
+      "options": [
+        "0.2 m/s²",
+        "80 m/s²",
+        "5 m/s²",
+        "24 m/s²"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q3",
+      "type": "mcq",
+      "prompt": "Newton's first law states that a body remains at rest or in uniform motion unless…",
+      "options": [
+        "Its mass changes",
+        "Acted on by a resultant (unbalanced) force",
+        "It is in a vacuum",
+        "Its speed is zero"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q4",
+      "type": "mcq",
+      "prompt": "What resultant force is needed to give a 2 kg mass an acceleration of 3 m/s²?",
+      "options": [
+        "0.67 N",
+        "1.5 N",
+        "5 N",
+        "6 N"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q5",
+      "type": "mcq",
+      "prompt": "The weight of a 5 kg mass on Earth is…",
+      "options": [
+        "50 N",
+        "5 N",
+        "0.5 N",
+        "500 N"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q6",
+      "type": "mcq",
+      "prompt": "Momentum is calculated as…",
+      "options": [
+        "Mass × acceleration",
+        "Force × time²",
+        "Mass × velocity",
+        "Velocity ÷ mass"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q7",
+      "type": "mcq",
+      "prompt": "A 2 kg stone is lifted 3 m. The gain in gravitational potential energy is…",
+      "options": [
+        "6 J",
+        "60 J",
+        "30 J",
+        "600 J"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q8",
+      "type": "mcq",
+      "prompt": "The kinetic energy of a 4 kg trolley moving at 3 m/s is…",
+      "options": [
+        "6 J",
+        "12 J",
+        "36 J",
+        "18 J"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q9",
+      "type": "mcq",
+      "prompt": "A machine does 1200 J of work in 4 s. Its power is…",
+      "options": [
+        "300 W",
+        "4800 W",
+        "1204 W",
+        "0.003 W"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q10",
+      "type": "mcq",
+      "prompt": "'For every action there is an equal and opposite reaction' is Newton's…",
+      "options": [
+        "Second law",
+        "First law",
+        "Third law",
+        "Law of gravitation"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    }
+  ]
+}

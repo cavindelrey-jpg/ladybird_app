@@ -27,6 +27,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../testing/test_taking_page.dart';
 import 'widgets/management_scaffold.dart';
+import '../../core/content_quality.dart';
 
 class HomeworkPage extends StatefulWidget {
   final AppUser user;
@@ -284,7 +285,7 @@ class _CreateHomeworkTabState extends State<_CreateHomeworkTab> {
               return DropdownButtonFormField<String>(
                 initialValue: _testId,
                 decoration: const InputDecoration(labelText: 'Select a quiz to send'),
-                items: [for (final t in tests) DropdownMenuItem(value: t.id, child: Text(t.title))],
+                items: [for (final t in tests) DropdownMenuItem(value: t.id, child: Text(displayQuizTitle(t)))],
                 onChanged: (v) => setState(() => _testId = v),
               );
             },

@@ -74,8 +74,24 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
           ),
         ],
       ),
-      body: all.isEmpty 
-          ? Center(child: CircularProgressIndicator(color: ac.primary))
+      body: all.isEmpty
+          ? Center(
+              child: DictionaryService.instance.loadFailed
+                  ? Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Text('The dictionary couldn\'t be opened on this device.',
+                            textAlign: TextAlign.center, style: TextStyle(color: ac.txt2)),
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: () { setState(() {}); _load(); },
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Try again'),
+                        ),
+                      ]),
+                    )
+                  : CircularProgressIndicator(color: ac.primary),
+            )
           : Column(
         children: [
           Padding(

@@ -7,6 +7,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'widgets/action_error_widget.dart';
 import 'services/connectivity_service.dart';
 import 'services/dictionary_service.dart';
@@ -32,6 +33,12 @@ Future<void> main() async {
   // silently vanish from Crashlytics entirely.
   await runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+
+    // Every font the app uses (Inter, Sora, Lora) ships in
+    // assets/google_fonts/. Never download fonts at runtime: on a phone
+    // that has never been online the Dictionary -- and every other
+    // screen -- must still render in the intended typeface.
+    GoogleFonts.config.allowRuntimeFetching = false;
 
     // Global error boundary — catches widget build errors in release so a
     // crashing subtree shows a visible fallback instead of going blank/black.
@@ -95,7 +102,8 @@ Future<void> main() async {
     ]);
 
     ConnectivityService().initialize();
-  await DictionaryService().loadDictionary();
+  // Warm the offline dictionary in the background -- never block launch.
+  unawaited(DictionaryService().loadDictionary());
   SyncService().startSyncTimer();
   runApp(const AcademiaApp());
   }, (error, stack) {

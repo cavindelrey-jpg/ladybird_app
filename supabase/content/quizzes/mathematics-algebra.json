@@ -1,0 +1,142 @@
+{
+  "subject": "Mathematics",
+  "title": "Algebra: Equations, Factorisation and Indices",
+  "description": "Solving linear and quadratic equations, simultaneous equations, factorising and laws of indices.",
+  "difficulty": "medium",
+  "category": "Senior Secondary School",
+  "topic": "Algebra",
+  "createdByName": "Academia",
+  "published": true,
+  "questions": [
+    {
+      "id": "q1",
+      "type": "mcq",
+      "prompt": "Solve 3x − 7 = 11.",
+      "options": [
+        "x = 4/3",
+        "x = 6",
+        "x = 18",
+        "x = −6"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q2",
+      "type": "mcq",
+      "prompt": "Factorise x² − 9.",
+      "options": [
+        "x(x − 9)",
+        "(x − 9)(x + 1)",
+        "(x − 3)²",
+        "(x − 3)(x + 3)"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q3",
+      "type": "mcq",
+      "prompt": "Solve x² − 5x + 6 = 0.",
+      "options": [
+        "x = 2 or x = 3",
+        "x = −2 or x = −3",
+        "x = 1 or x = 6",
+        "x = 5 or x = 6"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q4",
+      "type": "mcq",
+      "prompt": "Simplify 2³ × 2⁴.",
+      "options": [
+        "4⁷",
+        "2¹² = 4096",
+        "2⁷ = 128",
+        "2¹"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q5",
+      "type": "mcq",
+      "prompt": "Solve the simultaneous equations x + y = 10 and x − y = 4.",
+      "options": [
+        "x = 3, y = 7",
+        "x = 7, y = 3",
+        "x = 6, y = 4",
+        "x = 5, y = 5"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q6",
+      "type": "mcq",
+      "prompt": "Expand (2x + 3)(x − 1).",
+      "options": [
+        "2x² − x + 3",
+        "2x² − 3",
+        "2x² + 5x − 3",
+        "2x² + x − 3"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q7",
+      "type": "mcq",
+      "prompt": "What is the value of 9^(1/2)?",
+      "options": [
+        "3",
+        "4.5",
+        "81",
+        "1/3"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q8",
+      "type": "mcq",
+      "prompt": "If f(x) = 2x² − 1, find f(−2).",
+      "options": [
+        "9",
+        "−9",
+        "7",
+        "−7"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q9",
+      "type": "mcq",
+      "prompt": "Make r the subject of A = πr².",
+      "options": [
+        "r = A/(2π)",
+        "r = √(A/π)",
+        "r = √A/π",
+        "r = A²/π"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q10",
+      "type": "mcq",
+      "prompt": "The sum of the roots of x² − 7x + 10 = 0 is…",
+      "options": [
+        "3",
+        "10",
+        "−7",
+        "7"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    }
+  ]
+}

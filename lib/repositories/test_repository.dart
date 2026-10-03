@@ -38,6 +38,7 @@ import '../core/result.dart';
 import '../core/xp_rules.dart';
 import '../models/public_course.dart' show CurriculumIcon;
 import '../models/test.dart';
+import '../core/content_quality.dart';
 import '../models/test_attempt.dart';
 import '../models/xp_transaction.dart';
 import '../services/content_cache_service.dart';
@@ -84,7 +85,13 @@ class TestRepository {
         .order('created_at', ascending: false)
         .realtimeTolerant()
         .map((rows) {
-      final all = rows.where((r) => r['published'] == true).map(Test.fromSupabase).toList();
+      // Machine-generated filler ("This is question 1", options "Option
+      // A..D") is never shown to students -- see core/content_quality.dart.
+      final all = rows
+          .where((r) => r['published'] == true)
+          .map(Test.fromSupabase)
+          .where((t) => !isPlaceholderQuiz(t))
+          .toList();
       return all.where((t) {
         if (t.institutionId != null && t.institutionId != institutionId) return false;
         if (category != null && category.isNotEmpty) {
@@ -329,7 +336,7 @@ class TestRepository {
   Future<List<Test>> recentPublishedOnce({int limit = 60}) async {
     return _memoizer.runOnce('recentPublishedOnce_$limit', () async {
       final rows = await _tests.select().eq('published', true).order('created_at', ascending: false).limit(limit);
-      return rows.map(Test.fromSupabase).toList();
+      return rows.map(Test.fromSupabase).where((t) => !isPlaceholderQuiz(t)).toList();
     });
   }
 

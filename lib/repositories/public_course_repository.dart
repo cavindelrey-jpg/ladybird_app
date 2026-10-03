@@ -18,6 +18,19 @@ import '../models/public_course.dart';
 import '../core/core.dart';
 import '../services/content_cache_service.dart';
 import '../core/realtime_tolerant.dart';
+import '../core/content_quality.dart';
+
+/// Text a course actually carries -- plain body, or the Quill delta some
+/// courses are stored in instead.
+String _courseText(PublicCourse c) => c.body.trim().isNotEmpty ? c.body : (c.bodyDelta ?? '');
+
+/// What students are shown: no stub/filler courses, and one copy of each
+/// (title, subject, level) -- the most complete one.
+List<PublicCourse> cleanCourses(Iterable<PublicCourse> courses) => dedupeBest(
+      courses.where((c) => !isPlaceholderCourse(title: c.title, body: _courseText(c), description: c.description)),
+      keyOf: (c) => '${c.title.trim().toLowerCase()}|${c.subject.trim().toLowerCase()}|${c.level.trim().toLowerCase()}',
+      scoreOf: (c) => _courseText(c).length + (c.coverImageUrl == null ? 0 : 200) + c.enrolledCount * 50,
+    );
 
 /// One row of [PublicCourseRepository.levelsOnce] — a canonical education
 /// level plus its live course count. Never hardcoded: `name` comes from
@@ -55,7 +68,7 @@ class PublicCourseRepository {
     Future<void> emitCacheThenFetch() async {
       final cached = await ContentCacheService.instance.getList(cacheKey);
       if (cached != null && !controller.isClosed) {
-        controller.add(cached.map(PublicCourse.fromSupabase).toList());
+        controller.add(cleanCourses(cached.map(PublicCourse.fromSupabase)));
       }
       try {
         final rows = await _courses
@@ -66,7 +79,7 @@ class PublicCourseRepository {
         if (controller.isClosed) return;
         final list = List<Map<String, dynamic>>.from(rows);
         unawaited(ContentCacheService.instance.putList(cacheKey, list));
-        controller.add(list.map(PublicCourse.fromSupabase).toList());
+        controller.add(cleanCourses(list.map(PublicCourse.fromSupabase)));
       } catch (e, st) {
         if (controller.isClosed) return;
         if (cached != null) {
@@ -97,7 +110,7 @@ class PublicCourseRepository {
             if (controller.isClosed) return;
             final list = List<Map<String, dynamic>>.from(rows);
             unawaited(ContentCacheService.instance.putList(cacheKey, list));
-            controller.add(list.map(PublicCourse.fromSupabase).toList());
+            controller.add(cleanCourses(list.map(PublicCourse.fromSupabase)));
           },
           onError: (_) {
             // Realtime disconnected/errored -- keep showing whatever was
@@ -117,10 +130,9 @@ class PublicCourseRepository {
           .order('created_at', ascending: false)
           .limit(limit)
           .realtimeTolerant()
-          .map((rows) => rows
+          .map((rows) => cleanCourses(rows
               .where((r) => r['published'] == true)
-              .map(PublicCourse.fromSupabase)
-              .toList()));
+              .map(PublicCourse.fromSupabase))));
 
   Stream<List<PublicCourse>> watchByCreator(String creatorId) => _streamCache.watch(
       'watchByCreator_$creatorId',
@@ -144,7 +156,7 @@ class PublicCourseRepository {
   Future<List<PublicCourse>> watchFeaturedOnce({int count = 6}) async {
     return _memoizer.runOnce('watchFeaturedOnce_$count', () async {
       final rows = await _courses.select().eq('published', true).order('created_at', ascending: false).limit(60);
-      final courses = rows.map(PublicCourse.fromSupabase).toList()
+      final courses = cleanCourses(rows.map(PublicCourse.fromSupabase))
         ..sort((a, b) {
           final scoreA = a.avgRating * 10 + a.enrolledCount * 0.1;
           final scoreB = b.avgRating * 10 + b.enrolledCount * 0.1;
@@ -284,7 +296,7 @@ class PublicCourseRepository {
           .select()
           .eq('published', true).eq('level', level).eq('category', subject).eq('topic', topic)
           .order('sort_order', ascending: true);
-      return rows.map(PublicCourse.fromSupabase).toList();
+      return cleanCourses(rows.map(PublicCourse.fromSupabase));
     });
   }
 
@@ -355,7 +367,7 @@ class PublicCourseRepository {
   /// history yet — never a fabricated or hardcoded list.
   Future<List<PublicCourse>> recommendedForUser(String? userId, {int limit = 5}) async {
     final pool = await _courses.select().eq('published', true).order('created_at', ascending: false).limit(200);
-    var courses = pool.map(PublicCourse.fromSupabase).toList();
+    var courses = cleanCourses(pool.map(PublicCourse.fromSupabase));
     if (courses.isEmpty) return const [];
 
     Set<String> subjects = {};

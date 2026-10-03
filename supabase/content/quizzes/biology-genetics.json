@@ -1,0 +1,142 @@
+{
+  "subject": "Biology",
+  "title": "Genetics: Inheritance and Variation",
+  "description": "Mendel's laws, genotypes and phenotypes, monohybrid crosses, sex linkage and mutation.",
+  "difficulty": "medium",
+  "category": "Senior Secondary School",
+  "topic": "Genetics",
+  "createdByName": "Academia",
+  "published": true,
+  "questions": [
+    {
+      "id": "q1",
+      "type": "mcq",
+      "prompt": "The physical expression of an organism's genes, such as eye colour, is called its…",
+      "options": [
+        "Genotype",
+        "Phenotype",
+        "Allele",
+        "Locus"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q2",
+      "type": "mcq",
+      "prompt": "An organism with two identical alleles for a gene (e.g. TT) is described as…",
+      "options": [
+        "Hybrid",
+        "Heterozygous",
+        "Recessive",
+        "Homozygous"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q3",
+      "type": "mcq",
+      "prompt": "Two heterozygous tall pea plants (Tt × Tt) are crossed. What is the expected phenotypic ratio of tall to short offspring?",
+      "options": [
+        "3 : 1",
+        "1 : 1",
+        "1 : 2 : 1",
+        "All tall"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q4",
+      "type": "mcq",
+      "prompt": "In the cross Tt × Tt, what fraction of the offspring is expected to be heterozygous?",
+      "options": [
+        "3/4",
+        "1/4",
+        "1/2",
+        "0"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q5",
+      "type": "mcq",
+      "prompt": "Which cross is used to find out whether a tall plant is TT or Tt?",
+      "options": [
+        "A cross with another tall plant",
+        "A test cross with a homozygous recessive (tt) plant",
+        "Self-pollination of a short plant",
+        "A cross with a TT plant"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q6",
+      "type": "mcq",
+      "prompt": "In humans, the sex of a child is determined by…",
+      "options": [
+        "The temperature during pregnancy",
+        "The mother's egg alone",
+        "The number of autosomes",
+        "The sex chromosome (X or Y) in the father's sperm"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q7",
+      "type": "mcq",
+      "prompt": "Haemophilia is more common in males because the gene is…",
+      "options": [
+        "Recessive and carried on the X chromosome",
+        "Dominant and carried on the Y chromosome",
+        "Carried on an autosome",
+        "Caused by an extra chromosome"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q8",
+      "type": "mcq",
+      "prompt": "A woman with blood group AO and a man with blood group BO can have children with which blood groups?",
+      "options": [
+        "AB only",
+        "A and B only",
+        "A, B, AB and O",
+        "O only"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q9",
+      "type": "mcq",
+      "prompt": "A sudden, permanent change in the base sequence of DNA is a…",
+      "options": [
+        "Meiosis",
+        "Mutation",
+        "Translation",
+        "Codominance"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q10",
+      "type": "mcq",
+      "prompt": "Down syndrome is usually caused by…",
+      "options": [
+        "A virus infection",
+        "A missing X chromosome",
+        "A recessive allele on chromosome 7",
+        "An extra copy of chromosome 21"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    }
+  ]
+}

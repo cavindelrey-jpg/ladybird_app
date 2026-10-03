@@ -77,6 +77,7 @@ flutter:
     - assets/icon/
     - assets/branding/
     - assets/data/
+    - assets/google_fonts/
 
 # Forked from the Green Hills app -- pointed at assets/branding/
 # ladybird_logo.jpg, matching this fork's BRAND_ID default (see

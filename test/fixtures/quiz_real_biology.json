@@ -1,0 +1,130 @@
+{
+  "subject": "Biology",
+  "title": "Classification of Living Organisms",
+  "description": "How living organisms are grouped into major classification categories.",
+  "difficulty": "easy",
+  "category": "Form 1",
+  "topic": "Classification of Living Organisms",
+  "createdBy": "ai-import",
+  "createdByName": "Claude",
+  "questions": [
+    {
+      "type": "mcq",
+      "prompt": "The process of grouping living organisms based on shared characteristics is called:",
+      "options": [
+        "Evolution",
+        "Classification",
+        "Respiration",
+        "Reproduction"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "type": "mcq",
+      "prompt": "Animals that have a backbone are called:",
+      "options": [
+        "Invertebrates",
+        "Vertebrates",
+        "Amphibians only",
+        "Insects only"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "type": "mcq",
+      "prompt": "Animals without a backbone, such as insects and worms, are called:",
+      "options": [
+        "Vertebrates",
+        "Invertebrates",
+        "Mammals",
+        "Reptiles"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "type": "mcq",
+      "prompt": "Which of these is a characteristic of mammals?",
+      "options": [
+        "They lay eggs and have scales",
+        "They have fur/hair and feed young with milk",
+        "They breathe only through gills",
+        "They have no backbone"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "type": "mcq",
+      "prompt": "Which of these is a characteristic shared by all birds?",
+      "options": [
+        "They have fur",
+        "They have feathers and most can fly",
+        "They live only in water",
+        "They have no backbone"
+      ],
+      "correctIndex": 1
+    },
+    {
+      "type": "structured",
+      "prompt": "Name three major groups of vertebrates and give one distinguishing characteristic of each.",
+      "lineCount": 6,
+      "rubricGuidance": "Accept any three of: mammals (fur, milk), birds (feathers, most fly), reptiles (scales, cold-blooded), amphibians (moist skin, live in water and land), fish (gills, fins, live in water).",
+      "expectedPoints": [
+        {
+          "id": "kp1",
+          "text": "Mammals (fur, milk)",
+          "keywords": []
+        },
+        {
+          "id": "kp2",
+          "text": "Birds (feathers, most fly)",
+          "keywords": []
+        },
+        {
+          "id": "kp3",
+          "text": "Reptiles (scales, cold-blooded)",
+          "keywords": []
+        },
+        {
+          "id": "kp4",
+          "text": "Amphibians (moist skin, live in water and land)",
+          "keywords": []
+        },
+        {
+          "id": "kp5",
+          "text": "Fish (gills, fins, live in water)",
+          "keywords": []
+        }
+      ]
+    },
+    {
+      "type": "longForm",
+      "prompt": "Explain why scientists classify living organisms, and describe the main groups of vertebrates and invertebrates with their key distinguishing features.",
+      "keyPoints": [
+        {
+          "text": "Classification groups organisms based on shared characteristics, making them easier to study and identify"
+        },
+        {
+          "text": "Vertebrates are animals with a backbone, including fish, amphibians, reptiles, birds, and mammals"
+        },
+        {
+          "text": "Invertebrates are animals without a backbone, including insects, worms, and molluscs"
+        },
+        {
+          "text": "Fish live in water, breathe through gills, and typically have fins and scales"
+        },
+        {
+          "text": "Amphibians can live both in water and on land and typically have moist skin"
+        },
+        {
+          "text": "Reptiles have dry, scaly skin and are typically cold-blooded"
+        },
+        {
+          "text": "Birds have feathers, lay eggs, and most are capable of flight"
+        },
+        {
+          "text": "Mammals have fur or hair and feed their young with milk"
+        }
+      ]
+    }
+  ]
+}

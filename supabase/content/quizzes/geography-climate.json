@@ -1,0 +1,142 @@
+{
+  "subject": "Geography",
+  "title": "Climate: Elements, Controls and Climate Types",
+  "description": "Weather and climate, factors controlling climate, and the climates of Cameroon and Africa.",
+  "difficulty": "medium",
+  "category": "Senior Secondary School",
+  "topic": "Climate",
+  "createdByName": "Academia",
+  "published": true,
+  "questions": [
+    {
+      "id": "q1",
+      "type": "mcq",
+      "prompt": "The average weather conditions of a place over about 30 years is called its…",
+      "options": [
+        "Climate",
+        "Weather",
+        "Season",
+        "Microclimate"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q2",
+      "type": "mcq",
+      "prompt": "Temperature generally decreases with altitude at a rate of about…",
+      "options": [
+        "20 °C per 1000 m",
+        "1 °C per 1000 m",
+        "6.5 °C per 1000 m",
+        "0.5 °C per 100 km"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q3",
+      "type": "mcq",
+      "prompt": "Which instrument measures atmospheric pressure?",
+      "options": [
+        "Hygrometer",
+        "Barometer",
+        "Anemometer",
+        "Thermometer"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q4",
+      "type": "mcq",
+      "prompt": "Rain formed when moist air is forced to rise over a mountain is…",
+      "options": [
+        "Acid rain",
+        "Convectional rainfall",
+        "Frontal rainfall",
+        "Relief (orographic) rainfall"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q5",
+      "type": "mcq",
+      "prompt": "Debundscha, at the foot of Mount Cameroon, is one of the wettest places on Earth mainly because of…",
+      "options": [
+        "Moist south-west monsoon winds rising over the mountain",
+        "Its distance from the sea",
+        "The Harmattan wind",
+        "Its high latitude"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q6",
+      "type": "mcq",
+      "prompt": "The dry, dusty north-east wind that blows from the Sahara across West Africa is the…",
+      "options": [
+        "Sirocco",
+        "Monsoon",
+        "Harmattan",
+        "Föhn"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q7",
+      "type": "mcq",
+      "prompt": "Places near the equator, such as southern Cameroon, have…",
+      "options": [
+        "Cold winters and hot summers",
+        "High temperatures and rainfall in most months",
+        "Very little rainfall all year",
+        "Snow in the dry season"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q8",
+      "type": "mcq",
+      "prompt": "Why are coastal areas cooler in summer and milder in winter than inland areas?",
+      "options": [
+        "Coastal winds are always cold",
+        "Coastal areas are at higher altitude",
+        "The sun shines less at the coast",
+        "The sea heats up and cools down more slowly than land"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q9",
+      "type": "mcq",
+      "prompt": "The Inter-Tropical Convergence Zone (ITCZ) mainly brings…",
+      "options": [
+        "Rainfall as it migrates north and south",
+        "Snow to the tropics",
+        "Permanent drought",
+        "Earthquakes"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q10",
+      "type": "mcq",
+      "prompt": "The Sahel zone of northern Cameroon has a climate that is…",
+      "options": [
+        "Mediterranean",
+        "Equatorial with two rainy seasons",
+        "Hot and semi-arid with a short rainy season",
+        "Temperate maritime"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    }
+  ]
+}

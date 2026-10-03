@@ -19,6 +19,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import 'test_taking_page.dart';
+import '../../core/content_quality.dart';
 
 class TestsListPage extends StatelessWidget {
   final AppUser user;
@@ -77,9 +78,9 @@ class TestsListPage extends StatelessWidget {
                         builder: (_) => TestTakingPage(user: user, test: test))),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    HierarchyAvatar(label: test.title, imageUrl: test.thumbnailUrl ?? '', size: 40),
+                    HierarchyAvatar(label: displayQuizTitle(test), imageUrl: test.thumbnailUrl ?? '', size: 40),
                     const SizedBox(width: 12),
-                    Expanded(child: Text(test.title, style: AppText.title)),
+                    Expanded(child: Text(displayQuizTitle(test), style: AppText.title)),
                     StatusBadge(label: test.difficulty.label, color: color),
                   ]),
                   if (test.description.isNotEmpty) ...[

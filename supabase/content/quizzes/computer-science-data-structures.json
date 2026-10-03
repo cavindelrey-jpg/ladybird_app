@@ -1,0 +1,142 @@
+{
+  "subject": "Computer Science",
+  "title": "Data Structures: Arrays, Stacks, Queues and Trees",
+  "description": "How common data structures store and organise data, and when to use each.",
+  "difficulty": "medium",
+  "category": "Senior Secondary School",
+  "topic": "Data Structures",
+  "createdByName": "Academia",
+  "published": true,
+  "questions": [
+    {
+      "id": "q1",
+      "type": "mcq",
+      "prompt": "Which data structure follows Last In, First Out (LIFO)?",
+      "options": [
+        "Queue",
+        "Stack",
+        "Array",
+        "Linked list"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q2",
+      "type": "mcq",
+      "prompt": "Which data structure follows First In, First Out (FIFO)?",
+      "options": [
+        "Hash table",
+        "Stack",
+        "Binary tree",
+        "Queue"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q3",
+      "type": "mcq",
+      "prompt": "In a zero-indexed array A = [4, 9, 2, 7], what is A[2]?",
+      "options": [
+        "2",
+        "9",
+        "7",
+        "4"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q4",
+      "type": "mcq",
+      "prompt": "Adding an item to the top of a stack is called…",
+      "options": [
+        "Enqueue",
+        "Pop",
+        "Push",
+        "Peek"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q5",
+      "type": "mcq",
+      "prompt": "In a linked list, each node stores data and…",
+      "options": [
+        "The index of the last node",
+        "A pointer to the next node",
+        "A copy of the whole list",
+        "The size of the list"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q6",
+      "type": "mcq",
+      "prompt": "The single node at the top of a tree, with no parent, is the…",
+      "options": [
+        "Edge",
+        "Leaf",
+        "Branch",
+        "Root"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q7",
+      "type": "mcq",
+      "prompt": "In a binary search tree, values smaller than a node are stored in its…",
+      "options": [
+        "Left subtree",
+        "Right subtree",
+        "Parent node",
+        "Root only"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q8",
+      "type": "mcq",
+      "prompt": "Binary search can only be used on a list that is…",
+      "options": [
+        "Empty",
+        "Unsorted",
+        "Sorted",
+        "Stored as a stack"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q9",
+      "type": "mcq",
+      "prompt": "What is the main disadvantage of a static array compared with a linked list?",
+      "options": [
+        "It cannot store numbers",
+        "Its size is fixed when it is created",
+        "Elements cannot be accessed by index",
+        "It uses no memory"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q10",
+      "type": "mcq",
+      "prompt": "Which structure is best for modelling people waiting to be served at a bank counter?",
+      "options": [
+        "Two-dimensional array",
+        "Stack",
+        "Tree",
+        "Queue"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    }
+  ]
+}

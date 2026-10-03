@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show compute, debugPrint;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -79,39 +79,58 @@ class DictionaryService {
   Map<String, DictionaryEntry> _idMap = {};
   List<String> _recentIds = [];
   bool _isLoaded = false;
+  bool _loadFailed = false;
+  bool get isLoaded => _isLoaded;
+  /// The last load attempt failed (the screen offers Retry instead of an
+  /// endless spinner).
+  bool get loadFailed => _loadFailed;
   
   List<DictionaryEntry> get allEntries => _entries;
   
   List<DictionaryEntry> get recentEntries => 
       _recentIds.map((id) => _idMap[id]).whereType<DictionaryEntry>().toList();
 
-  Future<void> loadDictionary() async {
-    if (_isLoaded) return;
+  Future<void>? _loading;
+
+  /// Loads the bundled dictionary (assets/data -- nothing here ever touches
+  /// the network). The 6 MB JSON is decoded and parsed on a background
+  /// isolate: main() used to await this on the UI thread before the first
+  /// frame, delaying every app launch. Concurrent callers share one load;
+  /// a failed load can be retried.
+  Future<void> loadDictionary() {
+    if (_isLoaded) return Future.value();
+    return _loading ??= _load().whenComplete(() => _loading = null);
+  }
+
+  Future<void> _load() async {
+    _loadFailed = false;
     try {
       final jsonString = await rootBundle.loadString('assets/data/academia_dictionary.json');
-      final List<dynamic> jsonList = jsonDecode(jsonString);
-      
-      // Per-entry: one malformed entry must never empty the dictionary.
-      _entries = [
-        for (final e in jsonList)
-          if (e is Map<String, dynamic>)
-            if (_tryParse(e) case final entry?) entry,
-      ];
-      _entries.sort((a, b) => a.word.toLowerCase().compareTo(b.word.toLowerCase()));
-      
-      for (var e in _entries) {
-        _idMap[e.id] = e;
-      }
-      
-      final prefs = await SharedPreferences.getInstance();
-      _recentIds = prefs.getStringList('dictionary_recents') ?? [];
-      
+      final entries = await compute(_parseAll, jsonString);
+      _entries = entries;
+      _idMap = {for (final e in entries) e.id: e};
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        _recentIds = prefs.getStringList('dictionary_recents') ?? [];
+      } catch (_) {}
       _isLoaded = true;
     } catch (e) {
+      _loadFailed = true;
       debugPrint('Error loading Dictionary: $e');
     }
   }
-  
+
+  static List<DictionaryEntry> _parseAll(String jsonString) {
+    final List<dynamic> jsonList = jsonDecode(jsonString);
+    // Per-entry: one malformed entry must never empty the dictionary.
+    final entries = [
+      for (final e in jsonList)
+        if (e is Map<String, dynamic>)
+          if (_tryParse(e) case final entry?) entry,
+    ]..sort((a, b) => a.word.toLowerCase().compareTo(b.word.toLowerCase()));
+    return entries;
+  }
+
   static DictionaryEntry? _tryParse(Map<String, dynamic> json) {
     try {
       final entry = DictionaryEntry.fromJson(json);

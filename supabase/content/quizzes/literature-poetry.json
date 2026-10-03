@@ -1,0 +1,142 @@
+{
+  "subject": "Literature",
+  "title": "Poetry: Figures of Speech and Poetic Devices",
+  "description": "Recognising and explaining the devices poets use, with short illustrative lines.",
+  "difficulty": "easy",
+  "category": "Senior Secondary School",
+  "topic": "Poetry",
+  "createdByName": "Academia",
+  "published": true,
+  "questions": [
+    {
+      "id": "q1",
+      "type": "mcq",
+      "prompt": "'Her smile was a ray of sunshine' is an example of…",
+      "options": [
+        "Metaphor",
+        "Simile",
+        "Personification",
+        "Hyperbole"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q2",
+      "type": "mcq",
+      "prompt": "'He was as brave as a lion' uses a…",
+      "options": [
+        "Oxymoron",
+        "Metaphor",
+        "Simile",
+        "Pun"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q3",
+      "type": "mcq",
+      "prompt": "'The wind whispered through the trees' is an example of…",
+      "options": [
+        "Alliteration",
+        "Personification",
+        "Irony",
+        "Onomatopoeia"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q4",
+      "type": "mcq",
+      "prompt": "'Peter Piper picked a peck of pickled peppers' mainly uses…",
+      "options": [
+        "Euphemism",
+        "Assonance",
+        "Enjambment",
+        "Alliteration"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q5",
+      "type": "mcq",
+      "prompt": "A poem of fourteen lines, often with a fixed rhyme scheme, is a…",
+      "options": [
+        "Sonnet",
+        "Haiku",
+        "Limerick",
+        "Ballad"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q6",
+      "type": "mcq",
+      "prompt": "Words like 'buzz', 'crash' and 'sizzle', which imitate sounds, are examples of…",
+      "options": [
+        "Synecdoche",
+        "Paradox",
+        "Onomatopoeia",
+        "Apostrophe"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q7",
+      "type": "mcq",
+      "prompt": "'I've told you a million times!' is an example of…",
+      "options": [
+        "Litotes",
+        "Hyperbole",
+        "Simile",
+        "Metonymy"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q8",
+      "type": "mcq",
+      "prompt": "A group of lines forming a unit within a poem is called a…",
+      "options": [
+        "Chorus",
+        "Refrain",
+        "Couplet only",
+        "Stanza"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q9",
+      "type": "mcq",
+      "prompt": "When a sentence runs on from one line of poetry to the next without a pause, this is…",
+      "options": [
+        "Enjambment",
+        "Caesura",
+        "Rhyme",
+        "Assonance"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q10",
+      "type": "mcq",
+      "prompt": "'Bitter sweet' and 'deafening silence' are examples of…",
+      "options": [
+        "Anaphora",
+        "Pathetic fallacy",
+        "Oxymoron",
+        "Rhetorical question"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    }
+  ]
+}

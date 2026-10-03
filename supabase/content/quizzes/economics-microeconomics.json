@@ -1,0 +1,142 @@
+{
+  "subject": "Economics",
+  "title": "Microeconomics: Demand, Supply and Price",
+  "description": "The laws of demand and supply, elasticity, equilibrium and market structures.",
+  "difficulty": "medium",
+  "category": "Senior Secondary School",
+  "topic": "Microeconomics",
+  "createdByName": "Academia",
+  "published": true,
+  "questions": [
+    {
+      "id": "q1",
+      "type": "mcq",
+      "prompt": "The law of demand states that, other things being equal, when the price of a good rises…",
+      "options": [
+        "Quantity demanded falls",
+        "Quantity demanded rises",
+        "Supply falls",
+        "Demand stays the same"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q2",
+      "type": "mcq",
+      "prompt": "The price at which quantity demanded equals quantity supplied is the…",
+      "options": [
+        "Reserve price",
+        "Maximum price",
+        "Equilibrium price",
+        "Cost price"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q3",
+      "type": "mcq",
+      "prompt": "If the government sets a maximum price below equilibrium, the likely result is…",
+      "options": [
+        "A surplus",
+        "A shortage",
+        "No change in the market",
+        "Higher profits for sellers"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q4",
+      "type": "mcq",
+      "prompt": "Goods used together, such as cars and petrol, are called…",
+      "options": [
+        "Giffen goods",
+        "Substitute goods",
+        "Inferior goods",
+        "Complementary goods"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q5",
+      "type": "mcq",
+      "prompt": "A good whose demand falls as consumers' incomes rise is…",
+      "options": [
+        "An inferior good",
+        "A normal good",
+        "A luxury good",
+        "A public good"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q6",
+      "type": "mcq",
+      "prompt": "If a 10% rise in price causes a 20% fall in quantity demanded, demand is…",
+      "options": [
+        "Unit elastic",
+        "Price inelastic",
+        "Price elastic (PED = 2)",
+        "Perfectly inelastic"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    },
+    {
+      "id": "q7",
+      "type": "mcq",
+      "prompt": "A good harvest of cocoa will most likely shift the supply curve…",
+      "options": [
+        "To the left, raising the price",
+        "To the right, lowering the price",
+        "Not at all",
+        "Upwards, increasing demand"
+      ],
+      "correctIndex": 1,
+      "points": 10
+    },
+    {
+      "id": "q8",
+      "type": "mcq",
+      "prompt": "A market with a single seller and no close substitutes is a…",
+      "options": [
+        "Monopsony",
+        "Perfect competition",
+        "Oligopoly",
+        "Monopoly"
+      ],
+      "correctIndex": 3,
+      "points": 10
+    },
+    {
+      "id": "q9",
+      "type": "mcq",
+      "prompt": "The extra satisfaction gained from consuming one more unit of a good is…",
+      "options": [
+        "Marginal utility",
+        "Total utility",
+        "Opportunity cost",
+        "Consumer surplus"
+      ],
+      "correctIndex": 0,
+      "points": 10
+    },
+    {
+      "id": "q10",
+      "type": "mcq",
+      "prompt": "Opportunity cost is best defined as…",
+      "options": [
+        "The total cost of production",
+        "The money price of a good",
+        "The next best alternative forgone",
+        "The cost of imported goods"
+      ],
+      "correctIndex": 2,
+      "points": 10
+    }
+  ]
+}

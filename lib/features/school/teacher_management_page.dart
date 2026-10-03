@@ -40,7 +40,7 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
   final _searchCtrl = TextEditingController();
   List<AppUser> _results = [];
   List<AppUser> _assigned = [];
-  List<String> _subjects = [];
+  List<String> _subjects = kAcademicSubjects;
   bool _searching = false;
   bool _loadingAssigned = true;
 
@@ -55,9 +55,10 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
 
   Future<void> _loadSubjects() async {
     final res = await SchoolRepository.instance.getSubjects(_schoolId);
-    if (res is Success<List<String>> && mounted) {
-      setState(() => _subjects = res.value);
-    }
+    if (!mounted) return;
+    // A school that hasn't configured its own subject list yet gets the
+    // standard catalogue -- the dropdown used to offer only "Mathematics".
+    setState(() => _subjects = res is Success<List<String>> && res.value.isNotEmpty ? res.value : kAcademicSubjects);
   }
 
   @override
@@ -67,7 +68,9 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
   }
 
   Future<void> _loadAssigned() async {
-    final staff = await TeacherManagementRepository.instance.assignedStaffOnce(_schoolId);
+    // Every staff member, not only those already assigned -- a newly
+    // hired teacher used to be invisible here unless you knew to search.
+    final staff = await TeacherManagementRepository.instance.staffOnce(_schoolId);
     if (!mounted) return;
     setState(() {
       _assigned = staff;
@@ -163,12 +166,12 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
               onTap: () => _openEditor(r),
             ),
           const SizedBox(height: 8),
-          Text('Assigned Staff', style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
+          Text('Staff', style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
           const SizedBox(height: 8),
           if (_loadingAssigned)
             const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()))
           else if (_assigned.isEmpty)
-            Text('No teacher has any assignments yet -- search above to get started.', style: GoogleFonts.inter(color: ac.muted))
+            Text('No staff accounts at this school yet. Issue Teacher codes from Access Codes.', style: GoogleFonts.inter(color: ac.muted))
           else
             for (final t in _assigned) _StaffTile(teacher: t, onTap: () => _openEditor(t)),
         ],
@@ -200,7 +203,7 @@ class _StaffTile extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(teacher.name, style: GoogleFonts.sora(fontSize: 13.5, fontWeight: FontWeight.w700, color: ac.txt)),
               const SizedBox(height: 4),
-              Text(summary.isEmpty ? 'No assignments' : summary, style: GoogleFonts.inter(fontSize: 11.5, color: ac.muted)),
+              Text(summary.isEmpty ? '${teacher.roleLabel} · No assignments yet — tap to assign' : summary, style: GoogleFonts.inter(fontSize: 11.5, color: ac.muted)),
             ]),
           ),
           Icon(Icons.chevron_right_rounded, color: ac.muted),
@@ -294,6 +297,7 @@ class _AssignmentEditorSheetState extends State<_AssignmentEditorSheet> {
             Row(children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
+                  isExpanded: true,
                   initialValue: _addClass,
                   decoration: const InputDecoration(labelText: 'Class'),
                   items: [for (final c in _schoolClassLevels) DropdownMenuItem(value: c, child: Text(c))],
@@ -303,6 +307,7 @@ class _AssignmentEditorSheetState extends State<_AssignmentEditorSheet> {
               const SizedBox(width: 10),
               Expanded(
                 child: DropdownButtonFormField<String>(
+                  isExpanded: true, // long subject names overflowed by 26px on phones
                   initialValue: _addSubject,
                   decoration: const InputDecoration(labelText: 'Subject'),
                   items: [

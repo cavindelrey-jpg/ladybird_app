@@ -44,6 +44,7 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
   List<MarksImportRow> _rows = [];
   int _importedCount = 0;
   int _failedCount = 0;
+  bool get _imported => _importedCount > 0 || _failedCount > 0;
   String? _importError;
 
   Future<void> _downloadTemplate() async {
@@ -66,10 +67,18 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
   }
 
   Future<void> _pickAndValidate() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['csv'],
-    );
+    FilePickerResult? result;
+    try {
+      result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+    } catch (e) {
+      // Permission denied / no picker available: used to escape as an
+      // uncaught error, so the button just appeared to do nothing.
+      if (mounted) showToast(context, 'Couldn\'t open the file picker. Check storage permission and try again.', isError: true);
+      return;
+    }
     final path = result?.files.single.path;
     if (path == null) return;
 
@@ -185,7 +194,7 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
               child: OutlinedButton.icon(
                 onPressed: _busy ? null : _downloadTemplate,
                 icon: const Icon(Icons.download_rounded, size: 18),
-                label: const Text('Download CSV Template'),
+                label: const Text('Get template'),
               ),
             ),
             const SizedBox(width: 12),
@@ -215,7 +224,9 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
             Text('$validCount valid, $errorCount need attention',
                 style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
             const SizedBox(height: 10),
-            ..._rows.map((r) => Container(
+            // Problems first -- in a 60-row file they used to be scattered
+            // among the valid rows.
+            ...[..._rows.where((r) => !r.isValid), ..._rows.where((r) => r.isValid)].map((r) => Container(
                   margin: const EdgeInsets.only(bottom: 6),
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
@@ -229,18 +240,19 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
                     Expanded(
                       child: Text(
                         'Line ${r.lineNumber}: ${r.studentName} · ${r.raw['subject'] ?? ''} '
-                        '${r.isValid ? '— ready' : '— ${r.error}'}',
+                        '${r.isValid ? (_imported ? '— saved' : '— ready') : '— ${r.error}'}',
                         style: GoogleFonts.inter(fontSize: 12, color: r.isValid ? ac.grn : ac.red),
                       ),
                     ),
                   ]),
                 )),
             const SizedBox(height: 12),
-            PrimaryBtn(
-              label: 'Import $validCount Valid Row${validCount == 1 ? '' : 's'}',
-              loading: _busy,
-              onTap: validCount == 0 ? () {} : _importValidRows,
-            ),
+            if (!_imported)
+              PrimaryBtn(
+                label: validCount == 0 ? 'Nothing to import' : 'Import $validCount Valid Row${validCount == 1 ? '' : 's'}',
+                loading: _busy,
+                onTap: validCount == 0 ? () {} : _importValidRows,
+              ),
           ],
           if (_importedCount > 0 || _failedCount > 0) ...[
             const SizedBox(height: 16),

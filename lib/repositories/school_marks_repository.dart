@@ -171,7 +171,9 @@ class SchoolMarksRepository {
       final chunk = marks.sublist(i, (i + chunkSize).clamp(0, marks.length));
       try {
         await _marks.upsert(chunk.map(_toRow).toList(), onConflict: 'student_id,subject,sequence,academic_year');
-      } catch (_) {
+      } on PostgrestException {
+        // The server rejected something in the chunk -- retry row by row
+        // so only the genuinely bad rows fail.
         for (final m in chunk) {
           try {
             await _marks.upsert(_toRow(m), onConflict: 'student_id,subject,sequence,academic_year');
@@ -180,6 +182,11 @@ class SchoolMarksRepository {
           } catch (e) {
             failures[m.studentId] = 'Not saved — no connection.';
           }
+        }
+      } catch (_) {
+        // Connection failure: no point retrying 60 rows one by one.
+        for (final m in chunk) {
+          failures[m.studentId] = 'Not saved — no connection.';
         }
       }
     }

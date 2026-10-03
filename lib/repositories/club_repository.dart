@@ -320,40 +320,78 @@ class ClubRepository {
     }
   }
 
+  final Map<String, Future<void> Function()> _refreshClubChat = {};
+
+  /// Newest 100 messages, oldest first (newest at the bottom by the input
+  /// bar). Like direct messages: refreshed right after a send and polled
+  /// every 15 s, so the group works when the realtime channel is down.
   Stream<List<ClubMessage>> watchMessages(String clubId) {
-    return _db
-        .from('club_messages')
-        .stream(primaryKey: ['id'])
-        .eq('club_id', clubId)
-        .order('sent_at') // newest 100 (descending) ...
-        .limit(100)
-        .realtimeTolerant()
-        // ... shown oldest-first, newest at the bottom by the input bar,
-        // like any chat. Rendering the descending list directly put the
-        // latest message at the very top.
-        .map((rows) => rows.reversed.map(ClubMessage.fromSupabase).toList());
+    late final StreamController<List<ClubMessage>> controller;
+    StreamSubscription<List<ClubMessage>>? liveSub;
+    Timer? poll;
+    String? last;
+
+    void emit(List<ClubMessage> msgs) {
+      if (controller.isClosed) return;
+      final sig = msgs.map((m) => '${m.id}:${m.deleted}').join(',');
+      if (sig == last) return;
+      last = sig;
+      controller.add(msgs);
+    }
+
+    Future<void> fetch() async {
+      try {
+        final rows = await _db.from('club_messages').select().eq('club_id', clubId)
+            .order('sent_at', ascending: false).limit(100).timeout(const Duration(seconds: 10));
+        emit(rows.reversed.map(ClubMessage.fromSupabase).toList());
+      } catch (_) {}
+    }
+
+    controller = StreamController<List<ClubMessage>>(
+      onListen: () {
+        _refreshClubChat[clubId] = fetch;
+        poll = Timer.periodic(const Duration(seconds: 15), (_) => fetch());
+        liveSub = _db
+            .from('club_messages')
+            .stream(primaryKey: ['id'])
+            .eq('club_id', clubId)
+            .order('sent_at') // newest 100 (descending) ...
+            .limit(100)
+            .realtimeTolerant()
+            // ... shown oldest-first, newest at the bottom by the input bar.
+            .map((rows) => rows.reversed.map(ClubMessage.fromSupabase).toList())
+            .listen(emit, onError: (Object e, StackTrace st) {
+              if (!controller.isClosed) controller.addError(e, st);
+            });
+      },
+      onCancel: () async {
+        poll?.cancel();
+        if (_refreshClubChat[clubId] == fetch) _refreshClubChat.remove(clubId);
+        await liveSub?.cancel();
+        if (!controller.isClosed) await controller.close();
+      },
+    );
+    return controller.stream;
   }
 
   Future<Result<void>> sendMessage(String clubId, ClubMessage message) async {
     try {
+      // The inbox preview (clubs.last_message_*) is maintained by the
+      // trg_club_message_preview trigger -- the client used to update it
+      // itself, which members (not moderators) aren't allowed to do, so
+      // their sends were reported as failed after being saved.
       await _db.from('club_messages').insert({'club_id': clubId, ...message.toSupabase()});
-      // Denormalized preview so this club can show up in the merged
-      // Messages inbox (MessagesHomePage) alongside 1:1 conversations.
-      await _db.from('clubs').update({
-        'last_message_text': message.text,
-        'last_message_sender_id': message.senderId,
-        'last_message_at': DateTime.now().toIso8601String(),
-      }).eq('id', clubId);
+      unawaited(_refreshClubChat[clubId]?.call());
       return const Success(null);
+    } on PostgrestException catch (e) {
+      return Failure(e.message.contains('row-level security')
+          ? 'You\'re not a member of this group any more.'
+          : 'Message not sent. Please try again.', e);
     } catch (e) {
-      return Failure('Failed to send message', e);
+      return Failure('Message not sent — check your connection.', e);
     }
   }
 
-  // ── Merged-inbox support (Messaging mockup: club threads alongside
-  // 1:1 conversations in one Messages list) ─────────────────────────
-
-  /// IDs of every club [userId] belongs to.
   Stream<List<String>> watchMyClubIds(String userId) {
     final controller = StreamController<List<String>>();
     StreamSubscription? liveSub;

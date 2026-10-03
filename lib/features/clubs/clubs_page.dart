@@ -1354,7 +1354,14 @@ class _ClubChatPageState extends State<ClubChatPage> {
       senderInitials: widget.user.initials, text: text, time: DateTime.now(),
     );
     _ctrl.clear();
-    await ClubRepository.instance.sendMessage(widget.club.id, msg);
+    final res = await ClubRepository.instance.sendMessage(widget.club.id, msg);
+    if (!mounted) return;
+    if (res is Failure<void>) {
+      // Never silently drop what someone typed: put it back and say why.
+      if (_ctrl.text.isEmpty) _ctrl.text = text;
+      showToast(context, res.message, isError: true);
+      return;
+    }
     await Future.delayed(const Duration(milliseconds: 80));
     if (_scroll.hasClients) {
       _scroll.animateTo(_scroll.position.maxScrollExtent,

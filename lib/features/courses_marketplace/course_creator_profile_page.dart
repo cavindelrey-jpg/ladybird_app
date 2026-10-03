@@ -14,6 +14,7 @@ import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'course_lessons_page.dart';
 import 'course_composer_page.dart';
+import '../../core/realtime_tolerant.dart';
 
 /// One-time-ish lookup of the full user profile (for bio) — the header's
 /// name/photo already come from PublicCourse, so this only backs the
@@ -22,6 +23,7 @@ Stream<AppUser?> _watchCreatorUser(String creatorId) => Supabase.instance.client
     .from('users')
     .stream(primaryKey: ['id'])
     .eq('id', creatorId)
+    .realtimeTolerant()
     .map((rows) => rows.isNotEmpty ? AppUser.fromSupabase(rows.first) : null);
 
 class CourseCreatorProfilePage extends StatelessWidget {

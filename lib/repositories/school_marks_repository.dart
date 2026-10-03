@@ -9,6 +9,7 @@ import '../core/marks_csv.dart' show RosterStudent;
 import '../core/offline_cache.dart';
 import '../core/result.dart';
 import '../models/school_mark.dart';
+import '../core/realtime_tolerant.dart';
 
 /// Overall grade for a whole sequence -- same percentage scale as a
 /// single SchoolMark.grade, applied to the AVERAGE percentage across
@@ -54,6 +55,7 @@ class SchoolMarksRepository {
     return _marks
         .stream(primaryKey: ['id'])
         .eq('student_id', studentId)
+        .realtimeTolerant()
         .map((rows) => rows.where((r) => r['sequence'] == sequence.name).map(_fromRow).toList());
   }
 

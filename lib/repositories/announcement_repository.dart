@@ -10,6 +10,7 @@ import 'dart:math';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
 import '../core/result.dart';
+import '../core/realtime_tolerant.dart';
 
 class AnnouncementRepository {
   AnnouncementRepository._();
@@ -20,7 +21,8 @@ class AnnouncementRepository {
   SupabaseQueryBuilder get _table => _db.from('announcements');
 
   Stream<List<Announcement>> watchAnnouncements({String? schoolId}) {
-    final stream = _table.stream(primaryKey: ['id']).order('occurred_at', ascending: false).limit(50);
+    final stream = _table.stream(primaryKey: ['id']).order('occurred_at', ascending: false).limit(50)
+        .realtimeTolerant();
     if (schoolId == null || schoolId.isEmpty) {
       return stream.map((rows) => rows.map(Announcement.fromSupabase).toList());
     }

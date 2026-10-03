@@ -13,6 +13,7 @@ import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/core.dart';
 import '../core/offline_cache.dart';
+import '../core/realtime_tolerant.dart';
 
 class HomeHeroRepository {
   HomeHeroRepository._();
@@ -27,6 +28,7 @@ class HomeHeroRepository {
         .from('home_hero')
         .stream(primaryKey: ['id'])
         .eq('id', _rowId)
+        .realtimeTolerant()
         .map((rows) => rows.isNotEmpty ? (rows.first['image_url'] as String? ?? '') : '');
     return OfflineCache.instance.watch<String>(
       'home_hero_url',

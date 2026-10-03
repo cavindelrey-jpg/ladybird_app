@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/core.dart';
 import '../models/school_calendar_event.dart';
+import '../core/realtime_tolerant.dart';
 
 class SchoolCalendarRepository {
   SchoolCalendarRepository._();
@@ -21,7 +22,8 @@ class SchoolCalendarRepository {
   Stream<List<SchoolCalendarEvent>> watchAll(String schoolId) {
     if (schoolId.isEmpty) return Stream.value(const []);
     return _streamCache.watch('watchAll_$schoolId', () =>
-      _events.stream(primaryKey: ['id']).eq('school_id', schoolId).map((rows) {
+      _events.stream(primaryKey: ['id']).eq('school_id', schoolId)
+        .realtimeTolerant().map((rows) {
         final list = rows.map(SchoolCalendarEvent.fromSupabase).toList()
           ..sort((a, b) => a.startDate.compareTo(b.startDate));
         return list;

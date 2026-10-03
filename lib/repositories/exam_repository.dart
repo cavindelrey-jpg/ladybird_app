@@ -11,6 +11,7 @@ import '../models/exam_question.dart';
 import '../models/examination.dart';
 import '../models/test.dart';
 import 'academic_content_repository.dart';
+import '../core/realtime_tolerant.dart';
 
 class ExamRepository {
   ExamRepository._();
@@ -34,7 +35,8 @@ class ExamRepository {
         .from('examinations')
         .stream(primaryKey: ['id'])
         .eq('school_id', schoolId)
-        .order('updated_at', ascending: false);
+        .order('updated_at', ascending: false)
+        .realtimeTolerant();
 
     return stream.asyncMap((rows) async {
       try {
@@ -119,7 +121,8 @@ class ExamRepository {
         .from('question_collections')
         .stream(primaryKey: ['id'])
         .eq('teacher_id', teacherId)
-        .order('updated_at', ascending: false);
+        .order('updated_at', ascending: false)
+        .realtimeTolerant();
 
     return stream.asyncMap((rows) async {
       try {
@@ -311,7 +314,8 @@ class ExamRepository {
     final stream = _db
         .from('school_exam_templates')
         .stream(primaryKey: ['id'])
-        .eq('school_id', schoolId);
+        .eq('school_id', schoolId)
+        .realtimeTolerant();
 
     return stream.asyncMap((rows) async {
       try {

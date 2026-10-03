@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/core.dart';
 import '../models/homework.dart';
+import '../core/realtime_tolerant.dart';
 
 class HomeworkRepository {
   HomeworkRepository._();
@@ -25,7 +26,8 @@ class HomeworkRepository {
   Stream<List<Homework>> watchForClass(String schoolId, String classLevel) {
     if (schoolId.isEmpty || classLevel.isEmpty) return Stream.value(const []);
     return _streamCache.watch('watchForClass_${schoolId}_$classLevel', () => 
-      _homework.stream(primaryKey: ['id']).eq('school_id', schoolId).map((rows) {
+      _homework.stream(primaryKey: ['id']).eq('school_id', schoolId)
+        .realtimeTolerant().map((rows) {
         final list = rows.where((r) => r['class_level'] == classLevel).map(_fromRow).toList()
           ..sort((a, b) => b.dueAt.compareTo(a.dueAt));
         return list;
@@ -38,7 +40,8 @@ class HomeworkRepository {
   Stream<List<Homework>> watchByTeacher(String teacherId) {
     if (teacherId.isEmpty) return Stream.value(const []);
     return _streamCache.watch('watchByTeacher_$teacherId', () =>
-      _homework.stream(primaryKey: ['id']).eq('teacher_id', teacherId).map((rows) {
+      _homework.stream(primaryKey: ['id']).eq('teacher_id', teacherId)
+        .realtimeTolerant().map((rows) {
         final list = rows.map(_fromRow).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
         return list;
       })

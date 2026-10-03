@@ -13,6 +13,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import "../core/offline_cache.dart";
 import '../models/academic_content.dart';
 import '../core/result.dart';
+import '../core/realtime_tolerant.dart';
 
 class AcademicContentRepository {
   AcademicContentRepository._();
@@ -42,7 +43,8 @@ class AcademicContentRepository {
   }) {
     final hasClientFilter =
         (level != null && level.isNotEmpty) || (examBoard != null && examBoard.isNotEmpty) || year != null;
-    var stream = _db.from(_table).stream(primaryKey: ['id']);
+    var stream = _db.from(_table).stream(primaryKey: ['id'])
+        .realtimeTolerant();
     return stream.map((rows) {
       var filtered = rows;
       if (institutionId != null) {
@@ -97,6 +99,7 @@ class AcademicContentRepository {
         .from(_table)
         .stream(primaryKey: ['id'])
         .eq('id', id)
+        .realtimeTolerant()
         .map((rows) => rows.isNotEmpty ? AcademicContent.fromSupabase(rows.first) : null);
   }
 
@@ -199,6 +202,7 @@ class AcademicContentRepository {
       .from('content_saves')
       .stream(primaryKey: ['content_id', 'user_id'])
       .eq('content_id', contentId)
+      .realtimeTolerant()
       .map((rows) => rows.any((r) => r['user_id'] == userId));
 
   Future<Result<void>> toggleSave(String contentId, String userId) async {
@@ -226,6 +230,7 @@ class AcademicContentRepository {
         .from('content_saves')
         .stream(primaryKey: ['content_id', 'user_id'])
         .eq('user_id', userId)
+        .realtimeTolerant()
         .asyncMap((rows) async {
       final ids = rows.map((r) => r['content_id'] as String).toList();
       if (ids.isEmpty) return <AcademicContent>[];
@@ -452,6 +457,7 @@ class AcademicContentRepository {
         .from('content_recent_views')
         .stream(primaryKey: ['content_id', 'user_id'])
         .eq('user_id', userId)
+        .realtimeTolerant()
         .asyncMap((rows) async {
       final sorted = rows.toList()
         ..sort((a, b) => (b['viewed_at'] as String).compareTo(a['viewed_at'] as String));

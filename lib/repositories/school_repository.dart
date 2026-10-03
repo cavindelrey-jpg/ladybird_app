@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/result.dart';
 import '../models/school.dart';
+import '../core/realtime_tolerant.dart';
 
 class SchoolRepository {
   SchoolRepository._();
@@ -85,6 +86,7 @@ class SchoolRepository {
       .from('institutions')
       .stream(primaryKey: ['id'])
       .order('school_name', ascending: true)
+      .realtimeTolerant()
       .map((rows) {
         final schools = rows.map(School.fromSupabase).toList();
         for (final s in schools) {

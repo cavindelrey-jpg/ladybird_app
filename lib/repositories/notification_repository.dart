@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_notification.dart';
 import '../core/result.dart';
 import 'dart:async';
+import '../core/realtime_tolerant.dart';
 
 class NotificationRepository {
   NotificationRepository._();
@@ -25,6 +26,7 @@ class NotificationRepository {
         .eq('user_id', uid)
         .order('created_at', ascending: false)
         .limit(limit)
+        .realtimeTolerant()
         .map((rows) => rows.map(AppNotification.fromSupabase).toList());
   }
 
@@ -33,6 +35,7 @@ class NotificationRepository {
     return _notifications
         .stream(primaryKey: ['id'])
         .eq('user_id', uid)
+        .realtimeTolerant()
         .map((rows) => rows.where((r) => r['read'] == false).length);
   }
 
@@ -103,6 +106,7 @@ class NotificationRepository {
     return _prefs
         .stream(primaryKey: ['user_id'])
         .eq('user_id', uid)
+        .realtimeTolerant()
         .map((rows) => NotificationPreferences.fromSupabase(rows.isNotEmpty ? rows.first : null));
   }
 

@@ -20,6 +20,7 @@ import '../core/result.dart';
 import '../services/content_cache_service.dart';
 import 'dart:async';
 import 'xp_repository.dart';
+import '../core/realtime_tolerant.dart';
 
 class ClubRepository {
   ClubRepository._();
@@ -41,7 +42,8 @@ class ClubRepository {
         controller.add(cached.map(Club.fromSupabase).toList());
       }
       
-      final stream = _db.from('clubs').stream(primaryKey: ['id']);
+      final stream = _db.from('clubs').stream(primaryKey: ['id'])
+        .realtimeTolerant();
       liveSub = stream.listen((rows) {
         if (controller.isClosed) return;
         var filtered = rows;
@@ -78,6 +80,7 @@ class ClubRepository {
         .from('club_members')
         .stream(primaryKey: ['club_id', 'user_id'])
         .eq('club_id', clubId)
+        .realtimeTolerant()
         .map((rows) {
       final mine = rows.where((r) => r['user_id'] == userId).toList();
       if (mine.isEmpty) return ClubRole.visitor;
@@ -126,6 +129,7 @@ class ClubRepository {
             .from('club_members')
             .stream(primaryKey: ['club_id', 'user_id'])
             .eq('club_id', clubId)
+            .realtimeTolerant()
             .listen(
               (rows) {
                 lastActive = rows
@@ -196,6 +200,7 @@ class ClubRepository {
       .stream(primaryKey: ['id'])
       .eq('club_id', clubId)
       .order('created_at', ascending: false)
+      .realtimeTolerant()
       .map((rows) {
     final mine = rows.where((r) => r['user_id'] == userId).toList();
     return mine.isEmpty ? null : ClubJoinRequest.fromSupabase(mine.first).status;
@@ -215,7 +220,8 @@ class ClubRepository {
 
       final stream = _joinRequests
           .stream(primaryKey: ['id'])
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+        .realtimeTolerant();
 
       liveSub = stream.listen((rows) {
         if (controller.isClosed) return;
@@ -240,6 +246,7 @@ class ClubRepository {
       .stream(primaryKey: ['id'])
       .eq('club_id', clubId)
       .order('created_at', ascending: false)
+      .realtimeTolerant()
       .map((rows) => rows
           .where((r) => r['status'] == 'pending')
           .map(ClubJoinRequest.fromSupabase)
@@ -320,6 +327,7 @@ class ClubRepository {
         .eq('club_id', clubId)
         .order('sent_at') // newest 100 (descending) ...
         .limit(100)
+        .realtimeTolerant()
         // ... shown oldest-first, newest at the bottom by the input bar,
         // like any chat. Rendering the descending list directly put the
         // latest message at the very top.
@@ -360,7 +368,8 @@ class ClubRepository {
       final stream = _db
           .from('club_members')
           .stream(primaryKey: ['club_id', 'user_id'])
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+        .realtimeTolerant();
 
       liveSub = stream.listen((rows) {
         if (controller.isClosed) return;
@@ -430,6 +439,7 @@ class ClubRepository {
       .eq('club_id', clubId)
       .order('joined_at')
       .limit(limit)
+      .realtimeTolerant()
       .map((rows) => rows.map(ClubMember.fromSupabase).toList());
 
   Stream<List<ClubMember>> watchMembers(String clubId) => _db
@@ -437,6 +447,7 @@ class ClubRepository {
       .stream(primaryKey: ['club_id', 'user_id'])
       .eq('club_id', clubId)
       .order('joined_at')
+      .realtimeTolerant()
       .map((rows) => rows.map(ClubMember.fromSupabase).toList());
 
   Future<Result<void>> updateMemberRole(
@@ -517,6 +528,7 @@ class ClubRepository {
       .eq('club_id', clubId)
       .order('created_at', ascending: false)
       .limit(100)
+      .realtimeTolerant()
       .map((rows) => rows.map(ClubPost.fromSupabase).toList());
 
   Future<Result<void>> createPost(String clubId, ClubPost post) async {
@@ -544,6 +556,7 @@ class ClubRepository {
         .from('club_post_likes')
         .stream(primaryKey: ['post_id', 'user_id'])
         .eq('post_id', postId)
+        .realtimeTolerant()
         .map((rows) => rows.any((r) => r['user_id'] == userId));
   }
 
@@ -552,6 +565,7 @@ class ClubRepository {
       .stream(primaryKey: ['id'])
       .eq('post_id', postId)
       .order('created_at')
+      .realtimeTolerant()
       .map((rows) => rows.map(ClubPostComment.fromSupabase).toList());
 
   Future<Result<void>> addPostComment(String clubId, String postId, ClubPostComment comment) async {
@@ -580,12 +594,14 @@ class ClubRepository {
       .eq('club_id', clubId)
       .order('created_at', ascending: false)
       .limit(100)
+      .realtimeTolerant()
       .map((rows) => rows.map(ClubDiscussion.fromSupabase).toList());
 
   Stream<ClubDiscussion?> watchDiscussion(String clubId, String discussionId) => _db
       .from('club_discussions')
       .stream(primaryKey: ['id'])
       .eq('id', discussionId)
+      .realtimeTolerant()
       .map((rows) => rows.isNotEmpty ? ClubDiscussion.fromSupabase(rows.first) : null);
 
   Future<Result<String>> createDiscussion(String clubId, ClubDiscussion discussion) async {
@@ -612,6 +628,7 @@ class ClubRepository {
       .stream(primaryKey: ['id'])
       .eq('discussion_id', discussionId)
       .order('created_at')
+      .realtimeTolerant()
       .map((rows) => rows.map(ClubDiscussionReply.fromSupabase).toList());
 
   Future<Result<void>> addReply(String clubId, String discussionId, ClubDiscussionReply reply) async {
@@ -674,6 +691,7 @@ class ClubRepository {
         .from('club_discussion_likes')
         .stream(primaryKey: ['discussion_id', 'user_id'])
         .eq('discussion_id', discussionId)
+        .realtimeTolerant()
         .map((rows) => rows.any((r) => r['user_id'] == userId));
   }
 
@@ -696,6 +714,7 @@ class ClubRepository {
         .from('club_discussion_reply_likes')
         .stream(primaryKey: ['reply_id', 'user_id'])
         .eq('reply_id', replyId)
+        .realtimeTolerant()
         .map((rows) => rows.any((r) => r['user_id'] == userId));
   }
 
@@ -706,6 +725,7 @@ class ClubRepository {
       .stream(primaryKey: ['id'])
       .eq('club_id', clubId)
       .order('created_at', ascending: false)
+      .realtimeTolerant()
       .map((rows) => rows.map(ClubResource.fromSupabase).toList());
 
   Future<Result<void>> addResource(String clubId, ClubResource resource) async {
@@ -743,7 +763,8 @@ class ClubRepository {
       .from('club_events')
       .stream(primaryKey: ['id'])
       .eq('club_id', clubId)
-      .order('start_at', ascending: true) // soonest upcoming first
+      .order('start_at', ascending: true)
+        .realtimeTolerant() // soonest upcoming first
       .map((rows) => rows.map(ClubEvent.fromSupabase).toList());
 
   Future<Result<void>> addEvent(String clubId, ClubEvent event) async {
@@ -780,6 +801,7 @@ class ClubRepository {
         .from('club_event_rsvps')
         .stream(primaryKey: ['event_id', 'user_id'])
         .eq('event_id', eventId)
+        .realtimeTolerant()
         .map((rows) => rows.any((r) => r['user_id'] == userId));
   }
 }

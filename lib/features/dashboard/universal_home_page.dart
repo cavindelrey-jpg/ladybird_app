@@ -1168,7 +1168,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Term Average · ${marksData.subjects.length} recorded subjects',
+                                'Term Average · ${marksData.subjects.length} recorded subject${marksData.subjects.length == 1 ? '' : 's'}',
                                 style: GoogleFonts.sora(
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w700,

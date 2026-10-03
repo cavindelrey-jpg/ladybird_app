@@ -35,6 +35,7 @@ import '../core/result.dart';
 import '../services/content_cache_service.dart';
 import 'dart:async';
 import 'xp_repository.dart';
+import '../core/realtime_tolerant.dart';
 
 class MagazineRepository {
   MagazineRepository._();
@@ -60,6 +61,7 @@ class MagazineRepository {
           .eq('published', true)
           .order('created_at', ascending: false)
           .limit(limit)
+          .realtimeTolerant()
           .listen((rows) {
         if (controller.isClosed) return;
         final list = List<Map<String, dynamic>>.from(rows);
@@ -82,6 +84,7 @@ class MagazineRepository {
         .stream(primaryKey: ['id'])
         .eq('published', true)
         .order('created_at', ascending: false)
+        .realtimeTolerant()
         .map((rows) => rows
             .where((r) => capped.contains(r['author_id']))
             .map(MagazineArticle.fromSupabase)
@@ -93,6 +96,7 @@ class MagazineRepository {
       .stream(primaryKey: ['id'])
       .eq('institution_id', schoolId)
       .order('created_at', ascending: false)
+      .realtimeTolerant()
       .map((rows) => rows
           .where((r) => r['published'] == true)
           .map(MagazineArticle.fromSupabase)
@@ -121,6 +125,7 @@ class MagazineRepository {
         .stream(primaryKey: ['id'])
         .eq('published', true)
         .order('created_at', ascending: false)
+        .realtimeTolerant()
         .map((rows) {
       final items = rows
           .where((r) => (r['created_at'] as String).compareTo(cutoff) >= 0)
@@ -214,6 +219,7 @@ class MagazineRepository {
       .stream(primaryKey: ['id'])
       .eq('author_id', authorId)
       .order('created_at', ascending: false)
+      .realtimeTolerant()
       .map((rows) => rows.map(MagazineArticle.fromSupabase).toList());
 
   Future<MagazineArticle?> getById(String id) async {
@@ -270,6 +276,7 @@ class MagazineRepository {
       .stream(primaryKey: ['id'])
       .eq('article_id', articleId)
       .order('created_at')
+      .realtimeTolerant()
       .map((rows) => rows.map(ArticleComment.fromSupabase).toList());
 
   Future<Result<void>> postComment(ArticleComment comment) async {
@@ -383,6 +390,7 @@ class MagazineRepository {
         .from('article_likes')
         .stream(primaryKey: ['article_id', 'user_id'])
         .eq('article_id', articleId)
+        .realtimeTolerant()
         .map((rows) => rows.any((r) => r['user_id'] == userId));
   }
 
@@ -404,6 +412,7 @@ class MagazineRepository {
         .from('article_bookmarks')
         .stream(primaryKey: ['article_id', 'user_id'])
         .eq('article_id', articleId)
+        .realtimeTolerant()
         .map((rows) => rows.any((r) => r['user_id'] == userId));
   }
 
@@ -415,6 +424,7 @@ class MagazineRepository {
         .stream(primaryKey: ['article_id', 'user_id'])
         .eq('user_id', userId)
         .order('created_at', ascending: false)
+        .realtimeTolerant()
         .asyncMap((rows) async {
       if (rows.isEmpty) return <MagazineArticle>[];
       final ids = rows.map((r) => r['article_id'] as String).toList();

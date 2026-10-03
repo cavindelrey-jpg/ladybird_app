@@ -17,6 +17,7 @@ import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'article_reader_page.dart';
 import 'article_composer_page.dart';
+import '../../core/realtime_tolerant.dart';
 
 /// One-time-ish lookup of the full user profile (for bio) — the
 /// article-derived header fields (name/photo) already come from
@@ -25,6 +26,7 @@ Stream<AppUser?> _watchAuthorUser(String authorId) => Supabase.instance.client
     .from('users')
     .stream(primaryKey: ['id'])
     .eq('id', authorId)
+    .realtimeTolerant()
     .map((rows) => rows.isNotEmpty ? AppUser.fromSupabase(rows.first) : null);
 
 class AuthorProfilePage extends StatelessWidget {

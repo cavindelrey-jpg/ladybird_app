@@ -15,6 +15,7 @@ import '../models/xp_transaction.dart';
 import '../data/daily_learning_courses.dart';
 import '../core/result.dart';
 import 'xp_repository.dart';
+import '../core/realtime_tolerant.dart';
 
 class DailyLearningRepository {
   DailyLearningRepository._();
@@ -41,6 +42,7 @@ class DailyLearningRepository {
     return _progress
         .stream(primaryKey: ['user_id', 'course_id'])
         .eq('user_id', userId)
+        .realtimeTolerant()
         .map((rows) {
       final mine = rows.where((r) => r['course_id'] == courseId);
       if (mine.isEmpty) return (const <String>{}, null);
@@ -131,6 +133,7 @@ class DailyLearningRepository {
         .from('daily_learning_streaks')
         .stream(primaryKey: ['user_id'])
         .eq('user_id', userId)
+        .realtimeTolerant()
         .map((rows) {
       if (rows.isEmpty) return DailyLearningStreak(userId: userId, currentStreak: 0, longestStreak: 0);
       final streak = DailyLearningStreak.fromSupabase(rows.first);

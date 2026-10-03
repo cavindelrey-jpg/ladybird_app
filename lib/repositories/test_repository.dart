@@ -43,6 +43,7 @@ import '../models/xp_transaction.dart';
 import '../services/content_cache_service.dart';
 import 'academic_section_repository.dart';
 import 'xp_repository.dart';
+import '../core/realtime_tolerant.dart';
 
 class TestRepository {
   TestRepository._();
@@ -81,6 +82,7 @@ class TestRepository {
         .stream(primaryKey: ['id'])
         .eq('subject', subject)
         .order('created_at', ascending: false)
+        .realtimeTolerant()
         .map((rows) {
       final all = rows.where((r) => r['published'] == true).map(Test.fromSupabase).toList();
       return all.where((t) {
@@ -108,12 +110,14 @@ class TestRepository {
         .stream(primaryKey: ['id'])
         .eq('created_by', creatorId)
         .order('created_at', ascending: false)
+        .realtimeTolerant()
         .map((rows) => rows.map(Test.fromSupabase).toList()));
   }
 
   Stream<Test?> watchTest(String testId) => _streamCache.watch('watchTest_$testId', () => _tests
       .stream(primaryKey: ['id'])
       .eq('id', testId)
+      .realtimeTolerant()
       .map((rows) => rows.isNotEmpty ? Test.fromSupabase(rows.first) : null));
 
   /// Distinct subjects that currently have at least one published test.
@@ -813,6 +817,7 @@ class TestRepository {
       .eq('user_id', userId)
       .order('submitted_at', ascending: false)
       .limit(limit)
+      .realtimeTolerant()
       .map((rows) => rows.map(TestAttempt.fromSupabase).toList());
 
   /// Attempts still awaiting manual grading — the lecturer/admin queue.
@@ -822,6 +827,7 @@ class TestRepository {
         .stream(primaryKey: ['id'])
         .eq('status', AttemptStatus.submitted.name)
         .order('submitted_at')
+        .realtimeTolerant()
         .map((rows) {
       final all = rows.map(TestAttempt.fromSupabase).toList();
       if (subject == null || subject.isEmpty) return all;

@@ -37,6 +37,7 @@ import '../widgets/widgets.dart';
 import 'analytics_service.dart' show AuditService, AuditSeverity;
 import 'app_user_cache_service.dart';
 import 'message_cache_service.dart';
+import '../core/realtime_tolerant.dart';
 
 class AuthService {
   AuthService._();
@@ -118,6 +119,7 @@ class AuthService {
         .from('users')
         .stream(primaryKey: ['id'])
         .eq('id', uid)
+        .realtimeTolerant()
         .listen(
           (rows) {
             if (controller.isClosed) return;

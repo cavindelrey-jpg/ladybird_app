@@ -17,6 +17,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/public_course.dart';
 import '../core/core.dart';
 import '../services/content_cache_service.dart';
+import '../core/realtime_tolerant.dart';
 
 /// One row of [PublicCourseRepository.levelsOnce] — a canonical education
 /// level plus its live course count. Never hardcoded: `name` comes from
@@ -90,6 +91,7 @@ class PublicCourseRepository {
         .eq('published', true)
         .order('created_at', ascending: false)
         .limit(limit)
+        .realtimeTolerant()
         .listen(
           (rows) {
             if (controller.isClosed) return;
@@ -114,6 +116,7 @@ class PublicCourseRepository {
           .eq('category', category)
           .order('created_at', ascending: false)
           .limit(limit)
+          .realtimeTolerant()
           .map((rows) => rows
               .where((r) => r['published'] == true)
               .map(PublicCourse.fromSupabase)
@@ -125,6 +128,7 @@ class PublicCourseRepository {
           .stream(primaryKey: ['id'])
           .eq('creator_id', creatorId)
           .order('created_at', ascending: false)
+          .realtimeTolerant()
           .map((rows) => rows.map(PublicCourse.fromSupabase).toList()));
 
   Stream<PublicCourse?> watchOne(String courseId) => _streamCache.watch(
@@ -132,6 +136,7 @@ class PublicCourseRepository {
       () => _courses
           .stream(primaryKey: ['id'])
           .eq('id', courseId)
+          .realtimeTolerant()
           .map((rows) => rows.isNotEmpty ? PublicCourse.fromSupabase(rows.first) : null));
 
   /// Featured — top-rated among reasonably-enrolled courses. Computed,
@@ -331,6 +336,7 @@ class PublicCourseRepository {
         .from('course_recent_views')
         .stream(primaryKey: ['course_id', 'user_id'])
         .eq('user_id', userId)
+        .realtimeTolerant()
         .asyncMap((rows) async {
       final sorted = rows.toList()
         ..sort((a, b) => (b['viewed_at'] as String).compareTo(a['viewed_at'] as String));
@@ -447,6 +453,7 @@ class PublicCourseRepository {
       .from('course_learners')
       .stream(primaryKey: ['course_id', 'user_id'])
       .eq('course_id', courseId)
+      .realtimeTolerant()
       .map((rows) => rows.any((r) => r['user_id'] == userId));
 
   Future<Result<void>> markEnrolled(String courseId, String userId) async {
@@ -464,6 +471,7 @@ class PublicCourseRepository {
       .from('course_ratings')
       .stream(primaryKey: ['course_id', 'user_id'])
       .eq('course_id', courseId)
+      .realtimeTolerant()
       .map((rows) {
     final mine = rows.where((r) => r['user_id'] == userId);
     return mine.isEmpty ? null : mine.first['rating'] as int?;
@@ -484,6 +492,7 @@ class PublicCourseRepository {
       .from('course_bookmarks')
       .stream(primaryKey: ['course_id', 'user_id'])
       .eq('course_id', courseId)
+      .realtimeTolerant()
       .map((rows) => rows.any((r) => r['user_id'] == userId));
 
   Future<Result<void>> toggleBookmark(String courseId, String userId) async {
@@ -501,6 +510,7 @@ class PublicCourseRepository {
         .from('course_bookmarks')
         .stream(primaryKey: ['course_id', 'user_id'])
         .eq('user_id', userId)
+        .realtimeTolerant()
         .asyncMap((rows) async {
       final ids = rows.map((r) => r['course_id'] as String).toList();
       if (ids.isEmpty) return <PublicCourse>[];
@@ -515,6 +525,7 @@ class PublicCourseRepository {
       .from('course_likes')
       .stream(primaryKey: ['course_id', 'user_id'])
       .eq('course_id', courseId)
+      .realtimeTolerant()
       .map((rows) => rows.any((r) => r['user_id'] == userId));
 
   Future<Result<void>> toggleLike(String courseId, String userId) async {
@@ -533,6 +544,7 @@ class PublicCourseRepository {
       .stream(primaryKey: ['id'])
       .eq('course_id', courseId)
       .order('created_at')
+      .realtimeTolerant()
       .map((rows) => rows.map(CourseComment.fromSupabase).toList());
 
   Future<Result<void>> postComment(CourseComment comment) async {

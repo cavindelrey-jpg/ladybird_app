@@ -21,6 +21,7 @@ import '../config/branding.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/content_cache_service.dart';
 import 'dart:async';
+import '../core/realtime_tolerant.dart';
 
 class XpRepository {
   XpRepository._();
@@ -90,6 +91,7 @@ class XpRepository {
           .from('users')
           .stream(primaryKey: ['id'])
           .eq('id', userId)
+          .realtimeTolerant()
           .listen((rows) {
         if (controller.isClosed) return;
         if (rows.isEmpty) return;
@@ -111,6 +113,7 @@ class XpRepository {
       .from('users')
       .stream(primaryKey: ['id'])
       .eq('id', userId)
+      .realtimeTolerant()
       .map((rows) {
     if (rows.isEmpty) return 0;
     final d = rows.first;
@@ -130,6 +133,7 @@ class XpRepository {
       .eq('user_id', userId)
       .order('occurred_at', ascending: false)
       .limit(limit)
+      .realtimeTolerant()
       .map((rows) => rows.map(XpTransaction.fromSupabase).toList());
 
   /// Checks unlock status. Premium subscribers unlock everything
@@ -153,6 +157,7 @@ class XpRepository {
         .from('unlocked_papers')
         .stream(primaryKey: ['user_id', 'paper_id'])
         .eq('user_id', user.id)
+        .realtimeTolerant()
         .map((rows) => rows.any((r) => r['paper_id'] == paperId));
   }
 }

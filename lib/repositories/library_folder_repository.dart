@@ -13,6 +13,7 @@ import '../models/library_folder.dart';
 import '../models/academic_content.dart';
 import '../core/core.dart';
 import '../core/offline_cache.dart';
+import '../core/realtime_tolerant.dart';
 
 /// Which root folder a given [ContentType] backfills into by default —
 /// mirrors the mapping in academia-cameroon's
@@ -46,6 +47,7 @@ class LibraryFolderRepository {
     final live = _folders
         .stream(primaryKey: ['id'])
         .order('sort_order', ascending: true)
+        .realtimeTolerant()
         .map((rows) => rows
             .where((r) => r['parent_id'] == null)
             .map(LibraryFolder.fromSupabase)
@@ -65,6 +67,7 @@ class LibraryFolderRepository {
         .stream(primaryKey: ['id'])
         .eq('parent_id', parentId)
         .order('sort_order', ascending: true)
+        .realtimeTolerant()
         .map((rows) => rows.map(LibraryFolder.fromSupabase).toList());
 
     return OfflineCache.instance.watch<List<LibraryFolder>>(
@@ -98,7 +101,8 @@ class LibraryFolderRepository {
   /// file-explorer semantics where a folder shows its immediate children).
   Stream<List<AcademicContent>> watchItemsInFolder(String folderId) {
     return _streamCache.watch('watchItemsInFolder_$folderId', () => 
-      _db.from('academic_content').stream(primaryKey: ['id']).eq('folder_id', folderId).map(
+      _db.from('academic_content').stream(primaryKey: ['id']).eq('folder_id', folderId)
+        .realtimeTolerant().map(
           (rows) => rows.map(AcademicContent.fromSupabase).toList())
     );
   }

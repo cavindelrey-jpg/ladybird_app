@@ -28,6 +28,7 @@ import '../models/messaging.dart';
 import '../models/app_user.dart';
 import '../core/result.dart';
 import '../services/message_cache_service.dart';
+import '../core/realtime_tolerant.dart';
 
 class MessagingRepository {
   MessagingRepository._();
@@ -84,6 +85,7 @@ class MessagingRepository {
       .stream(primaryKey: ['id'])
       .eq('to_user_id', userId)
       .order('created_at', ascending: false)
+      .realtimeTolerant()
       .map((rows) => rows
           .where((r) => r['status'] == 'pending')
           .map(FriendRequest.fromSupabase)
@@ -120,15 +122,18 @@ class MessagingRepository {
   Stream<bool> watchIsFriend(String userId, String otherId) => _friendships
       .stream(primaryKey: ['id'])
       .eq('id', _pairId(userId, otherId))
+      .realtimeTolerant()
       .map((rows) => rows.isNotEmpty);
 
   Stream<int> watchFriendCount(String userId) => _friendships
       .stream(primaryKey: ['id'])
+      .realtimeTolerant()
       .map((rows) => rows.where((r) => r['user_a_id'] == userId || r['user_b_id'] == userId).length);
 
   /// IDs of everyone [userId] is mutually friends with.
   Stream<List<String>> watchFriendIds(String userId) => _friendships
       .stream(primaryKey: ['id'])
+      .realtimeTolerant()
       .map((rows) => rows
           .where((r) => r['user_a_id'] == userId || r['user_b_id'] == userId)
           .map((r) => r['user_a_id'] == userId ? r['user_b_id'] as String : r['user_a_id'] as String)
@@ -215,6 +220,7 @@ class MessagingRepository {
         liveSub = _conversations
             .stream(primaryKey: ['id'])
             .order('last_message_at', ascending: false)
+            .realtimeTolerant()
             .listen(
               (rows) {
                 if (controller.isClosed) return;
@@ -244,6 +250,7 @@ class MessagingRepository {
   Stream<Conversation?> watchConversation(String conversationId) => _conversations
       .stream(primaryKey: ['id'])
       .eq('id', conversationId)
+      .realtimeTolerant()
       .map((rows) => rows.isNotEmpty ? Conversation.fromSupabase(rows.first) : null);
 
   /// Records that [userId] is actively typing in [conversationId]. Call
@@ -299,6 +306,7 @@ class MessagingRepository {
             // oldest ones, so a conversation past [limit] messages stopped
             // showing anything new.
             .order('sent_at', ascending: true)
+            .realtimeTolerant()
             .listen(
               (rows) {
                 if (controller.isClosed) return;

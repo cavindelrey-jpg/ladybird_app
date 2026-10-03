@@ -124,7 +124,7 @@ class NotificationsPage extends StatelessWidget {
                           Text(n.title, style: GoogleFonts.inter(
                               fontSize: 13.5, fontWeight: FontWeight.w700, color: ac.txt)),
                           const SizedBox(height: 3),
-                          Text(n.body, style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2, height: 1.4)),
+                          Text(n.body, maxLines: 4, overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2, height: 1.4)),
                           const SizedBox(height: 6),
                           Text(_formatTimestamp(n.createdAt),
                               style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted)),

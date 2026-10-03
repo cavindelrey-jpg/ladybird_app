@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/hero_slide.dart';
 import '../core/result.dart';
+import '../core/realtime_tolerant.dart';
 
 class HeroSlideRepository {
   HeroSlideRepository._();
@@ -16,6 +17,7 @@ class HeroSlideRepository {
   Stream<List<HeroSlide>> watchActive({HeroPlacement placement = HeroPlacement.home}) => _table
       .stream(primaryKey: ['id'])
       .order('sort_order', ascending: true)
+      .realtimeTolerant()
       .map((rows) => rows
           .where((r) => r['active'] == true && r['placement'] == placement.name)
           .map(HeroSlide.fromSupabase)
@@ -26,6 +28,7 @@ class HeroSlideRepository {
   Stream<List<HeroSlide>> watchAll({HeroPlacement placement = HeroPlacement.home}) => _table
       .stream(primaryKey: ['id'])
       .order('sort_order', ascending: true)
+      .realtimeTolerant()
       .map((rows) => rows
           .where((r) => r['placement'] == placement.name)
           .map(HeroSlide.fromSupabase)
@@ -40,7 +43,8 @@ class HeroSlideRepository {
   /// HeroSlideManagerPage.
   Stream<List<Map<String, dynamic>>> watchOrphaned() {
     final known = HeroPlacement.values.map((p) => p.name).toSet();
-    return _table.stream(primaryKey: ['id']).map(
+    return _table.stream(primaryKey: ['id'])
+        .realtimeTolerant().map(
         (rows) => rows.where((r) => !known.contains(r['placement'])).toList());
   }
 

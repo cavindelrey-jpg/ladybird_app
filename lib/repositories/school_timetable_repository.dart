@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/result.dart';
 import '../models/school_timetable_slot.dart';
+import '../core/realtime_tolerant.dart';
 
 class SchoolTimetableRepository {
   SchoolTimetableRepository._();
@@ -26,6 +27,7 @@ class SchoolTimetableRepository {
     return _slots
         .stream(primaryKey: ['id'])
         .eq('school_id', schoolId)
+        .realtimeTolerant()
         .map((rows) {
       final slots = rows.where((r) => r['class_level'] == classLevel).map(_fromRow).toList()
         ..sort((a, b) {
@@ -40,7 +42,8 @@ class SchoolTimetableRepository {
   /// (a teacher or room clash is across classes).
   Stream<List<SchoolTimetableSlot>> watchForSchool(String schoolId) {
     if (schoolId.isEmpty) return Stream.value(const []);
-    return _slots.stream(primaryKey: ['id']).eq('school_id', schoolId).map((rows) => rows.map(_fromRow).toList());
+    return _slots.stream(primaryKey: ['id']).eq('school_id', schoolId)
+        .realtimeTolerant().map((rows) => rows.map(_fromRow).toList());
   }
 
   /// Today's slots only, for [classLevel].

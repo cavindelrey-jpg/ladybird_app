@@ -10,6 +10,7 @@ import 'dart:async';
 
 import '../models/personal_study_slot.dart';
 import '../core/result.dart';
+import '../core/realtime_tolerant.dart';
 import '../core/offline_cache.dart'; // Added offline cache
 
 class PersonalStudyRepository {
@@ -24,6 +25,7 @@ class PersonalStudyRepository {
         .stream(primaryKey: ['id'])
         .eq('user_id', userId)
         .order('day_of_week', ascending: true)
+        .realtimeTolerant()
         .map((rows) => rows.map(_fromRow).toList());
         
     return OfflineCache.instance.watch<List<PersonalStudySlot>>(

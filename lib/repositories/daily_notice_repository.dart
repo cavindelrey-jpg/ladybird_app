@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/local_database.dart';
 import '../models/daily_notice.dart';
 import '../models/school_timetable_slot.dart';
+import '../core/realtime_tolerant.dart';
 
 class DailyNoticeRepository {
   DailyNoticeRepository._();
@@ -22,7 +23,8 @@ class DailyNoticeRepository {
         .from('daily_notices')
         .stream(primaryKey: ['id'])
         .eq('school_id', schoolId)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: false)
+        .realtimeTolerant();
 
     return stream.asyncMap((rows) async {
       try {

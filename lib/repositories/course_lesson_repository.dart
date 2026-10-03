@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/course_lesson.dart';
 import '../core/core.dart';
+import '../core/realtime_tolerant.dart';
 
 class CourseLessonRepository {
   CourseLessonRepository._();
@@ -26,6 +27,7 @@ class CourseLessonRepository {
           .stream(primaryKey: ['id'])
           .eq('course_id', courseId)
           .order('sort_order', ascending: true)
+          .realtimeTolerant()
           .map((rows) => rows.map(CourseLesson.fromSupabase).toList()));
 
   Future<List<CourseLesson>> lessonsOnce(String courseId) async {
@@ -40,6 +42,7 @@ class CourseLessonRepository {
       () => _lessons
           .stream(primaryKey: ['id'])
           .eq('id', lessonId)
+          .realtimeTolerant()
           .map((rows) => rows.isNotEmpty ? CourseLesson.fromSupabase(rows.first) : null));
 
   // ── Sequence placement — same gap-of-100 pattern as PublicCourseRepository ──

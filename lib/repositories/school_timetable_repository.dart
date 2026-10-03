@@ -36,6 +36,13 @@ class SchoolTimetableRepository {
     });
   }
 
+  /// Every class's slots at [schoolId] -- what conflict checks need
+  /// (a teacher or room clash is across classes).
+  Stream<List<SchoolTimetableSlot>> watchForSchool(String schoolId) {
+    if (schoolId.isEmpty) return Stream.value(const []);
+    return _slots.stream(primaryKey: ['id']).eq('school_id', schoolId).map((rows) => rows.map(_fromRow).toList());
+  }
+
   /// Today's slots only, for [classLevel].
   Stream<List<SchoolTimetableSlot>> watchTodayForClass(String schoolId, String classLevel) {
     final today = DateTime.now().weekday;

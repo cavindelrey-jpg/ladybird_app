@@ -8,6 +8,7 @@
 // state when the school hasn't entered this class's timetable yet.
 
 import 'package:flutter/material.dart';
+import '../../models/academic_content.dart' show kAcademicLevels;
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/app_user.dart';
 import '../../models/school_timetable_slot.dart';
@@ -43,7 +44,9 @@ class TimetablePage extends StatelessWidget {
             ),
         ],
       ),
-      body: (schoolId.isEmpty || classLevel.isEmpty)
+      body: (schoolId.isNotEmpty && !user.isStudent && !user.isParent)
+          ? _StaffTimetableView(page: this)
+          : (schoolId.isEmpty || classLevel.isEmpty)
           ? _missingClassState(ac)
           : StreamBuilder<List<SchoolTimetableSlot>>(
               stream: SchoolTimetableRepository.instance.watchForClass(schoolId, classLevel),
@@ -223,4 +226,85 @@ class TimetablePage extends StatelessWidget {
           ]),
         ),
       );
+}
+
+
+/// Teachers / class masters / admins have no class of their own, so the
+/// student view used to dead-end on "no class". Staff see their own
+/// periods across every class (matched by teacher name, the same way the
+/// 7 PM programme does), or any class's timetable.
+class _StaffTimetableView extends StatefulWidget {
+  final TimetablePage page;
+  const _StaffTimetableView({required this.page});
+  @override
+  State<_StaffTimetableView> createState() => _StaffTimetableViewState();
+}
+
+class _StaffTimetableViewState extends State<_StaffTimetableView> {
+  static const _mine = '__mine__';
+  late String _view = _mine;
+  late final Stream<List<SchoolTimetableSlot>> _stream =
+      SchoolTimetableRepository.instance.watchForSchool(widget.page.user.schoolId ?? '');
+
+  String _n(String s) => s.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final user = widget.page.user;
+    final classes = kAcademicLevels.take(7).toList();
+    return StreamBuilder<List<SchoolTimetableSlot>>(
+      stream: _stream,
+      builder: (context, snap) {
+        if (!snap.hasData && snap.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+        }
+        if (!snap.hasData && snap.hasError) {
+          return Center(child: Text('Couldn\'t load the timetable. Check your connection.',
+              style: GoogleFonts.inter(color: ac.muted)));
+        }
+        final all = snap.data ?? const <SchoolTimetableSlot>[];
+        final slots = _view == _mine
+            ? [
+                for (final s in all.where((s) => _n(s.teacherName) == _n(user.name)))
+                  SchoolTimetableSlot(
+                    id: s.id, schoolId: s.schoolId, classLevel: s.classLevel, dayOfWeek: s.dayOfWeek,
+                    startTime: s.startTime, endTime: s.endTime,
+                    subject: '${s.subject} · ${s.classLevel}', teacherName: s.teacherName, room: s.room),
+              ]
+            : all.where((s) => s.classLevel == _view).toList();
+        return ListView(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: DropdownButtonFormField<String>(
+              initialValue: _view,
+              decoration: const InputDecoration(labelText: 'Show', isDense: true),
+              items: [
+                const DropdownMenuItem(value: _mine, child: Text('My teaching timetable')),
+                for (final c in classes) DropdownMenuItem(value: c, child: Text('$c timetable')),
+              ],
+              onChanged: (v) => setState(() => _view = v ?? _view),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (slots.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: Text(
+                _view == _mine
+                    ? 'No periods list you (${user.name}) as the teacher yet. '
+                      'Ask your school admin to add you to the timetable.'
+                    : 'No periods for $_view yet.',
+                textAlign: TextAlign.center, style: GoogleFonts.inter(color: ac.muted, height: 1.5)),
+            )
+          else ...[
+            widget.page._todaysHighlights(ac, slots),
+            const SizedBox(height: 16),
+            widget.page._weekGrid(ac, slots),
+            const SizedBox(height: 16),
+          ],
+        ]);
+      },
+    );
+  }
 }

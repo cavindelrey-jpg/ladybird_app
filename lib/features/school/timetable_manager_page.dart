@@ -1,19 +1,34 @@
 // lib/features/school/timetable_manager_page.dart
-// Staff-only CRUD for the School Timetable -- gated to canManageSchool(),
-// matching firestore.rules' own write gate on schools/{schoolId}/
-// timetable exactly. Without this, the "real, operational" Timetable
-// page would have no way to ever contain real data.
+// Staff-only CRUD for the School Timetable, gated to canManageAnyTimetable
+// (the school_timetable_slots RLS policy enforces the same server-side).
+//
+// Every save runs core/timetable_conflicts.dart against the WHOLE
+// school's timetable: a class double-booked, a teacher in two classes at
+// once, or a room used twice blocks the save; no teacher / a teacher not
+// on staff / a teacher not assigned that subject is a warning that needs
+// "Save anyway". Existing periods carry the same badges, so a clash
+// created earlier (or by a teacher later removed) stays visible.
+//
+// Class, subject and teacher are picked from real school data rather
+// than typed: a typed "form 4" used to create periods Form 4 students
+// never saw.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/result.dart';
+import '../../core/timetable_conflicts.dart';
+import '../../models/academic_content.dart' show kAcademicLevels, kAcademicSubjects;
 import '../../models/app_user.dart';
 import '../../models/school_timetable_slot.dart';
+import '../../repositories/school_repository.dart';
 import '../../repositories/school_timetable_repository.dart';
+import '../../repositories/teacher_management_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import 'widgets/management_scaffold.dart';
+
+List<String> get _classLevels => kAcademicLevels.take(7).toList();
 
 class TimetableManagerPage extends StatefulWidget {
   final AppUser user;
@@ -24,195 +39,312 @@ class TimetableManagerPage extends StatefulWidget {
 }
 
 class _TimetableManagerPageState extends State<TimetableManagerPage> {
-  String _classLevel = '';
-  final _classCtrl = TextEditingController();
+  late String _classLevel;
+  late final Stream<List<SchoolTimetableSlot>> _schoolStream;
+  List<SchoolTimetableSlot> _latestSchoolSlots = const [];
+  List<TimetableStaff>? _staff; // null = couldn't load -> staff checks skipped
+  List<String> _staffNames = const [];
+  List<String> _subjects = kAcademicSubjects;
+
+  String get _schoolId => widget.user.schoolId ?? '';
 
   @override
   void initState() {
     super.initState();
-    _classLevel = widget.user.classLevel;
-    _classCtrl.text = _classLevel;
+    final own = widget.user.classMasterOfClass ?? widget.user.classLevel;
+    _classLevel = _classLevels.contains(own) ? own : _classLevels[4];
+    _schoolStream = SchoolTimetableRepository.instance.watchForSchool(_schoolId);
+    _loadReferenceData();
   }
 
-  @override
-  void dispose() {
-    _classCtrl.dispose();
-    super.dispose();
+  Future<void> _loadReferenceData() async {
+    try {
+      final staff = await TeacherManagementRepository.instance.staffOnce(_schoolId);
+      final subjects = await SchoolRepository.instance.getSubjects(_schoolId);
+      if (!mounted) return;
+      setState(() {
+        _staff = [
+          for (final u in staff)
+            TimetableStaff(name: u.name, assignments: u.teachingAssignments, classMasterOf: u.classMasterOfClass),
+        ];
+        _staffNames = staff.map((u) => u.name).toList();
+        if (subjects is Success<List<String>> && subjects.value.isNotEmpty) {
+          _subjects = {...subjects.value, ...kAcademicSubjects}.toList();
+        }
+      });
+    } catch (_) {
+      // Offline: editor still works, staff checks are skipped.
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final schoolId = widget.user.schoolId ?? '';
-
     if (!widget.user.canManageAnyTimetable) {
       return Scaffold(
         backgroundColor: ac.bg,
-        appBar: AppBar(backgroundColor: ac.bg, elevation: 0),
-        body: Center(child: Text('Staff access required.',
-            style: GoogleFonts.inter(color: ac.muted))),
+        appBar: AppBar(backgroundColor: ac.bg, elevation: 0, title: const Text('Manage Timetable')),
+        body: Center(child: Text('Only school admins can edit the timetable.', style: GoogleFonts.inter(color: ac.muted))),
+      );
+    }
+    if (_schoolId.isEmpty) {
+      return Scaffold(
+        backgroundColor: ac.bg,
+        appBar: AppBar(backgroundColor: ac.bg, elevation: 0, title: const Text('Manage Timetable')),
+        body: Center(child: Text('Your account isn\'t linked to a school.', style: GoogleFonts.inter(color: ac.muted))),
       );
     }
 
     return ManagementScaffold(
       title: 'Manage Timetable',
       sidebarItems: const [ManagementNavItem(icon: Icons.calendar_month_rounded, label: 'Timetable', selected: true)],
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         backgroundColor: ac.primary,
-        onPressed: schoolId.isEmpty || _classLevel.isEmpty
-            ? null
-            : () => _openEditor(context, schoolId, null),
-        child: const Icon(Icons.add_rounded, color: Colors.white),
+        onPressed: () => _openEditor(context, null),
+        icon: const Icon(Icons.add_rounded, color: Colors.white),
+        label: const Text('Add period', style: TextStyle(color: Colors.white)),
       ),
       body: Column(children: [
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: TextField(
-            controller: _classCtrl,
-            style: GoogleFonts.inter(fontSize: 13, color: ac.txt),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: DropdownButtonFormField<String>(
+            initialValue: _classLevel,
             decoration: InputDecoration(
-              labelText: 'Class (e.g. Form 4)',
+              labelText: 'Class',
               filled: true, fillColor: ac.surf3,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
             ),
-            onChanged: (v) => setState(() => _classLevel = v.trim()),
+            items: [for (final c in _classLevels) DropdownMenuItem(value: c, child: Text(c))],
+            onChanged: (v) => setState(() => _classLevel = v ?? _classLevel),
           ),
         ),
-        if (schoolId.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text('Your account has no schoolId set -- can\'t manage a timetable without one.',
-                style: GoogleFonts.inter(fontSize: 12.5, color: ac.red)),
-          )
-        else
-          Expanded(
-            child: StreamBuilder<List<SchoolTimetableSlot>>(
-              stream: SchoolTimetableRepository.instance.watchForClass(schoolId, _classLevel),
-              builder: (context, snap) {
-                final slots = snap.data ?? const <SchoolTimetableSlot>[];
-                if (_classLevel.isEmpty) {
-                  return Center(child: Text('Enter a class to manage its timetable.',
-                      style: GoogleFonts.inter(color: ac.muted)));
-                }
-                if (slots.isEmpty) {
-                  return Center(child: Text('No slots yet for $_classLevel -- tap + to add one.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(color: ac.muted)));
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
-                  itemCount: slots.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (_, i) {
-                    final s = slots[i];
-                    return Material(
-                      color: ac.surf,
-                      borderRadius: BorderRadius.circular(Rad.sm),
-                      child: ListTile(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.sm)),
-                        title: Text('${s.dayName} ${s.startTime}-${s.endTime} · ${s.subject}',
-                            style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
-                        subtitle: Text('${s.teacherName}${(s.room ?? '').isNotEmpty ? ' · ${s.room}' : ''}',
-                            style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
-                        trailing: IconButton(
-                          icon: Icon(Icons.delete_outline_rounded, color: ac.red, size: 20),
-                          onPressed: () async {
-                            await SchoolTimetableRepository.instance.delete(schoolId, s.id);
-                          },
-                        ),
-                        onTap: () => _openEditor(context, schoolId, s),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+        Expanded(
+          child: StreamBuilder<List<SchoolTimetableSlot>>(
+            stream: _schoolStream,
+            builder: (context, snap) {
+              if (snap.hasData) _latestSchoolSlots = snap.data!;
+              if (!snap.hasData && snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+              }
+              if (!snap.hasData && snap.hasError) {
+                return Center(child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text('Couldn\'t load the timetable. Check your connection.',
+                      textAlign: TextAlign.center, style: GoogleFonts.inter(color: ac.muted)),
+                ));
+              }
+              final all = _latestSchoolSlots;
+              final slots = all.where((s) => s.classLevel == _classLevel).toList()
+                ..sort((a, b) {
+                  final d = a.dayOfWeek.compareTo(b.dayOfWeek);
+                  return d != 0 ? d : (normalizeTime(a.startTime) ?? a.startTime).compareTo(normalizeTime(b.startTime) ?? b.startTime);
+                });
+              final audit = auditTimetable(all, staff: _staff);
+              final classIssues = slots.where((s) => audit.containsKey(s.id)).length;
+              if (slots.isEmpty) {
+                return Center(child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text('No periods yet for $_classLevel — tap "Add period".',
+                      textAlign: TextAlign.center, style: GoogleFonts.inter(color: ac.muted)),
+                ));
+              }
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+                children: [
+                  if (classIssues > 0)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: ac.orgBg, borderRadius: BorderRadius.circular(Rad.sm)),
+                      child: Row(children: [
+                        Icon(Icons.warning_amber_rounded, color: ac.org, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text('$classIssues period${classIssues == 1 ? ' needs' : 's need'} attention in $_classLevel.',
+                            style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: ac.org))),
+                      ]),
+                    ),
+                  for (final s in slots) _slotTile(ac, s, audit[s.id] ?? const []),
+                ],
+              );
+            },
           ),
+        ),
       ]),
     );
   }
 
-  Future<void> _openEditor(BuildContext context, String schoolId, SchoolTimetableSlot? existing) async {
-    final subjectCtrl = TextEditingController(text: existing?.subject ?? '');
-    final teacherCtrl = TextEditingController(text: existing?.teacherName ?? '');
-    final roomCtrl = TextEditingController(text: existing?.room ?? '');
-    final startCtrl = TextEditingController(text: existing?.startTime ?? '08:00');
-    final endCtrl = TextEditingController(text: existing?.endTime ?? '09:00');
-    var dayOfWeek = existing?.dayOfWeek ?? 1;
+  Widget _slotTile(AppColors ac, SchoolTimetableSlot s, List<TimetableConflict> issues) {
+    final hasError = issues.any((c) => c.isError);
+    final color = hasError ? ac.red : (issues.isNotEmpty ? ac.org : null);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: ac.surf, borderRadius: BorderRadius.circular(Rad.sm),
+        border: Border.all(color: color ?? ac.bdr2),
+      ),
+      child: ListTile(
+        onTap: () => _openEditor(context, s),
+        title: Text('${s.dayName}  ${s.startTime}–${s.endTime} · ${s.subject}',
+            style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
+        subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text([
+            s.teacherName.isEmpty ? 'No teacher' : s.teacherName,
+            if ((s.room ?? '').isNotEmpty) 'Room ${s.room}',
+          ].join(' · '), style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
+          for (final c in issues)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text('• ${c.message}', style: GoogleFonts.inter(fontSize: 11, color: c.isError ? ac.red : ac.org)),
+            ),
+        ]),
+        trailing: IconButton(
+          tooltip: 'Delete period',
+          icon: Icon(Icons.delete_outline_rounded, color: ac.red, size: 20),
+          onPressed: () => _confirmDelete(s),
+        ),
+      ),
+    );
+  }
 
+  Future<void> _confirmDelete(SchoolTimetableSlot s) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete this period?'),
+        content: Text('${s.classLevel} · ${s.dayName} ${s.startTime}–${s.endTime} · ${s.subject}'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final res = await SchoolTimetableRepository.instance.delete(_schoolId, s.id);
+    if (!mounted) return;
+    if (res is Failure<void>) showToast(context, res.message, isError: true);
+  }
+
+  Future<void> _openEditor(BuildContext context, SchoolTimetableSlot? existing) async {
+    final startCtrl = TextEditingController(text: existing?.startTime ?? '07:30');
+    final endCtrl = TextEditingController(text: existing?.endTime ?? '08:25');
+    final roomCtrl = TextEditingController(text: existing?.room ?? '');
+    var day = existing?.dayOfWeek ?? 1;
+    var subject = existing?.subject ?? '';
+    var teacher = existing?.teacherName ?? '';
+    var saving = false;
     final ac = AppColors.of(context);
+
+    SchoolTimetableSlot build() => SchoolTimetableSlot(
+          id: existing?.id ?? '',
+          schoolId: _schoolId,
+          classLevel: existing?.classLevel ?? _classLevel,
+          dayOfWeek: day,
+          startTime: normalizeTime(startCtrl.text) ?? startCtrl.text.trim(),
+          endTime: normalizeTime(endCtrl.text) ?? endCtrl.text.trim(),
+          subject: subject,
+          teacherName: teacher,
+          room: roomCtrl.text.trim().isEmpty ? null : roomCtrl.text.trim(),
+        );
+
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: ac.surf,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheetState) {
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+        final candidate = build();
+        final conflicts = findConflicts(candidate, _latestSchoolSlots, staff: _staff);
+        final errors = conflicts.where((c) => c.isError).toList();
+        final warnings = conflicts.where((c) => !c.isError).toList();
+        final subjects = {..._subjects, if (subject.isNotEmpty) subject}.toList();
+        final teachers = {..._staffNames, if (teacher.isNotEmpty) teacher}.toList();
+
+        Future<void> save() async {
+          setSheet(() => saving = true);
+          final result = existing == null
+              ? await SchoolTimetableRepository.instance.add(candidate)
+              : await SchoolTimetableRepository.instance.update(candidate);
+          if (!ctx.mounted) return;
+          setSheet(() => saving = false);
+          if (result is Failure<void>) {
+            showToast(ctx, result.message, isError: true);
+          } else {
+            Navigator.of(ctx).pop();
+          }
+        }
+
         return Padding(
-          padding: EdgeInsets.only(
-              left: 20, right: 20, top: 20,
-              bottom: 20 + MediaQuery.of(ctx).viewInsets.bottom),
+          padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 20 + MediaQuery.of(ctx).viewInsets.bottom),
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(existing == null ? 'Add Period' : 'Edit Period',
+              Text('${existing == null ? 'Add period' : 'Edit period'} · ${candidate.classLevel}',
                   style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w800, color: ac.txt)),
               const SizedBox(height: 16),
               DropdownButtonFormField<int>(
-                initialValue: dayOfWeek,
+                initialValue: day,
                 decoration: const InputDecoration(labelText: 'Day'),
-                // Mon-Sat only (1-6) -- TimetablePage's weekly grid only
-                // renders those 6 columns, matching mockups/mockup2.jpg.
-                // A Sunday (7) slot would silently never appear to
-                // students if this allowed picking it.
-                items: [
-                  for (var d = 1; d <= 6; d++)
-                    DropdownMenuItem(value: d, child: Text(SchoolTimetableSlot.dayNames[d])),
-                ],
-                onChanged: (v) => setSheetState(() => dayOfWeek = v ?? 1),
+                items: [for (var d = 1; d <= 6; d++) DropdownMenuItem(value: d, child: Text(SchoolTimetableSlot.dayNames[d]))],
+                onChanged: (v) => setSheet(() => day = v ?? day),
               ),
               Row(children: [
-                Expanded(child: TextField(controller: startCtrl,
-                    decoration: const InputDecoration(labelText: 'Start (HH:mm)'))),
+                Expanded(child: TextField(
+                  controller: startCtrl, keyboardType: TextInputType.datetime,
+                  decoration: const InputDecoration(labelText: 'Start', hintText: '07:30'),
+                  onChanged: (_) => setSheet(() {}))),
                 const SizedBox(width: 12),
-                Expanded(child: TextField(controller: endCtrl,
-                    decoration: const InputDecoration(labelText: 'End (HH:mm)'))),
+                Expanded(child: TextField(
+                  controller: endCtrl, keyboardType: TextInputType.datetime,
+                  decoration: const InputDecoration(labelText: 'End', hintText: '08:25'),
+                  onChanged: (_) => setSheet(() {}))),
               ]),
-              TextField(controller: subjectCtrl, decoration: const InputDecoration(labelText: 'Subject')),
-              TextField(controller: teacherCtrl, decoration: const InputDecoration(labelText: 'Teacher')),
-              TextField(controller: roomCtrl, decoration: const InputDecoration(labelText: 'Room (optional)')),
-              const SizedBox(height: 20),
+              DropdownButtonFormField<String>(
+                initialValue: subject.isEmpty ? null : subject,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Subject'),
+                items: [for (final s in subjects) DropdownMenuItem(value: s, child: Text(s))],
+                onChanged: (v) => setSheet(() => subject = v ?? subject),
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: teacher,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Teacher'),
+                items: [
+                  const DropdownMenuItem(value: '', child: Text('No teacher yet')),
+                  for (final t in teachers) DropdownMenuItem(value: t, child: Text(t)),
+                ],
+                onChanged: (v) => setSheet(() => teacher = v ?? ''),
+              ),
+              TextField(controller: roomCtrl, decoration: const InputDecoration(labelText: 'Room (optional)'),
+                  onChanged: (_) => setSheet(() {})),
+              const SizedBox(height: 14),
+              for (final c in conflicts)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: c.isError ? ac.redBg : ac.orgBg, borderRadius: BorderRadius.circular(Rad.sm)),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Icon(c.isError ? Icons.block_rounded : Icons.warning_amber_rounded,
+                        size: 16, color: c.isError ? ac.red : ac.org),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(c.message, style: GoogleFonts.inter(fontSize: 12, color: c.isError ? ac.red : ac.org))),
+                  ]),
+                ),
+              const SizedBox(height: 8),
               PrimaryBtn(
-                label: existing == null ? 'Add' : 'Save',
-                onTap: () async {
-                  if (subjectCtrl.text.trim().isEmpty) {
-                    showToast(ctx, 'Subject is required.', isError: true);
-                    return;
-                  }
-                  final slot = SchoolTimetableSlot(
-                    id: existing?.id ?? '',
-                    schoolId: schoolId,
-                    classLevel: _classLevel,
-                    dayOfWeek: dayOfWeek,
-                    startTime: startCtrl.text.trim(),
-                    endTime: endCtrl.text.trim(),
-                    subject: subjectCtrl.text.trim(),
-                    teacherName: teacherCtrl.text.trim(),
-                    room: roomCtrl.text.trim().isEmpty ? null : roomCtrl.text.trim(),
-                  );
-                  final result = existing == null
-                      ? await SchoolTimetableRepository.instance.add(slot)
-                      : await SchoolTimetableRepository.instance.update(slot);
-                  if (!ctx.mounted) return;
-                  if (result is Failure<void>) {
-                    showToast(ctx, result.message, isError: true);
-                  } else {
-                    Navigator.of(ctx).pop();
-                  }
-                },
+                label: errors.isNotEmpty
+                    ? 'Fix the conflict to save'
+                    : warnings.isNotEmpty ? 'Save anyway' : (existing == null ? 'Add period' : 'Save'),
+                loading: saving,
+                onTap: errors.isNotEmpty || saving ? () {} : save,
               ),
             ]),
           ),
         );
       }),
     );
+    startCtrl.dispose();
+    endCtrl.dispose();
+    roomCtrl.dispose();
   }
 }

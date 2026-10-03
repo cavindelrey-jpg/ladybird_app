@@ -291,10 +291,13 @@ class _StaffTimetableViewState extends State<_StaffTimetableView> {
             Padding(
               padding: const EdgeInsets.all(32),
               child: Text(
-                _view == _mine
-                    ? 'No periods list you (${user.name}) as the teacher yet. '
-                      'Ask your school admin to add you to the timetable.'
-                    : 'No periods for $_view yet.',
+                _view != _mine
+                    ? 'No periods for $_view yet.'
+                    : user.canManageAnyTimetable
+                        ? 'You aren\'t teaching any periods. Choose a class above to see its timetable, '
+                          'or tap the edit icon to manage it.'
+                        : 'No periods list you (${user.name}) as the teacher yet. '
+                          'Ask your school admin to add you to the timetable.',
                 textAlign: TextAlign.center, style: GoogleFonts.inter(color: ac.muted, height: 1.5)),
             )
           else ...[

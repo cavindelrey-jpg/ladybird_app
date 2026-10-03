@@ -240,7 +240,11 @@ class AppDrawer extends StatelessWidget {
                 style: AppText.title.copyWith(fontSize: 15, color: Colors.white),
                 overflow: TextOverflow.ellipsis),
             const SizedBox(height: 3),
-            Text(_isGuest ? 'Browsing — sign in for full access' : user!.roleLabel,
+            Text(_isGuest
+                    ? 'Browsing — sign in for full access'
+                    : (user!.classMasterOfClass ?? '').isNotEmpty
+                        ? 'Class Master · ${user!.classMasterOfClass}'
+                        : user!.isParent ? 'Parent' : user!.roleLabel,
                 style: AppText.caption.copyWith(color: Colors.white70),
                 overflow: TextOverflow.ellipsis),
           ]),

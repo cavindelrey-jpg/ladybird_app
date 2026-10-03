@@ -777,6 +777,28 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                     );
                   }
 
+                  // 4a. Staff: their working tools, not "start your
+                  // learning journey" (which read as student copy).
+                  final staff = _u;
+                  if (staff != null && !staff.isStudent && staff.canRecordAnyMarks) {
+                    return _heroCardLayout(
+                      context,
+                      eyebrow: 'YOUR CLASSES',
+                      eyebrowIcon: Icons.co_present_rounded,
+                      eyebrowColor: ac.gold,
+                      title: 'Ready for today\'s lessons',
+                      subtitle: 'Enter marks for a whole class, check your teaching timetable, or message your students.',
+                      primaryLabel: 'Enter Marks',
+                      primaryIcon: Icons.edit_note_rounded,
+                      onPrimary: () {
+                        HapticFeedback.selectionClick();
+                        _open(context, MarksPage(user: staff));
+                      },
+                      secondaryLabel: 'My Timetable',
+                      onSecondary: () => _open(context, TimetablePage(user: staff)),
+                    );
+                  }
+
                   // 4. Default for new accounts or guests
                   return _heroCardLayout(
                     context,

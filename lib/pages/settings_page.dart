@@ -53,7 +53,7 @@ class SettingsPage extends StatelessWidget {
           const SizedBox(height: 24),
           _sectionLabel(context, 'Notifications'),
           _tile(context, Icons.notifications_outlined, 'Notification Preferences',
-              'Announcements, comments, replies',
+              "Tomorrow's programme, reminders, comments",
               () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => NotificationPreferencesPage(userId: user.id)))),
 

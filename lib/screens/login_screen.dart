@@ -197,6 +197,10 @@ class _LoginScreenState extends State<LoginScreen>
     final ac = AppColors.of(context);
     return Scaffold(
       body: Container(
+        // Fill the screen: the gradient used to stop under the form,
+        // leaving the lower half flat grey.
+        width: double.infinity,
+        height: double.infinity,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter, end: Alignment.bottomCenter,
@@ -220,7 +224,17 @@ class _LoginScreenState extends State<LoginScreen>
                   // isn't reliably picked up.
                   child: AutofillGroup(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const SizedBox(height: 48),
+                    // Opened from the voucher screen: give a way back to it.
+                    if (Navigator.of(context).canPop())
+                      IconButton(
+                        padding: EdgeInsets.zero,
+                        alignment: Alignment.centerLeft,
+                        tooltip: 'Back',
+                        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                        onPressed: () => Navigator.of(context).maybePop(),
+                      )
+                    else
+                      const SizedBox(height: 48),
 
                     // Brand name + subline -- no logo mark on this screen
                     // by design (correction pass: sign-in should present
@@ -295,7 +309,7 @@ class _LoginScreenState extends State<LoginScreen>
                     const SizedBox(height: 40),
 
                     // Footer
-                    Center(child: Text('Academia Cameroon: Excellence every day.',
+                    Center(child: Text(Branding.current.tagline,
                         style: AppText.caption.copyWith(
                             color: Colors.white.withValues(alpha: .3)))),
                     ]),

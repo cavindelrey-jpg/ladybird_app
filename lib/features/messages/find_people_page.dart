@@ -81,7 +81,7 @@ class _FindPeoplePageState extends State<FindPeoplePage> {
       appBar: AppBar(
         backgroundColor: ac.bg, elevation: 0,
         iconTheme: IconThemeData(color: ac.txt),
-        title: Text('Friends', style: AppText.title),
+        title: Text('New Message', style: AppText.title),
       ),
       body: AppBackground(child: Column(children: [
         Padding(

@@ -4,14 +4,12 @@
 // SQLite cache fallback, and integrates with Academia Library resources.
 
 import 'dart:async';
-import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/local_database.dart';
 import '../models/academic_content.dart';
 import '../models/exam_question.dart';
 import '../models/examination.dart';
 import '../models/test.dart';
-import '../services/connectivity_service.dart';
 import 'academic_content_repository.dart';
 
 class ExamRepository {

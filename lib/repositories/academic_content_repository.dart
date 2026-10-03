@@ -3,8 +3,6 @@
 
 import 'dart:async';
 import 'dart:convert';
-import '../data/local_database.dart';
-import '../services/connectivity_service.dart';
 
 import 'dart:io';
 import 'dart:math';

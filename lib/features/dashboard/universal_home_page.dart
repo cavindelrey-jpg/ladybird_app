@@ -18,17 +18,14 @@
 // 8. Academic Profile Summary Footer: Endowing ownership with student identity and entitlements.
 
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../config/branding.dart';
-import '../../core/result.dart';
 import '../../models/academic_content.dart';
 import '../../models/announcement.dart';
-import '../../models/app_notification.dart';
 import '../../models/app_user.dart';
 import '../../models/club.dart';
 import '../../models/daily_learning.dart';
@@ -48,7 +45,6 @@ import '../../repositories/daily_learning_repository.dart';
 import '../../repositories/homework_repository.dart';
 import '../../repositories/library_folder_repository.dart';
 import '../../repositories/messaging_repository.dart';
-import '../../repositories/notification_repository.dart';
 import '../../repositories/personal_study_repository.dart';
 import '../../repositories/school_marks_repository.dart';
 import '../../repositories/school_timetable_repository.dart';
@@ -67,7 +63,6 @@ import '../academic_content/library_home_page.dart';
 import '../announcements/announcements_page.dart';
 import '../clubs/clubs_page.dart';
 import '../courses_marketplace/courses_home_page.dart';
-import '../daily_learning/daily_learning_course_page.dart';
 import '../daily_learning/daily_learning_hub_page.dart';
 import '../daily_learning/daily_learning_lesson_page.dart';
 import '../magazine/magazine_feed_page.dart';
@@ -81,7 +76,6 @@ import '../school/timetable_page.dart';
 import '../testing/quiz_categories_page.dart';
 import '../testing/xp_dashboard_page.dart';
 import '../timetable/personal_study_page.dart';
-import '../../services/timetable_notification_service.dart';
 
 /// Card shadow used throughout this page — soft, physical elevation.
 const List<BoxShadow> _glow = [
@@ -126,34 +120,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
 
   AppColors get ac => AppColors.of(context);
 
-  Future<void> _generateDailyNotifications() async {
-    if (_isGuest) return;
-    final prefs = await SharedPreferences.getInstance();
-    final lastDate = prefs.getString('last_daily_notif');
-    final today = DateTime.now().toIso8601String().split('T')[0];
 
-    if (lastDate != today) {
-      await NotificationRepository.instance.create(
-        uid: _u!.id,
-        type: NotificationType.recommendation,
-        title: "Today's Recommended Course",
-        body: "Dive into a new course handpicked for your learning journey today.",
-      );
-      await NotificationRepository.instance.create(
-        uid: _u!.id,
-        type: NotificationType.recommendation,
-        title: "Daily Reading Recommendation",
-        body: "We've selected a great book and study paper for your review.",
-      );
-      await NotificationRepository.instance.create(
-        uid: _u!.id,
-        type: NotificationType.system,
-        title: "Daily Challenge Reminder",
-        body: "Don't forget to complete your daily challenge lessons today!",
-      );
-      await prefs.setString('last_daily_notif', today);
-    }
-  }
 
   void _showDailyChallengePopup() {
     if (_isGuest) return;
@@ -250,7 +217,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     if (_u!.isSchoolMember && schoolId != null && schoolId.isNotEmpty && classLevel.isNotEmpty) {
       _timetableStream = SchoolTimetableRepository.instance.watchTodayForClass(schoolId, classLevel);
       _homeworkStream = HomeworkRepository.instance.watchForClass(schoolId, classLevel);
-      TimetableNotificationService.instance.checkNow(_u!);
     } else {
       _timetableStream = const Stream.empty();
       _homeworkStream = const Stream.empty();
@@ -278,7 +244,6 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   void initState() {
     super.initState();
     _initStreamsAndFutures();
-    _generateDailyNotifications();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showDailyChallengePopup();
     });

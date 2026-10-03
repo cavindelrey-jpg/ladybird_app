@@ -10,8 +10,7 @@ import '../models/app_notification.dart';
 import '../repositories/notification_repository.dart';
 import '../widgets/widgets.dart';
 import '../models/app_user.dart';
-import '../features/messages/messages_home_page.dart';
-import '../features/school/daily_notices/daily_notices_page.dart';
+import '../services/notification_router.dart';
 
 import '../widgets/app_background.dart';
 class NotificationsPage extends StatelessWidget {
@@ -68,12 +67,19 @@ class NotificationsPage extends StatelessWidget {
           if (snap.connectionState == ConnectionState.waiting) {
             return const LoadingView();
           }
+          if (snap.hasError && !snap.hasData) {
+            return const EmptyState(
+              icon: Icons.wifi_off_rounded,
+              title: 'Can\'t load notifications',
+              subtitle: 'Check your connection — they\'ll appear here when you\'re back online.',
+            );
+          }
           final items = snap.data ?? const <AppNotification>[];
           if (items.isEmpty) {
             return const EmptyState(
               icon: Icons.notifications_none_rounded,
               title: 'No notifications yet',
-              subtitle: 'Announcements, comments, and replies will show up here.',
+              subtitle: 'Tomorrow\'s programme, recommendations, comments and replies will show up here.',
             );
           }
           return ListView.builder(
@@ -104,11 +110,7 @@ class NotificationsPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(Rad.md),
                     onTap: () {
                       NotificationRepository.instance.markRead(user.id, n.id);
-                      if (n.type == NotificationType.message) {
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => MessagesHomePage(user: user)));
-                      } else if (n.type == NotificationType.dailyProgram || n.type == NotificationType.announcement || n.type == NotificationType.homework) {
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => DailyNoticesPage(user: user)));
-                      }
+                      NotificationRouter.open(context, user, n);
                     },
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Container(

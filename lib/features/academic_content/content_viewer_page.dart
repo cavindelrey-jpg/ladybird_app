@@ -18,7 +18,6 @@ import 'package:pdfx/pdfx.dart';
 import 'package:video_player/video_player.dart';
 import '../../core/docx_parser.dart';
 import '../../core/epub_parser.dart';
-import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';

@@ -21,8 +21,6 @@
 //   academia-cameroon's version still uses.
 
 import 'dart:async';
-import '../data/local_database.dart';
-import '../services/connectivity_service.dart';
 
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';

@@ -1,8 +1,6 @@
 // lib/repositories/hero_slide_repository.dart
 
 import 'dart:io';
-import '../data/local_database.dart';
-import '../services/connectivity_service.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/hero_slide.dart';

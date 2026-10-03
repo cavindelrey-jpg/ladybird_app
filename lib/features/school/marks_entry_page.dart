@@ -50,7 +50,9 @@ List<String> recordableSubjectsFor(AppUser staff, String classLevel) => kAcademi
 
 class MarksEntryPage extends StatefulWidget {
   final AppUser staff;
-  const MarksEntryPage({super.key, required this.staff});
+  final String? initialClass;
+  final String? initialSubject;
+  const MarksEntryPage({super.key, required this.staff, this.initialClass, this.initialSubject});
 
   @override
   State<MarksEntryPage> createState() => _MarksEntryPageState();
@@ -81,9 +83,11 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
   void initState() {
     super.initState();
     if (_classes.isNotEmpty) {
-      _class = _classes.first;
+      _class = _classes.contains(widget.initialClass) ? widget.initialClass : _classes.first;
       final subjects = recordableSubjectsFor(widget.staff, _class!);
-      _subject = subjects.isNotEmpty ? subjects.first : null;
+      _subject = subjects.contains(widget.initialSubject)
+          ? widget.initialSubject
+          : (subjects.isNotEmpty ? subjects.first : null);
       _load();
     }
   }

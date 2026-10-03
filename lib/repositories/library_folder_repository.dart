@@ -7,8 +7,6 @@
 // Courses Level/Subject/Topic hierarchy.
 
 import 'dart:io';
-import '../data/local_database.dart';
-import '../services/connectivity_service.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/library_folder.dart';

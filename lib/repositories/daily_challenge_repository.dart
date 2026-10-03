@@ -6,8 +6,6 @@
 // stub preserves exactly that behavior honestly rather than fabricating
 // a challenge.
 import '../models/daily_challenge.dart';
-import '../data/local_database.dart';
-import '../services/connectivity_service.dart';
 
 import '../core/result.dart';
 

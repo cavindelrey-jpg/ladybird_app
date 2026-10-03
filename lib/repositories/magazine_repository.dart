@@ -25,8 +25,6 @@
 // already uses — this project has no full-text search index.
 
 import 'dart:io';
-import '../data/local_database.dart';
-import '../services/connectivity_service.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/magazine_article.dart';

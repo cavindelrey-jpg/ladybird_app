@@ -9,8 +9,6 @@
 // 'config' so the two apps' banners never collide on the shared row.
 
 import 'dart:io';
-import '../data/local_database.dart';
-import '../services/connectivity_service.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/core.dart';

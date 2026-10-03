@@ -8,7 +8,6 @@ import 'package:intl/intl.dart';
 import '../../../models/app_user.dart';
 import '../../../models/daily_notice.dart';
 import '../../../repositories/daily_notice_repository.dart';
-import '../../../services/timetable_notification_service.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/app_colors.dart';
 import 'compose_daily_notice_page.dart';

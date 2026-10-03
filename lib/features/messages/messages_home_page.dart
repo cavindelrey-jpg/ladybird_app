@@ -7,7 +7,6 @@ import '../../models/app_user.dart';
 import '../../models/messaging.dart';
 import '../../repositories/messaging_repository.dart';
 import '../../theme/app_colors.dart';
-import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
 import 'chat_conversation_page.dart';
 import 'find_people_page.dart';

@@ -10,8 +10,6 @@
 // Firestore batches used to.
 
 import 'dart:async';
-import '../data/local_database.dart';
-import '../services/connectivity_service.dart';
 
 import 'dart:io';
 import 'dart:math';

@@ -17,10 +17,7 @@ import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import '../../models/app_user.dart';
 import '../../models/magazine_article.dart';
-import '../../models/app_notification.dart';
 import '../../repositories/magazine_repository.dart';
-import '../../repositories/follow_repository.dart';
-import '../../repositories/notification_repository.dart';
 import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
@@ -132,7 +129,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
     // Notify followers on the transition into "published" — not on every
     // draft save, and not a second time if it was already published.
     if (publish && !wasAlreadyPublished) {
-      _notifyFollowers(_workingArticle);
+        // Followers are notified server-side (trg_notify_on_article_published).
     }
 
     showToast(context, publish ? 'Article published.' : 'Draft saved.');
@@ -211,26 +208,7 @@ class _ArticleComposerPageState extends State<ArticleComposerPage> {
     return true;
   }
 
-  /// Best-effort fan-out — never blocks the publish success path. Fine at
-  /// current scale; a Cloud Function trigger is the right home for this
-  /// once a writer's follower count gets large (fan-out writes scale with
-  /// follower count, done client-side here).
-  Future<void> _notifyFollowers(MagazineArticle article) async {
-    try {
-      final followerIds = await FollowRepository.instance.watchFollowerIds(widget.user.id).first;
-      for (final followerId in followerIds) {
-        await NotificationRepository.instance.create(
-          uid: followerId,
-          type: NotificationType.articlePublished,
-          title: '${widget.user.name} published a new article',
-          body: article.title,
-          deepLinkId: article.id,
-        );
-      }
-    } catch (_) {
-      // best-effort — swallow, publishing already succeeded
-    }
-  }
+
 
   Future<void> _delete() async {
     if (widget.existing == null) return;

@@ -19,8 +19,6 @@ import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import '../../models/app_user.dart';
 import '../../models/magazine_article.dart';
 import '../../repositories/magazine_repository.dart';
-import '../../repositories/notification_repository.dart';
-import '../../models/app_notification.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
@@ -92,16 +90,8 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
       body: body,
     );
     await MagazineRepository.instance.postComment(comment);
-    // Best-effort notify — never blocks the comment success path.
-    if (widget.article.authorId != user.id) {
-      NotificationRepository.instance.create(
-        uid: widget.article.authorId,
-        type: NotificationType.comment,
-        title: 'New comment on "${widget.article.title}"',
-        body: '${user.name}: $body',
-        deepLinkId: widget.article.id,
-      );
-    }
+    // The author (and, for replies, the parent commenter) is notified
+    // server-side by trg_notify_on_article_comment.
     _commentCtrl.clear();
     if (mounted) setState(() => _postingComment = false);
   }

@@ -19,7 +19,9 @@
 --
 -- Fix, in two layers:
 --   * has_school_role(): the global-role fallback now only applies to
---     super_admin, or to a caller whose own institution IS p_school_id.
+--     super_admin, to a caller whose own institution IS p_school_id, or
+--     when p_school_id is NULL (platform-wide content -- 18 policies use
+--     has_school_role(NULL, ...) to mean "global role >= X").
 --   * A BEFORE UPDATE guard on public.users for direct client writes
 --     (current_user = 'authenticated'). SECURITY DEFINER RPCs
 --     (redeem_*_voucher, award_xp, spend_xp, record_daily_activity) run
@@ -40,7 +42,9 @@ language sql stable security definer set search_path = public as $$
     select 1 from public.users
     where id = auth.uid()
       and public.role_level(role) >= public.role_level(min_role)
-      and (role = 'super_admin' or institution_id = p_school_id)
+      -- p_school_id NULL = platform-wide content (magazine, platform
+      -- courses/tests): the caller's global role is what's being asked.
+      and (role = 'super_admin' or p_school_id is null or institution_id = p_school_id)
   );
 $$;
 

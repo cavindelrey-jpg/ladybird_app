@@ -6,11 +6,8 @@ import 'dart:async';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/local_database.dart';
-import '../models/app_notification.dart';
 import '../models/daily_notice.dart';
 import '../models/school_timetable_slot.dart';
-import 'notification_repository.dart';
-import 'school_timetable_repository.dart';
 
 class DailyNoticeRepository {
   DailyNoticeRepository._();

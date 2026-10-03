@@ -70,6 +70,11 @@ class _MarksPageState extends State<MarksPage> {
     final ac = AppColors.of(context);
     final u = widget.user;
 
+    // Staff have no report card of their own -- showing them the student
+    // view ("Student ID —", "No marks recorded yet") with the real
+    // actions hidden behind two unlabeled icons was the old behavior.
+    if (u.canRecordAnyMarks && !u.isStudent) return _StaffMarksHome(staff: u);
+
     return Scaffold(
       backgroundColor: ac.bg,
       appBar: schoolAppBar(
@@ -337,4 +342,81 @@ class _MarksPageState extends State<MarksPage> {
           ]),
         ),
       );
+}
+
+
+/// What a teacher / class master / admin sees on "Marks": one card per
+/// (class, subject) they can record, each opening the class grid.
+class _StaffMarksHome extends StatelessWidget {
+  final AppUser staff;
+  const _StaffMarksHome({required this.staff});
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final pairs = <(String, String)>[
+      for (final c in recordableClassesFor(staff))
+        for (final s in recordableSubjectsFor(staff, c))
+          if (staff.hasMinRole(UserRole.schoolAdmin) ||
+              staff.classMasterOfClass == c ||
+              staff.teachingAssignments.any((a) => a.classLevel == c && a.subject == s))
+            (c, s),
+    ];
+    // A class master can record every subject for their class -- show
+    // one card for the class rather than eight near-identical ones.
+    final cards = <(String, String?)>[];
+    for (final (c, s) in pairs) {
+      final wholeClass = staff.hasMinRole(UserRole.schoolAdmin) || staff.classMasterOfClass == c;
+      if (wholeClass) {
+        if (!cards.any((e) => e.$1 == c && e.$2 == null)) cards.add((c, null));
+      } else {
+        cards.add((c, s));
+      }
+    }
+
+    void open(String? cls, String? subject) => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => MarksEntryPage(staff: staff, initialClass: cls, initialSubject: subject)));
+
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: schoolAppBar(context: context, title: 'Marks', subtitle: 'Record and export your classes\' marks'),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        children: [
+          Text('Your classes', style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
+          const SizedBox(height: 10),
+          for (final (cls, subject) in cards)
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                leading: CircleAvatar(
+                  backgroundColor: ac.primaryBg,
+                  child: Icon(Icons.groups_rounded, color: ac.primary, size: 20)),
+                title: Text(cls, style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
+                subtitle: Text(subject ?? (staff.classMasterOfClass == cls ? 'All subjects · Class master' : 'All subjects'),
+                    style: GoogleFonts.inter(fontSize: 12, color: ac.txt2)),
+                trailing: Text('Enter marks', style: GoogleFonts.inter(
+                    fontSize: 12.5, fontWeight: FontWeight.w600, color: ac.primary)),
+                onTap: () => open(cls, subject),
+              ),
+            ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => MarksCsvImportPage(staff: staff))),
+            icon: const Icon(Icons.upload_file_rounded, size: 18),
+            label: const Text('Import marks from CSV'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
+          ),
+          const SizedBox(height: 8),
+          Text('Tip: open a class and use the share icon to export its marks as CSV — '
+              'the file can be edited in Excel and imported back unchanged.',
+              style: GoogleFonts.inter(fontSize: 11.5, color: ac.muted, height: 1.5)),
+        ],
+      ),
+    );
+  }
 }

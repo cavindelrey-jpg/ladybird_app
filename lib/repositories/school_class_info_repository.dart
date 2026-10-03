@@ -4,8 +4,6 @@
 // fabricated schema.
 
 import '../core/result.dart';
-import '../data/local_database.dart';
-import '../services/connectivity_service.dart';
 
 
 class SchoolClassInfoRepository {

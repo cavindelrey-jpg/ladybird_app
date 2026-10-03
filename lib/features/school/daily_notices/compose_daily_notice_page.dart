@@ -3,7 +3,6 @@
 // homework, reminders, and assignments for their class.
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../../models/app_user.dart';
 import '../../../models/daily_notice.dart';
 import '../../../repositories/daily_notice_repository.dart';

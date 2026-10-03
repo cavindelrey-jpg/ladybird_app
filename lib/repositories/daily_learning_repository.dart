@@ -8,8 +8,6 @@
 // Supabase: public.daily_learning_progress (user_id, course_id) primary key.
 
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../data/local_database.dart';
-import '../services/connectivity_service.dart';
 
 import '../models/daily_learning.dart';
 import "../models/daily_learning_streak.dart";

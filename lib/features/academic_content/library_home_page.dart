@@ -27,7 +27,6 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
-import '../../widgets/xp_widgets.dart';
 import '../../pages/notifications_page.dart';
 import '../../pages/profile_page.dart';
 import 'library_folder_page.dart';

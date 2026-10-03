@@ -90,12 +90,18 @@ class NotificationPreferences {
   final bool comments;
   final bool replies;
   final bool newArticles;
+  /// 7 PM "Tomorrow" programme (timetable, homework, school events).
+  final bool dailyProgram;
+  /// Morning Daily Challenge reminder + course/book recommendations.
+  final bool recommendations;
 
   const NotificationPreferences({
     this.announcements = true,
     this.comments = true,
     this.replies = true,
     this.newArticles = true,
+    this.dailyProgram = true,
+    this.recommendations = true,
   });
 
   factory NotificationPreferences.fromSupabase(Map<String, dynamic>? d) {
@@ -105,6 +111,8 @@ class NotificationPreferences {
       comments: d['comments'] ?? true,
       replies: d['replies'] ?? true,
       newArticles: d['new_articles'] ?? true,
+      dailyProgram: d['daily_program'] ?? true,
+      recommendations: d['recommendations'] ?? true,
     );
   }
 
@@ -113,14 +121,19 @@ class NotificationPreferences {
         'comments': comments,
         'replies': replies,
         'new_articles': newArticles,
+        'daily_program': dailyProgram,
+        'recommendations': recommendations,
       };
 
   NotificationPreferences copyWith({
     bool? announcements, bool? comments, bool? replies, bool? newArticles,
+    bool? dailyProgram, bool? recommendations,
   }) => NotificationPreferences(
         announcements: announcements ?? this.announcements,
         comments: comments ?? this.comments,
         replies: replies ?? this.replies,
         newArticles: newArticles ?? this.newArticles,
+        dailyProgram: dailyProgram ?? this.dailyProgram,
+        recommendations: recommendations ?? this.recommendations,
       );
 }

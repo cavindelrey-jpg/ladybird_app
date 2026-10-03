@@ -1,6 +1,7 @@
 // lib/pages/profile_page.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../config/branding.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 import '../models/models.dart';

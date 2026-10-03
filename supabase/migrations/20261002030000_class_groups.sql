@@ -74,10 +74,37 @@ begin
 end;
 $$;
 
+-- Students removed by the class master (or who left on their own) are
+-- remembered, so re-opening the group -- which syncs new arrivals --
+-- doesn't quietly put them back.
+create table if not exists public.class_group_exclusions (
+  club_id uuid not null references public.clubs(id) on delete cascade,
+  user_id uuid not null references public.users(id) on delete cascade,
+  excluded_at timestamptz not null default now(),
+  primary key (club_id, user_id)
+);
+alter table public.class_group_exclusions enable row level security;
+-- No policies: only the SECURITY DEFINER functions below touch it.
+
+create or replace function public.remember_class_group_removal()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if exists (select 1 from public.clubs c where c.id = old.club_id and c.class_level is not null) then
+    insert into public.class_group_exclusions (club_id, user_id)
+    values (old.club_id, old.user_id) on conflict do nothing;
+  end if;
+  return old;
+end;
+$$;
+
+drop trigger if exists trg_remember_class_group_removal on public.club_members;
+create trigger trg_remember_class_group_removal
+  after delete on public.club_members
+  for each row execute function public.remember_class_group_removal();
+
 -- Adds every current student of the class who isn't a member yet (new
--- arrivals after the group was created). Callable by the group's
--- moderator / staff; members removed by the class master stay removed
--- until the next explicit sync.
+-- arrivals after the group was created), except anyone excluded above.
+-- Callable by the group's moderator / staff.
 create or replace function public.sync_class_group_members(p_club_id uuid)
 returns integer
 language plpgsql security definer set search_path = public as $$
@@ -102,6 +129,8 @@ begin
   from public.users u
   where u.institution_id = v_club.institution_id and u.class_level = v_club.class_level
     and u.role = 'student' and coalesce(u.school_role, '') <> 'parent'
+    and not exists (select 1 from public.class_group_exclusions x
+                    where x.club_id = v_club.id and x.user_id = u.id)
   on conflict do nothing;
   get diagnostics v_added = row_count;
 

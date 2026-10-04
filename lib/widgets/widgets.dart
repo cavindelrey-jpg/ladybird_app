@@ -37,7 +37,7 @@ class PrimaryBtn extends StatelessWidget {
                 child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
             : Row(mainAxisSize: MainAxisSize.min, children: [
                 if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
-                Text(label, style: AppText.button),
+                Flexible(child: Text(label, style: AppText.button, maxLines: 1, overflow: TextOverflow.ellipsis)),
               ]),
       ),
     );
@@ -59,7 +59,7 @@ class SecondaryBtn extends StatelessWidget {
         onPressed: onTap,
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (icon != null) ...[Icon(icon, size: 18), const SizedBox(width: 8)],
-          Text(label, style: AppText.subtitle.copyWith(fontSize: 14, color: ac.primary)),
+          Flexible(child: Text(label, style: AppText.subtitle.copyWith(fontSize: 14, color: ac.primary), maxLines: 1, overflow: TextOverflow.ellipsis)),
         ]),
       ),
     );

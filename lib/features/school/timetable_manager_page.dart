@@ -362,8 +362,27 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
           padding: EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 20 + MediaQuery.of(ctx).viewInsets.bottom),
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${existing == null ? 'Add period' : 'Edit period'} · ${candidate.classLevel}',
-                  style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w800, color: ac.txt)),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('${existing == null ? 'Add period' : 'Edit period'} · ${candidate.classLevel}',
+                        style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w800, color: ac.txt)),
+                  ),
+                  ElevatedButton(
+                    onPressed: errors.isNotEmpty || saving ? null : save,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ac.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      minimumSize: const Size(0, 36),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: saving
+                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : Text(existing == null ? 'Confirm' : 'Save', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
               const SizedBox(height: 16),
               DropdownButtonFormField<int>(
                 initialValue: day,

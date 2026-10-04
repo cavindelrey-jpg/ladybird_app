@@ -5,36 +5,86 @@
 // auth.uid() = user_id RLS check on every op, no security-definer RPC
 // needed since there's no cross-user access at all.
 
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
+import 'dart:math';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/personal_study_slot.dart';
 import '../core/result.dart';
 import '../core/realtime_tolerant.dart';
-import '../core/offline_cache.dart'; // Added offline cache
+import '../core/offline_cache.dart';
 
 class PersonalStudyRepository {
   PersonalStudyRepository._();
   static final PersonalStudyRepository instance = PersonalStudyRepository._();
 
-  final SupabaseClient _db = Supabase.instance.client;
-  SupabaseQueryBuilder get _slots => _db.from('personal_study_slots');
+  SupabaseClient? get _db {
+    try {
+      return Supabase.instance.client;
+    } catch (_) {
+      return null;
+    }
+  }
 
-  Stream<List<PersonalStudySlot>> watchAll(String userId) {
-    final live = _slots
-        .stream(primaryKey: ['id'])
-        .eq('user_id', userId)
-        .order('day_of_week', ascending: true)
-        .realtimeTolerant()
-        .map((rows) => rows.map(_fromRow).toList());
-        
-    return OfflineCache.instance.watch<List<PersonalStudySlot>>(
-      'personal_study_$userId',
-      live,
-      toJson: (slots) => OfflineCache.listToJson(slots, (s) => (s as PersonalStudySlot).toJson()),
-      fromJson: (json) => OfflineCache.listFromJson(json, (j) => PersonalStudySlot.fromJson(j)),
-      emptyValue: [],
-    );
+  SupabaseQueryBuilder? get _slots => _db?.from('personal_study_slots');
+
+  final StreamController<String> _changeNotifier = StreamController<String>.broadcast();
+
+  static const String _hex = '0123456789abcdef';
+  static String _uuidV4() {
+    final rnd = Random.secure();
+    final bytes = List.generate(16, (_) => rnd.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+    bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
+    String hex(int i) => _hex[bytes[i] >> 4].toString() + _hex[bytes[i] & 0x0f];
+    final b = StringBuffer();
+    for (var i = 0; i < 16; i++) {
+      b.write(hex(i));
+      if (i == 3 || i == 5 || i == 7 || i == 9) b.write('-');
+    }
+    return b.toString();
+  }
+
+  Stream<List<PersonalStudySlot>> watchAll(String userId) async* {
+    // 1. Initial instant load from local cache (0ms latency, works offline)
+    final initial = await _getLocalSlots(userId);
+    yield initial;
+
+    // 2. Stream controller to combine local change notifications and live Supabase stream
+    final controller = StreamController<List<PersonalStudySlot>>();
+
+    final localSub = _changeNotifier.stream.where((uid) => uid == userId).listen((_) async {
+      final updated = await _getLocalSlots(userId);
+      if (!controller.isClosed) controller.add(updated);
+    });
+
+    StreamSubscription? remoteSub;
+    final slotsQuery = _slots;
+    if (slotsQuery != null) {
+      try {
+        final live = slotsQuery
+            .stream(primaryKey: ['id'])
+            .eq('user_id', userId)
+            .order('day_of_week', ascending: true)
+            .realtimeTolerant()
+            .map((rows) => rows.map(_fromRow).toList());
+
+        remoteSub = live.listen((remoteList) async {
+          await _setLocalSlots(userId, remoteList);
+          if (!controller.isClosed) controller.add(remoteList);
+        }, onError: (_) {
+          // Fall back gracefully on network or offline errors
+        });
+      } catch (_) {}
+    }
+
+    try {
+      yield* controller.stream;
+    } finally {
+      await localSub.cancel();
+      await remoteSub?.cancel();
+      await controller.close();
+    }
   }
 
   /// Today's slots only — powers the "Today's Study Program" Home section.
@@ -45,73 +95,142 @@ class PersonalStudyRepository {
   }
 
   Future<Result<void>> add(PersonalStudySlot slot) async {
-    try {
-      await _slots.insert(_toRow(slot));
-      await _saveLocalFallback(slot);
-      return const Success(null);
-    } catch (e) {
-      await _saveLocalFallback(slot);
-      return const Success(null);
+    final id = slot.id.isNotEmpty ? slot.id : _uuidV4();
+    final slotWithId = PersonalStudySlot(
+      id: id,
+      userId: slot.userId,
+      dayOfWeek: slot.dayOfWeek,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      activity: slot.activity,
+      subject: slot.subject,
+    );
+
+    // Save locally first for instant optimistic update and offline persistence
+    await _saveLocalFallback(slotWithId);
+    _changeNotifier.add(slot.userId);
+
+    // Sync to Supabase in background/network if available
+    final slotsQuery = _slots;
+    if (slotsQuery != null) {
+      try {
+        final res = await slotsQuery.insert(_toRow(slotWithId)).select().maybeSingle();
+        if (res != null) {
+          final synced = _fromRow(res);
+          if (synced.id != slotWithId.id) {
+            await _replaceLocalSlot(slot.userId, slotWithId.id, synced);
+            _changeNotifier.add(slot.userId);
+          }
+        }
+      } catch (_) {
+        // Local fallback already saved
+      }
     }
+
+    return const Success(null);
   }
 
   Future<Result<void>> update(PersonalStudySlot slot) async {
-    try {
-      await _slots.update(_toRow(slot)).eq('id', slot.id);
-      await _saveLocalFallback(slot);
-      return const Success(null);
-    } catch (e) {
-      await _saveLocalFallback(slot);
-      return const Success(null);
+    await _saveLocalFallback(slot);
+    _changeNotifier.add(slot.userId);
+
+    final slotsQuery = _slots;
+    if (slotsQuery != null) {
+      try {
+        await slotsQuery.update(_toRow(slot)).eq('id', slot.id);
+      } catch (_) {}
     }
+
+    return const Success(null);
   }
 
   Future<Result<void>> delete(String userId, String slotId) async {
     try {
-      await _slots.delete().eq('id', slotId).eq('user_id', userId);
+      final existing = await _getLocalSlots(userId);
+      final next = existing.where((s) => s.id != slotId).toList();
+      await _setLocalSlots(userId, next);
+      _changeNotifier.add(userId);
     } catch (_) {}
+
+    final slotsQuery = _slots;
+    if (slotsQuery != null) {
+      try {
+        await slotsQuery.delete().eq('id', slotId).eq('user_id', userId);
+      } catch (_) {}
+    }
+
+    return const Success(null);
+  }
+
+  Future<List<PersonalStudySlot>> _getLocalSlots(String userId) async {
     try {
       final key = 'personal_study_$userId';
       final existing = await OfflineCache.instance.get<List<PersonalStudySlot>>(
         key,
         (json) => OfflineCache.listFromJson(json, (j) => PersonalStudySlot.fromJson(j)),
-      ) ?? [];
-      final next = existing.where((s) => s.id != slotId).toList();
-      await OfflineCache.instance.put(key, OfflineCache.listToJson(next, (s) => (s as PersonalStudySlot).toJson()));
+      );
+      if (existing != null) {
+        existing.sort((a, b) {
+          final d = a.dayOfWeek.compareTo(b.dayOfWeek);
+          if (d != 0) return d;
+          return a.startTime.compareTo(b.startTime);
+        });
+        return existing;
+      }
     } catch (_) {}
-    return const Success(null);
+    return [];
+  }
+
+  Future<void> _setLocalSlots(String userId, List<PersonalStudySlot> list) async {
+    try {
+      final key = 'personal_study_$userId';
+      await OfflineCache.instance.put(
+        key,
+        OfflineCache.listToJson(list, (s) => (s as PersonalStudySlot).toJson()),
+      );
+    } catch (_) {}
   }
 
   Future<void> _saveLocalFallback(PersonalStudySlot slot) async {
     try {
-      final key = 'personal_study_${slot.userId}';
-      final existing = await OfflineCache.instance.get<List<PersonalStudySlot>>(
-        key,
-        (json) => OfflineCache.listFromJson(json, (j) => PersonalStudySlot.fromJson(j)),
-      ) ?? [];
-      final id = slot.id.isEmpty ? 'slot_${DateTime.now().millisecondsSinceEpoch}' : slot.id;
-      final slotWithId = PersonalStudySlot(
-        id: id,
-        userId: slot.userId,
-        dayOfWeek: slot.dayOfWeek,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        activity: slot.activity,
-        subject: slot.subject,
-      );
-      final next = [...existing.where((s) => s.id != slotWithId.id), slotWithId];
-      await OfflineCache.instance.put(key, OfflineCache.listToJson(next, (s) => (s as PersonalStudySlot).toJson()));
+      final existing = await _getLocalSlots(slot.userId);
+      final next = [...existing.where((s) => s.id != slot.id), slot];
+      next.sort((a, b) {
+        final d = a.dayOfWeek.compareTo(b.dayOfWeek);
+        if (d != 0) return d;
+        return a.startTime.compareTo(b.startTime);
+      });
+      await _setLocalSlots(slot.userId, next);
     } catch (_) {}
   }
 
-  Map<String, dynamic> _toRow(PersonalStudySlot slot) => {
-        'user_id': slot.userId,
-        'day_of_week': slot.dayOfWeek,
-        'start_time': slot.startTime,
-        'end_time': slot.endTime,
-        'activity': slot.activity,
-        'subject': slot.subject,
-      };
+  Future<void> _replaceLocalSlot(String userId, String oldId, PersonalStudySlot newSlot) async {
+    try {
+      final existing = await _getLocalSlots(userId);
+      final next = [...existing.where((s) => s.id != oldId && s.id != newSlot.id), newSlot];
+      next.sort((a, b) {
+        final d = a.dayOfWeek.compareTo(b.dayOfWeek);
+        if (d != 0) return d;
+        return a.startTime.compareTo(b.startTime);
+      });
+      await _setLocalSlots(userId, next);
+    } catch (_) {}
+  }
+
+  Map<String, dynamic> _toRow(PersonalStudySlot slot) {
+    final map = <String, dynamic>{
+      'user_id': slot.userId,
+      'day_of_week': slot.dayOfWeek,
+      'start_time': slot.startTime,
+      'end_time': slot.endTime,
+      'activity': slot.activity,
+      'subject': slot.subject,
+    };
+    if (slot.id.isNotEmpty) {
+      map['id'] = slot.id;
+    }
+    return map;
+  }
 
   PersonalStudySlot _fromRow(Map<String, dynamic> row) => PersonalStudySlot(
         id: row['id']?.toString() ?? '',

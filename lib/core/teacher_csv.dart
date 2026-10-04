@@ -40,7 +40,7 @@ class TeacherImportRow {
 class TeacherAssignmentPlan {
   final String? fileError;
   final List<TeacherImportRow> rows;
-  final Map<String, ({String teacherName, String email, List<TeachingAssignment> assignments, String? classMasterOf})> teacherUpdates;
+  final Map<String, ({String teacherName, String email, List<TeachingAssignment> assignments, String? classMasterOf, bool isNewTeacher})> teacherUpdates;
 
   const TeacherAssignmentPlan({
     this.fileError,
@@ -67,6 +67,7 @@ TeacherAssignmentPlan parseTeacherAssignmentsCsv(
   required List<AppUser> existingStaff,
   List<String>? availableSubjects,
   List<String>? availableClasses,
+  bool allowNewTeachers = false,
 }) {
   if (content.trim().isEmpty) {
     return const TeacherAssignmentPlan(fileError: 'That file is completely empty.');
@@ -111,7 +112,7 @@ TeacherAssignmentPlan parseTeacherAssignmentsCsv(
   final validSubjects = availableSubjects ?? kAcademicSubjects;
 
   final rows = <TeacherImportRow>[];
-  final teacherUpdates = <String, ({String teacherName, String email, List<TeachingAssignment> assignments, String? classMasterOf})>{};
+  final teacherUpdates = <String, ({String teacherName, String email, List<TeachingAssignment> assignments, String? classMasterOf, bool isNewTeacher})>{};
 
   for (var i = 1; i < table.length; i++) {
     final cells = table[i];
@@ -173,9 +174,23 @@ TeacherAssignmentPlan parseTeacherAssignmentsCsv(
       }
     }
 
+    bool isNew = false;
     if (matched == null) {
-      row.error = 'No staff member found matching ${name.isNotEmpty ? '"$name"' : email} at this school. Register them in Access Codes first.';
-      continue;
+      if (!allowNewTeachers) {
+        row.error = 'No staff member found for "${name.isNotEmpty ? name : email}". Check spelling or create user account first.';
+        continue;
+      }
+      final safeName = name.isNotEmpty ? name : (email.isNotEmpty ? email.split('@').first : 'Staff Member');
+      final newId = 'staff_${DateTime.now().millisecondsSinceEpoch}_${i}_${safeName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')}';
+      matched = AppUser(
+        id: newId,
+        name: safeName,
+        email: email,
+        role: UserRole.lecturer,
+        schoolId: existingStaff.isNotEmpty ? existingStaff.first.schoolId : null,
+      );
+      isNew = true;
+      row.warning = 'New teacher - will be added to the school staff directory.';
     }
 
     row.resolvedTeacherId = matched.id;
@@ -252,6 +267,7 @@ TeacherAssignmentPlan parseTeacherAssignmentsCsv(
       email: matched.email,
       assignments: combinedAssignments,
       classMasterOf: effectiveMaster,
+      isNewTeacher: isNew || (current?.isNewTeacher ?? false),
     );
   }
 

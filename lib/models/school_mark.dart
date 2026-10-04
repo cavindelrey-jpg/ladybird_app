@@ -59,6 +59,7 @@ class SchoolMark {
   final String id;
   final String schoolId;
   final String studentId;
+  final String studentName;
   final String classLevel;
   final String subject;
   final String teacherName;
@@ -77,6 +78,7 @@ class SchoolMark {
     required this.id,
     required this.schoolId,
     required this.studentId,
+    this.studentName = '',
     required this.classLevel,
     required this.subject,
     this.teacherName = '',
@@ -97,6 +99,7 @@ class SchoolMark {
   }
 
   double get percentage => scoreOutOf(100);
+  double get scoreOn20 => scoreOutOf(20);
 
   /// Cameroon GCE-style letter grade off the percentage. A pure function
   /// of percentage alone, independent of subject, so it's the same scale
@@ -110,6 +113,8 @@ class SchoolMark {
     if (p >= 40) return 'E';
     return 'F';
   }
+
+  String get gradeLetter => grade;
 }
 
 /// How a mark is shown everywhere: exact, never rounded (a parent once saw

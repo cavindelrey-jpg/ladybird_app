@@ -25,6 +25,7 @@ import '../../models/academic_content.dart' show kAcademicSubjects, kAcademicLev
 import '../../models/app_user.dart';
 import '../../models/school_mark.dart';
 import '../../repositories/school_marks_repository.dart';
+import '../../services/school_document_export_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
@@ -288,8 +289,21 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
     }
   }
 
+  Future<void> _downloadTemplate() async {
+    try {
+      final csv = generateMarksCsvTemplate();
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/marks_template.csv');
+      await file.writeAsString('\uFEFF$csv');
+      if (!mounted) return;
+      await Share.shareXFiles([XFile(file.path)], text: 'Marks CSV Template');
+    } catch (e) {
+      if (mounted) showToast(context, 'Could not generate template: $e', isError: true);
+    }
+  }
+
   Future<void> _export() async {
-    if (_roster.isEmpty) return;
+    if (_roster.isEmpty || _class == null || _subject == null) return;
     final csv = exportMarksCsv(
       roster: _roster, marksByStudentId: _existing, classLevel: _class!,
       subject: _subject!, sequence: _sequence, academicYear: _year,
@@ -299,10 +313,88 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
       final safe = '${_class}_${_subject}_${_sequence.name}_$_year'.replaceAll(RegExp(r'[^A-Za-z0-9_]+'), '_');
       final file = File('${dir.path}/marks_$safe.csv');
       // BOM so Excel opens accented names (Loïc, Nadège) correctly.
-      await file.writeAsString('﻿$csv');
+      await file.writeAsString('\uFEFF$csv');
       await Share.shareXFiles([XFile(file.path, mimeType: 'text/csv')], text: 'Marks · $_subject · $_class · ${_sequence.label}');
     } catch (e) {
       if (mounted) showToast(context, 'Couldn\'t create the export file.', isError: true);
+    }
+  }
+
+  Future<void> _exportPdf() async {
+    if (_roster.isEmpty || _class == null || _subject == null) {
+      showToast(context, 'No marks available to export.');
+      return;
+    }
+    try {
+      showToast(context, 'Generating Marks PDF...');
+      final marks = _roster.map((s) {
+        final existing = _existing[s.id];
+        if (existing != null) return existing;
+        final draftScore = double.tryParse(_ctrls[s.id]?.text ?? '');
+        return SchoolMark(
+          id: 'temp_${s.id}',
+          studentId: s.id,
+          studentName: s.name,
+          classLevel: _class!,
+          subject: _subject!,
+          sequence: _sequence,
+          score: draftScore ?? 0.0,
+          maxScore: 20.0,
+          academicYear: _year,
+          schoolId: widget.staff.schoolId ?? '',
+        );
+      }).toList();
+
+      final file = await SchoolDocumentExportService.instance.exportMarksPdf(
+        schoolName: widget.staff.schoolName.isNotEmpty ? widget.staff.schoolName : 'Ladybird International School',
+        classLevel: _class!,
+        subject: _subject!,
+        sequenceName: _sequence.label,
+        marks: marks,
+      );
+      if (!mounted) return;
+      await SchoolDocumentExportService.instance.shareFile(file, text: 'Marks · $_subject · $_class · ${_sequence.label} (PDF)');
+    } catch (e) {
+      if (mounted) showToast(context, 'Could not export PDF: $e', isError: true);
+    }
+  }
+
+  Future<void> _exportDocx() async {
+    if (_roster.isEmpty || _class == null || _subject == null) {
+      showToast(context, 'No marks available to export.');
+      return;
+    }
+    try {
+      showToast(context, 'Generating Marks Word document...');
+      final marks = _roster.map((s) {
+        final existing = _existing[s.id];
+        if (existing != null) return existing;
+        final draftScore = double.tryParse(_ctrls[s.id]?.text ?? '');
+        return SchoolMark(
+          id: 'temp_${s.id}',
+          studentId: s.id,
+          studentName: s.name,
+          classLevel: _class!,
+          subject: _subject!,
+          sequence: _sequence,
+          score: draftScore ?? 0.0,
+          maxScore: 20.0,
+          academicYear: _year,
+          schoolId: widget.staff.schoolId ?? '',
+        );
+      }).toList();
+
+      final file = await SchoolDocumentExportService.instance.exportMarksDocx(
+        schoolName: widget.staff.schoolName.isNotEmpty ? widget.staff.schoolName : 'Ladybird International School',
+        classLevel: _class!,
+        subject: _subject!,
+        sequenceName: _sequence.label,
+        marks: marks,
+      );
+      if (!mounted) return;
+      await SchoolDocumentExportService.instance.shareFile(file, text: 'Marks · $_subject · $_class · ${_sequence.label} (Word Document)');
+    } catch (e) {
+      if (mounted) showToast(context, 'Could not export Word document: $e', isError: true);
     }
   }
 
@@ -390,10 +482,71 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
             icon: const Icon(Icons.upload_file_rounded),
             onPressed: _openCsvImport,
           ),
-          IconButton(
-            tooltip: 'Export CSV',
+          PopupMenuButton<String>(
             icon: const Icon(Icons.ios_share_rounded),
-            onPressed: _roster.isEmpty || _loading ? null : _export,
+            tooltip: 'Import / Export & Templates',
+            onSelected: (val) {
+              switch (val) {
+                case 'template':
+                  _downloadTemplate();
+                  break;
+                case 'csv':
+                  _export();
+                  break;
+                case 'pdf':
+                  _exportPdf();
+                  break;
+                case 'docx':
+                  _exportDocx();
+                  break;
+              }
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'template',
+                child: Row(
+                  children: [
+                    Icon(Icons.download_rounded, size: 20),
+                    SizedBox(width: 10),
+                    Text('Download CSV Template'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'csv',
+                enabled: _roster.isNotEmpty && !_loading,
+                child: const Row(
+                  children: [
+                    Icon(Icons.table_chart_outlined, size: 20),
+                    SizedBox(width: 10),
+                    Text('Export as CSV'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'pdf',
+                enabled: _roster.isNotEmpty && !_loading,
+                child: const Row(
+                  children: [
+                    Icon(Icons.picture_as_pdf_outlined, size: 20, color: Colors.red),
+                    SizedBox(width: 10),
+                    Text('Export as PDF Document'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'docx',
+                enabled: _roster.isNotEmpty && !_loading,
+                child: const Row(
+                  children: [
+                    Icon(Icons.description_outlined, size: 20, color: Colors.blue),
+                    SizedBox(width: 10),
+                    Text('Export as Word (.docx)'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
         body: Column(children: [

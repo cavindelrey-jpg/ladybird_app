@@ -21,6 +21,7 @@ import '../../models/app_user.dart';
 import '../../models/teaching_assignment.dart';
 import '../../repositories/teacher_management_repository.dart';
 import '../../repositories/school_repository.dart';
+import '../../services/school_document_export_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
@@ -97,6 +98,19 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
     });
   }
 
+  Future<void> _downloadTemplate() async {
+    try {
+      final csv = generateTeacherCsvTemplate();
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/teacher_assignments_template.csv');
+      await file.writeAsString('\uFEFF$csv');
+      if (!mounted) return;
+      await Share.shareXFiles([XFile(file.path)], text: 'Teacher Assignments CSV Template');
+    } catch (e) {
+      if (mounted) showToast(context, 'Could not generate template: $e', isError: true);
+    }
+  }
+
   Future<void> _exportCsv() async {
     try {
       final staff = await TeacherManagementRepository.instance.assignedStaffOnce(_schoolId);
@@ -115,16 +129,53 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
     }
   }
 
+  Future<void> _exportPdf() async {
+    try {
+      final staff = await TeacherManagementRepository.instance.assignedStaffOnce(_schoolId);
+      if (staff.isEmpty) {
+        if (mounted) showToast(context, 'No teacher assignments to export yet.');
+        return;
+      }
+      showToast(context, 'Generating Staff Directory PDF...');
+      final file = await SchoolDocumentExportService.instance.exportStaffDirectoryPdf(
+        schoolName: widget.admin.schoolName.isNotEmpty ? widget.admin.schoolName : 'Ladybird International School',
+        staff: staff,
+      );
+      if (!mounted) return;
+      await SchoolDocumentExportService.instance.shareFile(file, text: 'Faculty & Staff Directory (PDF)');
+    } catch (e) {
+      if (mounted) showToast(context, 'Could not export PDF: $e', isError: true);
+    }
+  }
+
+  Future<void> _exportDocx() async {
+    try {
+      final staff = await TeacherManagementRepository.instance.assignedStaffOnce(_schoolId);
+      if (staff.isEmpty) {
+        if (mounted) showToast(context, 'No teacher assignments to export yet.');
+        return;
+      }
+      showToast(context, 'Generating Staff Directory Word document...');
+      final file = await SchoolDocumentExportService.instance.exportStaffDirectoryDocx(
+        schoolName: widget.admin.schoolName.isNotEmpty ? widget.admin.schoolName : 'Ladybird International School',
+        staff: staff,
+      );
+      if (!mounted) return;
+      await SchoolDocumentExportService.instance.shareFile(file, text: 'Faculty & Staff Directory (Word Document)');
+    } catch (e) {
+      if (mounted) showToast(context, 'Could not export Word document: $e', isError: true);
+    }
+  }
+
   Future<void> _openCsvImport() async {
-    final updated = await Navigator.of(context).push<bool>(
+    await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => TeacherCsvImportPage(admin: widget.admin),
       ),
     );
-    if (updated == true) {
-      _loadAssigned();
-      _loadSubjects();
-    }
+    if (!mounted) return;
+    _loadAssigned();
+    _loadSubjects();
   }
 
   void _openEditor(AppUser teacher) {
@@ -165,10 +216,68 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
           icon: const Icon(Icons.upload_file_rounded),
           onPressed: _openCsvImport,
         ),
-        IconButton(
-          tooltip: 'Export CSV',
-          icon: const Icon(Icons.download_rounded),
-          onPressed: _exportCsv,
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.ios_share_rounded),
+          tooltip: 'Import / Export & Templates',
+          onSelected: (val) {
+            switch (val) {
+              case 'template':
+                _downloadTemplate();
+                break;
+              case 'csv':
+                _exportCsv();
+                break;
+              case 'pdf':
+                _exportPdf();
+                break;
+              case 'docx':
+                _exportDocx();
+                break;
+            }
+          },
+          itemBuilder: (ctx) => [
+            const PopupMenuItem(
+              value: 'template',
+              child: Row(
+                children: [
+                  Icon(Icons.download_rounded, size: 20),
+                  SizedBox(width: 10),
+                  Text('Download CSV Template'),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'csv',
+              child: Row(
+                children: [
+                  Icon(Icons.table_chart_outlined, size: 20),
+                  SizedBox(width: 10),
+                  Text('Export as CSV'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'pdf',
+              child: Row(
+                children: [
+                  Icon(Icons.picture_as_pdf_outlined, size: 20, color: Colors.red),
+                  SizedBox(width: 10),
+                  Text('Export as PDF Document'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'docx',
+              child: Row(
+                children: [
+                  Icon(Icons.description_outlined, size: 20, color: Colors.blue),
+                  SizedBox(width: 10),
+                  Text('Export as Word (.docx)'),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
       body: ListView(

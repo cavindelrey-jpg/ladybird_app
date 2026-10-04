@@ -272,6 +272,17 @@ String exportMarksCsv({
   return encodeCsv(rows);
 }
 
+/// Generates a valid example CSV template for marks import.
+String generateMarksCsvTemplate() {
+  final currentYear = DateTime.now().year.toString();
+  return encodeCsv([
+    kMarksCsvColumns,
+    ['Brice Ngono', 'Form 5', 'Mathematics', 't1s1', currentYear, '15.5', '20'],
+    ['Marie Claire', 'Form 5', 'Mathematics', 't1s1', currentYear, '18', '20'],
+    ['Loïc Kamga', 'Form 5', 'Mathematics', 't1s1', currentYear, '12', '20'],
+  ]);
+}
+
 String _fmt(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toString();
 
 /// Parses a typed score for the grid entry page. Returns null for blank

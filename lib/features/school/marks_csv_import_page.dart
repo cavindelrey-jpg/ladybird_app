@@ -80,15 +80,12 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
   Future<void> _downloadTemplate() async {
     setState(() => _busy = true);
     try {
-      final csv = encodeCsv([
-        kMarksCsvColumns,
-        ['Brice Ngono', 'Form 5', 'Mathematics', 't1s1', DateTime.now().year.toString(), '15', '20'],
-      ]);
+      final csv = generateMarksCsvTemplate();
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/marks_template.csv');
       await file.writeAsString('\uFEFF$csv');
       if (!mounted) return;
-      await Share.shareXFiles([XFile(file.path)], text: 'Ladybird marks import template');
+      await Share.shareXFiles([XFile(file.path)], text: 'Marks CSV Import Template');
     } catch (e) {
       if (mounted) showToast(context, 'Could not generate the template file.', isError: true);
     } finally {

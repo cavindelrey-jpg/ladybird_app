@@ -95,6 +95,7 @@ class _TeacherCsvImportPageState extends State<TeacherCsvImportPage> {
         content,
         existingStaff: staff,
         availableSubjects: subjects,
+        allowNewTeachers: true,
       );
 
       if (!mounted) return;
@@ -126,22 +127,34 @@ class _TeacherCsvImportPageState extends State<TeacherCsvImportPage> {
       final teacherId = entry.key;
       final info = entry.value;
 
-      final assignRes = await TeacherManagementRepository.instance.setTeachingAssignments(
-        teacherId,
-        info.assignments,
-      );
-
-      if (info.classMasterOf != null) {
-        await TeacherManagementRepository.instance.setClassMasterOfClass(
-          teacherId,
-          info.classMasterOf,
+      if (info.isNewTeacher) {
+        await TeacherManagementRepository.instance.createOrRegisterStaff(
+          schoolId: _schoolId,
+          id: teacherId,
+          name: info.teacherName,
+          email: info.email,
+          assignments: info.assignments,
+          classMasterOfClass: info.classMasterOf,
         );
-      }
-
-      if (assignRes is Success<void>) {
         success++;
       } else {
-        failed++;
+        final assignRes = await TeacherManagementRepository.instance.setTeachingAssignments(
+          teacherId,
+          info.assignments,
+        );
+
+        if (info.classMasterOf != null) {
+          await TeacherManagementRepository.instance.setClassMasterOfClass(
+            teacherId,
+            info.classMasterOf,
+          );
+        }
+
+        if (assignRes is Success<void>) {
+          success++;
+        } else {
+          failed++;
+        }
       }
     }
 

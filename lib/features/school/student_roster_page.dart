@@ -14,6 +14,7 @@ import '../../models/academic_content.dart' show kAcademicLevels;
 import '../../models/app_user.dart';
 import '../../models/student_record.dart';
 import '../../repositories/student_roster_repository.dart';
+import '../../services/school_document_export_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
@@ -73,11 +74,23 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
         ),
       ),
     );
-    if (updated != null && mounted) {
-      if (updated is String && _schoolClassLevels.contains(updated)) {
-        _selectedClass = updated;
-      }
-      _load();
+    if (!mounted) return;
+    if (updated is String && _schoolClassLevels.contains(updated)) {
+      _selectedClass = updated;
+    }
+    _load();
+  }
+
+  Future<void> _downloadTemplate() async {
+    try {
+      final csv = generateStudentRosterCsvTemplate();
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/student_roster_template.csv');
+      await file.writeAsString('\uFEFF$csv');
+      if (!mounted) return;
+      await Share.shareXFiles([XFile(file.path)], text: 'Student Roster CSV Template');
+    } catch (e) {
+      if (mounted) showToast(context, 'Could not generate template: $e', isError: true);
     }
   }
 
@@ -96,6 +109,44 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
       await Share.shareXFiles([XFile(file.path)], text: 'Student Roster Export - $className');
     } catch (e) {
       if (mounted) showToast(context, 'Could not export roster: $e', isError: true);
+    }
+  }
+
+  Future<void> _exportPdf() async {
+    if (_students.isEmpty) {
+      showToast(context, 'No student records to export.');
+      return;
+    }
+    try {
+      showToast(context, 'Generating Class Roster PDF...');
+      final file = await SchoolDocumentExportService.instance.exportStudentRosterPdf(
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'Ladybird International School',
+        classLevel: _selectedClass ?? 'All Classes',
+        students: _students,
+      );
+      if (!mounted) return;
+      await SchoolDocumentExportService.instance.shareFile(file, text: 'Student Roster · ${_selectedClass ?? 'All'} (PDF)');
+    } catch (e) {
+      if (mounted) showToast(context, 'Could not export PDF: $e', isError: true);
+    }
+  }
+
+  Future<void> _exportDocx() async {
+    if (_students.isEmpty) {
+      showToast(context, 'No student records to export.');
+      return;
+    }
+    try {
+      showToast(context, 'Generating Class Roster Word document...');
+      final file = await SchoolDocumentExportService.instance.exportStudentRosterDocx(
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'Ladybird International School',
+        classLevel: _selectedClass ?? 'All Classes',
+        students: _students,
+      );
+      if (!mounted) return;
+      await SchoolDocumentExportService.instance.shareFile(file, text: 'Student Roster · ${_selectedClass ?? 'All'} (Word Document)');
+    } catch (e) {
+      if (mounted) showToast(context, 'Could not export Word document: $e', isError: true);
     }
   }
 
@@ -246,10 +297,68 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
           icon: const Icon(Icons.upload_file_rounded),
           onPressed: _openImport,
         ),
-        IconButton(
-          tooltip: 'Export CSV',
-          icon: const Icon(Icons.download_rounded),
-          onPressed: _exportCsv,
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.ios_share_rounded),
+          tooltip: 'Import / Export & Templates',
+          onSelected: (val) {
+            switch (val) {
+              case 'template':
+                _downloadTemplate();
+                break;
+              case 'csv':
+                _exportCsv();
+                break;
+              case 'pdf':
+                _exportPdf();
+                break;
+              case 'docx':
+                _exportDocx();
+                break;
+            }
+          },
+          itemBuilder: (ctx) => [
+            const PopupMenuItem(
+              value: 'template',
+              child: Row(
+                children: [
+                  Icon(Icons.download_rounded, size: 20),
+                  SizedBox(width: 10),
+                  Text('Download CSV Template'),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'csv',
+              child: Row(
+                children: [
+                  Icon(Icons.table_chart_outlined, size: 20),
+                  SizedBox(width: 10),
+                  Text('Export as CSV'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'pdf',
+              child: Row(
+                children: [
+                  Icon(Icons.picture_as_pdf_outlined, size: 20, color: Colors.red),
+                  SizedBox(width: 10),
+                  Text('Export as PDF Document'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'docx',
+              child: Row(
+                children: [
+                  Icon(Icons.description_outlined, size: 20, color: Colors.blue),
+                  SizedBox(width: 10),
+                  Text('Export as Word (.docx)'),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
       floatingActionButton: FloatingActionButton.extended(

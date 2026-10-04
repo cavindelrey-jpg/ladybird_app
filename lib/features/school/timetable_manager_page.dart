@@ -27,6 +27,7 @@ import '../../models/school_timetable_slot.dart';
 import '../../repositories/school_repository.dart';
 import '../../repositories/school_timetable_repository.dart';
 import '../../repositories/teacher_management_repository.dart';
+import '../../services/school_document_export_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
@@ -82,6 +83,19 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
     }
   }
 
+  Future<void> _downloadTemplate() async {
+    try {
+      final csv = generateTimetableCsvTemplate();
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/timetable_template.csv');
+      await file.writeAsString('\uFEFF$csv');
+      if (!mounted) return;
+      await Share.shareXFiles([XFile(file.path)], text: 'School Timetable CSV Template');
+    } catch (e) {
+      if (mounted) showToast(context, 'Could not generate template: $e', isError: true);
+    }
+  }
+
   Future<void> _exportCsv() async {
     final slots = _latestSchoolSlots.where((s) => s.classLevel == _classLevel).toList();
     if (slots.isEmpty) {
@@ -101,11 +115,51 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
     }
   }
 
+  Future<void> _exportPdf() async {
+    final slots = _latestSchoolSlots.where((s) => s.classLevel == _classLevel).toList();
+    if (slots.isEmpty) {
+      showToast(context, 'No periods to export for $_classLevel.');
+      return;
+    }
+    try {
+      showToast(context, 'Generating Timetable PDF...');
+      final file = await SchoolDocumentExportService.instance.exportTimetablePdf(
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'Ladybird International School',
+        classLevel: _classLevel,
+        slots: slots,
+      );
+      if (!mounted) return;
+      await SchoolDocumentExportService.instance.shareFile(file, text: 'Timetable · $_classLevel (PDF)');
+    } catch (e) {
+      if (mounted) showToast(context, 'Could not export PDF: $e', isError: true);
+    }
+  }
+
+  Future<void> _exportDocx() async {
+    final slots = _latestSchoolSlots.where((s) => s.classLevel == _classLevel).toList();
+    if (slots.isEmpty) {
+      showToast(context, 'No periods to export for $_classLevel.');
+      return;
+    }
+    try {
+      showToast(context, 'Generating Timetable Word document...');
+      final file = await SchoolDocumentExportService.instance.exportTimetableDocx(
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'Ladybird International School',
+        classLevel: _classLevel,
+        slots: slots,
+      );
+      if (!mounted) return;
+      await SchoolDocumentExportService.instance.shareFile(file, text: 'Timetable · $_classLevel (Word Document)');
+    } catch (e) {
+      if (mounted) showToast(context, 'Could not export Word document: $e', isError: true);
+    }
+  }
+
   Future<void> _openCsvImport() async {
     final res = await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => TimetableCsvImportPage(user: widget.user)),
     );
-    if (res != null && mounted) {
+    if (mounted) {
       setState(() {
         if (res is String && _classLevels.contains(res)) {
           _classLevel = res;
@@ -143,10 +197,68 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
           tooltip: 'Upload Timetable CSV',
           onPressed: _openCsvImport,
         ),
-        IconButton(
-          icon: const Icon(Icons.download_rounded),
-          tooltip: 'Export CSV',
-          onPressed: _exportCsv,
+        PopupMenuButton<String>(
+          icon: const Icon(Icons.ios_share_rounded),
+          tooltip: 'Import / Export & Templates',
+          onSelected: (val) {
+            switch (val) {
+              case 'template':
+                _downloadTemplate();
+                break;
+              case 'csv':
+                _exportCsv();
+                break;
+              case 'pdf':
+                _exportPdf();
+                break;
+              case 'docx':
+                _exportDocx();
+                break;
+            }
+          },
+          itemBuilder: (ctx) => [
+            const PopupMenuItem(
+              value: 'template',
+              child: Row(
+                children: [
+                  Icon(Icons.download_rounded, size: 20),
+                  SizedBox(width: 10),
+                  Text('Download CSV Template'),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+              value: 'csv',
+              child: Row(
+                children: [
+                  Icon(Icons.table_chart_outlined, size: 20),
+                  SizedBox(width: 10),
+                  Text('Export as CSV'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'pdf',
+              child: Row(
+                children: [
+                  Icon(Icons.picture_as_pdf_outlined, size: 20, color: Colors.red),
+                  SizedBox(width: 10),
+                  Text('Export as PDF Document'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'docx',
+              child: Row(
+                children: [
+                  Icon(Icons.description_outlined, size: 20, color: Colors.blue),
+                  SizedBox(width: 10),
+                  Text('Export as Word (.docx)'),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
       floatingActionButton: FloatingActionButton.extended(

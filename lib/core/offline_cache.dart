@@ -70,6 +70,16 @@ class OfflineCache {
     }
   }
 
+  Future<void> remove(String key) async {
+    await init();
+    await _prefs?.remove('cache_$key');
+  }
+
+  Future<void> put(String key, dynamic jsonVal) async {
+    await init();
+    await _prefs?.setString('cache_$key', jsonEncode(jsonVal));
+  }
+
   // Utility to handle lists
   static dynamic listToJson<T>(List<T> list, dynamic Function(T) itemToJson) {
     return list.map((item) => itemToJson(item)).toList();

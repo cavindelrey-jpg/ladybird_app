@@ -101,15 +101,12 @@ $docBody
     // Encode package as ZIP
     final zipEncoder = ZipEncoder();
     final zipBytes = zipEncoder.encode(archive);
-    if (zipBytes == null) {
-      throw StateError('Failed to encode Word document archive.');
-    }
 
     final tempDir = await getTemporaryDirectory();
     final safeTitle = '${examination.title}_${examination.subject}_${examination.classLevel}'
         .replaceAll(RegExp(r'[^A-Za-z0-9_]+'), '_');
     final file = File('${tempDir.path}/exam_$safeTitle.docx');
-    await file.writeAsBytes(zipBytes, flush: true);
+    await file.writeAsBytes(zipBytes ?? const <int>[], flush: true);
     return file;
   }
 

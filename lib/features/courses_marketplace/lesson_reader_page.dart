@@ -24,6 +24,7 @@ import '../../models/entitlement.dart';
 import '../../models/public_course.dart';
 import '../../repositories/course_lesson_repository.dart';
 import '../../repositories/public_course_repository.dart';
+import '../../services/course_offline_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
@@ -264,6 +265,37 @@ class _OverviewTab extends StatelessWidget {
         const SizedBox(height: 20),
         _ActionRow(course: course, currentUser: currentUser),
         const SizedBox(height: 24),
+        StreamBuilder<Set<String>>(
+          stream: CourseOfflineService.instance.watchCompletedLessonIds(currentUser?.id ?? 'guest', course.id),
+          builder: (context, cSnap) {
+            final completed = cSnap.data?.contains(lesson.id) ?? false;
+            final ac = AppColors.of(context);
+            return OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: completed ? Colors.green : ac.primary,
+                side: BorderSide(color: completed ? Colors.green : ac.primary),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Rad.sm)),
+              ),
+              icon: Icon(completed ? Icons.check_circle_rounded : Icons.check_circle_outline_rounded,
+                  color: completed ? Colors.green : ac.primary),
+              label: Text(completed ? 'Lesson Completed' : 'Mark as Complete',
+                  style: AppText.bodySm.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: completed ? Colors.green : ac.primary)),
+              onPressed: () async {
+                HapticFeedback.lightImpact();
+                final nowDone = await CourseOfflineService.instance.toggleLessonCompleted(
+                  currentUser?.id ?? 'guest', course.id, lesson.id,
+                );
+                if (context.mounted) {
+                  showToast(context, nowDone ? 'Lesson marked as completed!' : 'Lesson marked as incomplete.');
+                }
+              },
+            );
+          },
+        ),
+        const SizedBox(height: 12),
         PrimaryBtn(label: 'Continue Lesson', onTap: onContinue),
       ],
     );

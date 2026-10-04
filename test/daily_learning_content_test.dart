@@ -41,4 +41,18 @@ void main() {
       expect(n / total, inInclusiveRange(0.15, 0.35));
     }
   });
+
+  test('60 days x 15 questions = 900 questions across Etymology and Fallacies', () {
+    expect(etymologyCourse.lessons.length, 30);
+    expect(fallaciesCourse.lessons.length, 30);
+    for (final l in etymologyCourse.lessons) {
+      expect(l.questions.length, 15, reason: 'Etymology lesson ${l.id} must have 15 questions');
+    }
+    for (final l in fallaciesCourse.lessons) {
+      expect(l.questions.length, 15, reason: 'Fallacies lesson ${l.id} must have 15 questions');
+    }
+    final totalQuestions = etymologyCourse.lessons.fold<int>(0, (sum, l) => sum + l.questions.length) +
+        fallaciesCourse.lessons.fold<int>(0, (sum, l) => sum + l.questions.length);
+    expect(totalQuestions, 900);
+  });
 }

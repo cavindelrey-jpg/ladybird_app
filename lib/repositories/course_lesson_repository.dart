@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/course_lesson.dart';
 import '../core/core.dart';
 import '../core/realtime_tolerant.dart';
+import '../services/course_offline_service.dart';
 
 class CourseLessonRepository {
   CourseLessonRepository._();
@@ -28,12 +29,25 @@ class CourseLessonRepository {
           .eq('course_id', courseId)
           .order('sort_order', ascending: true)
           .realtimeTolerant()
-          .map((rows) => rows.map(CourseLesson.fromSupabase).toList()));
+          .asyncMap((rows) async {
+            if (rows.isNotEmpty) {
+              return rows.map(CourseLesson.fromSupabase).toList();
+            }
+            final offline = await CourseOfflineService.instance.getOfflineLessons(courseId);
+            return offline;
+          })
+          .handleError((_) async => await CourseOfflineService.instance.getOfflineLessons(courseId)));
 
   Future<List<CourseLesson>> lessonsOnce(String courseId) async {
     return _memoizer.runOnce('lessonsOnce_$courseId', () async {
-      final rows = await _lessons.select().eq('course_id', courseId).order('sort_order', ascending: true);
-      return rows.map(CourseLesson.fromSupabase).toList();
+      try {
+        final rows = await _lessons.select().eq('course_id', courseId).order('sort_order', ascending: true);
+        if (rows.isNotEmpty) {
+          return rows.map(CourseLesson.fromSupabase).toList();
+        }
+      } catch (_) {}
+      final offline = await CourseOfflineService.instance.getOfflineLessons(courseId);
+      return offline;
     });
   }
 

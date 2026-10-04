@@ -9,9 +9,13 @@
 // 20260828060100_rls_policies.sql) -- see TeacherManagementRepository's
 // own header comment for why no new RPC/policy was needed.
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/result.dart';
+import '../../core/teacher_csv.dart';
 import '../../models/academic_content.dart' show kAcademicSubjects, kAcademicLevels;
 import '../../models/app_user.dart';
 import '../../models/teaching_assignment.dart';
@@ -20,6 +24,7 @@ import '../../repositories/school_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
+import 'teacher_csv_import_page.dart';
 import 'widgets/management_scaffold.dart';
 import 'manage_subjects_dialog.dart';
 
@@ -92,6 +97,36 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
     });
   }
 
+  Future<void> _exportCsv() async {
+    try {
+      final staff = await TeacherManagementRepository.instance.assignedStaffOnce(_schoolId);
+      if (staff.isEmpty) {
+        if (mounted) showToast(context, 'No teacher assignments to export yet.');
+        return;
+      }
+      final csv = exportTeacherAssignmentsCsv(staff);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/teacher_assignments.csv');
+      await file.writeAsString('\uFEFF$csv');
+      if (!mounted) return;
+      await Share.shareXFiles([XFile(file.path)], text: 'Teacher Assignments Export');
+    } catch (e) {
+      if (mounted) showToast(context, 'Could not export teacher assignments: $e', isError: true);
+    }
+  }
+
+  Future<void> _openCsvImport() async {
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => TeacherCsvImportPage(admin: widget.admin),
+      ),
+    );
+    if (updated == true) {
+      _loadAssigned();
+      _loadSubjects();
+    }
+  }
+
   void _openEditor(AppUser teacher) {
     showModalBottomSheet(
       context: context,
@@ -124,6 +159,18 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
     return ManagementScaffold(
       title: 'Teacher Management',
       sidebarItems: const [ManagementNavItem(icon: Icons.badge_outlined, label: 'Teachers', selected: true)],
+      actions: [
+        IconButton(
+          tooltip: 'Upload Assignments CSV',
+          icon: const Icon(Icons.upload_file_rounded),
+          onPressed: _openCsvImport,
+        ),
+        IconButton(
+          tooltip: 'Export CSV',
+          icon: const Icon(Icons.download_rounded),
+          onPressed: _exportCsv,
+        ),
+      ],
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -154,6 +201,34 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
                 },
                 icon: const Icon(Icons.library_books),
                 label: const Text('Subjects'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _openCsvImport,
+                  icon: const Icon(Icons.upload_file_rounded, size: 16),
+                  label: const Text('Upload CSV'),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    side: BorderSide(color: ac.bdr),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _exportCsv,
+                  icon: const Icon(Icons.download_rounded, size: 16),
+                  label: const Text('Export CSV'),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    side: BorderSide(color: ac.bdr),
+                  ),
+                ),
               ),
             ],
           ),

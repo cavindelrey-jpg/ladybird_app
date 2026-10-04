@@ -28,6 +28,9 @@ class HierarchyBrowseScaffold<T> extends StatefulWidget {
   final List<Widget>? selectionActions;
   final VoidCallback? onCancelSelection;
 
+  final List<Widget>? actions;
+  final Widget? headerWidget;
+
   const HierarchyBrowseScaffold({
     super.key,
     required this.title,
@@ -40,6 +43,8 @@ class HierarchyBrowseScaffold<T> extends StatefulWidget {
     required this.listTileBuilder,
     this.emptyMessage = 'Nothing here yet.',
     this.floatingActionButton,
+    this.actions,
+    this.headerWidget,
     this.isSelecting = false,
     this.selectionTitle,
     this.selectionActions,
@@ -100,6 +105,7 @@ class _HierarchyBrowseScaffoldState<T> extends State<HierarchyBrowseScaffold<T>>
                   Text(widget.subtitle!, style: AppText.caption.copyWith(fontSize: 11)),
               ]),
               actions: [
+                if (widget.actions != null) ...widget.actions!,
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
                   child: HierarchyViewToggle(
@@ -114,6 +120,7 @@ class _HierarchyBrowseScaffoldState<T> extends State<HierarchyBrowseScaffold<T>>
             ),
       body: AppBackground(
         child: Column(children: [
+          if (widget.headerWidget != null) widget.headerWidget!,
           if (!isSelecting)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),

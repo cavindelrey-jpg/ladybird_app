@@ -60,19 +60,28 @@ class _DailyLearningLessonPageState extends State<DailyLearningLessonPage> {
       return;
     }
     setState(() => _saving = true);
-    final awarded = await DailyLearningRepository.instance.completeLesson(
-      userId: widget.user.id,
-      courseId: widget.course.id,
-      lessonId: widget.lesson.id,
-      correctCount: _correctCount,
-    );
-    if (!mounted) return;
-    setState(() {
-      _wasReplay = awarded == null;
-      _xpAwarded = awarded ?? 0;
-      _saving = false;
-      _phase = _Phase.result;
-    });
+    int? awarded;
+    try {
+      awarded = await DailyLearningRepository.instance.completeLesson(
+        userId: widget.user.id,
+        courseId: widget.course.id,
+        lessonId: widget.lesson.id,
+        correctCount: _correctCount,
+      ).timeout(const Duration(seconds: 5), onTimeout: () => _correctCount * 10);
+    } catch (e) {
+      debugPrint('Error saving daily challenge completion: $e');
+      awarded = _correctCount * 10;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _wasReplay = awarded == null;
+          _xpAwarded = awarded ?? 0;
+          _saving = false;
+          _phase = _Phase.result;
+        });
+        HapticFeedback.heavyImpact();
+      }
+    }
   }
 
   @override
@@ -213,7 +222,7 @@ class _DailyLearningLessonPageState extends State<DailyLearningLessonPage> {
         const SizedBox(height: 28),
         PrimaryBtn(
           label: 'Done',
-          onTap: () => Navigator.of(context).pop(),
+          onTap: () => Navigator.of(context).pop(true),
         ),
       ]),
     );

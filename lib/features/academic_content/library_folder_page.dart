@@ -48,6 +48,16 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
   final Set<String> _selectedIds = {};
   bool _batchDownloading = false;
 
+  late final Stream<List<LibraryFolder>> _foldersStream;
+  late final Stream<List<AcademicContent>> _itemsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _foldersStream = LibraryFolderRepository.instance.watchChildFolders(widget.folderId);
+    _itemsStream = LibraryFolderRepository.instance.watchItemsInFolder(widget.folderId);
+  }
+
   void _enterSelection(String? initialId) {
     HapticFeedback.selectionClick();
     setState(() {
@@ -107,11 +117,11 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     return StreamBuilder<List<LibraryFolder>>(
-      stream: LibraryFolderRepository.instance.watchChildFolders(widget.folderId),
+      stream: _foldersStream,
       builder: (context, folderSnap) {
         final folders = folderSnap.data ?? const <LibraryFolder>[];
         return StreamBuilder<List<AcademicContent>>(
-          stream: LibraryFolderRepository.instance.watchItemsInFolder(widget.folderId),
+          stream: _itemsStream,
           builder: (context, itemSnap) {
             if (folderSnap.hasError || itemSnap.hasError) {
               CrashService.instance.recordError(folderSnap.error ?? itemSnap.error, null,
@@ -130,8 +140,8 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
               );
             }
             final items = itemSnap.data ?? const <AcademicContent>[];
-            final loading = folderSnap.connectionState == ConnectionState.waiting ||
-                itemSnap.connectionState == ConnectionState.waiting;
+            final loading = (!folderSnap.hasData && folderSnap.connectionState == ConnectionState.waiting) ||
+                (!itemSnap.hasData && itemSnap.connectionState == ConnectionState.waiting);
             final entries = [
               ...folders.map((f) => _Entry.folder(f)),
               ...items.map((c) => _Entry.content(c)),
@@ -503,6 +513,7 @@ class _EntryTile extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                       child: (item.thumbnailUrl ?? '').isNotEmpty
                           ? Image.network(item.thumbnailUrl!, fit: BoxFit.cover, width: double.infinity,
+                              gaplessPlayback: true,
                               errorBuilder: (_, __, ___) => _filePlaceholder(ac, item))
                           : _filePlaceholder(ac, item),
                     ),
@@ -565,6 +576,7 @@ class _EntryTile extends StatelessWidget {
               child: SizedBox(width: 44, height: 44,
                   child: (item.thumbnailUrl ?? '').isNotEmpty
                       ? Image.network(item.thumbnailUrl!, fit: BoxFit.cover,
+                          gaplessPlayback: true,
                           errorBuilder: (_, __, ___) => _filePlaceholder(ac, item))
                       : _filePlaceholder(ac, item)),
             ),

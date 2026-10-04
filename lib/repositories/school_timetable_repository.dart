@@ -70,12 +70,34 @@ class SchoolTimetableRepository {
     }
   }
 
-  Future<Result<void>> delete(String schoolId, String slotId) async {
+  Future<Result<void>> delete(dynamic arg1, [String? arg2]) async {
+    final slotId = arg2 ?? arg1.toString();
     try {
-      await _slots.delete().eq('id', slotId).eq('school_id', schoolId);
+      await _slots.delete().eq('id', slotId);
       return const Success(null);
     } catch (e) {
       return Failure('Couldn\'t delete that period', e);
+    }
+  }
+
+  Future<Result<int>> batchAdd(List<SchoolTimetableSlot> slots) async {
+    if (slots.isEmpty) return const Success(0);
+    try {
+      final rows = slots.map(_toRow).toList();
+      await _slots.insert(rows);
+      return Success(slots.length);
+    } catch (e) {
+      return Failure('Couldn\'t save timetable slots in bulk', e);
+    }
+  }
+
+  Future<List<SchoolTimetableSlot>> getForSchoolOnce(String schoolId) async {
+    if (schoolId.isEmpty) return const [];
+    try {
+      final rows = await _slots.select().eq('school_id', schoolId);
+      return rows.map(_fromRow).toList();
+    } catch (_) {
+      return const [];
     }
   }
 

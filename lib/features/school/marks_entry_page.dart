@@ -29,6 +29,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import 'marks_csv_import_page.dart';
+import 'student_roster_page.dart';
 import 'widgets/management_scaffold.dart';
 
 /// Real classes only -- 'Undergraduate'/'All Levels' are content scopes.
@@ -348,6 +349,18 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
             onPressed: _promptAddStudent,
           ),
           IconButton(
+            tooltip: 'Class Roster',
+            icon: const Icon(Icons.people_alt_outlined),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => StudentRosterPage(user: widget.staff))).then((_) => _load()),
+          ),
+          IconButton(
+            tooltip: 'Import Marks CSV',
+            icon: const Icon(Icons.upload_file_rounded),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => MarksCsvImportPage(staff: widget.staff))).then((_) => _load()),
+          ),
+          IconButton(
             tooltip: 'Export CSV',
             icon: const Icon(Icons.ios_share_rounded),
             onPressed: _roster.isEmpty || _loading ? null : _export,
@@ -493,9 +506,18 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
                   ),
                   OutlinedButton.icon(
                     onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => MarksCsvImportPage(staff: widget.staff))),
+                        builder: (_) => MarksCsvImportPage(staff: widget.staff))).then((_) => _load()),
                     icon: const Icon(Icons.upload_file_rounded, size: 18),
-                    label: const Text('Import CSV'),
+                    label: const Text('Import Marks CSV'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => StudentRosterPage(user: widget.staff))).then((_) => _load()),
+                    icon: const Icon(Icons.people_alt_outlined, size: 18),
+                    label: const Text('Class Roster'),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     ),

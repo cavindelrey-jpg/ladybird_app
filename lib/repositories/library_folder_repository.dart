@@ -43,7 +43,7 @@ class LibraryFolderRepository {
   /// The top-level categories (Past Papers, Notes, Documents, Books, plus
   /// anything an admin has added) — cached offline so they load instantly
   /// and remain available even without internet.
-  Stream<List<LibraryFolder>> watchRootFolders() {
+  Stream<List<LibraryFolder>> watchRootFolders() => _streamCache.watch('watchRootFolders', () {
     final live = _folders
         .stream(primaryKey: ['id'])
         .order('sort_order', ascending: true)
@@ -60,9 +60,10 @@ class LibraryFolderRepository {
       fromJson: (json) => OfflineCache.listFromJson(json, (j) => LibraryFolder.fromSupabase(j)),
       emptyValue: [],
     );
-  }
+  });
 
-  Stream<List<LibraryFolder>> watchChildFolders(String parentId) {
+  Stream<List<LibraryFolder>> watchChildFolders(String parentId) =>
+      _streamCache.watch('watchChildFolders_$parentId', () {
     final live = _folders
         .stream(primaryKey: ['id'])
         .eq('parent_id', parentId)
@@ -77,7 +78,7 @@ class LibraryFolderRepository {
       fromJson: (json) => OfflineCache.listFromJson(json, (j) => LibraryFolder.fromSupabase(j)),
       emptyValue: [],
     );
-  }
+  });
 
   /// Looks up a root folder by its exact name — used by Home shortcuts
   /// that deep-link straight into e.g. "Past Papers" instead of the

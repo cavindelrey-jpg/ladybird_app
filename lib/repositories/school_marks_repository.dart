@@ -9,7 +9,9 @@ import '../core/marks_csv.dart' show RosterStudent;
 import '../core/offline_cache.dart';
 import '../core/result.dart';
 import '../models/school_mark.dart';
+import '../models/student_record.dart';
 import '../core/realtime_tolerant.dart';
+import 'student_roster_repository.dart';
 
 /// Overall grade for a whole sequence -- same percentage scale as a
 /// single SchoolMark.grade, applied to the AVERAGE percentage across
@@ -143,6 +145,26 @@ class SchoolMarksRepository {
             classLevel: r['class_level']?.toString() ?? classLevel,
           ),
       ];
+
+      // Include any students registered in the school roster
+      try {
+        final rosterRes = await StudentRosterRepository.instance.getStudents(schoolId, classLevel: classLevel);
+        if (rosterRes is Success<List<StudentRecord>>) {
+          final existingIds = students.map((s) => s.id).toSet();
+          final existingNames = students.map((s) => s.name.trim().toLowerCase()).toSet();
+          for (final sr in rosterRes.value) {
+            if (!existingIds.contains(sr.id) && !existingNames.contains(sr.name.trim().toLowerCase())) {
+              students.add(RosterStudent(
+                id: sr.id,
+                name: sr.name,
+                classLevel: sr.classLevel,
+              ));
+              existingIds.add(sr.id);
+              existingNames.add(sr.name.trim().toLowerCase());
+            }
+          }
+        }
+      } catch (_) {}
 
       // If no students registered in users yet, check previously graded students in school_marks
       if (students.isEmpty) {

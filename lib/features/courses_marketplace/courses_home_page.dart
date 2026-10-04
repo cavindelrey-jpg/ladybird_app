@@ -8,7 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/app_user.dart';
 import '../../models/public_course.dart';
+import '../../models/course_lesson.dart';
 import '../../repositories/public_course_repository.dart';
+import '../../services/course_offline_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
@@ -89,6 +91,10 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
             _sectionHeader('Recent Reads', ac),
             const SizedBox(height: 12),
             _recentReads(context, ac),
+            const SizedBox(height: 24),
+            _sectionHeader('Downloaded Courses', ac),
+            const SizedBox(height: 12),
+            _downloadedCoursesSection(context, ac),
           ],
         ),
       )),
@@ -338,11 +344,203 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
     );
   }
 
+  Widget _downloadedCoursesSection(BuildContext context, AppColors ac) {
+    return StreamBuilder<List<PublicCourse>>(
+      stream: CourseOfflineService.instance.watchDownloadedCourses(),
+      builder: (context, snap) {
+        final downloaded = snap.data ?? const <PublicCourse>[];
+        if (downloaded.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: ac.surf,
+                borderRadius: BorderRadius.circular(Rad.md),
+                border: Border.all(color: ac.bdr2),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: ac.primaryBg,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.download_for_offline_outlined, color: ac.primary, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('No downloaded courses yet',
+                            style: AppText.subtitle.copyWith(fontSize: 14, color: ac.txt)),
+                        const SizedBox(height: 2),
+                        Text('Download any course to access all lessons offline without internet.',
+                            style: AppText.caption.copyWith(fontSize: 11, color: ac.txt2)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return SizedBox(
+          height: 190,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: downloaded.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, i) {
+              final course = downloaded[i];
+              return _DownloadedCourseCard(
+                course: course,
+                currentUser: widget.user,
+                onTap: () => _openCourse(context, course),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
   void _openCourse(BuildContext context, PublicCourse course) {
     HapticFeedback.selectionClick();
     Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => CourseLessonsPage(course: course, currentUser: widget.user)));
   }
+}
+
+class _DownloadedCourseCard extends StatelessWidget {
+  final PublicCourse course;
+  final AppUser? currentUser;
+  final VoidCallback onTap;
+  const _DownloadedCourseCard({required this.course, this.currentUser, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final userId = currentUser?.id ?? 'guest';
+
+    return Material(
+      color: ac.surf,
+      borderRadius: BorderRadius.circular(Rad.md),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Rad.md),
+        onTap: onTap,
+        child: Container(
+          width: 165,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr2),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 80,
+                      child: (course.coverImageUrl ?? '').isNotEmpty
+                          ? Image.network(
+                              course.coverImageUrl!,
+                              fit: BoxFit.cover,
+                              gaplessPlayback: true,
+                              errorBuilder: (_, __, ___) => _coverFallback(ac),
+                            )
+                          : _coverFallback(ac),
+                    ),
+                  ),
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.black87,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.offline_pin_rounded, size: 10, color: ac.primary),
+                          const SizedBox(width: 3),
+                          const Text('Offline',
+                              style: TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                course.title,
+                style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const Spacer(),
+              StreamBuilder<Set<String>>(
+                stream: CourseOfflineService.instance.watchCompletedLessonIds(userId, course.id),
+                builder: (context, cSnap) {
+                  final completedCount = cSnap.data?.length ?? 0;
+                  return FutureBuilder<List<CourseLesson>>(
+                    future: CourseOfflineService.instance.getOfflineLessons(course.id),
+                    builder: (context, lSnap) {
+                      final total = lSnap.data?.length ?? 0;
+                      final pct = total > 0 ? (completedCount / total).clamp(0.0, 1.0) : 0.0;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('$completedCount/$total lessons',
+                                  style: AppText.caption.copyWith(fontSize: 10, color: ac.txt2)),
+                              Text('${(pct * 100).toInt()}%',
+                                  style: AppText.caption
+                                      .copyWith(fontSize: 10, color: ac.primary, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(2),
+                            child: LinearProgressIndicator(
+                              value: pct,
+                              backgroundColor: ac.surf3,
+                              color: pct >= 1.0 ? Colors.green : ac.primary,
+                              minHeight: 4,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _coverFallback(AppColors ac) => Container(
+        color: ac.primaryBg,
+        alignment: Alignment.center,
+        child: Icon(Icons.school_rounded, color: ac.primary, size: 28),
+      );
 }
 
 class _LevelCard extends StatelessWidget {

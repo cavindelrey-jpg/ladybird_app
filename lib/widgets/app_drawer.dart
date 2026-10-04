@@ -43,6 +43,7 @@ import '../features/school/school_calendar_page.dart';
 import '../features/school/class_group_launcher.dart';
 import '../features/school/daily_notices/daily_notices_page.dart';
 import '../features/school/exam_composer/exam_list_page.dart';
+import '../features/school/student_roster_page.dart';
 
 class AppDrawer extends StatelessWidget {
   final AppUser? user;
@@ -157,11 +158,15 @@ class AppDrawer extends StatelessWidget {
                       // network calls, so it needs the Navigator's long-lived context.
                       () => openClassGroup(Navigator.of(context).context, user!)),
 
-                if (!_isGuest && user!.isAdmin) ...[
+                if (!_isGuest && (user!.isAdmin || user!.canManageSchool)) ...[
                   _sectionLabel(ac, 'School Administration'),
                   _item(context, ac, Icons.badge_outlined, 'Teacher Management', () {
                     Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => TeacherManagementPage(admin: user!)));
+                  }),
+                  _item(context, ac, Icons.people_alt_outlined, 'Class Lists & Students', () {
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => StudentRosterPage(user: user!)));
                   }),
                   if (user!.canManageUsers)
                     _item(context, ac, Icons.vpn_key_outlined, 'Access Codes', () {

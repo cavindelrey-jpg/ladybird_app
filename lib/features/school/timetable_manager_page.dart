@@ -13,10 +13,14 @@
 // than typed: a typed "form 4" used to create periods Form 4 students
 // never saw.
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/result.dart';
 import '../../core/timetable_conflicts.dart';
+import '../../core/timetable_csv.dart' hide normalizeTime;
 import '../../models/academic_content.dart' show kAcademicLevels, kAcademicSubjects;
 import '../../models/app_user.dart';
 import '../../models/school_timetable_slot.dart';
@@ -26,6 +30,7 @@ import '../../repositories/teacher_management_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
+import 'timetable_csv_import_page.dart';
 import 'widgets/management_scaffold.dart';
 
 List<String> get _classLevels => kAcademicLevels.take(7).toList();
@@ -77,6 +82,31 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
     }
   }
 
+  Future<void> _exportCsv() async {
+    final slots = _latestSchoolSlots.where((s) => s.classLevel == _classLevel).toList();
+    if (slots.isEmpty) {
+      showToast(context, 'No periods to export for $_classLevel.');
+      return;
+    }
+    try {
+      final csv = exportTimetableCsv(slots);
+      final dir = await getTemporaryDirectory();
+      final safeClass = _classLevel.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_');
+      final file = File('${dir.path}/timetable_$safeClass.csv');
+      await file.writeAsString('\uFEFF$csv');
+      if (!mounted) return;
+      await Share.shareXFiles([XFile(file.path)], text: 'Timetable · $_classLevel');
+    } catch (_) {
+      if (mounted) showToast(context, 'Could not export timetable.', isError: true);
+    }
+  }
+
+  void _openCsvImport() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => TimetableCsvImportPage(user: widget.user)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
@@ -98,6 +128,18 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
     return ManagementScaffold(
       title: 'Manage Timetable',
       sidebarItems: const [ManagementNavItem(icon: Icons.calendar_month_rounded, label: 'Timetable', selected: true)],
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.upload_file_rounded),
+          tooltip: 'Upload Timetable CSV',
+          onPressed: _openCsvImport,
+        ),
+        IconButton(
+          icon: const Icon(Icons.download_rounded),
+          tooltip: 'Export CSV',
+          onPressed: _exportCsv,
+        ),
+      ],
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: ac.primary,
         onPressed: () => _openEditor(context, null),
@@ -142,11 +184,45 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
               final audit = auditTimetable(all, staff: _staff);
               final classIssues = slots.where((s) => audit.containsKey(s.id)).length;
               if (slots.isEmpty) {
-                return Center(child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text('No periods yet for $_classLevel — tap "Add period".',
-                      textAlign: TextAlign.center, style: GoogleFonts.inter(color: ac.muted)),
-                ));
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.calendar_month_outlined, size: 48, color: ac.muted),
+                        const SizedBox(height: 12),
+                        Text('No periods yet for $_classLevel',
+                            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600, color: ac.txt)),
+                        const SizedBox(height: 6),
+                        Text('Add periods manually or import the complete timetable via CSV spreadsheet.',
+                            textAlign: TextAlign.center, style: GoogleFonts.inter(fontSize: 13, color: ac.muted)),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _openCsvImport,
+                              icon: const Icon(Icons.upload_file_rounded),
+                              label: const Text('Upload CSV'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: ac.primary,
+                                side: BorderSide(color: ac.primary),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            FilledButton.icon(
+                              onPressed: () => _openEditor(context, null),
+                              icon: const Icon(Icons.add_rounded),
+                              label: const Text('Add Period'),
+                              style: FilledButton.styleFrom(backgroundColor: ac.primary),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
               }
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),

@@ -153,7 +153,11 @@ class _StudentRosterCsvImportPageState extends State<StudentRosterCsvImportPage>
         elevation: 0,
         leading: BackButton(
           color: ac.txt,
-          onPressed: () => Navigator.of(context).pop(_importedCount > 0),
+          onPressed: () {
+            final validClasses = _plan.valid.map((r) => r.resolved?.classLevel).whereType<String>().toSet().toList();
+            final primaryClass = validClasses.isNotEmpty ? validClasses.first : null;
+            Navigator.of(context).pop(_importedCount > 0 ? (primaryClass ?? true) : null);
+          },
         ),
         title: Text('Import Student Roster CSV',
             style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt)),
@@ -184,18 +188,32 @@ class _StudentRosterCsvImportPageState extends State<StudentRosterCsvImportPage>
           ],
         ],
       ),
-      bottomNavigationBar: validRows.isNotEmpty && !_imported
-          ? SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: PrimaryBtn(
-                  label: _busy ? 'Importing...' : 'Import ${validRows.length} Student(s)',
-                  icon: Icons.check_circle_rounded,
-                  onTap: _busy ? () {} : _importValid,
-                ),
-              ),
-            )
-          : null,
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: _imported
+              ? PrimaryBtn(
+                  label: () {
+                    final validClasses = _plan.valid.map((r) => r.resolved?.classLevel).whereType<String>().toSet().toList();
+                    final primaryClass = validClasses.isNotEmpty ? validClasses.first : null;
+                    return primaryClass != null ? 'Done — View $primaryClass Roster' : 'Done — View Class Roster';
+                  }(),
+                  icon: Icons.people_alt_rounded,
+                  onTap: () {
+                    final validClasses = _plan.valid.map((r) => r.resolved?.classLevel).whereType<String>().toSet().toList();
+                    final primaryClass = validClasses.isNotEmpty ? validClasses.first : null;
+                    Navigator.of(context).pop(primaryClass ?? true);
+                  },
+                )
+              : (validRows.isNotEmpty
+                  ? PrimaryBtn(
+                      label: _busy ? 'Importing...' : 'Import ${validRows.length} Student(s)',
+                      icon: Icons.check_circle_rounded,
+                      onTap: _busy ? () {} : _importValid,
+                    )
+                  : const SizedBox.shrink()),
+        ),
+      ),
     );
   }
 
@@ -297,6 +315,8 @@ class _StudentRosterCsvImportPageState extends State<StudentRosterCsvImportPage>
   }
 
   Widget _importSummaryCard(AppColors ac) {
+    final validClasses = _plan.valid.map((r) => r.resolved?.classLevel).whereType<String>().toSet().toList();
+    final primaryClass = validClasses.isNotEmpty ? validClasses.first : null;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -307,12 +327,24 @@ class _StudentRosterCsvImportPageState extends State<StudentRosterCsvImportPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Import Completed',
-              style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
+          Row(
+            children: [
+              Icon(Icons.check_circle_rounded, color: ac.grn, size: 20),
+              const SizedBox(width: 8),
+              Text('Import Completed',
+                  style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
+            ],
+          ),
           const SizedBox(height: 6),
           Text('$_importedCount student record(s) added/updated successfully.'
               '${_failedCount > 0 ? ' $_failedCount record(s) failed.' : ''}',
               style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2)),
+          const SizedBox(height: 12),
+          PrimaryBtn(
+            label: primaryClass != null ? 'Done — View $primaryClass Roster' : 'Done — View Class Roster',
+            icon: Icons.people_alt_rounded,
+            onTap: () => Navigator.of(context).pop(primaryClass ?? true),
+          ),
         ],
       ),
     );

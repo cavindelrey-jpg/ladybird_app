@@ -203,18 +203,24 @@ class _TeacherCsvImportPageState extends State<TeacherCsvImportPage> {
           ],
         ],
       ),
-      bottomNavigationBar: validRows.isNotEmpty && !_imported
-          ? SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: PrimaryBtn(
-                  label: _busy ? 'Importing...' : 'Import Assignments for $teacherCount Teacher(s)',
-                  icon: Icons.check_circle_rounded,
-                  onTap: _busy ? () {} : _importValid,
-                ),
-              ),
-            )
-          : null,
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: _imported
+              ? PrimaryBtn(
+                  label: 'Done — View Staff Assignments',
+                  icon: Icons.people_alt_rounded,
+                  onTap: () => Navigator.of(context).pop(_importedCount > 0),
+                )
+              : (validRows.isNotEmpty
+                  ? PrimaryBtn(
+                      label: _busy ? 'Importing...' : 'Import Assignments for $teacherCount Teacher(s)',
+                      icon: Icons.check_circle_rounded,
+                      onTap: _busy ? () {} : _importValid,
+                    )
+                  : const SizedBox.shrink()),
+        ),
+      ),
     );
   }
 
@@ -327,12 +333,24 @@ class _TeacherCsvImportPageState extends State<TeacherCsvImportPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Import Completed',
-              style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
+          Row(
+            children: [
+              Icon(Icons.check_circle_rounded, color: ac.grn, size: 20),
+              const SizedBox(width: 8),
+              Text('Import Completed',
+                  style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
+            ],
+          ),
           const SizedBox(height: 6),
           Text('$_importedCount teacher(s) updated successfully.'
               '${_failedCount > 0 ? ' $_failedCount update(s) failed.' : ''}',
               style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2)),
+          const SizedBox(height: 12),
+          PrimaryBtn(
+            label: 'Done — View Staff Assignments',
+            icon: Icons.people_alt_rounded,
+            onTap: () => Navigator.of(context).pop(_importedCount > 0),
+          ),
         ],
       ),
     );

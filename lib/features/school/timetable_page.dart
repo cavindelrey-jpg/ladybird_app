@@ -15,6 +15,7 @@ import '../../models/school_timetable_slot.dart';
 import '../../repositories/school_timetable_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
+import '../timetable/personal_study_page.dart';
 import 'timetable_manager_page.dart';
 import 'widgets/school_shared_widgets.dart';
 
@@ -35,6 +36,13 @@ class TimetablePage extends StatelessWidget {
         title: 'Timetable',
         subtitle: 'Your class schedule at a glance',
         trailing: [
+          IconButton(
+            icon: Icon(Icons.calendar_month_outlined, color: ac.txt2),
+            tooltip: 'Personal Study Timetable',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => PersonalStudyPage(user: user)),
+            ),
+          ),
           if (user.canManageAnyTimetable)
             IconButton(
               icon: Icon(Icons.edit_calendar_outlined, color: ac.txt2),
@@ -47,7 +55,7 @@ class TimetablePage extends StatelessWidget {
       body: (schoolId.isNotEmpty && !user.isStudent && !user.isParent)
           ? _StaffTimetableView(page: this)
           : (schoolId.isEmpty || classLevel.isEmpty)
-          ? _missingClassState(ac)
+          ? _missingClassState(context, ac)
           : StreamBuilder<List<SchoolTimetableSlot>>(
               stream: SchoolTimetableRepository.instance.watchForClass(schoolId, classLevel),
               builder: (context, snap) {
@@ -55,7 +63,7 @@ class TimetablePage extends StatelessWidget {
                   return const Center(child: CircularProgressIndicator(strokeWidth: 2));
                 }
                 final all = snap.data ?? const <SchoolTimetableSlot>[];
-                if (all.isEmpty) return _emptyState(ac, classLevel);
+                if (all.isEmpty) return _emptyState(context, ac, classLevel);
                 return ListView(
                   children: [
                     StudentInfoCard(user: user),
@@ -194,35 +202,71 @@ class TimetablePage extends StatelessWidget {
     );
   }
 
-  Widget _missingClassState(AppColors ac) => Center(
+  Widget _missingClassState(BuildContext context, AppColors ac) => Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.school_outlined, size: 48, color: ac.muted),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: ac.surf, shape: BoxShape.circle),
+              child: Icon(Icons.school_outlined, size: 44, color: ac.muted),
+            ),
             const SizedBox(height: 16),
             Text('Your class isn\'t set yet',
                 style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt)),
             const SizedBox(height: 8),
-            Text('Set your class in Profile to see your timetable.',
+            Text('Set your class in Profile to see your school timetable, or create your own personal study timetable now.',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2)),
+                style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2, height: 1.4)),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => PersonalStudyPage(user: user)),
+              ),
+              icon: const Icon(Icons.event_note_rounded, size: 18),
+              label: const Text('Open Personal Timetable'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ac.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
           ]),
         ),
       );
 
-  Widget _emptyState(AppColors ac, String classLevel) => Center(
+  Widget _emptyState(BuildContext context, AppColors ac, String classLevel) => Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.event_busy_rounded, size: 48, color: ac.muted),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: ac.primaryBg, shape: BoxShape.circle),
+              child: Icon(Icons.event_busy_rounded, size: 44, color: ac.primary),
+            ),
             const SizedBox(height: 16),
-            Text('No timetable yet for $classLevel',
+            Text('No official timetable yet for $classLevel',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
+                style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt)),
             const SizedBox(height: 8),
-            Text('Check back once the school has entered it.',
+            Text('Your school hasn\'t published this class\'s timetable yet. You can create your own personal study schedule in the meantime.',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2)),
+                style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2, height: 1.4)),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => PersonalStudyPage(user: user)),
+              ),
+              icon: const Icon(Icons.add_rounded, size: 20),
+              label: const Text('Create Personal Timetable'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ac.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
           ]),
         ),
       );

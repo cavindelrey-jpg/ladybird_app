@@ -65,7 +65,7 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
   }
 
   Future<void> _openImport() async {
-    final updated = await Navigator.of(context).push<bool>(
+    final updated = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => StudentRosterCsvImportPage(
           staff: widget.user,
@@ -73,7 +73,10 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
         ),
       ),
     );
-    if (updated == true) {
+    if (updated != null && mounted) {
+      if (updated is String && _schoolClassLevels.contains(updated)) {
+        _selectedClass = updated;
+      }
       _load();
     }
   }

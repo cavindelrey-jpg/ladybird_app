@@ -30,6 +30,22 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 
+class MarksImportResult {
+  final int count;
+  final String? classLevel;
+  final String? subject;
+  final AcademicSequence? sequence;
+  final String? academicYear;
+
+  const MarksImportResult({
+    required this.count,
+    this.classLevel,
+    this.subject,
+    this.sequence,
+    this.academicYear,
+  });
+}
+
 class MarksCsvImportPage extends StatefulWidget {
   final AppUser staff;
   const MarksCsvImportPage({super.key, required this.staff});
@@ -46,6 +62,20 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
   int _failedCount = 0;
   bool get _imported => _importedCount > 0 || _failedCount > 0;
   String? _importError;
+
+  MarksImportResult? get _importResult {
+    if (_importedCount <= 0) return null;
+    final valid = _rows.where((r) => r.isValid && r.resolved != null).toList();
+    if (valid.isEmpty) return MarksImportResult(count: _importedCount);
+    final m = valid.first.resolved!;
+    return MarksImportResult(
+      count: _importedCount,
+      classLevel: m.classLevel,
+      subject: m.subject,
+      sequence: m.sequence,
+      academicYear: m.academicYear,
+    );
+  }
 
   Future<void> _downloadTemplate() async {
     setState(() => _busy = true);
@@ -168,6 +198,10 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
         backgroundColor: ac.bg, elevation: 0,
         title: Text('Upload Marks CSV', style: AppText.h2.copyWith(fontSize: 16, color: ac.txt)),
         iconTheme: IconThemeData(color: ac.txt),
+        leading: BackButton(
+          color: ac.txt,
+          onPressed: () => Navigator.of(context).pop(_importResult ?? (_importedCount > 0)),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -256,10 +290,70 @@ class _MarksCsvImportPageState extends State<MarksCsvImportPage> {
           ],
           if (_importedCount > 0 || _failedCount > 0) ...[
             const SizedBox(height: 16),
-            Text('Imported $_importedCount row(s)${_failedCount > 0 ? ', $_failedCount failed (marked in red above)' : ''}.',
-                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: ac.grn)),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _failedCount == 0 ? ac.grnBg : ac.surf,
+                borderRadius: BorderRadius.circular(Rad.md),
+                border: Border.all(color: _failedCount == 0 ? ac.grn : ac.bdr2),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.check_circle_rounded, color: ac.grn, size: 20),
+                      const SizedBox(width: 8),
+                      Text('Import Completed',
+                          style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Imported $_importedCount mark(s) successfully.'
+                    '${_failedCount > 0 ? ' $_failedCount failed (marked in red above).' : ''}',
+                    style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2),
+                  ),
+                  if (_importResult?.classLevel != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      '${_importResult!.classLevel} · ${_importResult!.subject ?? 'All subjects'} · ${_importResult!.sequence?.name.toUpperCase() ?? ''}',
+                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: ac.txt),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  PrimaryBtn(
+                    label: _importResult?.classLevel != null
+                        ? 'Done — View ${_importResult!.classLevel} Marks'
+                        : 'Done — View Recorded Marks',
+                    icon: Icons.assessment_rounded,
+                    onTap: () => Navigator.of(context).pop(_importResult ?? true),
+                  ),
+                ],
+              ),
+            ),
           ],
         ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: _imported
+              ? PrimaryBtn(
+                  label: _importResult?.classLevel != null
+                      ? 'Done — View ${_importResult!.classLevel} Marks'
+                      : 'Done — View Recorded Marks',
+                  icon: Icons.assessment_rounded,
+                  onTap: () => Navigator.of(context).pop(_importResult ?? true),
+                )
+              : (validCount > 0
+                  ? PrimaryBtn(
+                      label: validCount == 0 ? 'Nothing to import' : 'Import $validCount Valid Row${validCount == 1 ? '' : 's'}',
+                      loading: _busy,
+                      onTap: validCount == 0 ? () {} : _importValidRows,
+                    )
+                  : const SizedBox.shrink()),
+        ),
       ),
     );
   }

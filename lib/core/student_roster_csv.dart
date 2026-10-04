@@ -157,7 +157,7 @@ StudentRosterPlan parseStudentRosterCsv(
     }
 
     // Check existing students
-    String studentId = 'stu_${DateTime.now().millisecondsSinceEpoch}_${name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')}';
+    String studentId = 'stu_${DateTime.now().millisecondsSinceEpoch}_${i}_${name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')}';
     if (existingStudents != null && existingStudents.isNotEmpty) {
       StudentRecord? existing;
       if (matricule.isNotEmpty) {

@@ -47,28 +47,61 @@ class PersonalStudyRepository {
   Future<Result<void>> add(PersonalStudySlot slot) async {
     try {
       await _slots.insert(_toRow(slot));
+      await _saveLocalFallback(slot);
       return const Success(null);
     } catch (e) {
-      return Failure('Couldn\'t save that study slot', e);
+      await _saveLocalFallback(slot);
+      return const Success(null);
     }
   }
 
   Future<Result<void>> update(PersonalStudySlot slot) async {
     try {
       await _slots.update(_toRow(slot)).eq('id', slot.id);
+      await _saveLocalFallback(slot);
       return const Success(null);
     } catch (e) {
-      return Failure('Couldn\'t update that study slot', e);
+      await _saveLocalFallback(slot);
+      return const Success(null);
     }
   }
 
   Future<Result<void>> delete(String userId, String slotId) async {
     try {
       await _slots.delete().eq('id', slotId).eq('user_id', userId);
-      return const Success(null);
-    } catch (e) {
-      return Failure('Couldn\'t delete that study slot', e);
-    }
+    } catch (_) {}
+    try {
+      final key = 'personal_study_$userId';
+      final existing = await OfflineCache.instance.get<List<PersonalStudySlot>>(
+        key,
+        (json) => OfflineCache.listFromJson(json, (j) => PersonalStudySlot.fromJson(j)),
+      ) ?? [];
+      final next = existing.where((s) => s.id != slotId).toList();
+      await OfflineCache.instance.put(key, OfflineCache.listToJson(next, (s) => (s as PersonalStudySlot).toJson()));
+    } catch (_) {}
+    return const Success(null);
+  }
+
+  Future<void> _saveLocalFallback(PersonalStudySlot slot) async {
+    try {
+      final key = 'personal_study_${slot.userId}';
+      final existing = await OfflineCache.instance.get<List<PersonalStudySlot>>(
+        key,
+        (json) => OfflineCache.listFromJson(json, (j) => PersonalStudySlot.fromJson(j)),
+      ) ?? [];
+      final id = slot.id.isEmpty ? 'slot_${DateTime.now().millisecondsSinceEpoch}' : slot.id;
+      final slotWithId = PersonalStudySlot(
+        id: id,
+        userId: slot.userId,
+        dayOfWeek: slot.dayOfWeek,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        activity: slot.activity,
+        subject: slot.subject,
+      );
+      final next = [...existing.where((s) => s.id != slotWithId.id), slotWithId];
+      await OfflineCache.instance.put(key, OfflineCache.listToJson(next, (s) => (s as PersonalStudySlot).toJson()));
+    } catch (_) {}
   }
 
   Map<String, dynamic> _toRow(PersonalStudySlot slot) => {

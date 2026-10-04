@@ -93,7 +93,19 @@ class _MarksPageState extends State<MarksPage> {
               icon: Icon(Icons.upload_file_rounded, color: ac.primary),
               tooltip: 'Upload CSV',
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => MarksCsvImportPage(staff: u))).then((_) => _refresh()),
+                  builder: (_) => MarksCsvImportPage(staff: u))).then((res) {
+                if (res != null && mounted) {
+                  final result = res is MarksImportResult ? res : null;
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => MarksEntryPage(
+                      staff: u,
+                      initialClass: result?.classLevel,
+                      initialSubject: result?.subject,
+                      initialSequence: result?.sequence,
+                    ),
+                  ));
+                }
+              }),
             ),
           ],
         ],
@@ -132,7 +144,19 @@ class _MarksPageState extends State<MarksPage> {
               const SizedBox(width: 6),
               OutlinedButton.icon(
                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => MarksCsvImportPage(staff: u))).then((_) => _refresh()),
+                    builder: (_) => MarksCsvImportPage(staff: u))).then((res) {
+                  if (res != null && mounted) {
+                    final result = res is MarksImportResult ? res : null;
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => MarksEntryPage(
+                        staff: u,
+                        initialClass: result?.classLevel,
+                        initialSubject: result?.subject,
+                        initialSequence: result?.sequence,
+                      ),
+                    ));
+                  }
+                }),
                 icon: const Icon(Icons.upload_file_rounded, size: 14),
                 label: const Text('CSV'),
                 style: OutlinedButton.styleFrom(
@@ -428,8 +452,25 @@ class _StaffMarksHome extends StatelessWidget {
       }
     }
 
-    void open(String? cls, String? subject) => Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => MarksEntryPage(staff: staff, initialClass: cls, initialSubject: subject)));
+    void open(String? cls, String? subject, {AcademicSequence? sequence}) => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => MarksEntryPage(
+              staff: staff,
+              initialClass: cls,
+              initialSubject: subject,
+              initialSequence: sequence,
+            )));
+
+    Future<void> openCsvImport() async {
+      final res = await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => MarksCsvImportPage(staff: staff)));
+      if (res != null && context.mounted) {
+        if (res is MarksImportResult && res.classLevel != null) {
+          open(res.classLevel, res.subject, sequence: res.sequence);
+        } else {
+          open(cards.isNotEmpty ? cards.first.$1 : null, null);
+        }
+      }
+    }
 
     return Scaffold(
       backgroundColor: ac.bg,
@@ -441,8 +482,7 @@ class _StaffMarksHome extends StatelessWidget {
           IconButton(
             icon: Icon(Icons.upload_file_rounded, color: ac.primary),
             tooltip: 'Upload CSV',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => MarksCsvImportPage(staff: staff))),
+            onPressed: openCsvImport,
           ),
         ],
       ),
@@ -508,8 +548,7 @@ class _StaffMarksHome extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => MarksCsvImportPage(staff: staff))),
+                      onPressed: openCsvImport,
                       icon: const Icon(Icons.upload_file_rounded, size: 16),
                       label: const Text('Upload Marks CSV'),
                       style: OutlinedButton.styleFrom(
@@ -531,28 +570,58 @@ class _StaffMarksHome extends StatelessWidget {
           for (final (cls, subject) in cards)
             Container(
               margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                leading: CircleAvatar(
-                  backgroundColor: ac.primaryBg,
-                  child: Icon(Icons.groups_rounded, color: ac.primary, size: 20)),
-                title: Text(cls, style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
-                subtitle: Text(subject ?? (staff.classMasterOfClass == cls ? 'All subjects · Class master' : 'All subjects'),
-                    style: GoogleFonts.inter(fontSize: 12, color: ac.txt2)),
-                trailing: ElevatedButton(
-                  onPressed: () => open(cls, subject),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ac.primaryBg,
-                    foregroundColor: ac.primary,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                color: ac.surf,
+                borderRadius: BorderRadius.circular(Rad.md),
+                border: Border.all(color: ac.bdr2),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: ac.primaryBg,
+                        child: Icon(Icons.groups_rounded, color: ac.primary, size: 18),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(cls,
+                                softWrap: true,
+                                style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
+                            const SizedBox(height: 2),
+                            Text(
+                              subject ?? (staff.classMasterOfClass == cls ? 'All subjects · Class master' : 'All subjects'),
+                              softWrap: true,
+                              style: GoogleFonts.inter(fontSize: 12, color: ac.txt2),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  child: const Text('Enter Marks', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                ),
-                onTap: () => open(cls, subject),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => open(cls, subject),
+                      icon: const Icon(Icons.edit_rounded, size: 15),
+                      label: const Text('Enter Marks', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ac.primaryBg,
+                        foregroundColor: ac.primary,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           const SizedBox(height: 12),

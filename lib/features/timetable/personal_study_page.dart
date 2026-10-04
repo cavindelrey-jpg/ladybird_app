@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../models/app_user.dart';
 import '../../models/personal_study_slot.dart';
 import '../../models/academic_content.dart' show kAcademicSubjects;
@@ -18,15 +19,33 @@ class PersonalStudyPage extends StatelessWidget {
   final AppUser user;
   const PersonalStudyPage({super.key, required this.user});
 
+  void _openCreateSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _SlotFormSheet(user: user),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     return Scaffold(
       backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
+        backgroundColor: ac.bg,
+        elevation: 0,
         iconTheme: IconThemeData(color: ac.txt),
-        title: Text('My Study Timetable', style: AppText.title),
+        title: Text('Personal Timetable', style: AppText.title),
+        actions: [
+          TextButton.icon(
+            onPressed: () => _openCreateSheet(context),
+            icon: Icon(Icons.add_rounded, color: ac.primary),
+            label: Text('Create', style: TextStyle(color: ac.primary, fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: AppBackground(child: StreamBuilder<List<PersonalStudySlot>>(
         stream: PersonalStudyRepository.instance.watchAll(user.id),
@@ -37,10 +56,41 @@ class PersonalStudyPage extends StatelessWidget {
           if (snap.hasError) return ErrorView(message: snap.error.toString());
           final slots = snap.data ?? const <PersonalStudySlot>[];
           if (slots.isEmpty) {
-            return const EmptyState(
-              icon: Icons.event_note_outlined, title: 'No study sessions planned',
-              subtitle: 'Add times to revise a subject or take a quiz — Home will '
-                  "show today's plan.",
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: ac.primaryBg,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.event_note_outlined, size: 36, color: ac.primary),
+                    ),
+                    const SizedBox(height: 16),
+                    Text('No study sessions planned yet',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Plan your study times, revision sessions, and practice quizzes.\n'
+                      "Today's active sessions will appear directly on your Home screen.",
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(fontSize: 13, color: ac.txt2, height: 1.4),
+                    ),
+                    const SizedBox(height: 24),
+                    PrimaryBtn(
+                      label: 'Create Personal Timetable',
+                      icon: Icons.add_rounded,
+                      onTap: () => _openCreateSheet(context),
+                    ),
+                  ],
+                ),
+              ),
             );
           }
           final byDay = <int, List<PersonalStudySlot>>{};
@@ -65,14 +115,13 @@ class PersonalStudyPage extends StatelessWidget {
         },
       )),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: ac.navy,
-        icon: Icon(Icons.add_rounded, color: ac.gold),
-        label: Text('Add Session', style: AppText.button.copyWith(fontSize: 13)),
-        onPressed: () => showModalBottomSheet(
-          context: context, isScrollControlled: true,
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-          builder: (_) => _SlotFormSheet(user: user),
-        ),
+        backgroundColor: ac.primary,
+        foregroundColor: Colors.white,
+        elevation: 3,
+        icon: const Icon(Icons.add_rounded, color: Colors.white),
+        label: const Text('Create Personal Timetable',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+        onPressed: () => _openCreateSheet(context),
       ),
     );
   }
@@ -282,10 +331,15 @@ class _SlotFormSheetState extends State<_SlotFormSheet> {
                 const Spacer(),
                 ElevatedButton(
                   onPressed: _saving ? null : _submit,
-                  style: ElevatedButton.styleFrom(backgroundColor: ac.navy, foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ac.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
                   child: _saving
                       ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('Save'),
+                      : const Text('Save Session', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ]),
             ),

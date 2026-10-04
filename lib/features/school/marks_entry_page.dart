@@ -61,7 +61,14 @@ class MarksEntryPage extends StatefulWidget {
   final AppUser staff;
   final String? initialClass;
   final String? initialSubject;
-  const MarksEntryPage({super.key, required this.staff, this.initialClass, this.initialSubject});
+  final AcademicSequence? initialSequence;
+  const MarksEntryPage({
+    super.key,
+    required this.staff,
+    this.initialClass,
+    this.initialSubject,
+    this.initialSequence,
+  });
 
   @override
   State<MarksEntryPage> createState() => _MarksEntryPageState();
@@ -91,12 +98,36 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialSequence != null) {
+      _sequence = widget.initialSequence!;
+    }
     if (_classes.isNotEmpty) {
       _class = _classes.contains(widget.initialClass) ? widget.initialClass : _classes.first;
       final subjects = recordableSubjectsFor(widget.staff, _class!);
       _subject = subjects.contains(widget.initialSubject)
           ? widget.initialSubject
           : (subjects.isNotEmpty ? subjects.first : null);
+      _load();
+    }
+  }
+
+  Future<void> _openCsvImport() async {
+    final res = await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => MarksCsvImportPage(staff: widget.staff)),
+    );
+    if (res != null && mounted) {
+      if (res is MarksImportResult) {
+        if (res.classLevel != null && _classes.contains(res.classLevel)) {
+          _class = res.classLevel;
+          final subjects = recordableSubjectsFor(widget.staff, _class!);
+          _subject = (res.subject != null && subjects.contains(res.subject))
+              ? res.subject
+              : (subjects.isNotEmpty ? subjects.first : null);
+        }
+        if (res.sequence != null) {
+          _sequence = res.sequence!;
+        }
+      }
       _load();
     }
   }
@@ -357,8 +388,7 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
           IconButton(
             tooltip: 'Import Marks CSV',
             icon: const Icon(Icons.upload_file_rounded),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => MarksCsvImportPage(staff: widget.staff))).then((_) => _load()),
+            onPressed: _openCsvImport,
           ),
           IconButton(
             tooltip: 'Export CSV',
@@ -505,8 +535,7 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
                     ),
                   ),
                   OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => MarksCsvImportPage(staff: widget.staff))).then((_) => _load()),
+                    onPressed: _openCsvImport,
                     icon: const Icon(Icons.upload_file_rounded, size: 18),
                     label: const Text('Import Marks CSV'),
                     style: OutlinedButton.styleFrom(

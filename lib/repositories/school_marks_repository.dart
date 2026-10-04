@@ -99,6 +99,7 @@ class SchoolMarksRepository {
   Future<Result<void>> upsert(SchoolMark mark) async {
     try {
       await _marks.upsert(_toRow(mark), onConflict: 'student_id,subject,sequence,academic_year');
+      await OfflineCache.instance.remove('all_marks_${mark.studentId}');
       return const Success(null);
     } catch (e) {
       return Failure('Couldn\'t save that mark', e);
@@ -227,12 +228,16 @@ class SchoolMarksRepository {
       final chunk = marks.sublist(i, (i + chunkSize).clamp(0, marks.length));
       try {
         await _marks.upsert(chunk.map(_toRow).toList(), onConflict: 'student_id,subject,sequence,academic_year');
+        for (final m in chunk) {
+          OfflineCache.instance.remove('all_marks_${m.studentId}');
+        }
       } on PostgrestException {
         // The server rejected something in the chunk -- retry row by row
         // so only the genuinely bad rows fail.
         for (final m in chunk) {
           try {
             await _marks.upsert(_toRow(m), onConflict: 'student_id,subject,sequence,academic_year');
+            OfflineCache.instance.remove('all_marks_${m.studentId}');
           } on PostgrestException catch (e) {
             failures[m.studentId] = _friendly(e);
           } catch (e) {

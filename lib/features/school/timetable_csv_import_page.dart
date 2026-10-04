@@ -150,6 +150,14 @@ class _TimetableCsvImportPageState extends State<TimetableCsvImportPage> {
         backgroundColor: ac.bg,
         elevation: 0,
         iconTheme: IconThemeData(color: ac.txt),
+        leading: BackButton(
+          color: ac.txt,
+          onPressed: () {
+            final validClasses = _rows.where((r) => r.isValid).map((r) => r.classLevel).toSet().toList();
+            final primaryClass = validClasses.isNotEmpty ? validClasses.first : null;
+            Navigator.of(context).pop(_importedCount > 0 ? (primaryClass ?? true) : null);
+          },
+        ),
         title: Text('Upload Timetable CSV', style: AppText.h2.copyWith(fontSize: 16, color: ac.txt)),
       ),
       body: ListView(
@@ -200,7 +208,7 @@ class _TimetableCsvImportPageState extends State<TimetableCsvImportPage> {
                 label: _busy ? 'Saving…' : 'Import $validCount Valid Periods',
                 onTap: _busy ? () {} : () => _importValidRows(),
               ),
-            if (_imported)
+            if (_imported) ...[
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
@@ -219,15 +227,51 @@ class _TimetableCsvImportPageState extends State<TimetableCsvImportPage> {
                         style: AppText.bodySm.copyWith(color: Colors.green, fontWeight: FontWeight.w600),
                       ),
                     ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('Done'),
-                    ),
                   ],
                 ),
               ),
+              const SizedBox(height: 12),
+              PrimaryBtn(
+                label: () {
+                  final validClasses = _rows.where((r) => r.isValid).map((r) => r.classLevel).toSet().toList();
+                  final primaryClass = validClasses.isNotEmpty ? validClasses.first : null;
+                  return primaryClass != null ? 'Done — View $primaryClass Timetable' : 'Done — View Updated Timetable';
+                }(),
+                icon: Icons.calendar_month_rounded,
+                onTap: () {
+                  final validClasses = _rows.where((r) => r.isValid).map((r) => r.classLevel).toSet().toList();
+                  final primaryClass = validClasses.isNotEmpty ? validClasses.first : null;
+                  Navigator.pop(context, primaryClass ?? true);
+                },
+              ),
+            ],
           ],
         ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: _imported
+              ? PrimaryBtn(
+                  label: () {
+                    final validClasses = _rows.where((r) => r.isValid).map((r) => r.classLevel).toSet().toList();
+                    final primaryClass = validClasses.isNotEmpty ? validClasses.first : null;
+                    return primaryClass != null ? 'Done — View $primaryClass Timetable' : 'Done — View Updated Timetable';
+                  }(),
+                  icon: Icons.calendar_month_rounded,
+                  onTap: () {
+                    final validClasses = _rows.where((r) => r.isValid).map((r) => r.classLevel).toSet().toList();
+                    final primaryClass = validClasses.isNotEmpty ? validClasses.first : null;
+                    Navigator.pop(context, primaryClass ?? true);
+                  },
+                )
+              : (validCount > 0
+                  ? PrimaryBtn(
+                      label: _busy ? 'Saving…' : 'Import $validCount Valid Periods',
+                      onTap: _busy ? () {} : () => _importValidRows(),
+                    )
+                  : const SizedBox.shrink()),
+        ),
       ),
     );
   }

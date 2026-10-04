@@ -25,6 +25,8 @@ class TimetableImportRow {
   TimetableImportRow({required this.lineNumber, required this.raw});
 
   bool get isValid => error == null && resolved != null;
+
+  String get classLevel => resolved?.classLevel ?? (raw['classLevel'] ?? raw['class'] ?? raw['class_level'] ?? '');
 }
 
 /// Normalizes day string (e.g. "Monday", "Mon", "1") to an integer 1..7 (1=Monday).

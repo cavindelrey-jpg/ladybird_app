@@ -101,10 +101,19 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
     }
   }
 
-  void _openCsvImport() {
-    Navigator.of(context).push(
+  Future<void> _openCsvImport() async {
+    final res = await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => TimetableCsvImportPage(user: widget.user)),
     );
+    if (res != null && mounted) {
+      setState(() {
+        if (res is String && _classLevels.contains(res)) {
+          _classLevel = res;
+        }
+        _schoolStream = SchoolTimetableRepository.instance.watchForSchool(_schoolId);
+      });
+      _loadReferenceData();
+    }
   }
 
   @override

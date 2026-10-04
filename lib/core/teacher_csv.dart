@@ -151,16 +151,25 @@ TeacherAssignmentPlan parseTeacherAssignmentsCsv(
 
     if (matched == null && name.isNotEmpty) {
       final normGiven = _norm(name);
-      final matches = existingStaff.where((u) {
-        final staffNorm = _norm(u.name);
-        return staffNorm == normGiven || staffNorm.contains(normGiven) || normGiven.contains(staffNorm);
-      }).toList();
+      if (normGiven.length >= 2) {
+        final exact = existingStaff.where((u) => _norm(u.name) == normGiven).toList();
+        if (exact.isNotEmpty) {
+          matched = exact.first;
+        } else {
+          final matches = existingStaff.where((u) {
+            final staffNorm = _norm(u.name);
+            if (staffNorm.length < 2) return false;
+            return (staffNorm.length >= 4 && normGiven.contains(staffNorm)) ||
+                (normGiven.length >= 4 && staffNorm.contains(normGiven));
+          }).toList();
 
-      if (matches.length == 1) {
-        matched = matches.first;
-      } else if (matches.length > 1) {
-        row.error = 'Multiple staff found matching "$name". Provide teacherEmail to identify which teacher.';
-        continue;
+          if (matches.length == 1) {
+            matched = matches.first;
+          } else if (matches.length > 1) {
+            row.error = 'Multiple staff found matching "$name". Provide teacherEmail to identify which teacher.';
+            continue;
+          }
+        }
       }
     }
 

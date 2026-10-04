@@ -1498,9 +1498,43 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
 
   Widget _scheduleCardContent(BuildContext context) {
     if (_isGuest) {
-      return _emptyCardState(
-        icon: Icons.calendar_month_outlined,
-        message: 'Sign in to see your daily classes and revision schedule.',
+      return InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          _open(context, PersonalStudyPage(user: _userOrGuest));
+        },
+        borderRadius: BorderRadius.circular(Rad.sm),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: ac.primaryBg,
+            borderRadius: BorderRadius.circular(Rad.sm),
+            border: Border.all(color: ac.primary.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.calendar_today_rounded, color: ac.primary, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Study Timetable',
+                      style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: ac.primary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Set up your revision blocks',
+                      style: GoogleFonts.inter(fontSize: 9.5, color: ac.txt2),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: ac.primary, size: 16),
+            ],
+          ),
+        ),
       );
     }
 
@@ -1571,9 +1605,43 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   Widget _personalStudySlotsFallback() {
     final uid = _u?.id ?? '';
     if (uid.isEmpty) {
-      return _emptyCardState(
-        icon: Icons.event_available_outlined,
-        message: 'No study slots planned for today. Tap to schedule.',
+      return InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          _open(context, PersonalStudyPage(user: _userOrGuest));
+        },
+        borderRadius: BorderRadius.circular(Rad.sm),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: ac.primaryBg,
+            borderRadius: BorderRadius.circular(Rad.sm),
+            border: Border.all(color: ac.primary.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.add_circle_outline_rounded, color: ac.primary, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Plan Study Routine',
+                      style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: ac.primary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Add revision blocks for today',
+                      style: GoogleFonts.inter(fontSize: 9.5, color: ac.txt2),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: ac.primary, size: 16),
+            ],
+          ),
+        ),
       );
     }
     return StreamBuilder<List<PersonalStudySlot>>(
@@ -1584,9 +1652,43 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           return const SizedBox(height: 60, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
         }
         if (slots.isEmpty) {
-          return _emptyCardState(
-            icon: Icons.event_available_outlined,
-            message: 'No study slots planned for today. Tap to schedule.',
+          return InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _open(context, PersonalStudyPage(user: _userOrGuest));
+            },
+            borderRadius: BorderRadius.circular(Rad.sm),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: ac.primaryBg,
+                borderRadius: BorderRadius.circular(Rad.sm),
+                border: Border.all(color: ac.primary.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.add_circle_outline_rounded, color: ac.primary, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Plan Study Routine',
+                          style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: ac.primary),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Add study slots for today',
+                          style: GoogleFonts.inter(fontSize: 9.5, color: ac.txt2),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: ac.primary, size: 16),
+                ],
+              ),
+            ),
           );
         }
         final shown = slots.take(2).toList();
@@ -1637,9 +1739,43 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
 
   Widget _tasksCardContent(BuildContext context) {
     if (_isGuest) {
-      return _emptyCardState(
-        icon: Icons.checklist_rounded,
-        message: 'Sign in to access your homework and assigned quizzes.',
+      return InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          _open(context, DailyLearningHubPage(user: _userOrGuest));
+        },
+        borderRadius: BorderRadius.circular(Rad.sm),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: ac.goldBg,
+            borderRadius: BorderRadius.circular(Rad.sm),
+            border: Border.all(color: ac.gold.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.bolt_rounded, color: ac.gold, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Daily Practice (+50 XP)',
+                      style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: ac.gold),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Practice quizzes & tests today',
+                      style: GoogleFonts.inter(fontSize: 9.5, color: ac.txt2),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: ac.gold, size: 16),
+            ],
+          ),
+        ),
       );
     }
 
@@ -1705,15 +1841,15 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             );
           }
 
-          return _readingTaskFallback();
+          return _readingTaskFallback(context);
         },
       );
     }
 
-    return _readingTaskFallback();
+    return _readingTaskFallback(context);
   }
 
-  Widget _readingTaskFallback() {
+  Widget _readingTaskFallback(BuildContext context) {
     return FutureBuilder<({AcademicContent content, int page, int totalPages})?>(
       future: _continueReadingFuture,
       builder: (context, snap) {
@@ -1722,9 +1858,43 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         }
         final data = snap.data;
         if (data == null) {
-          return _emptyCardState(
-            icon: Icons.check_circle_outline_rounded,
-            message: 'All caught up! No pending homework or active tasks.',
+          return InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _open(context, DailyLearningHubPage(user: _userOrGuest));
+            },
+            borderRadius: BorderRadius.circular(Rad.sm),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: ac.goldBg,
+                borderRadius: BorderRadius.circular(Rad.sm),
+                border: Border.all(color: ac.gold.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle_rounded, color: ac.grn, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Homework Clear! (+50 XP)',
+                          style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: ac.txt),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Take today\'s daily challenge',
+                          style: GoogleFonts.inter(fontSize: 9.5, color: ac.gold, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: ac.gold, size: 16),
+                ],
+              ),
+            ),
           );
         }
         final pct = data.totalPages > 0 ? (data.page / data.totalPages).clamp(0.0, 1.0) : 0.0;
@@ -1859,7 +2029,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                     canPost: !_isGuest && _u!.canPostAnnouncement,
                   ),
                 ),
-                child: _announcementsContent(),
+                child: _announcementsContent(context),
               ),
             ),
             const SizedBox(width: 12),
@@ -1877,7 +2047,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
     );
   }
 
-  Widget _announcementsContent() {
+  Widget _announcementsContent(BuildContext context) {
     return StreamBuilder<List<Announcement>>(
       stream: _announcementsStream ?? const Stream.empty(),
       builder: (context, snap) {
@@ -1886,9 +2056,46 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         }
         final items = snap.data ?? const <Announcement>[];
         if (items.isEmpty) {
-          return _emptyCardState(
-            icon: Icons.campaign_outlined,
-            message: 'No active announcements at this time.',
+          return InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _open(
+                context,
+                AnnouncementsPage(user: _userOrGuest, canPost: !_isGuest && _u!.canPostAnnouncement),
+              );
+            },
+            borderRadius: BorderRadius.circular(Rad.sm),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: ac.purBg,
+                borderRadius: BorderRadius.circular(Rad.sm),
+                border: Border.all(color: ac.pur.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.campaign_outlined, color: ac.pur, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'School Bulletin',
+                          style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: ac.pur),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'View noticeboard & updates',
+                          style: GoogleFonts.inter(fontSize: 9.5, color: ac.txt2),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: ac.pur, size: 16),
+                ],
+              ),
+            ),
           );
         }
         final top = items.first;
@@ -1937,9 +2144,43 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
 
   Widget _myClubContent(BuildContext context) {
     if (_isGuest) {
-      return _emptyCardState(
-        icon: Icons.groups_outlined,
-        message: 'Sign in to join collaborative academic study groups.',
+      return InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          _open(context, ClubsPage(user: _userOrGuest));
+        },
+        borderRadius: BorderRadius.circular(Rad.sm),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: ac.grnBg,
+            borderRadius: BorderRadius.circular(Rad.sm),
+            border: Border.all(color: ac.grn.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.groups_outlined, color: ac.grn, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Study Circles',
+                      style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: ac.grn),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Explore collaborative groups',
+                      style: GoogleFonts.inter(fontSize: 9.5, color: ac.txt2),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: ac.grn, size: 16),
+            ],
+          ),
+        ),
       );
     }
     return FutureBuilder<List<({String clubName, ClubEvent event})>>(
@@ -1950,9 +2191,43 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
         }
         final items = snap.data ?? const [];
         if (items.isEmpty) {
-          return _emptyCardState(
-            icon: Icons.groups_outlined,
-            message: 'No upcoming meetings. Join a group to collaborate.',
+          return InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _open(context, ClubsPage(user: _userOrGuest));
+            },
+            borderRadius: BorderRadius.circular(Rad.sm),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: ac.grnBg,
+                borderRadius: BorderRadius.circular(Rad.sm),
+                border: Border.all(color: ac.grn.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.group_add_outlined, color: ac.grn, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Join Study Circles',
+                          style: GoogleFonts.sora(fontSize: 11, fontWeight: FontWeight.w700, color: ac.grn),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Connect with peer revision groups',
+                          style: GoogleFonts.inter(fontSize: 9.5, color: ac.txt2),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: ac.grn, size: 16),
+                ],
+              ),
+            ),
           );
         }
         final first = items.first;

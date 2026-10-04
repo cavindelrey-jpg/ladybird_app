@@ -98,11 +98,10 @@ class StudentRosterRepository {
       final rows = students.map((s) => s.toMap()).toList();
       await _table.upsert(rows);
       await _bustCache(schoolId);
+      await _saveAllLocalFallback(schoolId, students);
       return const Success(null);
     } catch (e) {
-      for (final s in students) {
-        await _saveLocalFallback(s);
-      }
+      await _saveAllLocalFallback(schoolId, students);
       return const Success(null);
     }
   }
@@ -120,8 +119,10 @@ class StudentRosterRepository {
   Future<void> _bustCache(String schoolId) async {
     const classes = [
       'Form 1', 'Form 2', 'Form 3', 'Form 4', 'Form 5',
+      'Lower Sixth', 'Upper Sixth',
       'Lower Sixth Arts', 'Lower Sixth Science',
       'Upper Sixth Arts', 'Upper Sixth Science',
+      'Undergraduate', 'All Levels',
     ];
     for (final c in classes) {
       await OfflineCache.instance.remove('roster_${schoolId}_$c');
@@ -130,17 +131,43 @@ class StudentRosterRepository {
   }
 
   Future<void> _saveLocalFallback(StudentRecord student) async {
-    final key = 'roster_${student.schoolId}_${student.classLevel}';
-    final current = await OfflineCache.instance.fetch<List<StudentRecord>>(
-      key,
-      () async => [student],
-      toJson: (items) => OfflineCache.listToJson(items, (s) => s.toMap()),
-      fromJson: (json) => OfflineCache.listFromJson(json, (j) => StudentRecord.fromMap(j)),
-    );
-    final next = [...current.where((s) => s.id != student.id), student];
-    await OfflineCache.instance.put(
-      key,
-      OfflineCache.listToJson(next, (s) => s.toMap()),
-    );
+    await _saveAllLocalFallback(student.schoolId, [student]);
+  }
+
+  Future<void> _saveAllLocalFallback(String schoolId, List<StudentRecord> students) async {
+    // 1. Group by class
+    final byClass = <String, List<StudentRecord>>{};
+    for (final s in students) {
+      byClass.putIfAbsent(s.classLevel, () => []).add(s);
+    }
+    // 2. For each class, read existing cached list, merge by id, and put back
+    for (final entry in byClass.entries) {
+      final cls = entry.key;
+      final key = 'roster_${schoolId}_$cls';
+      final existing = await OfflineCache.instance.get<List<StudentRecord>>(
+        key,
+        (json) => OfflineCache.listFromJson(json, (j) => StudentRecord.fromMap(j)),
+      ) ?? [];
+      final map = {for (final s in existing) s.id: s};
+      for (final s in entry.value) {
+        map[s.id] = s;
+      }
+      final merged = map.values.toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      await OfflineCache.instance.put(key, OfflineCache.listToJson(merged, (s) => s.toMap()));
+    }
+    // 3. Also update 'roster_${schoolId}_all'
+    final allKey = 'roster_${schoolId}_all';
+    final existingAll = await OfflineCache.instance.get<List<StudentRecord>>(
+      allKey,
+      (json) => OfflineCache.listFromJson(json, (j) => StudentRecord.fromMap(j)),
+    ) ?? [];
+    final allMap = {for (final s in existingAll) s.id: s};
+    for (final s in students) {
+      allMap[s.id] = s;
+    }
+    final mergedAll = allMap.values.toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    await OfflineCache.instance.put(allKey, OfflineCache.listToJson(mergedAll, (s) => s.toMap()));
   }
 }

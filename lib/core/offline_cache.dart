@@ -75,6 +75,20 @@ class OfflineCache {
     await _prefs?.remove('cache_$key');
   }
 
+  /// Directly reads from cache without triggering live fetch.
+  Future<T?> get<T>(String key, T Function(dynamic) fromJson) async {
+    await init();
+    final cachedStr = _prefs?.getString('cache_$key');
+    if (cachedStr != null) {
+      try {
+        return fromJson(jsonDecode(cachedStr));
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
   Future<void> put(String key, dynamic jsonVal) async {
     await init();
     await _prefs?.setString('cache_$key', jsonEncode(jsonVal));

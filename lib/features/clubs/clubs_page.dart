@@ -1073,19 +1073,31 @@ class _Hero extends StatelessWidget {
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             Expanded(
-              child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
-                Text(club.name, style: GoogleFonts.sora(fontSize: 19, fontWeight: FontWeight.w800, color: ac.txt)),
-                if (isVerified) ...[
-                  const SizedBox(width: 6),
-                  Tooltip(
-                    message: 'School-verified group',
-                    child: Icon(Icons.verified_rounded, color: ac.blu, size: 18),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      club.name,
+                      style: GoogleFonts.sora(fontSize: 19, fontWeight: FontWeight.w800, color: ac.txt),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      softWrap: true,
+                    ),
                   ),
+                  if (isVerified) ...[
+                    const SizedBox(width: 6),
+                    Tooltip(
+                      message: 'School-verified group',
+                      child: Icon(Icons.verified_rounded, color: ac.blu, size: 18),
+                    ),
+                  ],
                 ],
-              ]),
+              ),
             ),
+            const SizedBox(width: 10),
             _joinedButton(context),
           ]),
           const SizedBox(height: 4),

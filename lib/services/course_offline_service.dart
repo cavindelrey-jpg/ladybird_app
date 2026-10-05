@@ -4,11 +4,15 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/course_lesson.dart';
 import '../models/public_course.dart';
 import '../repositories/course_lesson_repository.dart';
 import '../core/result.dart';
+import '../data/local_database.dart';
 
 class CourseOfflineService {
   CourseOfflineService._();
@@ -78,6 +82,21 @@ class CourseOfflineService {
 
       final prefs = await SharedPreferences.getInstance();
 
+      // Cache cover image locally for offline display
+      if (course.coverImageUrl != null && course.coverImageUrl!.isNotEmpty) {
+        try {
+          final dir = await getApplicationDocumentsDirectory();
+          final courseDir = Directory('${dir.path}/offline_courses');
+          if (!await courseDir.exists()) await courseDir.create(recursive: true);
+          final file = File('${courseDir.path}/${course.id}_cover.jpg');
+          final res = await http.get(Uri.parse(course.coverImageUrl!)).timeout(const Duration(seconds: 10));
+          if (res.statusCode == 200) {
+            await file.writeAsBytes(res.bodyBytes);
+            await prefs.setString('offline_course_cover_${course.id}', file.path);
+          }
+        } catch (_) {}
+      }
+
       // Serialize course with id
       final courseMap = course.toSupabase();
       courseMap['id'] = course.id;
@@ -107,11 +126,27 @@ class CourseOfflineService {
     }
   }
 
+  /// Returns path to locally-cached course cover image, if downloaded.
+  Future<String?> getCourseCoverPath(String courseId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final path = prefs.getString('offline_course_cover_$courseId');
+    if (path == null) return null;
+    return File(path).existsSync() ? path : null;
+  }
+
   /// Removes a downloaded course and its cached lessons from the device.
   Future<void> deleteDownloadedCourse(String courseId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('$_offlineCourseMetaPrefix$courseId');
     await prefs.remove('$_offlineCourseLessonsPrefix$courseId');
+    final coverPath = prefs.getString('offline_course_cover_$courseId');
+    if (coverPath != null) {
+      try {
+        final f = File(coverPath);
+        if (await f.exists()) await f.delete();
+      } catch (_) {}
+      await prefs.remove('offline_course_cover_$courseId');
+    }
     final ids = prefs.getStringList(_offlineCourseIdsKey) ?? <String>[];
     if (ids.remove(courseId)) {
       await prefs.setStringList(_offlineCourseIdsKey, ids);
@@ -175,6 +210,24 @@ class CourseOfflineService {
       _progressControllers[streamKey]!.add(current);
     }
     _changeNotifier.add(null);
+
+    // Queue for automatic server synchronization when online
+    try {
+      final syncData = {
+        'user_id': userId,
+        'course_id': courseId,
+        'lesson_id': lessonId,
+        'completed': isNowCompleted,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      await LocalDatabase.instance.queueSyncAction(
+        'upsert',
+        'course_lesson_completions',
+        '${userId}_$lessonId',
+        syncData,
+      );
+    } catch (_) {}
+
     return isNowCompleted;
   }
 

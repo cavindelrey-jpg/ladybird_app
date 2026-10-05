@@ -14,6 +14,7 @@ import 'exam_metadata_page.dart';
 import 'exam_preview_page.dart';
 import 'question_collections_page.dart';
 import 'school_exam_templates_page.dart';
+import '../../academic_content/bulk_past_paper_upload_page.dart';
 
 class ExamListPage extends StatefulWidget {
   final AppUser user;
@@ -45,6 +46,15 @@ class _ExamListPageState extends State<ExamListPage> {
             onPressed: () {
               Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => QuestionCollectionsPage(user: widget.user),
+              ));
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.drive_folder_upload_rounded),
+            tooltip: 'Mass Upload Past Papers',
+            onPressed: () {
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => BulkPastPaperUploadPage(user: widget.user),
               ));
             },
           ),

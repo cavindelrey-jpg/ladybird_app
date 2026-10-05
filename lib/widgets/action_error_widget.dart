@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../services/connectivity_service.dart';
 
+import '../models/app_user.dart';
+import '../screens/dictionary_screen.dart';
+import '../features/academic_content/library_home_page.dart';
+
 class ActionErrorWidget extends StatelessWidget {
   final Object error;
   final StackTrace? stackTrace;
@@ -22,16 +26,16 @@ class ActionErrorWidget extends StatelessWidget {
     final isOffline = isOfflineOverride || !ConnectivityService().isOnline;
     
     // Humanize the error
-    String errStr = error.toString().toLowerCase();
+    final errStr = error.toString().toLowerCase();
     String title = 'Something went wrong';
     String message = 'We couldn\'t load this content right now. Please check your connection and try again.';
     IconData icon = Icons.info_outline_rounded;
     Color iconColor = ac.muted;
     Color iconBg = ac.surf;
     
-    if (isOffline || errStr.contains('socketexception') || errStr.contains('network is unreachable') || errStr.contains('failed host lookup')) {
+    if (isOffline || errStr.contains('socketexception') || errStr.contains('network is unreachable') || errStr.contains('failed host lookup') || errStr.contains('clientexception')) {
       title = 'You are offline';
-      message = 'Please connect to the internet or browse your downloaded offline library.';
+      message = 'You have lost internet connectivity, but your downloaded library content and the Academia Dictionary remain fully accessible.';
       icon = Icons.wifi_off_rounded;
       iconColor = ac.gold;
       iconBg = ac.goldBg;
@@ -63,7 +67,7 @@ class ActionErrorWidget extends StatelessWidget {
             Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: ac.txt)),
             const SizedBox(height: 12),
             Text(message, textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: ac.txt2, height: 1.4)),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -75,10 +79,10 @@ class ActionErrorWidget extends StatelessWidget {
                       backgroundColor: ac.primary,
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    icon: const Icon(Icons.refresh_rounded, size: 20),
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
                     label: const Text('Retry', style: TextStyle(fontWeight: FontWeight.w600)),
                     onPressed: onRetry,
                   ),
@@ -86,16 +90,38 @@ class ActionErrorWidget extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: ac.primary,
                     side: BorderSide(color: ac.primary.withValues(alpha: .3)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  icon: const Icon(Icons.library_books_rounded, size: 20),
-                  label: const Text('Browse Library', style: TextStyle(fontWeight: FontWeight.w600)),
+                  icon: const Icon(Icons.menu_book_rounded, size: 18),
+                  label: const Text('Open Dictionary', style: TextStyle(fontWeight: FontWeight.w600)),
                   onPressed: () {
-                    // Navigate to library or dictionary
-                    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const DictionaryScreen()));
                   },
                 ),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: ac.primary,
+                    side: BorderSide(color: ac.primary.withValues(alpha: .3)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.download_for_offline_rounded, size: 18),
+                  label: const Text('Offline Downloads', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onPressed: () {
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => LibraryHomePage(user: AppUser.guest())));
+                  },
+                ),
+                if (Navigator.of(context).canPop())
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: ac.txt2,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                    icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                    label: const Text('Go Back'),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
               ],
             )
           ],

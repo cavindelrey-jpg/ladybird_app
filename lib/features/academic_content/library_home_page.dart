@@ -14,8 +14,10 @@
 // "folder" tiles here vs. Courses' rounded rail cards) so Library doesn't
 // read as a reskin of Courses, per the user's explicit instruction.
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../core/result.dart';
 import '../../models/app_user.dart';
 import '../../models/library_folder.dart';
@@ -23,6 +25,7 @@ import '../../models/academic_content.dart';
 import '../../repositories/library_folder_repository.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../services/connectivity_service.dart';
+import 'bulk_past_paper_upload_page.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
@@ -67,7 +70,6 @@ class LibraryHomePage extends StatelessWidget {
             StreamBuilder<bool>(
               stream: ConnectivityService().watchOffline(),
               builder: (context, net) => Column(
-                key: ValueKey('online-sections-${net.data}'),
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _recommendedRow(context, ac),
@@ -89,7 +91,7 @@ class LibraryHomePage extends StatelessWidget {
           ? FloatingActionButton.extended(
               onPressed: () {
                 HapticFeedback.mediumImpact();
-                Navigator.push(context, MaterialPageRoute(builder: (_) => ContentUploadPage(user: user)));
+                _showUploadChoices(context, ac);
               },
               backgroundColor: ac.primary,
               foregroundColor: Colors.white,
@@ -100,11 +102,63 @@ class LibraryHomePage extends StatelessWidget {
     );
   }
 
+  void _showUploadChoices(BuildContext context, AppColors ac) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: ac.surf,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(Rad.lg))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: ac.primary.withValues(alpha: 0.12), shape: BoxShape.circle),
+                child: Icon(Icons.upload_file_rounded, color: ac.primary),
+              ),
+              title: Text('Single Item Upload', style: GoogleFonts.sora(fontWeight: FontWeight.w700, fontSize: 14, color: ac.txt)),
+              subtitle: Text('Upload single note, book, video, or paper', style: GoogleFonts.inter(fontSize: 12, color: ac.txt2)),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => ContentUploadPage(user: user)));
+              },
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: ac.gold.withValues(alpha: 0.15), shape: BoxShape.circle),
+                child: Icon(Icons.drive_folder_upload_rounded, color: ac.gold),
+              ),
+              title: Text('Mass Upload Past Papers', style: GoogleFonts.sora(fontWeight: FontWeight.w700, fontSize: 14, color: ac.txt)),
+              subtitle: Text('Batch upload multiple PDFs with auto-parsed metadata & shared covers', style: GoogleFonts.inter(fontSize: 12, color: ac.txt2)),
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => BulkPastPaperUploadPage(user: user)));
+              },
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
   Widget _header(BuildContext context, AppColors ac) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
       child: Row(children: [
         Expanded(child: Text('Academia Library', style: AppText.h1.copyWith(fontSize: 22, color: ac.txt))),
+        if (_canUpload)
+          IconButton(
+            icon: Icon(Icons.drive_folder_upload_rounded, color: ac.primary),
+            tooltip: 'Mass Upload Past Papers',
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => BulkPastPaperUploadPage(user: user),
+              ));
+            },
+          ),
         IconButton(
           icon: Icon(Icons.search_rounded, color: ac.txt2),
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LibrarySearchPage(user: user))),
@@ -247,9 +301,7 @@ class LibraryHomePage extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-                ConnectivityService().isOffline
-                    ? 'Recommendations need an internet connection. Your downloads are below.'
-                    : 'No resources to recommend yet — check back soon.',
+                'No resources to recommend yet — check your offline downloads below.',
                 style: AppText.bodySm.copyWith(color: ac.txt2)),
           );
         }
@@ -287,14 +339,6 @@ class LibraryHomePage extends StatelessWidget {
             ]),
           )));
         }
-        if (recentSnap.hasError) {
-          CrashService.instance.recordError(recentSnap.error, null, context: 'LibraryHomePage._recentReads');
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text("Recent reads need an internet connection. Your downloads are below.",
-                style: AppText.bodySm.copyWith(color: ac.txt2)),
-          );
-        }
         final recent = recentSnap.data ?? const <AcademicContent>[];
         if (recent.isNotEmpty) {
           return Column(children: recent.map((c) => _RecentReadTile(
@@ -302,6 +346,9 @@ class LibraryHomePage extends StatelessWidget {
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => ContentDetailsPage(contentId: c.id, user: user))),
           )).toList());
+        }
+        if (recentSnap.hasError) {
+          CrashService.instance.recordError(recentSnap.error, null, context: 'LibraryHomePage._recentReads');
         }
         return FutureBuilder<List<AcademicContent>>(
           future: AcademicContentRepository.instance.recommendedForUser(user.id.isEmpty ? null : user.id, limit: 5),
@@ -311,9 +358,7 @@ class LibraryHomePage extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
-                    ConnectivityService().isOffline
-                        ? 'Recent reads need an internet connection. Your downloads are below.'
-                        : 'Nothing here yet — open something from the Library and it\'ll show up here.',
+                    'Nothing here yet — open something from the Library and it will show up here.',
                     style: AppText.bodySm.copyWith(color: ac.txt2)),
               );
             }
@@ -626,13 +671,22 @@ class _OfflineContentCard extends StatelessWidget {
                   SizedBox(
                     height: 84,
                     width: double.infinity,
-                    child: hasThumb
-                        ? Image.network(
-                            item.thumbnailUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _thumbFallback(ac),
-                          )
-                        : _thumbFallback(ac),
+                    child: FutureBuilder<String?>(
+                      future: AcademicContentRepository.instance.offlineThumbnailPath(item.id),
+                      builder: (context, thumbSnap) {
+                        final localThumb = thumbSnap.data;
+                        if (localThumb != null && File(localThumb).existsSync()) {
+                          return Image.file(File(localThumb), fit: BoxFit.cover);
+                        }
+                        return hasThumb
+                            ? Image.network(
+                                item.thumbnailUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => _thumbFallback(ac),
+                              )
+                            : _thumbFallback(ac);
+                      },
+                    ),
                   ),
                   Positioned(
                     top: 6,

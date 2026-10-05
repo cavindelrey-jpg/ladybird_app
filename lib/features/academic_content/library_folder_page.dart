@@ -19,6 +19,7 @@ import '../../widgets/app_background.dart';
 import '../courses_marketplace/hierarchy_browse_scaffold.dart';
 import 'content_details_page.dart';
 import 'content_upload_page.dart';
+import 'bulk_past_paper_upload_page.dart';
 import 'library_folder_picker_page.dart';
 import 'folder_thumbnail_editor.dart';
 
@@ -123,7 +124,8 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
         return StreamBuilder<List<AcademicContent>>(
           stream: _itemsStream,
           builder: (context, itemSnap) {
-            if (folderSnap.hasError || itemSnap.hasError) {
+            final items = itemSnap.data ?? const <AcademicContent>[];
+            if ((folderSnap.hasError || itemSnap.hasError) && folders.isEmpty && items.isEmpty) {
               CrashService.instance.recordError(folderSnap.error ?? itemSnap.error, null,
                   context: 'LibraryFolderPage(${widget.folderId})');
               return Scaffold(
@@ -139,10 +141,9 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
                 ),
               );
             }
-            final items = itemSnap.data ?? const <AcademicContent>[];
             final loading = (!folderSnap.hasData && folderSnap.connectionState == ConnectionState.waiting) ||
                 (!itemSnap.hasData && itemSnap.connectionState == ConnectionState.waiting);
-            final entries = [
+            final entries = <_Entry>[
               ...folders.map((f) => _Entry.folder(f)),
               ...items.map((c) => _Entry.content(c)),
             ]..sort((a, b) {
@@ -277,6 +278,17 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
               Navigator.pop(sheetContext);
               Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => ContentUploadPage(user: widget.user, initialFolderId: widget.folderId)));
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.drive_folder_upload_rounded, color: ac.primary),
+            title: const Text('Bulk upload past papers'),
+            subtitle: const Text('Select many PDFs at once, filed here'),
+            onTap: () {
+              Navigator.pop(sheetContext);
+              Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => BulkPastPaperUploadPage(
+                      user: widget.user, folderId: widget.folderId)));
             },
           ),
           ListTile(

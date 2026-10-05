@@ -69,6 +69,7 @@ class DailyNoticeRepository {
   }
 
   Future<bool> deleteNotice(String id) async {
+    await LocalDatabase.instance.deleteCachedData('daily_notices', id);
     try {
       await _db.from('daily_notices').delete().eq('id', id);
     } catch (_) {

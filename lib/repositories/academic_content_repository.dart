@@ -14,6 +14,8 @@ import "../core/offline_cache.dart";
 import '../models/academic_content.dart';
 import '../core/result.dart';
 import '../core/realtime_tolerant.dart';
+import '../services/content_cache_service.dart';
+import '../data/local_database.dart';
 
 class AcademicContentRepository {
   AcademicContentRepository._();
@@ -41,34 +43,70 @@ class AcademicContentRepository {
     String? examBoard,
     int? year,
   }) {
+    final cacheKey = 'academic_content_watch_${institutionId ?? "all"}_${contentType?.name ?? "all"}_${subject ?? "all"}';
+    final controller = StreamController<List<AcademicContent>>();
     final hasClientFilter =
         (level != null && level.isNotEmpty) || (examBoard != null && examBoard.isNotEmpty) || year != null;
-    var stream = _db.from(_table).stream(primaryKey: ['id'])
-        .realtimeTolerant();
-    return stream.map((rows) {
-      var filtered = rows;
-      if (institutionId != null) {
-        filtered = filtered.where((r) => r['institution_id'] == institutionId).toList();
-      }
-      if (contentType != null) {
-        filtered = filtered.where((r) => r['content_type'] == contentType.name).toList();
-      }
-      if (subject != null && subject.isNotEmpty) {
-        filtered = filtered.where((r) => r['subject'] == subject).toList();
-      }
-      filtered.sort((a, b) => (b['upload_date'] as String).compareTo(a['upload_date'] as String));
-      var items = filtered.take(hasClientFilter ? 300 : 80).map(AcademicContent.fromSupabase).toList();
+
+    List<AcademicContent> applyFilters(List<AcademicContent> items) {
+      var filtered = items;
       if (level != null && level.isNotEmpty) {
-        items = items.where((i) => i.level == level).toList();
+        filtered = filtered.where((i) => i.level == level).toList();
       }
       if (examBoard != null && examBoard.isNotEmpty) {
-        items = items.where((i) => i.examBoard == examBoard).toList();
+        filtered = filtered.where((i) => i.examBoard == examBoard).toList();
       }
       if (year != null) {
-        items = items.where((i) => i.year == year).toList();
+        filtered = filtered.where((i) => i.year == year).toList();
       }
-      return items;
-    });
+      return filtered;
+    }
+
+    () async {
+      // 1. Emit from ContentCacheService immediately (0ms)
+      final cached = await ContentCacheService.instance.getList(cacheKey);
+      if (cached != null && !controller.isClosed) {
+        final items = cached.map(AcademicContent.fromSupabase).toList();
+        controller.add(applyFilters(items));
+      } else {
+        // Fallback: emit matching offline downloaded content
+        final offlineItems = await getOfflineContent();
+        if (offlineItems.isNotEmpty && !controller.isClosed) {
+          var matched = offlineItems;
+          if (contentType != null) matched = matched.where((i) => i.contentType == contentType).toList();
+          if (subject != null && subject.isNotEmpty) matched = matched.where((i) => i.subject == subject).toList();
+          if (matched.isNotEmpty && !controller.isClosed) controller.add(applyFilters(matched));
+        }
+      }
+
+      // 2. Live stream
+      final stream = _db.from(_table).stream(primaryKey: ['id']).realtimeTolerant();
+      final sub = stream.listen(
+        (rows) {
+          if (controller.isClosed) return;
+          var filtered = rows;
+          if (institutionId != null) {
+            filtered = filtered.where((r) => r['institution_id'] == institutionId).toList();
+          }
+          if (contentType != null) {
+            filtered = filtered.where((r) => r['content_type'] == contentType.name).toList();
+          }
+          if (subject != null && subject.isNotEmpty) {
+            filtered = filtered.where((r) => r['subject'] == subject).toList();
+          }
+          filtered.sort((a, b) => (b['upload_date'] as String).compareTo(a['upload_date'] as String));
+          final items = filtered.take(hasClientFilter ? 300 : 80).map(AcademicContent.fromSupabase).toList();
+          unawaited(ContentCacheService.instance.putList(cacheKey, filtered.take(80).toList()));
+          controller.add(applyFilters(items));
+        },
+        onError: (_) {
+          // Keep showing cached data on network error / offline
+        },
+      );
+      controller.onCancel = () => sub.cancel();
+    }();
+
+    return controller.stream;
   }
 
   /// One-shot real count of library resources in scope — powers the Home
@@ -93,14 +131,51 @@ class AcademicContentRepository {
     return rows.first['thumbnail_url'] as String?;
   }
 
-  /// Stream for a single row.
+  /// Stream for a single row with local offline cache fallback.
   Stream<AcademicContent?> watchOne(String id) {
-    return _db
-        .from(_table)
-        .stream(primaryKey: ['id'])
-        .eq('id', id)
-        .realtimeTolerant()
-        .map((rows) => rows.isNotEmpty ? AcademicContent.fromSupabase(rows.first) : null);
+    final controller = StreamController<AcademicContent?>();
+
+    () async {
+      // 1. Check local offline metadata first
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final metaStr = prefs.getString('$_offlineMetaPrefix$id');
+        if (metaStr != null && metaStr.isNotEmpty && !controller.isClosed) {
+          final json = jsonDecode(metaStr) as Map<String, dynamic>;
+          controller.add(AcademicContent.fromSupabase(json));
+        } else {
+          final cached = await LocalDatabase.instance.getCachedData('academic_content', id);
+          if (cached != null && !controller.isClosed) {
+            controller.add(AcademicContent.fromSupabase(cached));
+          }
+        }
+      } catch (_) {}
+
+      // 2. Connect to live stream
+      final sub = _db
+          .from(_table)
+          .stream(primaryKey: ['id'])
+          .eq('id', id)
+          .realtimeTolerant()
+          .listen(
+            (rows) {
+              if (controller.isClosed) return;
+              if (rows.isNotEmpty) {
+                final item = AcademicContent.fromSupabase(rows.first);
+                LocalDatabase.instance.cacheData('academic_content', id, rows.first);
+                controller.add(item);
+              } else {
+                controller.add(null);
+              }
+            },
+            onError: (_) {
+              // Realtime failed / offline -- keep showing cached item!
+            },
+          );
+      controller.onCancel = () => sub.cancel();
+    }();
+
+    return controller.stream;
   }
 
   // ─── Search ───────────────────────────────────────────────────────────────
@@ -115,12 +190,19 @@ class AcademicContentRepository {
     int? year,
   }) async {
     final lower = query.toLowerCase();
-    var q = _db.from(_table).select();
-    if (institutionId != null) q = q.eq('institution_id', institutionId);
-    if (contentType != null) q = q.eq('content_type', contentType.name);
-    final rows = await q.order('title', ascending: true);
-    return rows
-        .map(AcademicContent.fromSupabase)
+    List<AcademicContent> candidates = [];
+    try {
+      var q = _db.from(_table).select();
+      if (institutionId != null) q = q.eq('institution_id', institutionId);
+      if (contentType != null) q = q.eq('content_type', contentType.name);
+      final rows = await q.order('title', ascending: true);
+      candidates = rows.map(AcademicContent.fromSupabase).toList();
+    } catch (_) {
+      // Offline fallback: search offline downloaded content!
+      candidates = await getOfflineContent();
+    }
+
+    return candidates
         .where((item) =>
             (item.title.toLowerCase().contains(lower) ||
                 item.description.toLowerCase().contains(lower) ||
@@ -307,6 +389,11 @@ class AcademicContentRepository {
     }
     try {
       final path = await _streamToCache(item.id, url, onProgress: onProgress);
+      if (item.thumbnailUrl != null && item.thumbnailUrl!.isNotEmpty) {
+        try {
+          await _streamToCache('${item.id}_thumb', item.thumbnailUrl!);
+        } catch (_) {}
+      }
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('$_offlineMetaPrefix${item.id}', jsonEncode(item.toSupabase()));
       final ids = prefs.getStringList(_offlineIdsKey) ?? <String>[];
@@ -319,6 +406,14 @@ class AcademicContentRepository {
     } catch (e) {
       return Failure('Download failed — check your connection and try again.', e);
     }
+  }
+
+  /// Path to locally-cached thumbnail for offline viewing.
+  Future<String?> offlineThumbnailPath(String contentId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final path = prefs.getString('$_offlinePrefsPrefix${contentId}_thumb');
+    if (path == null) return null;
+    return File(path).existsSync() ? path : null;
   }
 
   /// True only for items the user explicitly saved for offline (listed in
@@ -604,34 +699,47 @@ class AcademicContentRepository {
   // rotation, not per-refresh randomness, and never a fabricated list.
 
   Future<List<AcademicContent>> recommendedForUser(String? userId, {int limit = 5}) async {
-    final pool = await _db.from(_table).select().order('upload_date', ascending: false).limit(200);
-    var items = pool.map(AcademicContent.fromSupabase).toList();
-    if (items.isEmpty) return const [];
+    final cacheKey = 'academic_recommended_${userId ?? "all"}';
+    try {
+      final pool = await _db.from(_table).select().order('upload_date', ascending: false).limit(200);
+      var items = pool.map(AcademicContent.fromSupabase).toList();
+      if (items.isEmpty) return const [];
 
-    Set<String> subjects = {};
-    if (userId != null) {
-      final recentRows = await _db
-          .from('content_recent_views')
-          .select('content_id')
-          .eq('user_id', userId)
-          .order('viewed_at', ascending: false)
-          .limit(20);
-      final recentIds = recentRows.map((r) => r['content_id'] as String).toSet();
-      subjects = items.where((c) => recentIds.contains(c.id) && c.subject.isNotEmpty)
-          .map((c) => c.subject).toSet();
+      Set<String> subjects = {};
+      if (userId != null) {
+        final recentRows = await _db
+            .from('content_recent_views')
+            .select('content_id')
+            .eq('user_id', userId)
+            .order('viewed_at', ascending: false)
+            .limit(20);
+        final recentIds = recentRows.map((r) => r['content_id'] as String).toSet();
+        subjects = items.where((c) => recentIds.contains(c.id) && c.subject.isNotEmpty)
+            .map((c) => c.subject).toSet();
+      }
+
+      final scored = items.where((c) => subjects.isEmpty || subjects.contains(c.subject)).toList();
+      final candidates = scored.length >= limit ? scored : items;
+      candidates.sort((a, b) {
+        final scoreA = a.views * 1.0 + a.downloads * 2.0;
+        final scoreB = b.views * 1.0 + b.downloads * 2.0;
+        return scoreB.compareTo(scoreA);
+      });
+      final top = candidates.take(limit * 3).toList();
+      final seed = DateTime.now().difference(DateTime(2020)).inDays + (userId?.hashCode ?? 0);
+      top.shuffle(Random(seed));
+      final result = top.take(limit).toList();
+      unawaited(ContentCacheService.instance.putList(cacheKey, result.map((e) => e.toSupabase()).toList()));
+      return result;
+    } catch (_) {
+      // Offline fallback: try cached recommendations, then offline downloaded items
+      final cached = await ContentCacheService.instance.getList(cacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        return cached.map(AcademicContent.fromSupabase).take(limit).toList();
+      }
+      final offline = await getOfflineContent();
+      return offline.take(limit).toList();
     }
-
-    final scored = items.where((c) => subjects.isEmpty || subjects.contains(c.subject)).toList();
-    final candidates = scored.length >= limit ? scored : items;
-    candidates.sort((a, b) {
-      final scoreA = a.views * 1.0 + a.downloads * 2.0;
-      final scoreB = b.views * 1.0 + b.downloads * 2.0;
-      return scoreB.compareTo(scoreA);
-    });
-    final top = candidates.take(limit * 3).toList();
-    final seed = DateTime.now().difference(DateTime(2020)).inDays + (userId?.hashCode ?? 0);
-    top.shuffle(Random(seed));
-    return top.take(limit).toList();
   }
 
   // ─── Storage Upload ───────────────────────────────────────────────────────

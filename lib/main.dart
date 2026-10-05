@@ -21,6 +21,7 @@ import 'core/supabase_config.dart';
 import 'theme/app_theme.dart';
 import 'theme/app_colors.dart';
 import 'providers/theme_provider.dart';
+import 'providers/locale_provider.dart';
 import 'screens/app_router.dart';
 import 'services/analytics_service.dart';
 import 'services/config_service.dart';
@@ -130,11 +131,13 @@ class AcademiaApp extends StatelessWidget {
         // below had no darkTheme/themeMode — so toggling it did nothing.
         // Registering it here and wiring it into MaterialApp is the fix.
         ChangeNotifierProvider(create: (_) => ThemeProvider()..restoreFromPrefs()),
+        ChangeNotifierProvider(create: (_) => LocaleProvider()..restoreFromPrefs()),
       ],
-      child: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, _) => MaterialApp(
+      child: Consumer2<ThemeProvider, LocaleProvider>(
+        builder: (context, themeProvider, localeProvider, _) => MaterialApp(
           title: Branding.current.appName,
           debugShowCheckedModeBanner: false,
+          locale: localeProvider.locale,
           theme: AppTheme.light.copyWith(
             pageTransitionsTheme: const PageTransitionsTheme(builders: {
               TargetPlatform.android: _AcademiaPageTransition(),

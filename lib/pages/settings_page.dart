@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 import '../providers/theme_provider.dart';
+import '../providers/locale_provider.dart';
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
 import 'profile_edit_page.dart';
@@ -38,6 +39,9 @@ class SettingsPage extends StatelessWidget {
         children: [
           _sectionLabel(context, 'Appearance'),
           _themeToggleTile(context),
+          const SizedBox(height: 16),
+          _sectionLabel(context, 'App Language'),
+          _languageToggleTile(context),
 
           const SizedBox(height: 24),
           _sectionLabel(context, 'Account'),
@@ -122,6 +126,46 @@ class SettingsPage extends StatelessWidget {
         seg(ThemeMode.dark, Icons.dark_mode_rounded, 'Dark'),
         const SizedBox(width: 6),
         seg(ThemeMode.system, Icons.brightness_auto_rounded, 'System'),
+      ]),
+    );
+  }
+
+  Widget _languageToggleTile(BuildContext context) {
+    final ac = AppColors.of(context);
+    final lang = context.watch<LocaleProvider>().language;
+    Widget seg(AppLanguage l, IconData icon, String label) {
+      final selected = lang == l;
+      return Expanded(
+        child: Material(
+          color: selected ? ac.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => context.read<LocaleProvider>().setLanguage(l),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(icon, size: 18, color: selected ? Colors.white : ac.txt2),
+                const SizedBox(height: 4),
+                Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600,
+                    color: selected ? Colors.white : ac.txt2)),
+              ]),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+          color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
+      child: Row(children: [
+        seg(AppLanguage.system, Icons.settings_suggest_rounded, 'System'),
+        const SizedBox(width: 6),
+        seg(AppLanguage.english, Icons.language_rounded, 'English'),
+        const SizedBox(width: 6),
+        seg(AppLanguage.french, Icons.translate_rounded, 'Français'),
       ]),
     );
   }

@@ -32,8 +32,10 @@ import '../features/school/parent_dashboard_page.dart';
 import '../features/magazine/magazine_feed_page.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/create_content_sheet.dart';
+import '../features/clubs/clubs_page.dart';
 import '../features/onboarding/account_choice_screen.dart';
 import '../features/onboarding/voucher_entry_screen.dart';
+import 'dictionary_screen.dart';
 
 // ────────────────────────────────────────────────────────────────────────────
 // AppRouter — watches Firebase auth state only.
@@ -119,14 +121,21 @@ class _GuestShellState extends State<_GuestShell> {
     final ac = AppColors.of(context);
     final pages = [
       const UniversalHomePage(),
-      _GuestGateTab(onTap: () => _guestGate(context), label: 'Groups'),
+      ClubsPage(user: AppUser.guest()),
       const UniversalHomePage(),
       _GuestGateTab(onTap: () => _guestGate(context), label: 'Messages'),
       _GuestGateTab(onTap: () => _guestGate(context), label: 'Profile'),
     ];
     return Scaffold(
       drawer: AppDrawer(user: null, onHomeTap: () => setState(() => _tab = 0)),
-      body: IndexedStack(index: _tab, children: pages),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const _OfflineBanner(),
+            Expanded(child: IndexedStack(index: _tab, children: pages)),
+          ],
+        ),
+      ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: ac.gold,
         onPressed: () => _guestGate(context),
@@ -310,6 +319,7 @@ class _HomeShellState extends State<HomeShell> {
     final u = widget.user;
     final nav = <_NavDef>[
       const _NavDef('Home', Icons.home_rounded, Icons.home_outlined, UserRole.guest),
+      const _NavDef('Groups', Icons.groups_rounded, Icons.groups_outlined, UserRole.guest),
       const _NavDef('Library', Icons.menu_book_rounded, Icons.menu_book_outlined, UserRole.guest),
       const _NavDef('Magazine', Icons.auto_stories_rounded, Icons.auto_stories_outlined, UserRole.guest),
       const _NavDef('Courses', Icons.school_rounded, Icons.school_outlined, UserRole.guest),
@@ -337,6 +347,7 @@ class _HomeShellState extends State<HomeShell> {
       // information (timetable/marks/homework), never their own —
       // there is no "own" student data for a parent account to show.
       case 'Home':     return u.isParent ? ParentDashboardPage(user: u) : UniversalHomePage(user: u);
+      case 'Groups':   return ClubsPage(user: u);
       case 'Library':  return LibraryHomePage(user: u);
       case 'Magazine': return MagazineFeedPage(user: u);
       case 'Courses':  return CoursesHomePage(user: u);
@@ -429,15 +440,40 @@ class _OfflineBanner extends StatelessWidget {
         if (snap.data != true) return const SizedBox.shrink();
         return Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           color: ac.orgBg,
           child: Row(children: [
             Icon(Icons.wifi_off_rounded, size: 16, color: ac.org),
             const SizedBox(width: 8),
             Expanded(child: Text(
-              "You're offline — your downloads in Library still open. Everything else updates when you reconnect.",
+              'Offline — saved downloads & dictionary open.',
               style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w600, color: ac.org),
             )),
+            InkWell(
+              borderRadius: BorderRadius.circular(4),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DictionaryScreen())),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: ac.org.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text('Dictionary', style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w700, color: ac.org)),
+              ),
+            ),
+            const SizedBox(width: 6),
+            InkWell(
+              borderRadius: BorderRadius.circular(4),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => LibraryHomePage(user: AppUser.guest()))),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: ac.org.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text('Downloads', style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w700, color: ac.org)),
+              ),
+            ),
           ]),
         );
       },

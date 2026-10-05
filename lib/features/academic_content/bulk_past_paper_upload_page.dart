@@ -56,7 +56,8 @@ class _BatchItem {
 
 class BulkPastPaperUploadPage extends StatefulWidget {
   final AppUser user;
-  const BulkPastPaperUploadPage({super.key, required this.user});
+  final String? folderId;
+  const BulkPastPaperUploadPage({super.key, required this.user, this.folderId});
 
   @override
   State<BulkPastPaperUploadPage> createState() => _BulkPastPaperUploadPageState();
@@ -203,6 +204,7 @@ class _BulkPastPaperUploadPageState extends State<BulkPastPaperUploadPage> {
         fileSizeBytes: await item.file.length(),
         uploadDate: DateTime.now(),
         tags: [item.discipline.trim(), if (item.paperNumber != null) 'Paper ${item.paperNumber}'],
+        folderId: widget.folderId,
       );
 
       final addResult = await repo.add(content);

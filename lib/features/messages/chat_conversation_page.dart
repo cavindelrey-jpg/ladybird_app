@@ -376,11 +376,8 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         ),
         if (_messages != null && _isRequest(_messages!))
           _buildRequestBanner(),
-        if (_messages == null || !_isRequest(_messages!)) ...[
-          if (MediaQuery.viewInsetsOf(context).bottom == 0)
-            _quickAttachRow(),
+        if (_messages == null || !_isRequest(_messages!))
           _inputBar(),
-        ]
       ])),
     );
   }
@@ -457,35 +454,6 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
             ],
           ),
           const SizedBox(height: 24),
-        ],
-      ),
-    );
-  }
-
-  /// The mockup's five-icon row (Note/Course/Quiz/Article/Past Paper),
-  /// visible above the input bar when the keyboard is not open.
-  Widget _quickAttachRow() {
-    final ac = AppColors.of(context);
-    return Container(
-      height: 86, // tiles are ~76px tall; 70 overflowed by 14px
-      decoration: BoxDecoration(
-        color: ac.surf,
-        border: Border(top: BorderSide(color: ac.bdr)),
-      ),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        children: [
-          QuickAttachTile(icon: Icons.sticky_note_2_outlined, label: 'Note',
-              color: ac.blu, bg: ac.bluBg, onTap: _pickNote),
-          QuickAttachTile(icon: Icons.menu_book_rounded, label: 'Course',
-              color: ac.grn, bg: ac.grnBg, onTap: _pickCourse),
-          QuickAttachTile(icon: Icons.quiz_rounded, label: 'Quiz',
-              color: ac.pur, bg: ac.purBg, onTap: _pickQuiz),
-          QuickAttachTile(icon: Icons.article_rounded, label: 'Article',
-              color: ac.org, bg: ac.orgBg, onTap: _pickArticle),
-          QuickAttachTile(icon: Icons.history_edu_rounded, label: 'Past Paper',
-              color: ac.gold, bg: ac.goldBg, onTap: _pickPastPaper),
         ],
       ),
     );

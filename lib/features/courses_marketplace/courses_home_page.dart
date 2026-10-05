@@ -4,6 +4,7 @@
 // the strict hierarchy: 5 education levels, then Recommended for You and
 // Recent Reads as secondary discovery, not extra organizational layers.
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/app_user.dart';
@@ -451,14 +452,23 @@ class _DownloadedCourseCard extends StatelessWidget {
                     child: SizedBox(
                       width: double.infinity,
                       height: 80,
-                      child: (course.coverImageUrl ?? '').isNotEmpty
-                          ? Image.network(
-                              course.coverImageUrl!,
-                              fit: BoxFit.cover,
-                              gaplessPlayback: true,
-                              errorBuilder: (_, __, ___) => _coverFallback(ac),
-                            )
-                          : _coverFallback(ac),
+                      child: FutureBuilder<String?>(
+                        future: CourseOfflineService.instance.getCourseCoverPath(course.id),
+                        builder: (context, coverSnap) {
+                          final localCover = coverSnap.data;
+                          if (localCover != null && File(localCover).existsSync()) {
+                            return Image.file(File(localCover), fit: BoxFit.cover);
+                          }
+                          return (course.coverImageUrl ?? '').isNotEmpty
+                              ? Image.network(
+                                  course.coverImageUrl!,
+                                  fit: BoxFit.cover,
+                                  gaplessPlayback: true,
+                                  errorBuilder: (_, __, ___) => _coverFallback(ac),
+                                )
+                              : _coverFallback(ac);
+                        },
+                      ),
                     ),
                   ),
                   Positioned(

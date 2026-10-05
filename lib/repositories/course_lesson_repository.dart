@@ -3,6 +3,7 @@
 // why this is a separate table from `courses` rather than more columns on
 // it. Mirrors PublicCourseRepository's CRUD/Result/ordering conventions.
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -24,19 +25,53 @@ class CourseLessonRepository {
 
   Stream<List<CourseLesson>> watchLessons(String courseId) => _streamCache.watch(
       'watchLessons_$courseId',
-      () => _lessons
-          .stream(primaryKey: ['id'])
-          .eq('course_id', courseId)
-          .order('sort_order', ascending: true)
-          .realtimeTolerant()
-          .asyncMap((rows) async {
-            if (rows.isNotEmpty) {
-              return rows.map(CourseLesson.fromSupabase).toList();
+      () {
+        final controller = StreamController<List<CourseLesson>>();
+
+        () async {
+          // 1. Immediately emit offline lessons (0ms) so user never sees an endless spinner offline
+          final offline = await CourseOfflineService.instance.getOfflineLessons(courseId);
+          if (offline.isNotEmpty && !controller.isClosed) {
+            controller.add(offline);
+          }
+
+          // 2. Fetch live lessons
+          try {
+            final rows = await _lessons
+                .select()
+                .eq('course_id', courseId)
+                .order('sort_order', ascending: true);
+            if (rows.isNotEmpty && !controller.isClosed) {
+              controller.add(rows.map(CourseLesson.fromSupabase).toList());
             }
-            final offline = await CourseOfflineService.instance.getOfflineLessons(courseId);
-            return offline;
-          })
-          .handleError((_) async => await CourseOfflineService.instance.getOfflineLessons(courseId)));
+          } catch (_) {
+            if (offline.isEmpty && !controller.isClosed) {
+              final fallback = await CourseOfflineService.instance.getOfflineLessons(courseId);
+              controller.add(fallback);
+            }
+          }
+
+          // 3. Listen to realtime stream
+          final sub = _lessons
+              .stream(primaryKey: ['id'])
+              .eq('course_id', courseId)
+              .order('sort_order', ascending: true)
+              .realtimeTolerant()
+              .listen(
+                (rows) {
+                  if (rows.isNotEmpty && !controller.isClosed) {
+                    controller.add(rows.map(CourseLesson.fromSupabase).toList());
+                  }
+                },
+                onError: (_) {
+                  // Realtime failed / offline -- keep showing cached lessons!
+                },
+              );
+          controller.onCancel = () => sub.cancel();
+        }();
+
+        return controller.stream;
+      });
 
   Future<List<CourseLesson>> lessonsOnce(String courseId) async {
     return _memoizer.runOnce('lessonsOnce_$courseId', () async {

@@ -48,55 +48,78 @@ class LocalDatabase {
   }
 
   Future<void> cacheData(String collection, String id, Map<String, dynamic> data) async {
-    final db = await instance.database;
-    await db.insert(
-      'cache',
-      {
-        'id': '\${collection}_\$id',
-        'collection': collection,
-        'data': jsonEncode(data),
-        'updated_at': DateTime.now().millisecondsSinceEpoch,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    try {
+      final db = await instance.database;
+      await db.insert(
+        'cache',
+        {
+          'id': '${collection}_$id',
+          'collection': collection,
+          'data': jsonEncode(data),
+          'updated_at': DateTime.now().millisecondsSinceEpoch,
+        },
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (_) {}
   }
 
   Future<Map<String, dynamic>?> getCachedData(String collection, String id) async {
-    final db = await instance.database;
-    final maps = await db.query(
-      'cache',
-      columns: ['data'],
-      where: 'id = ?',
-      whereArgs: ['\${collection}_\$id'],
-    );
+    try {
+      final db = await instance.database;
+      final maps = await db.query(
+        'cache',
+        columns: ['data'],
+        where: 'id = ?',
+        whereArgs: ['${collection}_$id'],
+      );
 
-    if (maps.isNotEmpty) {
-      return jsonDecode(maps.first['data'] as String);
-    } else {
+      if (maps.isNotEmpty) {
+        return jsonDecode(maps.first['data'] as String);
+      } else {
+        return null;
+      }
+    } catch (_) {
       return null;
     }
   }
 
-  Future<List<Map<String, dynamic>>> getCachedCollection(String collection) async {
-    final db = await instance.database;
-    final maps = await db.query(
-      'cache',
-      columns: ['data'],
-      where: 'collection = ?',
-      whereArgs: [collection],
-    );
+  Future<void> deleteCachedData(String collection, String id) async {
+    try {
+      final db = await instance.database;
+      await db.delete(
+        'cache',
+        where: 'id = ?',
+        whereArgs: ['${collection}_$id'],
+      );
+    } catch (_) {}
+  }
 
-    return maps.map((map) => jsonDecode(map['data'] as String) as Map<String, dynamic>).toList();
+  Future<List<Map<String, dynamic>>> getCachedCollection(String collection) async {
+    try {
+      final db = await instance.database;
+      final maps = await db.query(
+        'cache',
+        columns: ['data'],
+        where: 'collection = ?',
+        whereArgs: [collection],
+      );
+
+      return maps.map((map) => jsonDecode(map['data'] as String) as Map<String, dynamic>).toList();
+    } catch (_) {
+      return [];
+    }
   }
   
   Future<void> queueSyncAction(String action, String collection, String? docId, Map<String, dynamic> data) async {
-    final db = await instance.database;
-    await db.insert('sync_queue', {
-      'action': action,
-      'collection': collection,
-      'doc_id': docId ?? '',
-      'data': jsonEncode(data),
-      'created_at': DateTime.now().millisecondsSinceEpoch,
-    });
+    try {
+      final db = await instance.database;
+      await db.insert('sync_queue', {
+        'action': action,
+        'collection': collection,
+        'doc_id': docId ?? '',
+        'data': jsonEncode(data),
+        'created_at': DateTime.now().millisecondsSinceEpoch,
+      });
+    } catch (_) {}
   }
 }

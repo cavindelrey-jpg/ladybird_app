@@ -105,6 +105,7 @@ class ExamRepository {
   }
 
   Future<bool> deleteExamination(String examId) async {
+    await LocalDatabase.instance.deleteCachedData('examinations', examId);
     try {
       await _db.from('examinations').delete().eq('id', examId);
     } catch (_) {
@@ -177,6 +178,7 @@ class ExamRepository {
   }
 
   Future<bool> deleteCollection(String collectionId) async {
+    await LocalDatabase.instance.deleteCachedData('question_collections', collectionId);
     try {
       await _db.from('question_collections').delete().eq('id', collectionId);
     } catch (_) {

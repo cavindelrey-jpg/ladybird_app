@@ -56,7 +56,7 @@ class LibraryFolderRepository {
     return OfflineCache.instance.watch<List<LibraryFolder>>(
       'library_root_folders',
       live,
-      toJson: (list) => OfflineCache.listToJson(list, (f) => (f as LibraryFolder).toSupabase()),
+      toJson: (list) => OfflineCache.listToJson(list, (f) => f.toSupabase()),
       fromJson: (json) => OfflineCache.listFromJson(json, (j) => LibraryFolder.fromSupabase(j)),
       emptyValue: [],
     );
@@ -74,7 +74,7 @@ class LibraryFolderRepository {
     return OfflineCache.instance.watch<List<LibraryFolder>>(
       'library_child_folders_$parentId',
       live,
-      toJson: (list) => OfflineCache.listToJson(list, (f) => (f as LibraryFolder).toSupabase()),
+      toJson: (list) => OfflineCache.listToJson(list, (f) => f.toSupabase()),
       fromJson: (json) => OfflineCache.listFromJson(json, (j) => LibraryFolder.fromSupabase(j)),
       emptyValue: [],
     );
@@ -101,11 +101,22 @@ class LibraryFolderRepository {
   /// Items placed directly in this folder (not recursive — matches
   /// file-explorer semantics where a folder shows its immediate children).
   Stream<List<AcademicContent>> watchItemsInFolder(String folderId) {
-    return _streamCache.watch('watchItemsInFolder_$folderId', () => 
-      _db.from('academic_content').stream(primaryKey: ['id']).eq('folder_id', folderId)
-        .realtimeTolerant().map(
-          (rows) => rows.map(AcademicContent.fromSupabase).toList())
-    );
+    return _streamCache.watch('watchItemsInFolder_$folderId', () {
+      final live = _db
+          .from('academic_content')
+          .stream(primaryKey: ['id'])
+          .eq('folder_id', folderId)
+          .realtimeTolerant()
+          .map((rows) => rows.map(AcademicContent.fromSupabase).toList());
+
+      return OfflineCache.instance.watch<List<AcademicContent>>(
+        'library_items_folder_$folderId',
+        live,
+        toJson: (list) => OfflineCache.listToJson(list, (c) => c.toSupabase()),
+        fromJson: (json) => OfflineCache.listFromJson(json, (j) => AcademicContent.fromSupabase(j)),
+        emptyValue: [],
+      );
+    });
   }
 
   Future<Result<String>> createFolder({required String? parentId, required String name}) async {

@@ -12,6 +12,7 @@ import '../../models/app_user.dart';
 import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../theme/app_colors.dart';
+import 'bulk_past_paper_upload_page.dart';
 
 import '../../widgets/app_background.dart';
 class ContentUploadPage extends StatefulWidget {
@@ -192,6 +193,18 @@ class _ContentUploadPageState extends State<ContentUploadPage> {
       appBar: AppBar(
         title: Text('Upload Content',
             style: GoogleFonts.sora(fontWeight: FontWeight.w700)),
+        actions: [
+          TextButton.icon(
+            icon: Icon(Icons.drive_folder_upload_rounded, color: ac.primary, size: 18),
+            label: Text('Bulk Upload', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: ac.primary, fontSize: 13)),
+            onPressed: () {
+              Navigator.pushReplacement(context, MaterialPageRoute(
+                builder: (_) => BulkPastPaperUploadPage(user: widget.user),
+              ));
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: AppBackground(child: Form(
         key: _formKey,

@@ -17,6 +17,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/public_course.dart';
 import '../core/core.dart';
 import '../services/content_cache_service.dart';
+import '../services/course_offline_service.dart';
 import '../core/realtime_tolerant.dart';
 import '../core/content_quality.dart';
 
@@ -367,36 +368,47 @@ class PublicCourseRepository {
   /// noise. Falls back to latest/most-enrolled for guests or users with no
   /// history yet — never a fabricated or hardcoded list.
   Future<List<PublicCourse>> recommendedForUser(String? userId, {int limit = 5}) async {
-    final pool = await _courses.select().eq('published', true).order('created_at', ascending: false).limit(200);
-    var courses = cleanCourses(pool.map(PublicCourse.fromSupabase));
-    if (courses.isEmpty) return const [];
+    final cacheKey = 'courses_recommended_${userId ?? "all"}';
+    try {
+      final pool = await _courses.select().eq('published', true).order('created_at', ascending: false).limit(200);
+      var courses = cleanCourses(pool.map(PublicCourse.fromSupabase));
+      if (courses.isEmpty) return const [];
 
-    Set<String> subjects = {};
-    if (userId != null) {
-      final recentRows = await _db
-          .from('course_recent_views')
-          .select('course_id')
-          .eq('user_id', userId)
-          .order('viewed_at', ascending: false)
-          .limit(20);
-      final recentIds = recentRows.map((r) => r['course_id'] as String).toSet();
-      subjects = courses.where((c) => recentIds.contains(c.id) && c.category.isNotEmpty)
-          .map((c) => c.category).toSet();
+      Set<String> subjects = {};
+      if (userId != null) {
+        final recentRows = await _db
+            .from('course_recent_views')
+            .select('course_id')
+            .eq('user_id', userId)
+            .order('viewed_at', ascending: false)
+            .limit(20);
+        final recentIds = recentRows.map((r) => r['course_id'] as String).toSet();
+        subjects = courses.where((c) => recentIds.contains(c.id) && c.category.isNotEmpty)
+            .map((c) => c.category).toSet();
+      }
+
+      final scored = courses.where((c) => subjects.isEmpty || subjects.contains(c.category)).toList();
+      final candidates = scored.length >= limit ? scored : courses;
+      candidates.sort((a, b) {
+        final scoreA = a.avgRating * 10 + a.enrolledCount * 0.1;
+        final scoreB = b.avgRating * 10 + b.enrolledCount * 0.1;
+        return scoreB.compareTo(scoreA);
+      });
+      final top = candidates.take(limit * 3).toList();
+      final seed = DateTime.now().difference(DateTime(2020)).inDays + (userId?.hashCode ?? 0);
+      top.shuffle(Random(seed));
+      final result = top.take(limit).toList();
+      unawaited(ContentCacheService.instance.putList(cacheKey, result.map((e) => e.toSupabase()).toList()));
+      return result;
+    } catch (_) {
+      // Offline fallback: try cache, then downloaded courses
+      final cached = await ContentCacheService.instance.getList(cacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        return cleanCourses(cached.map(PublicCourse.fromSupabase)).take(limit).toList();
+      }
+      final downloaded = await CourseOfflineService.instance.getDownloadedCourses();
+      return downloaded.take(limit).toList();
     }
-
-    final scored = courses.where((c) => subjects.isEmpty || subjects.contains(c.category)).toList();
-    final candidates = scored.length >= limit ? scored : courses;
-    candidates.sort((a, b) {
-      final scoreA = a.avgRating * 10 + a.enrolledCount * 0.1;
-      final scoreB = b.avgRating * 10 + b.enrolledCount * 0.1;
-      return scoreB.compareTo(scoreA);
-    });
-    final top = candidates.take(limit * 3).toList();
-    // Date-seeded shuffle: same order all day for a given user, different
-    // the next day — a real rotation, not per-refresh randomness.
-    final seed = DateTime.now().difference(DateTime(2020)).inDays + (userId?.hashCode ?? 0);
-    top.shuffle(Random(seed));
-    return top.take(limit).toList();
   }
 
   // ── Sequence placement ────────────────────────────────────

@@ -13,6 +13,7 @@ import '../models/personal_study_slot.dart';
 import '../core/result.dart';
 import '../core/realtime_tolerant.dart';
 import '../core/offline_cache.dart';
+import '../data/local_database.dart';
 
 class PersonalStudyRepository {
   PersonalStudyRepository._();
@@ -111,10 +112,11 @@ class PersonalStudyRepository {
     _changeNotifier.add(slot.userId);
 
     // Sync to Supabase in background/network if available
+    final row = _toRow(slotWithId);
     final slotsQuery = _slots;
     if (slotsQuery != null) {
       try {
-        final res = await slotsQuery.insert(_toRow(slotWithId)).select().maybeSingle();
+        final res = await slotsQuery.insert(row).select().maybeSingle();
         if (res != null) {
           final synced = _fromRow(res);
           if (synced.id != slotWithId.id) {
@@ -123,8 +125,10 @@ class PersonalStudyRepository {
           }
         }
       } catch (_) {
-        // Local fallback already saved
+        await LocalDatabase.instance.queueSyncAction('upsert', 'personal_study_slots', slotWithId.id, row);
       }
+    } else {
+      await LocalDatabase.instance.queueSyncAction('upsert', 'personal_study_slots', slotWithId.id, row);
     }
 
     return const Success(null);
@@ -134,11 +138,16 @@ class PersonalStudyRepository {
     await _saveLocalFallback(slot);
     _changeNotifier.add(slot.userId);
 
+    final row = _toRow(slot);
     final slotsQuery = _slots;
     if (slotsQuery != null) {
       try {
-        await slotsQuery.update(_toRow(slot)).eq('id', slot.id);
-      } catch (_) {}
+        await slotsQuery.update(row).eq('id', slot.id);
+      } catch (_) {
+        await LocalDatabase.instance.queueSyncAction('update', 'personal_study_slots', slot.id, row);
+      }
+    } else {
+      await LocalDatabase.instance.queueSyncAction('update', 'personal_study_slots', slot.id, row);
     }
 
     return const Success(null);
@@ -156,7 +165,11 @@ class PersonalStudyRepository {
     if (slotsQuery != null) {
       try {
         await slotsQuery.delete().eq('id', slotId).eq('user_id', userId);
-      } catch (_) {}
+      } catch (_) {
+        await LocalDatabase.instance.queueSyncAction('delete', 'personal_study_slots', slotId, {});
+      }
+    } else {
+      await LocalDatabase.instance.queueSyncAction('delete', 'personal_study_slots', slotId, {});
     }
 
     return const Success(null);
@@ -186,7 +199,7 @@ class PersonalStudyRepository {
       final key = 'personal_study_$userId';
       await OfflineCache.instance.put(
         key,
-        OfflineCache.listToJson(list, (s) => (s as PersonalStudySlot).toJson()),
+        OfflineCache.listToJson(list, (s) => s.toJson()),
       );
     } catch (_) {}
   }

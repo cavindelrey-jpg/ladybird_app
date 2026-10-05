@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/app_notification.dart';
 import '../core/result.dart';
 import 'dart:async';
+import '../services/content_cache_service.dart';
 import '../core/realtime_tolerant.dart';
 
 class NotificationRepository {
@@ -21,13 +22,33 @@ class NotificationRepository {
 
   Stream<List<AppNotification>> watchFeed(String uid, {int limit = 50}) {
     if (uid.isEmpty) return Stream.value(const []);
-    return _notifications
-        .stream(primaryKey: ['id'])
-        .eq('user_id', uid)
-        .order('created_at', ascending: false)
-        .limit(limit)
-        .realtimeTolerant()
-        .map((rows) => rows.map(AppNotification.fromSupabase).toList());
+    final controller = StreamController<List<AppNotification>>();
+    StreamSubscription? liveSub;
+
+    controller.onListen = () async {
+      final cacheKey = 'notifications_$uid';
+      final cached = await ContentCacheService.instance.getList(cacheKey);
+      if (cached != null && !controller.isClosed) {
+        controller.add(cached.map(AppNotification.fromSupabase).toList());
+      }
+      liveSub = _notifications
+          .stream(primaryKey: ['id'])
+          .eq('user_id', uid)
+          .order('created_at', ascending: false)
+          .limit(limit)
+          .realtimeTolerant()
+          .listen((rows) {
+        if (controller.isClosed) return;
+        final list = List<Map<String, dynamic>>.from(rows);
+        unawaited(ContentCacheService.instance.putList(cacheKey, list));
+        controller.add(list.map(AppNotification.fromSupabase).toList());
+      }, onError: (e) {
+        if (cached == null && !controller.isClosed) controller.addError(e);
+      });
+    };
+
+    controller.onCancel = () => liveSub?.cancel();
+    return controller.stream;
   }
 
   Stream<int> watchUnreadCount(String uid) {

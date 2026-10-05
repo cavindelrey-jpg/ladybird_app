@@ -10,6 +10,7 @@ import '../models/exam_question.dart';
 import '../models/examination.dart';
 import '../services/exam_content_indexer_service.dart';
 import '../core/realtime_tolerant.dart';
+import '../config/branding.dart';
 
 class ExamRepository {
   ExamRepository._();
@@ -331,13 +332,17 @@ class ExamRepository {
     }
   }
 
-  SchoolExamTemplate getDefaultTemplate(String schoolId, {String schoolName = 'Ladybird International School'}) {
+  SchoolExamTemplate getDefaultTemplate(String schoolId, {String? schoolName}) {
+    final effectiveName = (schoolName != null && schoolName.isNotEmpty)
+        ? schoolName
+        : Branding.current.appName;
+    final effectiveId = schoolId.isNotEmpty ? schoolId : (Branding.current.effectiveSchoolId ?? 'default');
     return SchoolExamTemplate(
-      id: 'default_${schoolId.isNotEmpty ? schoolId : "ladybird"}',
-      schoolId: schoolId,
+      id: 'default_$effectiveId',
+      schoolId: effectiveId,
       name: 'Standard Examination Letterhead',
       type: ExamTemplateType.examination,
-      schoolName: schoolName,
+      schoolName: effectiveName,
       countryHeader: 'REPUBLIC OF CAMEROON\nPeace - Work - Fatherland\nMINISTRY OF SECONDARY EDUCATION',
       subHeader: 'REGIONAL DELEGATION OF SECONDARY EDUCATION\nP.O. Box 1234, Douala | Tel: +237 670 000 000',
       motto: 'Excellence - Discipline - Success',

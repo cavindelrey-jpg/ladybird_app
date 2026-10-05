@@ -4,13 +4,12 @@
 // for this app.
 //
 // Supabase: public.home_hero (id text primary key, image_url text) --
-// same shared table greenhills_app uses (see its own
-// home_hero_repository.dart), but keyed 'ladybird' here rather than
-// 'config' so the two apps' banners never collide on the shared row.
+// keyed by Branding.current.brandId so multi-tenant school apps never collide.
 
 import 'dart:io';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../config/branding.dart';
 import '../core/core.dart';
 import '../core/offline_cache.dart';
 import '../core/realtime_tolerant.dart';
@@ -19,7 +18,7 @@ class HomeHeroRepository {
   HomeHeroRepository._();
   static final HomeHeroRepository instance = HomeHeroRepository._();
 
-  static const String _rowId = 'ladybird';
+  static String get _rowId => Branding.current.brandId;
   static const String _bucket = 'app-content';
   final SupabaseClient _db = Supabase.instance.client;
 
@@ -31,7 +30,7 @@ class HomeHeroRepository {
         .realtimeTolerant()
         .map((rows) => rows.isNotEmpty ? (rows.first['image_url'] as String? ?? '') : '');
     return OfflineCache.instance.watch<String>(
-      'home_hero_url',
+      'home_hero_url_${Branding.current.brandId}',
       live,
       toJson: (url) => url,
       fromJson: (json) => json as String,
@@ -41,7 +40,7 @@ class HomeHeroRepository {
 
   Future<Result<String>> uploadImage(File imageFile) async {
     try {
-      const path = 'home_hero/ladybird_banner.jpg';
+      final path = 'home_hero/${Branding.current.brandId}_banner.jpg';
       await _db.storage.from(_bucket).upload(path, imageFile, fileOptions: const FileOptions(upsert: true))
           .timeout(const Duration(seconds: 60), onTimeout: () => throw Exception(
               'Image upload is taking too long. Check your connection and try again.'));

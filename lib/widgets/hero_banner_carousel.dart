@@ -107,11 +107,31 @@ class _HeroBannerCarouselState extends State<HeroBannerCarousel> {
         _ensureAutoAdvance(slides.length);
         return SizedBox(
           height: 176,
-          child: PageView.builder(
-            controller: _pageCtrl,
-            onPageChanged: (i) => setState(() => _index = i),
-            itemCount: slides.length,
-            itemBuilder: (_, i) => _bannerCard(context, slides[i], slides.length),
+          child: Stack(
+            children: [
+              PageView.builder(
+                controller: _pageCtrl,
+                onPageChanged: (i) => setState(() => _index = i),
+                itemCount: slides.length,
+                itemBuilder: (_, i) => _bannerCard(context, slides[i], slides.length),
+              ),
+              if (!_isGuest && _u!.isSuperAdmin)
+                Positioned(
+                  top: 8,
+                  right: 24,
+                  child: IconButton(
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black.withValues(alpha: 0.4),
+                      foregroundColor: Colors.white,
+                    ),
+                    icon: const Icon(Icons.edit_rounded, size: 18),
+                    tooltip: 'Manage Banners',
+                    onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => HeroSlideManagerPage(
+                            createdByUid: _u!.id, initialPlacement: widget.placement))),
+                  ),
+                ),
+            ],
           ),
         );
       },

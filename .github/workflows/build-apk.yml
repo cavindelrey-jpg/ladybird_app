@@ -75,7 +75,7 @@ jobs:
         continue-on-error: true
         with:
           name: ladybird-release-apks
-          path: build/app/outputs/flutter-apk/app-*-release.apk
+          path: build/app/outputs/flutter-apk/*.apk
           retention-days: 3
 
       - name: Publish Release Assets to GitHub Release
@@ -93,7 +93,7 @@ jobs:
             echo "Uploading release assets (attempt $attempt)..."
             if gh release upload latest-ladybird \
               build/app/outputs/bundle/ladybirdRelease/app-ladybird-release.aab \
-              build/app/outputs/flutter-apk/app-*-release.apk \
+              build/app/outputs/flutter-apk/*.apk \
               --clobber; then
               echo "Successfully uploaded release assets!"
               exit 0

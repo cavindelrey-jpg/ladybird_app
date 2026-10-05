@@ -27,6 +27,10 @@ class Branding {
   /// asset never silently disables the tenant check.
   final String voucherPrefix;
 
+  /// The tenant school identifier for this app build (e.g. 'ladybird', 'green_hill').
+  /// Null only for the central 'academia' General application.
+  final String? schoolId;
+
   const Branding({
     required this.brandId,
     required this.appName,
@@ -37,6 +41,7 @@ class Branding {
     required this.logoAssetPath,
     required this.splashAssetPath,
     required this.voucherPrefix,
+    this.schoolId,
   });
 
   static String _fallbackPrefix(String brandId) {
@@ -45,6 +50,15 @@ class Branding {
       case 'ladybird':   return 'LB';
       case 'academia':   return 'AC';
       default:           return brandId.toUpperCase();
+    }
+  }
+
+  static String? _fallbackSchoolId(String brandId) {
+    switch (brandId) {
+      case 'green_hill': return 'green_hill';
+      case 'ladybird':   return 'ladybird';
+      case 'academia':   return null;
+      default:           return brandId;
     }
   }
 
@@ -77,9 +91,39 @@ class Branding {
     logoAssetPath: 'assets/branding/ladybird_logo.jpg',
     splashAssetPath: 'assets/branding/ladybird_logo.jpg',
     voucherPrefix: 'LB',
+    schoolId: 'ladybird',
   );
 
   static Branding get current => _current;
+
+  /// Allows test suites to simulate different school brands and environments.
+  static void setForTesting(Branding? branding) {
+    if (branding != null) {
+      _current = branding;
+    } else {
+      _current = const Branding(
+        brandId: _envBrandId,
+        appName: 'Ladybird Group of Schools',
+        tagline: 'High Moral Standards, Academic Excellence',
+        primaryColor: const Color(0xFF1E6FEB),
+        secondaryColor: const Color(0xFF0B1F4D),
+        accentColor: const Color(0xFFF4B400),
+        logoAssetPath: 'assets/branding/ladybird_logo.jpg',
+        splashAssetPath: 'assets/branding/ladybird_logo.jpg',
+        voucherPrefix: 'LB',
+        schoolId: 'ladybird',
+      );
+    }
+  }
+
+  /// True only for the central Academia General app.
+  bool get isGeneralApp => brandId == 'academia';
+
+  /// True for any school-branded app (e.g. Ladybird, Green Hills, St. Stephen).
+  bool get isSchoolApp => !isGeneralApp;
+
+  /// Effective school ID of this application environment.
+  String? get effectiveSchoolId => schoolId ?? _fallbackSchoolId(brandId);
 
   /// True only for the public Academia app. The XP economy (paywalled
   /// past papers, purchases, leaderboards) is an Academia-only mechanic —
@@ -118,6 +162,7 @@ class Branding {
         logoAssetPath: m['logoAssetPath'] ?? _current.logoAssetPath,
         splashAssetPath: m['splashAssetPath'] ?? _current.splashAssetPath,
         voucherPrefix: m['voucherPrefix'] ?? _fallbackPrefix(_envBrandId),
+        schoolId: m['schoolId'] ?? _fallbackSchoolId(_envBrandId),
       );
     } catch (e, st) {
       // Keep the hardcoded Academia fallback -- a missing/broken

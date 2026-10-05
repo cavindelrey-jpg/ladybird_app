@@ -54,7 +54,7 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
     bool contentFailed = false, clubsFailed = false, usersFailed = false, coursesFailed = false;
     final results = await Future.wait([
       _safe(() => AcademicContentRepository.instance.search(query, institutionId: widget.user.schoolId), <AcademicContent>[], (f) => contentFailed = f),
-      _safe(() => ClubRepository.instance.searchClubs(query), <Club>[], (f) => clubsFailed = f),
+      _safe(() => ClubRepository.instance.searchClubs(query, user: widget.user), <Club>[], (f) => clubsFailed = f),
       _safe(() => MessagingRepository.instance.searchUsers(query), <Map<String, dynamic>>[], (f) => usersFailed = f),
       _safe(() => PublicCourseRepository.instance.watchLatest().first, <PublicCourse>[], (f) => coursesFailed = f),
     ]);

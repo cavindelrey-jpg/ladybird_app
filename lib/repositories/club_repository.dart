@@ -21,6 +21,7 @@ import '../services/content_cache_service.dart';
 import 'dart:async';
 import 'xp_repository.dart';
 import '../core/realtime_tolerant.dart';
+import '../core/club_scope.dart';
 
 class ClubRepository {
   ClubRepository._();
@@ -31,24 +32,32 @@ class ClubRepository {
 
   // ── Discovery ──────────────────────────────────────────
 
-  Stream<List<Club>> watchClubs({String? schoolId}) {
+  Stream<List<Club>> watchClubs({String? schoolId, AppUser? user}) {
     final controller = StreamController<List<Club>>();
     StreamSubscription? liveSub;
 
     controller.onListen = () async {
-      final cacheKey = schoolId == null ? 'clubs_all' : 'clubs_$schoolId';
+      final scope = ClubScope.resolveSchoolId(user: user, explicitSchoolId: schoolId);
+      final cacheKey = scope == null ? 'clubs_all_super_admin' : 'clubs_$scope';
       final cached = await ContentCacheService.instance.getList(cacheKey);
       if (cached != null && !controller.isClosed) {
-        controller.add(cached.map(Club.fromSupabase).toList());
+        var cachedRows = cached;
+        if (scope != null) {
+          cachedRows = cached.where((r) => (r['institution_id'] ?? r['school_id']) == scope).toList();
+        }
+        controller.add(cachedRows.map(Club.fromSupabase).toList());
       }
       
-      final stream = _db.from('clubs').stream(primaryKey: ['id'])
-        .realtimeTolerant();
+      final query = _db.from('clubs');
+      final stream = (scope != null)
+          ? query.stream(primaryKey: ['id']).eq('institution_id', scope).realtimeTolerant()
+          : query.stream(primaryKey: ['id']).realtimeTolerant();
+
       liveSub = stream.listen((rows) {
         if (controller.isClosed) return;
         var filtered = rows;
-        if (schoolId != null) {
-          filtered = rows.where((r) => r['institution_id'] == schoolId).toList();
+        if (scope != null) {
+          filtered = rows.where((r) => (r['institution_id'] ?? r['school_id']) == scope).toList();
         }
         final list = List<Map<String, dynamic>>.from(filtered);
         unawaited(ContentCacheService.instance.putList(cacheKey, list));
@@ -62,15 +71,44 @@ class ClubRepository {
     return controller.stream;
   }
 
-  Future<List<Club>> searchClubs(String query, {String? category}) async {
+  Future<List<Club>> searchClubs(
+    String query, {
+    String? category,
+    String? schoolId,
+    AppUser? user,
+  }) async {
+    final scope = ClubScope.resolveSchoolId(user: user, explicitSchoolId: schoolId);
     var q = _db.from('clubs').select();
     if (category != null && category != 'All') q = q.eq('category', category);
+    if (scope != null) {
+      q = q.eq('institution_id', scope);
+    }
     final rows = await q;
     final lower = query.toLowerCase();
-    return rows
-        .map(Club.fromSupabase)
+    var list = rows.map(Club.fromSupabase);
+    if (scope != null) {
+      list = list.where((c) => c.schoolId == scope);
+    }
+    return list
         .where((c) => query.isEmpty || c.name.toLowerCase().contains(lower))
         .toList();
+  }
+
+  /// Fetches a single club by ID, verifying that the current context/user is authorized to access it.
+  Future<Result<Club>> getClub(String clubId, {AppUser? user}) async {
+    try {
+      final row = await _db.from('clubs').select().eq('id', clubId).maybeSingle();
+      if (row == null) {
+        return const Failure('Group not found', null);
+      }
+      final club = Club.fromSupabase(row);
+      if (!ClubScope.canAccessClub(club, user: user)) {
+        return const Failure('Access denied: This group belongs to another school context.', null);
+      }
+      return Success(club);
+    } catch (e) {
+      return Failure('Failed to load group', e);
+    }
   }
 
   // ── Membership ─────────────────────────────────────────
@@ -157,8 +195,13 @@ class ClubRepository {
     String userId, {
     required String name,
     String? photoUrl,
+    AppUser? user,
   }) async {
     try {
+      final clubRes = await getClub(clubId, user: user);
+      if (clubRes is Failure<Club>) {
+        return Failure(clubRes.message, clubRes.cause);
+      }
       await _db.rpc('join_club', params: {'p_club_id': clubId, 'p_name': name, 'p_photo_url': photoUrl});
       return const Success(null);
     } catch (e) {
@@ -173,8 +216,13 @@ class ClubRepository {
   Future<Result<void>> requestToJoin({
     required String clubId, required String clubName,
     required String userId, required String userName, String? userPhotoUrl,
+    AppUser? user,
   }) async {
     try {
+      final clubRes = await getClub(clubId, user: user);
+      if (clubRes is Failure<Club>) {
+        return Failure(clubRes.message, clubRes.cause);
+      }
       final existing = await _joinRequests
           .select()
           .eq('club_id', clubId)
@@ -374,8 +422,12 @@ class ClubRepository {
     return controller.stream;
   }
 
-  Future<Result<void>> sendMessage(String clubId, ClubMessage message) async {
+  Future<Result<void>> sendMessage(String clubId, ClubMessage message, {AppUser? user}) async {
     try {
+      final clubRes = await getClub(clubId, user: user);
+      if (clubRes is Failure<Club>) {
+        return Failure(clubRes.message, clubRes.cause);
+      }
       // The inbox preview (clubs.last_message_*) is maintained by the
       // trg_club_message_preview trigger -- the client used to update it
       // itself, which members (not moderators) aren't allowed to do, so
@@ -425,12 +477,23 @@ class ClubRepository {
   }
 
   /// Full Club rows for [watchMyClubIds] — the actual data the merged
-  /// inbox renders (name, emoji, lastMessage*).
-  Stream<List<Club>> watchMyClubs(String userId) => watchMyClubIds(userId).asyncMap((ids) async {
-        if (ids.isEmpty) return <Club>[];
-        final rows = await _db.from('clubs').select().inFilter('id', ids);
-        return rows.map(Club.fromSupabase).toList();
-      });
+  /// inbox renders (name, emoji, lastMessage*), filtered by authorized school context.
+  Stream<List<Club>> watchMyClubs(String userId, {String? schoolId, AppUser? user}) {
+    final scope = ClubScope.resolveSchoolId(user: user, explicitSchoolId: schoolId);
+    return watchMyClubIds(userId).asyncMap((ids) async {
+      if (ids.isEmpty) return <Club>[];
+      var q = _db.from('clubs').select().inFilter('id', ids);
+      if (scope != null) {
+        q = q.eq('institution_id', scope);
+      }
+      final rows = await q;
+      var clubs = rows.map(Club.fromSupabase);
+      if (scope != null) {
+        clubs = clubs.where((c) => c.schoolId == scope);
+      }
+      return clubs.toList();
+    });
+  }
 
   /// Soft-delete -- same reasoning as MessagingRepository.deleteMessage:
   /// keeps the row so the thread shows a placeholder instead of a gap,
@@ -455,9 +518,30 @@ class ClubRepository {
     String founderId, {
     required String founderName,
     String? founderPhotoUrl,
+    AppUser? user,
   }) async {
     try {
-      final row = await _db.from('clubs').insert(club.toSupabase()).select('id').single();
+      final scope = ClubScope.resolveSchoolId(user: user, explicitSchoolId: club.schoolId);
+      final scopedClub = Club(
+        id: club.id,
+        name: club.name,
+        emoji: club.emoji,
+        description: club.description,
+        moderatorName: founderName,
+        moderatorId: founderId,
+        category: club.category,
+        bannerUrl: club.bannerUrl,
+        thumbnailUrl: club.thumbnailUrl,
+        memberCount: club.memberCount,
+        schoolId: scope ?? club.schoolId,
+        requiresApproval: club.requiresApproval,
+        classLevel: club.classLevel,
+        lastMessageText: club.lastMessageText,
+        lastMessageSenderId: club.lastMessageSenderId,
+        lastMessageAt: club.lastMessageAt,
+      );
+
+      final row = await _db.from('clubs').insert(scopedClub.toSupabase()).select('id').single();
       final clubId = row['id'] as String;
       await _db.from('club_members').insert({
         'club_id': clubId, 'user_id': founderId,
@@ -537,8 +621,11 @@ class ClubRepository {
     }
   }
 
-  Future<Result<void>> updateClub(Club club) async {
+  Future<Result<void>> updateClub(Club club, {AppUser? user}) async {
     try {
+      if (!ClubScope.canAccessClub(club, user: user)) {
+        return const Failure('Access denied: You cannot edit a group from another school.', null);
+      }
       // toUpdateMap(), not a fresh-createdAt map -- an edit must never
       // touch the club's real creation date.
       await _db.from('clubs').update(club.toUpdateMap()).eq('id', club.id);
@@ -549,8 +636,12 @@ class ClubRepository {
   }
 
   /// Founder or school staff only (mirrors RLS' clubs delete policy).
-  Future<Result<void>> deleteClub(String clubId) async {
+  Future<Result<void>> deleteClub(String clubId, {AppUser? user}) async {
     try {
+      final clubRes = await getClub(clubId, user: user);
+      if (clubRes is Failure<Club>) {
+        return Failure(clubRes.message, clubRes.cause);
+      }
       await _db.from('clubs').delete().eq('id', clubId);
       return const Success(null);
     } catch (e) {
@@ -569,8 +660,12 @@ class ClubRepository {
       .realtimeTolerant()
       .map((rows) => rows.map(ClubPost.fromSupabase).toList());
 
-  Future<Result<void>> createPost(String clubId, ClubPost post) async {
+  Future<Result<void>> createPost(String clubId, ClubPost post, {AppUser? user}) async {
     try {
+      final clubRes = await getClub(clubId, user: user);
+      if (clubRes is Failure<Club>) {
+        return Failure(clubRes.message, clubRes.cause);
+      }
       await _db.from('club_posts').insert(post.toSupabase());
       return const Success(null);
     } catch (e) {
@@ -642,8 +737,12 @@ class ClubRepository {
       .realtimeTolerant()
       .map((rows) => rows.isNotEmpty ? ClubDiscussion.fromSupabase(rows.first) : null);
 
-  Future<Result<String>> createDiscussion(String clubId, ClubDiscussion discussion) async {
+  Future<Result<String>> createDiscussion(String clubId, ClubDiscussion discussion, {AppUser? user}) async {
     try {
+      final clubRes = await getClub(clubId, user: user);
+      if (clubRes is Failure<Club>) {
+        return Failure(clubRes.message, clubRes.cause);
+      }
       final row = await _db.from('club_discussions').insert(discussion.toSupabase()).select('id').single();
       final id = row['id'] as String;
       await XpRepository.instance.awardXp(discussion.authorId, XpSource.clubQuestion, XpSource.clubQuestion.baseXp, refId: id);

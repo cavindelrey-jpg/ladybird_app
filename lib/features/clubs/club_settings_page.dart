@@ -39,6 +39,7 @@ import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/club_visuals.dart';
+import '../../core/club_scope.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'club_members_page.dart';
@@ -132,7 +133,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
       memberCount: widget.club.memberCount,
       schoolId: widget.club.schoolId,
       requiresApproval: _requiresApproval,
-    ));
+    ), user: widget.currentUser);
     if (!mounted) return;
     setState(() => _saving = false);
     if (result is Success) {
@@ -162,7 +163,7 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
     );
     if (confirmed != true) return;
     setState(() => _deleting = true);
-    final result = await ClubRepository.instance.deleteClub(widget.club.id);
+    final result = await ClubRepository.instance.deleteClub(widget.club.id, user: widget.currentUser);
     if (!mounted) return;
     setState(() => _deleting = false);
     if (result is Success) {
@@ -178,6 +179,13 @@ class _ClubSettingsPageState extends State<ClubSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
+    if (!ClubScope.canAccessClub(widget.club, user: widget.currentUser)) {
+      return Scaffold(
+        backgroundColor: ac.bg,
+        appBar: AppBar(backgroundColor: ac.bg, elevation: 0),
+        body: const Center(child: Text('Access restricted to members of this institution.')),
+      );
+    }
     return Scaffold(
       backgroundColor: ac.bg,
       appBar: AppBar(

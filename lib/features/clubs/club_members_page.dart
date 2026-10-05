@@ -12,6 +12,7 @@ import '../../models/club.dart';
 import '../../repositories/club_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_colors.dart';
+import '../../core/club_scope.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 
@@ -23,6 +24,13 @@ class ClubMembersPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
+    if (!ClubScope.canAccessClub(club, user: currentUser)) {
+      return Scaffold(
+        backgroundColor: ac.bg,
+        appBar: AppBar(backgroundColor: ac.bg, elevation: 0),
+        body: const Center(child: Text('Access restricted to members of this institution.')),
+      );
+    }
     return Scaffold(
       backgroundColor: ac.bg,
       appBar: AppBar(
@@ -65,6 +73,9 @@ class ClubMembersBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!ClubScope.canAccessClub(club, user: currentUser)) {
+      return const Center(child: Text('Access restricted to members of this institution.'));
+    }
     return StreamBuilder<ClubRole>(
       stream: ClubRepository.instance.watchUserRole(club.id, currentUser.id),
       builder: (context, myRoleSnap) {

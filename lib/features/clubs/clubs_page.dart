@@ -52,6 +52,7 @@ import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
 import '../messages/messages_home_page.dart';
+import '../../core/club_scope.dart';
 import 'create_club_page.dart';
 import 'club_members_page.dart';
 import 'club_settings_page.dart';
@@ -70,16 +71,16 @@ class _ClubsPageState extends State<ClubsPage> {
   String? _selectedCategory; // null == "All Clubs"
   final _searchCtrl = TextEditingController();
 
-  late final Stream<List<Club>> _clubsStream;
-  late final Stream<List<String>> _myClubIdsStream;
-  late final Stream<List<String>> _myPendingIdsStream;
+  late Stream<List<Club>> _clubsStream;
+  late Stream<List<String>> _myClubIdsStream;
+  late Stream<List<String>> _myPendingIdsStream;
 
   bool get _canCreate => !widget.user.isGuest;
 
   @override
   void initState() {
     super.initState();
-    _clubsStream = ClubRepository.instance.watchClubs();
+    _clubsStream = ClubRepository.instance.watchClubs(user: widget.user);
     _myClubIdsStream = ClubRepository.instance.watchMyClubIds(widget.user.id);
     _myPendingIdsStream = ClubRepository.instance.watchMyPendingRequestClubIds(widget.user.id);
     _searchCtrl.addListener(() {
@@ -88,6 +89,20 @@ class _ClubsPageState extends State<ClubsPage> {
         setState(() => _searchQuery = text);
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(ClubsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.user.schoolId != widget.user.schoolId ||
+        oldWidget.user.id != widget.user.id ||
+        oldWidget.user.role != widget.user.role) {
+      setState(() {
+        _clubsStream = ClubRepository.instance.watchClubs(user: widget.user);
+        _myClubIdsStream = ClubRepository.instance.watchMyClubIds(widget.user.id);
+        _myPendingIdsStream = ClubRepository.instance.watchMyPendingRequestClubIds(widget.user.id);
+      });
+    }
   }
 
   @override
@@ -128,7 +143,8 @@ class _ClubsPageState extends State<ClubsPage> {
           );
         }
 
-        final allClubs = snap.data ?? const <Club>[];
+        final rawClubs = snap.data ?? const <Club>[];
+        final allClubs = rawClubs.where((c) => ClubScope.canAccessClub(c, user: widget.user)).toList();
         var filtered = _searchQuery.isEmpty
             ? allClubs
             : allClubs.where((c) =>
@@ -810,11 +826,16 @@ class _DiscoverClubCard extends StatelessWidget {
       showToast(context, 'Create an account to join groups');
       return;
     }
+    if (!ClubScope.canAccessClub(club, user: user)) {
+      showToast(context, 'This group belongs to another school.');
+      return;
+    }
     HapticFeedback.mediumImpact();
     if (club.requiresApproval) {
       final result = await ClubRepository.instance.requestToJoin(
         clubId: club.id, clubName: club.name,
         userId: user.id, userName: user.name, userPhotoUrl: user.photoUrl,
+        user: user,
       );
       if (context.mounted) {
         showToast(context, result is Success ? 'Request sent — pending admin approval.' : (result as Failure).message);
@@ -822,6 +843,7 @@ class _DiscoverClubCard extends StatelessWidget {
     } else {
       final result = await ClubRepository.instance.joinClub(
         club.id, user.id, name: user.name, photoUrl: user.photoUrl,
+        user: user,
       );
       if (context.mounted) {
         showToast(context, result is Success ? '✅ Welcome to ${club.name}!' : 'Failed to join');
@@ -954,6 +976,39 @@ class _ClubDetailPageState extends State<ClubDetailPage>
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
+    if (!ClubScope.canAccessClub(widget.club, user: widget.user)) {
+      return Scaffold(
+        backgroundColor: ac.bg,
+        appBar: AppBar(backgroundColor: ac.bg, elevation: 0),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_outline, size: 56, color: ac.muted),
+                const SizedBox(height: 16),
+                Text(
+                  'Access Restricted',
+                  style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.bold, color: ac.txt),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'This academic group belongs to another school context and is not accessible.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(fontSize: 14, color: ac.txt2),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Go Back'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: ac.bg,
       body: SafeArea(
@@ -1183,17 +1238,22 @@ class _Hero extends StatelessWidget {
   }
 
   Future<void> _handleJoin(BuildContext context) async {
+    if (!ClubScope.canAccessClub(club, user: user)) {
+      showToast(context, 'This group belongs to another school.');
+      return;
+    }
     HapticFeedback.mediumImpact();
     if (club.requiresApproval) {
       final result = await ClubRepository.instance.requestToJoin(
         clubId: club.id, clubName: club.name,
         userId: user.id, userName: user.name, userPhotoUrl: user.photoUrl,
+        user: user,
       );
       if (context.mounted) {
         showToast(context, result is Success ? 'Request sent — pending admin approval.' : (result as Failure).message);
       }
     } else {
-      final result = await ClubRepository.instance.joinClub(club.id, user.id, name: user.name, photoUrl: user.photoUrl);
+      final result = await ClubRepository.instance.joinClub(club.id, user.id, name: user.name, photoUrl: user.photoUrl, user: user);
       if (context.mounted) {
         showToast(context, result is Success ? '✅ Welcome to ${club.name}!' : 'Failed to join');
       }
@@ -1366,7 +1426,7 @@ class _ClubChatPageState extends State<ClubChatPage> {
       senderInitials: widget.user.initials, text: text, time: DateTime.now(),
     );
     _ctrl.clear();
-    final res = await ClubRepository.instance.sendMessage(widget.club.id, msg);
+    final res = await ClubRepository.instance.sendMessage(widget.club.id, msg, user: widget.user);
     if (!mounted) return;
     if (res is Failure<void>) {
       // Never silently drop what someone typed: put it back and say why.
@@ -1384,6 +1444,13 @@ class _ClubChatPageState extends State<ClubChatPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
+    if (!ClubScope.canAccessClub(widget.club, user: widget.user)) {
+      return Scaffold(
+        backgroundColor: ac.bg,
+        appBar: AppBar(backgroundColor: ac.bg, elevation: 0),
+        body: const Center(child: Text('Access restricted to members of this institution.')),
+      );
+    }
     return Scaffold(
       backgroundColor: ac.bg,
       appBar: AppBar(

@@ -1186,7 +1186,7 @@ class _RecommendedClubsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Club>>(
-      stream: ClubRepository.instance.watchClubs(schoolId: user?.schoolId),
+      stream: ClubRepository.instance.watchClubs(user: user),
       builder: (context, snap) {
         final allClubs = snap.data ?? const <Club>[];
         if (allClubs.isEmpty) return const SizedBox.shrink();

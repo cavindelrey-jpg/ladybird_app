@@ -349,7 +349,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           .timeout(const Duration(seconds: 4), onTimeout: () => const <String>[]);
       if (clubIds.isEmpty) return const [];
       final clubs = await ClubRepository.instance
-          .watchMyClubs(_u!.id)
+          .watchMyClubs(_u!.id, user: _u)
           .first
           .timeout(const Duration(seconds: 4), onTimeout: () => const <Club>[]);
       final nameById = {for (final c in clubs) c.id: c.name};

@@ -24,6 +24,8 @@ import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/club_visuals.dart';
+import '../../core/club_scope.dart';
+import '../../config/branding.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'clubs_page.dart';
@@ -51,7 +53,6 @@ class _CreateClubPageState extends State<CreateClubPage> {
   /// sensible icon rather than the generic default.
   String _emoji = ClubVisuals.categoryDefaultKey['General']!;
   String _category = 'General';
-  bool _restrictToSchool = true;
   bool _requiresApproval = false;
   File? _bannerFile;
   File? _thumbnailFile;
@@ -89,6 +90,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _saving = true; _error = null; });
 
+    final assignedSchoolId = ClubScope.resolveSchoolId(user: widget.user);
     final club = Club(
       id: '',
       name: _nameCtrl.text.trim(),
@@ -97,7 +99,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
       moderatorName: widget.user.name,
       moderatorId: widget.user.id,
       category: _category,
-      schoolId: (_isSchoolLinked && _restrictToSchool) ? widget.user.schoolId : null,
+      schoolId: assignedSchoolId,
       requiresApproval: _requiresApproval,
     );
 
@@ -105,6 +107,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
     final result = await repo.createClub(
       club, widget.user.id,
       founderName: widget.user.name, founderPhotoUrl: widget.user.photoUrl,
+      user: widget.user,
     );
 
     if (result is Failure<String>) {
@@ -133,7 +136,7 @@ class _CreateClubPageState extends State<CreateClubPage> {
         moderatorName: club.moderatorName, moderatorId: club.moderatorId,
         category: club.category, bannerUrl: bannerUrl, thumbnailUrl: thumbnailUrl,
         schoolId: club.schoolId, requiresApproval: club.requiresApproval,
-      ));
+      ), user: widget.user);
     }
 
     if (!mounted) return;
@@ -279,24 +282,31 @@ class _CreateClubPageState extends State<CreateClubPage> {
               items: _kClubCategories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
               onChanged: _onCategoryChanged,
             ),
-            if (_isSchoolLinked) ...[
+            if (Branding.current.isSchoolApp || _isSchoolLinked) ...[
               const SizedBox(height: 14),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                     color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
-                child: SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('Restrict to my school', style: GoogleFonts.inter(
-                      fontSize: 13.5, fontWeight: FontWeight.w600, color: ac.txt)),
-                  subtitle: Text(
-                      _restrictToSchool
-                          ? 'Only people at your school will see this group.'
-                          : 'Open to everyone.',
-                      style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
-                  value: _restrictToSchool,
-                  activeThumbColor: ac.gold,
-                  onChanged: (v) => setState(() => _restrictToSchool = v),
+                child: Row(
+                  children: [
+                    Icon(Icons.school_outlined, size: 20, color: ac.gold),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('School-exclusive group', style: GoogleFonts.inter(
+                              fontSize: 13.5, fontWeight: FontWeight.w600, color: ac.txt)),
+                          const SizedBox(height: 2),
+                          Text(
+                            'This group is automatically created for ${widget.user.schoolName.isNotEmpty ? widget.user.schoolName : Branding.current.appName} and visible only within this school context.',
+                            style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

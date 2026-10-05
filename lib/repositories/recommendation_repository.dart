@@ -10,10 +10,12 @@
 
 import '../models/academic_content.dart';
 
+import '../models/app_user.dart';
 import '../models/club.dart';
 import '../models/magazine_article.dart';
 import '../models/public_course.dart';
 import '../models/test.dart';
+import '../core/club_scope.dart';
 import '../repositories/academic_content_repository.dart';
 import '../repositories/magazine_repository.dart';
 import '../repositories/public_course_repository.dart';
@@ -384,13 +386,15 @@ class RecommendationRepository {
   List<Club> forClubs({
     required List<Club> pool,
     required List<String> favoriteSubjects,
+    AppUser? user,
     int limit = 6,
   }) {
+    final scopedPool = pool.where((c) => ClubScope.canAccessClub(c, user: user)).toList();
     final wanted = <String>{
       for (final s in favoriteSubjects)
         if (_subjectToClubCategory[s] != null) _subjectToClubCategory[s]!,
     };
     if (wanted.isEmpty) return const [];
-    return pool.where((c) => wanted.contains(c.category)).take(limit).toList();
+    return scopedPool.where((c) => wanted.contains(c.category)).take(limit).toList();
   }
 }

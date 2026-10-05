@@ -23,17 +23,26 @@ class ExamRepository {
   Stream<List<Examination>> watchExaminations({
     required String schoolId,
     String? teacherId,
-  }) {
-    if (schoolId.isEmpty) return Stream.value(const []);
+  }) async* {
+    if (schoolId.isEmpty) {
+      yield const [];
+      return;
+    }
 
-    final stream = _db
+    // 1. Offline-first: render the locally cached state immediately, without
+    //    waiting for the network (see FIX 3, AUTOPILOT_LOG).
+    final cached = await _getLocalExaminations(schoolId, teacherId);
+    if (cached.isNotEmpty) yield cached;
+
+    // 2. Then sync in the background from the live stream, which refreshes the
+    //    cache and the UI. Errors are swallowed so offline use stays silent.
+    yield* _db
         .from('examinations')
         .stream(primaryKey: ['id'])
         .eq('school_id', schoolId)
         .order('updated_at', ascending: false)
-        .realtimeTolerant();
-
-    return stream.asyncMap((rows) async {
+        .realtimeTolerant()
+        .asyncMap((rows) async {
       try {
         final list = rows
             .map((r) => Examination.fromJson(r))
@@ -49,7 +58,7 @@ class ExamRepository {
         // Fall back to local SQLite cache
         return _getLocalExaminations(schoolId, teacherId);
       }
-    }).handleError((_) => _getLocalExaminations(schoolId, teacherId));
+    }).handleError((_) {});
   }
 
   Future<List<Examination>> _getLocalExaminations(String schoolId, String? teacherId) async {
@@ -109,17 +118,23 @@ class ExamRepository {
   Stream<List<QuestionCollection>> watchCollections({
     required String schoolId,
     required String teacherId,
-  }) {
-    if (schoolId.isEmpty || teacherId.isEmpty) return Stream.value(const []);
+  }) async* {
+    if (schoolId.isEmpty || teacherId.isEmpty) {
+      yield const [];
+      return;
+    }
 
-    final stream = _db
+    // Offline-first: emit cached collections immediately, then sync live.
+    final cached = await _getLocalCollections(schoolId, teacherId);
+    if (cached.isNotEmpty) yield cached;
+
+    yield* _db
         .from('question_collections')
         .stream(primaryKey: ['id'])
         .eq('teacher_id', teacherId)
         .order('updated_at', ascending: false)
-        .realtimeTolerant();
-
-    return stream.asyncMap((rows) async {
+        .realtimeTolerant()
+        .asyncMap((rows) async {
       try {
         final list = rows
             .map((r) => QuestionCollection.fromJson(r))
@@ -133,7 +148,7 @@ class ExamRepository {
       } catch (_) {
         return _getLocalCollections(schoolId, teacherId);
       }
-    }).handleError((_) => _getLocalCollections(schoolId, teacherId));
+    }).handleError((_) {});
   }
 
   Future<List<QuestionCollection>> _getLocalCollections(String schoolId, String teacherId) async {
@@ -232,12 +247,9 @@ class ExamRepository {
       results.addAll(libraryQuestions);
     } catch (_) {}
 
-    // 3. Fallback built-in foundational curriculum questions if bank is empty
-    if (results.isEmpty) {
-      results.addAll(_getFoundationalQuestions(subject ?? 'Mathematics', classLevel ?? 'Form 5'));
-    }
-
-    // 4. Apply intelligent multi-field filtering
+    // 3. Apply intelligent multi-field filtering. If nothing matches, the UI
+    //    shows its empty state — we never fabricate placeholder questions
+    //    (see FIX 1, AUTOPILOT_LOG).
     return results.where((q) {
       if (qLower.isNotEmpty) {
         final matches = q.content.toLowerCase().contains(qLower) ||
@@ -284,16 +296,22 @@ class ExamRepository {
 
   // ─── School Exam Templates & Digital Letterheads ───────────────────────────
 
-  Stream<List<SchoolExamTemplate>> watchSchoolTemplates(String schoolId) {
-    if (schoolId.isEmpty) return Stream.value(const []);
+  Stream<List<SchoolExamTemplate>> watchSchoolTemplates(String schoolId) async* {
+    if (schoolId.isEmpty) {
+      yield const [];
+      return;
+    }
 
-    final stream = _db
+    // Offline-first: emit cached templates (falling back to the built-in
+    // default letterhead) immediately, then sync live.
+    yield await _getLocalTemplates(schoolId);
+
+    yield* _db
         .from('school_exam_templates')
         .stream(primaryKey: ['id'])
         .eq('school_id', schoolId)
-        .realtimeTolerant();
-
-    return stream.asyncMap((rows) async {
+        .realtimeTolerant()
+        .asyncMap((rows) async {
       try {
         final list = rows.map((r) => SchoolExamTemplate.fromJson(r)).toList();
         if (list.isEmpty) {
@@ -306,7 +324,7 @@ class ExamRepository {
       } catch (_) {
         return _getLocalTemplates(schoolId);
       }
-    }).handleError((_) => _getLocalTemplates(schoolId));
+    }).handleError((_) {});
   }
 
   Future<List<SchoolExamTemplate>> _getLocalTemplates(String schoolId) async {
@@ -356,52 +374,4 @@ class ExamRepository {
     );
   }
 
-  List<ExamQuestion> _getFoundationalQuestions(String subject, String classLevel) {
-    return [
-      ExamQuestion(
-        id: 'q_foundational_1',
-        content: 'Solve for x in the quadratic equation 2x² - 5x - 3 = 0 using the quadratic formula or factoring.',
-        marks: 5,
-        type: QuestionType.structured,
-        subject: subject,
-        classLevel: classLevel,
-        topic: 'Algebra',
-        subtopic: 'Quadratic Equations',
-        difficulty: 'medium',
-        source: 'GCE O-Level Past Paper 2022',
-        year: 2022,
-        createdAt: DateTime.now(),
-      ),
-      ExamQuestion(
-        id: 'q_foundational_2',
-        content: 'Which of the following represents the derivative of f(x) = 3x³ - 4x + 7 with respect to x?',
-        marks: 2,
-        type: QuestionType.mcq,
-        options: ['9x² - 4', '9x² + 4', '6x - 4', '3x² - 4'],
-        correctOptionIndex: 0,
-        subject: subject,
-        classLevel: classLevel,
-        topic: 'Calculus',
-        subtopic: 'Differentiation',
-        difficulty: 'easy',
-        source: 'National Curriculum Question Bank',
-        year: 2023,
-        createdAt: DateTime.now(),
-      ),
-      ExamQuestion(
-        id: 'q_foundational_3',
-        content: 'Explain the principles of circular motion and derive the expression for centripetal acceleration in terms of angular velocity ω and radius r.',
-        marks: 8,
-        type: QuestionType.longForm,
-        subject: subject,
-        classLevel: classLevel,
-        topic: 'Mechanics',
-        subtopic: 'Circular Motion',
-        difficulty: 'hard',
-        source: 'Cameroon GCE Board Syllabus',
-        year: 2023,
-        createdAt: DateTime.now(),
-      ),
-    ];
-  }
 }

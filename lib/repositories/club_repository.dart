@@ -43,7 +43,10 @@ class ClubRepository {
       if (cached != null && !controller.isClosed) {
         var cachedRows = cached;
         if (scope != null) {
-          cachedRows = cached.where((r) => (r['institution_id'] ?? r['school_id']) == scope).toList();
+          cachedRows = cached.where((r) {
+            final sid = ClubScope.normalizeSchoolId((r['school_id'] ?? r['institution_id']) as String?);
+            return sid == scope;
+          }).toList();
         }
         controller.add(cachedRows.map(Club.fromSupabase).toList());
       }
@@ -57,7 +60,10 @@ class ClubRepository {
         if (controller.isClosed) return;
         var filtered = rows;
         if (scope != null) {
-          filtered = rows.where((r) => (r['institution_id'] ?? r['school_id']) == scope).toList();
+          filtered = rows.where((r) {
+            final sid = ClubScope.normalizeSchoolId((r['school_id'] ?? r['institution_id']) as String?);
+            return sid == scope;
+          }).toList();
         }
         final list = List<Map<String, dynamic>>.from(filtered);
         unawaited(ContentCacheService.instance.putList(cacheKey, list));
@@ -81,13 +87,13 @@ class ClubRepository {
     var q = _db.from('clubs').select();
     if (category != null && category != 'All') q = q.eq('category', category);
     if (scope != null) {
-      q = q.eq('institution_id', scope);
+      q = q.or('institution_id.eq.$scope,school_id.eq.$scope');
     }
     final rows = await q;
     final lower = query.toLowerCase();
     var list = rows.map(Club.fromSupabase);
     if (scope != null) {
-      list = list.where((c) => c.schoolId == scope);
+      list = list.where((c) => ClubScope.normalizeSchoolId(c.schoolId) == scope);
     }
     return list
         .where((c) => query.isEmpty || c.name.toLowerCase().contains(lower))
@@ -97,9 +103,14 @@ class ClubRepository {
   /// Fetches a single club by ID, verifying that the current context/user is authorized to access it.
   Future<Result<Club>> getClub(String clubId, {AppUser? user}) async {
     try {
-      final row = await _db.from('clubs').select().eq('id', clubId).maybeSingle();
+      final scope = ClubScope.resolveSchoolId(user: user);
+      var q = _db.from('clubs').select().eq('id', clubId);
+      if (scope != null) {
+        q = q.or('institution_id.eq.$scope,school_id.eq.$scope');
+      }
+      final row = await q.maybeSingle();
       if (row == null) {
-        return const Failure('Group not found', null);
+        return const Failure('Group not found or access denied for this school context.', null);
       }
       final club = Club.fromSupabase(row);
       if (!ClubScope.canAccessClub(club, user: user)) {
@@ -333,8 +344,11 @@ class ClubRepository {
   /// master hasn't created one yet.
   Future<Result<Club?>> classGroup(String schoolId, String classLevel) async {
     try {
+      final canonical = ClubScope.normalizeSchoolId(schoolId);
       final row = await _db.from('clubs').select()
-          .eq('institution_id', schoolId).eq('class_level', classLevel).maybeSingle();
+          .or('institution_id.eq.$canonical,school_id.eq.$canonical')
+          .eq('class_level', classLevel)
+          .maybeSingle();
       return Success(row == null ? null : Club.fromSupabase(row));
     } catch (e) {
       return Failure('Couldn\'t load the class group. Check your connection.', e);
@@ -484,12 +498,12 @@ class ClubRepository {
       if (ids.isEmpty) return <Club>[];
       var q = _db.from('clubs').select().inFilter('id', ids);
       if (scope != null) {
-        q = q.eq('institution_id', scope);
+        q = q.or('institution_id.eq.$scope,school_id.eq.$scope');
       }
       final rows = await q;
       var clubs = rows.map(Club.fromSupabase);
       if (scope != null) {
-        clubs = clubs.where((c) => c.schoolId == scope);
+        clubs = clubs.where((c) => ClubScope.normalizeSchoolId(c.schoolId) == scope);
       }
       return clubs.toList();
     });
@@ -626,9 +640,12 @@ class ClubRepository {
       if (!ClubScope.canAccessClub(club, user: user)) {
         return const Failure('Access denied: You cannot edit a group from another school.', null);
       }
-      // toUpdateMap(), not a fresh-createdAt map -- an edit must never
-      // touch the club's real creation date.
-      await _db.from('clubs').update(club.toUpdateMap()).eq('id', club.id);
+      final scope = ClubScope.resolveSchoolId(user: user, explicitSchoolId: club.schoolId);
+      var q = _db.from('clubs').update(club.toUpdateMap()).eq('id', club.id);
+      if (scope != null) {
+        q = q.or('institution_id.eq.$scope,school_id.eq.$scope');
+      }
+      await q;
       return const Success(null);
     } catch (e) {
       return Failure('Failed to update group', e);
@@ -642,7 +659,12 @@ class ClubRepository {
       if (clubRes is Failure<Club>) {
         return Failure(clubRes.message, clubRes.cause);
       }
-      await _db.from('clubs').delete().eq('id', clubId);
+      final scope = ClubScope.resolveSchoolId(user: user);
+      var q = _db.from('clubs').delete().eq('id', clubId);
+      if (scope != null) {
+        q = q.or('institution_id.eq.$scope,school_id.eq.$scope');
+      }
+      await q;
       return const Success(null);
     } catch (e) {
       return Failure('Failed to delete group', e);
@@ -865,8 +887,12 @@ class ClubRepository {
       .realtimeTolerant()
       .map((rows) => rows.map(ClubResource.fromSupabase).toList());
 
-  Future<Result<void>> addResource(String clubId, ClubResource resource) async {
+  Future<Result<void>> addResource(String clubId, ClubResource resource, {AppUser? user}) async {
     try {
+      final clubRes = await getClub(clubId, user: user);
+      if (clubRes is Failure<Club>) {
+        return Failure(clubRes.message, clubRes.cause);
+      }
       await _db.from('club_resources').insert(resource.toSupabase());
       return const Success(null);
     } catch (e) {
@@ -904,8 +930,12 @@ class ClubRepository {
         .realtimeTolerant() // soonest upcoming first
       .map((rows) => rows.map(ClubEvent.fromSupabase).toList());
 
-  Future<Result<void>> addEvent(String clubId, ClubEvent event) async {
+  Future<Result<void>> addEvent(String clubId, ClubEvent event, {AppUser? user}) async {
     try {
+      final clubRes = await getClub(clubId, user: user);
+      if (clubRes is Failure<Club>) {
+        return Failure(clubRes.message, clubRes.cause);
+      }
       await _db.from('club_events').insert(event.toSupabase());
       return const Success(null);
     } catch (e) {

@@ -19,6 +19,27 @@ import '../models/club.dart';
 class ClubScope {
   ClubScope._();
 
+  /// Canonicalizes school/institution slugs so slight variations (e.g. green_hill vs green_hills)
+  /// map cleanly to their uniform tenant identifier.
+  static String? normalizeSchoolId(String? id) {
+    if (id == null) return null;
+    final s = id.trim().toLowerCase();
+    if (s.isEmpty) return null;
+    if (s == 'green_hill' || s == 'green_hills' || s == 'greenhill' || s == 'greenhills') {
+      return 'green_hill';
+    }
+    if (s == 'ladybird' || s == 'ladybird_app' || s == 'lady_bird') {
+      return 'ladybird';
+    }
+    if (s == 'st_stephen' || s == 'ststephen' || s == 'st_stephens') {
+      return 'st_stephen';
+    }
+    if (s == 'academia' || s == 'general' || s == 'academia_general') {
+      return 'academia';
+    }
+    return s;
+  }
+
   /// Resolves the permitted school identifier for the current context.
   ///
   /// Returns `null` ONLY when operating inside the Academia General app AND the user
@@ -36,8 +57,8 @@ class ClubScope {
     // School-branded applications: isolation is absolute.
     // Even a super admin inside a school app MUST NOT see cross-school clubs.
     if (!brand.isGeneralApp) {
-      final appSchoolId = brand.effectiveSchoolId ?? brand.brandId;
-      return appSchoolId;
+      final appSchoolId = brand.effectiveSchoolId ?? brand.schoolId ?? brand.brandId;
+      return normalizeSchoolId(appSchoolId);
     }
 
     // Inside Academia General application:
@@ -48,10 +69,10 @@ class ClubScope {
 
     // Non-super-admin in Academia General:
     if (explicitSchoolId != null && explicitSchoolId.isNotEmpty) {
-      return explicitSchoolId;
+      return normalizeSchoolId(explicitSchoolId);
     }
     if (user?.schoolId != null && user!.schoolId!.isNotEmpty) {
-      return user.schoolId;
+      return normalizeSchoolId(user.schoolId);
     }
     return 'academia';
   }
@@ -62,13 +83,13 @@ class ClubScope {
     AppUser? user,
     Branding? branding,
   }) {
-    final allowedSchoolId = resolveSchoolId(user: user, branding: branding);
+    final allowedSchoolId = normalizeSchoolId(resolveSchoolId(user: user, branding: branding));
     if (allowedSchoolId == null) {
       // Academia General Super Admin has authorized cross-school access
       return true;
     }
 
-    final clubSchool = club.schoolId;
+    final clubSchool = normalizeSchoolId(club.schoolId);
     if (clubSchool == null || clubSchool.isEmpty) {
       // Unscoped clubs only appear in 'academia' context, never in school-branded apps
       return allowedSchoolId == 'academia';

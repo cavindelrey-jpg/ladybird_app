@@ -169,7 +169,7 @@ class _ClubsPageState extends State<ClubsPage> {
 
                 final candidates = widget.user.favoriteSubjects.isEmpty
                     ? const <Club>[]
-                    : RecommendationRepository.instance.forClubs(pool: allClubs, favoriteSubjects: widget.user.favoriteSubjects);
+                    : RecommendationRepository.instance.forClubs(pool: allClubs, favoriteSubjects: widget.user.favoriteSubjects, user: widget.user);
                 final recommendedClubs = candidates.where((c) => !c.isClassGroup && !joinedIds.contains(c.id) && !pendingIds.contains(c.id)).toList();
 
                 return Scaffold(
@@ -2050,7 +2050,7 @@ class _AddResourceSheetState extends State<_AddResourceSheet> {
       id: '', clubId: widget.club.id, title: title, url: url,
       uploaderId: widget.user.id, uploaderName: widget.user.name, uploaderPhotoUrl: widget.user.photoUrl,
       createdAt: DateTime.now(),
-    ));
+    ), user: widget.user);
     if (!mounted) return;
     setState(() => _saving = false);
     if (result is Success) {
@@ -2236,7 +2236,7 @@ class _AddEventSheetState extends State<_AddEventSheet> {
       description: _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
       startAt: startAt, location: _locationCtrl.text.trim().isEmpty ? null : _locationCtrl.text.trim(),
       creatorId: widget.user.id, creatorName: widget.user.name,
-    ));
+    ), user: widget.user);
     if (!mounted) return;
     setState(() => _saving = false);
     if (result is Success) {

@@ -355,6 +355,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
       final nameById = {for (final c in clubs) c.id: c.name};
       final out = <({String clubName, ClubEvent event})>[];
       for (final id in clubIds.take(3)) {
+        if (!nameById.containsKey(id)) continue;
         final events = await ClubRepository.instance
             .watchEvents(id)
             .first

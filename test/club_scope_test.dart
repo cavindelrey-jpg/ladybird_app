@@ -334,5 +334,62 @@ void main() {
       final canAccessLbFromGh = ClubScope.canAccessClub(ladybirdClub, user: ghUser, branding: greenHillsBrand);
       expect(canAccessLbFromGh, isFalse);
     });
+
+    test('10. Super Admin inside school app: cannot access other schools clubs', () {
+      final superAdmin = makeUser(id: 'sa', role: UserRole.superAdmin);
+      // Super admin inside Ladybird app
+      expect(ClubScope.canAccessClub(ladybirdClub, user: superAdmin, branding: ladybirdBrand), isTrue);
+      expect(ClubScope.canAccessClub(greenHillsClub, user: superAdmin, branding: ladybirdBrand), isFalse);
+      expect(ClubScope.canAccessClub(stStephenClub, user: superAdmin, branding: ladybirdBrand), isFalse);
+
+      // Super admin inside Green Hills app
+      expect(ClubScope.canAccessClub(greenHillsClub, user: superAdmin, branding: greenHillsBrand), isTrue);
+      expect(ClubScope.canAccessClub(ladybirdClub, user: superAdmin, branding: greenHillsBrand), isFalse);
+    });
+
+    test('11. Query-level scope resolution: always school-bound in school-branded apps', () {
+      final roles = [UserRole.student, UserRole.lecturer, UserRole.schoolAdmin, UserRole.superAdmin];
+      for (final role in roles) {
+        final user = makeUser(id: 'u-${role.name}', role: role, schoolId: 'ladybird');
+        expect(ClubScope.resolveSchoolId(user: user, branding: ladybirdBrand), 'ladybird');
+      }
+
+      for (final role in roles) {
+        final user = makeUser(id: 'u-${role.name}', role: role, schoolId: 'green_hill');
+        expect(ClubScope.resolveSchoolId(user: user, branding: greenHillsBrand), 'green_hill');
+      }
+    });
+
+    test('12. Model serialization: writes both school_id and institution_id for database uniformity', () {
+      final club = Club(
+        id: 'c-test-1',
+        name: 'Test Club',
+        emoji: '🎯',
+        description: 'Test description',
+        moderatorName: 'Mod',
+        moderatorId: 'm1',
+        schoolId: 'ladybird',
+      );
+      final insertMap = club.toSupabase();
+      expect(insertMap['school_id'], 'ladybird');
+      expect(insertMap['institution_id'], 'ladybird');
+
+      final updateMap = club.toUpdateMap();
+      expect(updateMap['school_id'], 'ladybird');
+      expect(updateMap['institution_id'], 'ladybird');
+
+      // Deserialization prefers school_id then institution_id
+      final deserialized = Club.fromSupabase({
+        'id': 'c-test-1',
+        'name': 'Test Club',
+        'emoji': '🎯',
+        'description': 'Test desc',
+        'moderator_name': 'Mod',
+        'moderator_id': 'm1',
+        'school_id': 'green_hill',
+        'institution_id': 'legacy_val',
+      });
+      expect(deserialized.schoolId, 'green_hill');
+    });
   });
 }

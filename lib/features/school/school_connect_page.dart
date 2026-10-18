@@ -37,6 +37,7 @@ import 'school_calendar_manager_page.dart';
 import 'school_request_form_page.dart';
 import 'school_requests_admin_page.dart';
 import 'widgets/school_shared_widgets.dart';
+import '../../widgets/application_shell.dart';
 
 class SchoolConnectPage extends StatelessWidget {
   final AppUser user;
@@ -47,28 +48,11 @@ class SchoolConnectPage extends StatelessWidget {
     final ac = AppColors.of(context);
     final schoolId = user.schoolId ?? '';
 
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: schoolAppBar(
-        context: context,
-        title: 'School Connect',
-        subtitle: 'Stay connected with your school',
-        trailing: [
-          IconButton(
-            icon: Icon(Icons.notifications_outlined, color: ac.txt2),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => NotificationsPage(user: user))),
-          ),
-          if (user.canManageSchool || user.canUploadContent)
-            IconButton(
-              icon: Icon(Icons.inbox_outlined, color: ac.txt2),
-              tooltip: 'Requests inbox',
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => SchoolRequestsAdminPage(staff: user))),
-            ),
-        ],
-      ),
-      body: schoolId.isEmpty
+    return ApplicationShell(
+      user: user,
+      currentTitle: 'School Connect',
+      currentDestination: AppNavDestination.schoolConnect,
+      child: schoolId.isEmpty
           ? _missingSchoolState(ac)
           : ListView(
               padding: const EdgeInsets.only(bottom: 24),

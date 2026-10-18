@@ -51,7 +51,7 @@ class NotificationsPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: ac.bg, elevation: 0,
         iconTheme: IconThemeData(color: ac.txt),
-        title: Text('Notifications', style: GoogleFonts.sora(
+        title: Text('Notifications', style: GoogleFonts.inter(
             fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
         actions: [
           TextButton(

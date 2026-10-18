@@ -10,6 +10,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import 'chat_conversation_page.dart';
 import 'find_people_page.dart';
+import '../../widgets/application_shell.dart';
 
 class MessagesHomePage extends StatefulWidget {
   final AppUser user;
@@ -44,59 +45,10 @@ class _MessagesHomePageState extends State<MessagesHomePage> with SingleTickerPr
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg,
-        elevation: 0,
-        title: Text('Academic Network', style: GoogleFonts.sora(fontSize: 22, fontWeight: FontWeight.bold, color: ac.navy)),
-        iconTheme: IconThemeData(color: ac.navy),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(110),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: TextField(
-                  controller: _searchCtrl,
-                  decoration: InputDecoration(
-                    hintText: 'Search conversations or people...',
-                    hintStyle: TextStyle(color: ac.muted, fontSize: 14),
-                    prefixIcon: Icon(Icons.search_rounded, color: ac.muted),
-                    filled: true,
-                    fillColor: ac.surf,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  ),
-                ),
-              ),
-              TabBar(
-                controller: _tabController,
-                indicatorColor: ac.gold,
-                indicatorWeight: 3,
-                labelColor: ac.navy,
-                unselectedLabelColor: ac.muted,
-                labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14),
-                unselectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14),
-                tabs: const [
-                  Tab(text: 'Conversations'),
-                  Tab(text: 'Message Requests'),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _ConversationsTab(user: widget.user, filter: _filter),
-          _MessageRequestsTab(user: widget.user, filter: _filter),
-        ],
-      ),
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'Messaging',
+      currentDestination: AppNavDestination.none,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           HapticFeedback.mediumImpact();
@@ -106,6 +58,50 @@ class _MessagesHomePageState extends State<MessagesHomePage> with SingleTickerPr
         foregroundColor: Colors.white,
         icon: const Icon(Icons.edit_square, size: 20),
         label: Text('New Message', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 14)),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: TextField(
+              controller: _searchCtrl,
+              decoration: InputDecoration(
+                hintText: 'Search conversations or people...',
+                hintStyle: TextStyle(color: ac.muted, fontSize: 14),
+                prefixIcon: Icon(Icons.search_rounded, color: ac.muted),
+                filled: true,
+                fillColor: ac.surf,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              ),
+            ),
+          ),
+          TabBar(
+            controller: _tabController,
+            indicatorColor: ac.gold,
+            indicatorWeight: 3,
+            labelColor: ac.navy,
+            unselectedLabelColor: ac.muted,
+            labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14),
+            unselectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 14),
+            tabs: const [
+              Tab(text: 'Conversations'),
+              Tab(text: 'Message Requests'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _ConversationsTab(user: widget.user, filter: _filter),
+                _MessageRequestsTab(user: widget.user, filter: _filter),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

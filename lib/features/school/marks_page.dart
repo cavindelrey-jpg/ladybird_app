@@ -15,6 +15,7 @@ import '../../theme/app_colors.dart';
 import 'marks_entry_page.dart';
 import 'marks_csv_import_page.dart';
 import 'widgets/school_shared_widgets.dart';
+import '../../widgets/application_shell.dart';
 
 enum _CompareTarget { previousSequence, firstSequence }
 
@@ -75,42 +76,11 @@ class _MarksPageState extends State<MarksPage> {
     // actions hidden behind two unlabeled icons was the old behavior.
     if (u.canRecordAnyMarks && !u.isStudent) return _StaffMarksHome(staff: u);
 
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: schoolAppBar(
-        context: context,
-        title: 'Marks',
-        subtitle: 'View your academic performance',
-        trailing: [
-          if (u.canRecordAnyMarks) ...[
-            IconButton(
-              icon: Icon(Icons.edit_note_rounded, color: ac.primary),
-              tooltip: 'Enter marks',
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => MarksEntryPage(staff: u))).then((_) => _refresh()),
-            ),
-            IconButton(
-              icon: Icon(Icons.upload_file_rounded, color: ac.primary),
-              tooltip: 'Upload CSV',
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => MarksCsvImportPage(staff: u))).then((res) {
-                if (res != null && mounted) {
-                  final result = res is MarksImportResult ? res : null;
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => MarksEntryPage(
-                      staff: u,
-                      initialClass: result?.classLevel,
-                      initialSubject: result?.subject,
-                      initialSequence: result?.sequence,
-                    ),
-                  ));
-                }
-              }),
-            ),
-          ],
-        ],
-      ),
-      body: Column(children: [
+    return ApplicationShell(
+      user: u,
+      currentTitle: 'Marks',
+      currentDestination: AppNavDestination.marks,
+      child: Column(children: [
         if (u.canRecordAnyMarks)
           Container(
             margin: const EdgeInsets.fromLTRB(16, 10, 16, 4),
@@ -472,21 +442,11 @@ class _StaffMarksHome extends StatelessWidget {
       }
     }
 
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: schoolAppBar(
-        context: context,
-        title: 'Marks Recording',
-        subtitle: 'Record and export your classes\' marks',
-        trailing: [
-          IconButton(
-            icon: Icon(Icons.upload_file_rounded, color: ac.primary),
-            tooltip: 'Upload CSV',
-            onPressed: openCsvImport,
-          ),
-        ],
-      ),
-      body: ListView(
+    return ApplicationShell(
+      user: staff,
+      currentTitle: 'Marks',
+      currentDestination: AppNavDestination.marks,
+      child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
           // ── Prominent Teacher Marks Action Card ──────────────────────────
@@ -521,7 +481,7 @@ class _StaffMarksHome extends StatelessWidget {
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text('Record Student Marks',
-                          style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w800, color: ac.txt)),
+                          style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w800, color: ac.txt)),
                       const SizedBox(height: 2),
                       Text('Enter scores directly for any class or import via CSV spreadsheet.',
                           style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
@@ -565,7 +525,7 @@ class _StaffMarksHome extends StatelessWidget {
           ),
           const SizedBox(height: 18),
 
-          Text('Classes & Subjects', style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
+          Text('Classes & Subjects', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
           const SizedBox(height: 10),
           for (final (cls, subject) in cards)
             Container(
@@ -593,7 +553,7 @@ class _StaffMarksHome extends StatelessWidget {
                           children: [
                             Text(cls,
                                 softWrap: true,
-                                style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
+                                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
                             const SizedBox(height: 2),
                             Text(
                               subject ?? (staff.classMasterOfClass == cls ? 'All subjects · Class master' : 'All subjects'),

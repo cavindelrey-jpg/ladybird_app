@@ -33,6 +33,7 @@ import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
 import '../../pages/profile_page.dart';
+import '../../widgets/application_shell.dart';
 import 'library_folder_page.dart';
 import 'library_search_page.dart';
 import 'content_details_page.dart';
@@ -50,43 +51,10 @@ class LibraryHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      body: AppBackground(child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.only(bottom: 24),
-          children: [
-            _header(context, ac),
-            const SizedBox(height: 8),
-            _sectionHeader('File Explorer', ac),
-            const SizedBox(height: 12),
-            _fileExplorer(context, ac),
-            const SizedBox(height: 26),
-            _sectionHeader('Recommended for You', ac, onSeeAll: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => RecommendedLibraryPage(user: user)))),
-            const SizedBox(height: 12),
-            // Re-built (and so re-fetched) whenever connectivity flips, so
-            // "needs an internet connection" clears by itself on reconnect.
-            StreamBuilder<bool>(
-              stream: ConnectivityService().watchOffline(),
-              builder: (context, net) => Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _recommendedRow(context, ac),
-                  const SizedBox(height: 24),
-                  _sectionHeader('Recent Reads', ac),
-                  const SizedBox(height: 12),
-                  _recentReads(context, ac),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-            _sectionHeader('Available Offline', ac, badge: 'Downloaded'),
-            const SizedBox(height: 12),
-            _offlineSection(context, ac),
-          ],
-        ),
-      )),
+    return ApplicationShell(
+      user: user,
+      currentTitle: 'Academic Library',
+      currentDestination: AppNavDestination.academicLibrary,
       floatingActionButton: _canUpload
           ? FloatingActionButton.extended(
               onPressed: () {
@@ -99,6 +67,37 @@ class LibraryHomePage extends StatelessWidget {
               label: Text('Upload', style: AppText.button.copyWith(fontSize: 15)),
             )
           : null,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        children: [
+          _sectionHeader('File Explorer', ac),
+          const SizedBox(height: 12),
+          _fileExplorer(context, ac),
+          const SizedBox(height: 26),
+          _sectionHeader('Recommended for You', ac, onSeeAll: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => RecommendedLibraryPage(user: user)))),
+          const SizedBox(height: 12),
+          // Re-built (and so re-fetched) whenever connectivity flips, so
+          // "needs an internet connection" clears by itself on reconnect.
+          StreamBuilder<bool>(
+            stream: ConnectivityService().watchOffline(),
+            builder: (context, net) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _recommendedRow(context, ac),
+                const SizedBox(height: 24),
+                _sectionHeader('Recent Reads', ac),
+                const SizedBox(height: 12),
+                _recentReads(context, ac),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          _sectionHeader('Available Offline', ac, badge: 'Downloaded'),
+          const SizedBox(height: 12),
+          _offlineSection(context, ac),
+        ],
+      ),
     );
   }
 
@@ -117,7 +116,7 @@ class LibraryHomePage extends StatelessWidget {
                 decoration: BoxDecoration(color: ac.primary.withValues(alpha: 0.12), shape: BoxShape.circle),
                 child: Icon(Icons.upload_file_rounded, color: ac.primary),
               ),
-              title: Text('Single Item Upload', style: GoogleFonts.sora(fontWeight: FontWeight.w700, fontSize: 14, color: ac.txt)),
+              title: Text('Single Item Upload', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: ac.txt)),
               subtitle: Text('Upload single note, book, video, or paper', style: GoogleFonts.inter(fontSize: 12, color: ac.txt2)),
               onTap: () {
                 Navigator.pop(ctx);
@@ -130,7 +129,7 @@ class LibraryHomePage extends StatelessWidget {
                 decoration: BoxDecoration(color: ac.gold.withValues(alpha: 0.15), shape: BoxShape.circle),
                 child: Icon(Icons.drive_folder_upload_rounded, color: ac.gold),
               ),
-              title: Text('Mass Upload Past Papers', style: GoogleFonts.sora(fontWeight: FontWeight.w700, fontSize: 14, color: ac.txt)),
+              title: Text('Mass Upload Past Papers', style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 14, color: ac.txt)),
               subtitle: Text('Batch upload multiple PDFs with auto-parsed metadata & shared covers', style: GoogleFonts.inter(fontSize: 12, color: ac.txt2)),
               onTap: () {
                 Navigator.pop(ctx);

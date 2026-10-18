@@ -27,7 +27,7 @@ class ComingSoonPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: ac.bg, elevation: 0,
         iconTheme: IconThemeData(color: ac.txt),
-        title: Text(title, style: GoogleFonts.sora(
+        title: Text(title, style: GoogleFonts.inter(
             fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
       ),
       body: Center(
@@ -41,7 +41,7 @@ class ComingSoonPage extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(subtitle == null ? 'Coming Soon' : title,
-                style: GoogleFonts.sora(fontSize: 18, fontWeight: FontWeight.w800, color: ac.txt)),
+                style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w800, color: ac.txt)),
             const SizedBox(height: 8),
             Text(
               subtitle ?? "$title isn't built yet — it's on the roadmap.",

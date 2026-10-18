@@ -9,6 +9,8 @@ import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 
 import '../widgets/app_background.dart';
+import '../models/app_user.dart';
+import '../widgets/application_shell.dart';
 class _Faq {
   final String q, a;
   const _Faq(this.q, this.a);
@@ -39,24 +41,21 @@ const _faqs = [
 ];
 
 class HelpSupportPage extends StatelessWidget {
-  const HelpSupportPage({super.key});
+  final AppUser? user;
+  const HelpSupportPage({super.key, this.user});
 
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text('Help & Support', style: GoogleFonts.sora(
-            fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
-      ),
-      body: AppBackground(child: ListView(
+    return ApplicationShell(
+      user: user,
+      currentTitle: 'Help',
+      currentDestination: AppNavDestination.help,
+      child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text('Frequently Asked Questions', style: GoogleFonts.sora(
-              fontSize: 14, fontWeight: FontWeight.w800, color: ac.txt)),
+          Text('Frequently Asked Questions', style: GoogleFonts.inter(
+              fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt)),
           const SizedBox(height: 12),
           ..._faqs.map((f) => _FaqTile(faq: f)),
           const SizedBox(height: 24),
@@ -65,7 +64,7 @@ class HelpSupportPage extends StatelessWidget {
             decoration: BoxDecoration(
                 color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Still need help?', style: GoogleFonts.sora(
+              Text('Still need help?', style: GoogleFonts.inter(
                   fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
               const SizedBox(height: 6),
               Text('Reach our support team directly and we\'ll get back to you.',
@@ -83,7 +82,7 @@ class HelpSupportPage extends StatelessWidget {
             ]),
           ),
         ],
-      )),
+      ),
     );
   }
 }

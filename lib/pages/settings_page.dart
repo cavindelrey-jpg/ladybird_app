@@ -19,6 +19,8 @@ import 'about_academia_page.dart';
 import '../features/onboarding/school_admin_page.dart';
 
 import '../widgets/app_background.dart';
+import '../widgets/application_shell.dart';
+
 class SettingsPage extends StatelessWidget {
   final AppUser user;
   const SettingsPage({super.key, required this.user});
@@ -26,15 +28,11 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text('Settings', style: GoogleFonts.sora(
-            fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
-      ),
-      body: AppBackground(child: ListView(
+    return ApplicationShell(
+      user: user,
+      currentTitle: 'Settings',
+      currentDestination: AppNavDestination.settings,
+      child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           _sectionLabel(context, 'Appearance'),
@@ -83,7 +81,7 @@ class SettingsPage extends StatelessWidget {
           _tile(context, Icons.logout_rounded, 'Sign Out', null,
               () => AuthService.instance.performSignOut(context), color: ac.red),
         ],
-      )),
+      ),
     );
   }
 
@@ -172,8 +170,8 @@ class SettingsPage extends StatelessWidget {
 
   Widget _sectionLabel(BuildContext context, String text) => Padding(
         padding: const EdgeInsets.only(bottom: 10, left: 4),
-        child: Text(text, style: GoogleFonts.sora(
-            fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.of(context).txt2, letterSpacing: .4)),
+        child: Text(text, style: GoogleFonts.inter(
+            fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.of(context).txt2, letterSpacing: .4)),
       );
 
   Widget _tile(BuildContext context, IconData icon, String title, String? subtitle,

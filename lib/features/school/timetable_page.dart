@@ -18,6 +18,7 @@ import '../../theme/app_colors.dart';
 import '../timetable/personal_study_page.dart';
 import 'timetable_manager_page.dart';
 import 'widgets/school_shared_widgets.dart';
+import '../../widgets/application_shell.dart';
 
 class TimetablePage extends StatelessWidget {
   final AppUser user;
@@ -29,30 +30,11 @@ class TimetablePage extends StatelessWidget {
     final schoolId = user.schoolId ?? '';
     final classLevel = user.classLevel;
 
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: schoolAppBar(
-        context: context,
-        title: 'Timetable',
-        subtitle: 'Your class schedule at a glance',
-        trailing: [
-          IconButton(
-            icon: Icon(Icons.calendar_month_outlined, color: ac.txt2),
-            tooltip: 'Personal Study Timetable',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => PersonalStudyPage(user: user)),
-            ),
-          ),
-          if (user.canManageAnyTimetable)
-            IconButton(
-              icon: Icon(Icons.edit_calendar_outlined, color: ac.txt2),
-              tooltip: 'Manage timetable',
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => TimetableManagerPage(user: user))),
-            ),
-        ],
-      ),
-      body: (schoolId.isNotEmpty && !user.isStudent && !user.isParent)
+    return ApplicationShell(
+      user: user,
+      currentTitle: 'Timetable',
+      currentDestination: AppNavDestination.timetable,
+      child: (schoolId.isNotEmpty && !user.isStudent && !user.isParent)
           ? _StaffTimetableView(page: this)
           : (schoolId.isEmpty || classLevel.isEmpty)
           ? _missingClassState(context, ac)

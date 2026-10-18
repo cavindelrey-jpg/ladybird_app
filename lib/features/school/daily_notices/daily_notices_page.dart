@@ -11,6 +11,7 @@ import '../../../repositories/daily_notice_repository.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/app_colors.dart';
 import 'compose_daily_notice_page.dart';
+import '../../../widgets/application_shell.dart';
 
 class DailyNoticesPage extends StatefulWidget {
   final AppUser user;
@@ -62,20 +63,10 @@ class _DailyNoticesPageState extends State<DailyNoticesPage> {
     final schoolId = widget.user.schoolId ?? '';
     final userClass = widget.user.classLevel ?? '';
 
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        title: Text('Daily Academic Notices', style: AppText.title),
-        backgroundColor: ac.bg,
-        actions: [
-          if (_canPost)
-            IconButton(
-              icon: const Icon(Icons.schedule_send_rounded),
-              tooltip: "Generate Tomorrow's Programme Now",
-              onPressed: _triggerProgrammeNow,
-            ),
-        ],
-      ),
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'Announcements',
+      currentDestination: AppNavDestination.announcements,
       floatingActionButton: _canPost
           ? FloatingActionButton.extended(
               onPressed: () {
@@ -89,7 +80,7 @@ class _DailyNoticesPageState extends State<DailyNoticesPage> {
               label: const Text('Post Notice'),
             )
           : null,
-      body: Column(
+      child: Column(
         children: [
           // Filter Tabs
           Container(

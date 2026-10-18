@@ -18,6 +18,8 @@ import 'bookmarks_page.dart';
 import 'settings_page.dart';
 
 import '../widgets/app_background.dart';
+import '../widgets/application_shell.dart';
+
 class ProfilePage extends StatelessWidget {
   final AppUser user;
   const ProfilePage({super.key, required this.user});
@@ -46,67 +48,73 @@ class ProfilePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     final rc   = _roleColor(ac, user.role);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg,
-        title: Text('Profile', style: GoogleFonts.sora(fontWeight: FontWeight.w700, color: ac.txt)),
-        automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => SettingsPage(user: user))),
-            icon: Icon(Icons.settings_outlined, color: ac.txt2),
-            tooltip: 'Settings',
-          ),
-          TextButton.icon(
-            onPressed: () => AuthService.instance.performSignOut(context),
-            icon: Icon(Icons.logout_rounded, size: 18, color: ac.red),
-            label: Text('Sign Out',
-                style: GoogleFonts.inter(fontSize: 13, color: ac.red, fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-      body: AppBackground(child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(children: [
-          // Avatar
-          user.photoUrl != null && user.photoUrl!.isNotEmpty
-              ? CircleAvatar(radius: 40, backgroundImage: NetworkImage(user.photoUrl!))
-              : Container(
-                  width: 80, height: 80,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: rc.withValues(alpha: .1),
-                      border: Border.all(color: rc.withValues(alpha: .3), width: 2)),
-                  child: Center(child: Text(user.initials,
-                      style: GoogleFonts.sora(fontSize: 28, fontWeight: FontWeight.w700, color: rc))),
+
+    return ApplicationShell(
+      currentTitle: 'Profile',
+      currentDestination: AppNavDestination.none,
+      user: user,
+      child: AppBackground(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(children: [
+            // Avatar
+            user.photoUrl != null && user.photoUrl!.isNotEmpty
+                ? CircleAvatar(radius: 40, backgroundImage: NetworkImage(user.photoUrl!))
+                : Container(
+                    width: 80, height: 80,
+                    decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: rc.withValues(alpha: .1),
+                        border: Border.all(color: rc.withValues(alpha: .3), width: 2)),
+                    child: Center(child: Text(user.initials,
+                        style: GoogleFonts.inter(fontSize: 28, fontWeight: FontWeight.w700, color: rc))),
+                  ),
+            const SizedBox(height: 12),
+            Text(user.name, style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700, color: ac.txt)),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                  color: rc.withValues(alpha: .1), borderRadius: BorderRadius.circular(20)),
+              child: Text(user.roleLabel,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: rc))),
+            const SizedBox(height: 14),
+            if (user.bio.trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(user.bio, textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(fontSize: 13, color: ac.txt2, height: 1.5)),
+              )
+            else
+              Text('No bio yet — tell people a bit about yourself.',
+                  style: GoogleFonts.inter(fontSize: 12, color: ac.muted, fontStyle: FontStyle.italic)),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ProfileEditPage(user: user))),
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text('Edit Profile'),
                 ),
-          const SizedBox(height: 12),
-          Text(user.name, style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.w700, color: ac.txt)),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-                color: rc.withValues(alpha: .1), borderRadius: BorderRadius.circular(20)),
-            child: Text(user.roleLabel,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: rc))),
-          const SizedBox(height: 14),
-          if (user.bio.trim().isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Text(user.bio, textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(fontSize: 13, color: ac.txt2, height: 1.5)),
-            )
-          else
-            Text('No bio yet — tell people a bit about yourself.',
-                style: GoogleFonts.inter(fontSize: 12, color: ac.muted, fontStyle: FontStyle.italic)),
-          const SizedBox(height: 14),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => ProfileEditPage(user: user))),
-            icon: const Icon(Icons.edit_outlined, size: 16),
-            label: const Text('Edit Profile'),
-          ),
-          const SizedBox(height: 24),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => SettingsPage(user: user))),
+                  icon: const Icon(Icons.settings_outlined, size: 16),
+                  label: const Text('Settings'),
+                ),
+                TextButton.icon(
+                  onPressed: () => AuthService.instance.performSignOut(context),
+                  icon: Icon(Icons.logout_rounded, size: 16, color: ac.red),
+                  label: Text('Sign Out',
+                      style: GoogleFonts.inter(fontSize: 13, color: ac.red, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
 
           // ── Section 1: Contact / Account Information ──────────────────
           _SectionHeader('Contact / Account Information'),

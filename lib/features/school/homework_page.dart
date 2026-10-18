@@ -28,6 +28,7 @@ import '../../widgets/widgets.dart';
 import '../testing/test_taking_page.dart';
 import 'widgets/management_scaffold.dart';
 import '../../core/content_quality.dart';
+import '../../widgets/application_shell.dart';
 
 class HomeworkPage extends StatefulWidget {
   final AppUser user;
@@ -58,23 +59,30 @@ class _HomeworkPageState extends State<HomeworkPage> with SingleTickerProviderSt
 
     final ac = AppColors.of(context);
     final tab = _tab!;
-    return ManagementScaffold(
-      title: 'Homework Management',
-      sidebarItems: [
-        ManagementNavItem(icon: Icons.add_task_rounded, label: 'Create', selected: true, onTap: () => tab.animateTo(0)),
-        ManagementNavItem(icon: Icons.list_alt_rounded, label: 'Assigned', onTap: () => tab.animateTo(1)),
-      ],
-      bottom: TabBar(
-        controller: tab,
-        labelColor: ac.primary,
-        unselectedLabelColor: ac.muted,
-        indicatorColor: ac.primary,
-        tabs: const [Tab(text: 'Create Homework'), Tab(text: 'Assigned Homework')],
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'Homework',
+      currentDestination: AppNavDestination.homework,
+      child: Column(
+        children: [
+          Container(
+            color: ac.surf,
+            child: TabBar(
+              controller: tab,
+              labelColor: ac.primary,
+              unselectedLabelColor: ac.muted,
+              indicatorColor: ac.primary,
+              tabs: const [Tab(text: 'Create Homework'), Tab(text: 'Assigned Homework')],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(controller: tab, children: [
+              _CreateHomeworkTab(user: widget.user),
+              _AssignedHomeworkTab(teacherId: widget.user.id),
+            ]),
+          ),
+        ],
       ),
-      body: TabBarView(controller: tab, children: [
-        _CreateHomeworkTab(user: widget.user),
-        _AssignedHomeworkTab(teacherId: widget.user.id),
-      ]),
     );
   }
 }
@@ -372,16 +380,11 @@ class _StudentHomeworkView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg,
-        elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text('My Homework', style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w800, color: ac.txt)),
-      ),
-      body: StreamBuilder<List<Homework>>(
+    return ApplicationShell(
+      user: user,
+      currentTitle: 'Homework',
+      currentDestination: AppNavDestination.homework,
+      child: StreamBuilder<List<Homework>>(
         stream: HomeworkRepository.instance.watchForClass(user.schoolId ?? '', user.classLevel),
         builder: (context, snap) {
           final items = snap.data ?? const [];
@@ -389,7 +392,7 @@ class _StudentHomeworkView extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (items.isEmpty) {
-            return Center(child: Text('No homework assigned yet.', style: GoogleFonts.inter(color: ac.muted)));
+            return Center(child: Text('No homework assigned yet.', style: GoogleFonts.inter(color: Colors.grey)));
           }
           final sorted = List.of(items)..sort((a, b) => a.dueAt.compareTo(b.dueAt));
           return ListView.separated(

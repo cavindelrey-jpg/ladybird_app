@@ -18,6 +18,7 @@ import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
 import '../../pages/profile_page.dart';
+import '../../widgets/application_shell.dart';
 import 'level_subjects_page.dart';
 import 'course_lessons_page.dart';
 import 'course_search_page.dart';
@@ -72,33 +73,30 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      body: AppBackground(child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.only(bottom: 24),
-          children: [
-            _header(context, ac),
-            _searchBar(context, ac),
-            const SizedBox(height: 18),
-            _levelRow(context, ac),
-            const SizedBox(height: 26),
-            _sectionHeader('Recommended for You', ac, showNav: true,
-                onSeeAll: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => RecommendedCoursesPage(user: widget.user)))),
-            const SizedBox(height: 12),
-            _recommendedRow(context, ac),
-            const SizedBox(height: 24),
-            _sectionHeader('Recent Reads', ac),
-            const SizedBox(height: 12),
-            _recentReads(context, ac),
-            const SizedBox(height: 24),
-            _sectionHeader('Downloaded Courses', ac),
-            const SizedBox(height: 12),
-            _downloadedCoursesSection(context, ac),
-          ],
-        ),
-      )),
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'Academic Courses',
+      currentDestination: AppNavDestination.academicCourses,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        children: [
+          _levelRow(context, ac),
+          const SizedBox(height: 26),
+          _sectionHeader('Recommended for You', ac, showNav: true,
+              onSeeAll: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => RecommendedCoursesPage(user: widget.user)))),
+          const SizedBox(height: 12),
+          _recommendedRow(context, ac),
+          const SizedBox(height: 24),
+          _sectionHeader('Recent Reads', ac),
+          const SizedBox(height: 12),
+          _recentReads(context, ac),
+          const SizedBox(height: 24),
+          _sectionHeader('Downloaded Courses', ac),
+          const SizedBox(height: 12),
+          _downloadedCoursesSection(context, ac),
+        ],
+      ),
     );
   }
 

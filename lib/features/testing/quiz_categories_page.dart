@@ -19,6 +19,7 @@ import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/application_shell.dart';
 import 'quiz_icon_editor.dart';
 import 'tests_subject_picker_page.dart';
 import 'xp_dashboard_page.dart';
@@ -132,22 +133,11 @@ class _QuizCategoriesPageState extends State<QuizCategoriesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isGuest = widget.user.isGuest;
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        title: Text('Academia Quizzes & Tests', style: AppText.h2),
-        actions: [
-          if (!isGuest)
-            IconButton(
-              icon: Icon(Icons.bolt_rounded, color: ac.gold),
-              tooltip: 'XP Dashboard',
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => XpDashboardPage(user: widget.user))),
-            ),
-        ],
-      ),
-      body: _loading
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'Tests & Quizzes',
+      currentDestination: AppNavDestination.testsAndQuizzes,
+      child: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
           ? Center(

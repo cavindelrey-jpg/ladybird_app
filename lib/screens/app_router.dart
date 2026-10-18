@@ -17,14 +17,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show User;
 import '../models/models.dart';
-import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 import '../services/auth_service.dart';
-import '../services/connectivity_service.dart';
 import 'first_login_screen.dart';
 import '../features/dashboard/universal_home_page.dart';
 import '../features/school/parent_dashboard_page.dart';
-import '../features/onboarding/voucher_entry_screen.dart';
 
 // ────────────────────────────────────────────────────────────────────────────
 // AppRouter — watches Firebase auth state only.
@@ -61,31 +58,11 @@ class _AppRouterState extends State<AppRouter> {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
         if (snap.data == null) {
-          return const _SignedOutGate();
+          return HomeShell(user: AppUser.guest());
         }
         return const _AppUserGate();
       },
     );
-  }
-}
-
-/// Toggles between the voucher/login front door and full guest browsing,
-/// purely a local UI choice (never touches auth) — tapping "Continue
-/// browsing without a code" on VoucherEntryScreen just swaps which of
-/// these two this widget shows.
-class _SignedOutGate extends StatefulWidget {
-  const _SignedOutGate();
-  @override
-  State<_SignedOutGate> createState() => _SignedOutGateState();
-}
-
-class _SignedOutGateState extends State<_SignedOutGate> {
-  bool _browsingAsGuest = false;
-
-  @override
-  Widget build(BuildContext context) {
-    if (_browsingAsGuest) return HomeShell(user: AppUser.guest());
-    return VoucherEntryScreen(onBrowseAsGuest: () => setState(() => _browsingAsGuest = true));
   }
 }
 

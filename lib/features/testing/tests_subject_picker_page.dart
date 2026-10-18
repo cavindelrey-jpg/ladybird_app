@@ -18,6 +18,7 @@ import '../../repositories/recommendation_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/application_shell.dart';
 import 'quiz_icon_editor.dart';
 import 'test_taking_page.dart';
 import 'tests_topic_picker_page.dart';
@@ -111,6 +112,71 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
   @override
   Widget build(BuildContext context) {
     final isGuest = widget.user.isGuest;
+    final isDesktop = MediaQuery.of(context).size.width >= 1100;
+
+    final bodyContent = FutureBuilder<Map<String, int>>(
+      future: _counts,
+      builder: (context, snap) {
+        if (!snap.hasData) {
+          return ListView(padding: const EdgeInsets.all(16), children: const [
+            ShimmerCard(height: 72), ShimmerCard(height: 72), ShimmerCard(height: 72),
+          ]);
+        }
+        final counts = snap.data!;
+        if (counts.isEmpty) {
+          return EmptyState(
+            icon: Icons.quiz_rounded,
+            title: 'No tests published yet',
+            subtitle: 'Once a lecturer or admin publishes a subject test, it will show up here.',
+            actionLabel: 'Refresh',
+            onAction: _load,
+          );
+        }
+        final subjects = counts.keys.toList()..sort();
+        return RefreshIndicator(
+          onRefresh: () async => _load(),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              if (_showRecommended) ...[
+                _recommendedRail(context),
+                const SizedBox(height: 20),
+              ],
+              if (isDesktop)
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: subjects.length,
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 320,
+                    mainAxisExtent: 80,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemBuilder: (context, i) => _subjectCard(context, subjects[i], counts[subjects[i]] ?? 0),
+                )
+              else
+                for (final subject in subjects) ...[
+                  _subjectCard(context, subject, counts[subject] ?? 0),
+                  if (subject != subjects.last) const SizedBox(height: 12),
+                ],
+            ],
+          ),
+        );
+      },
+    );
+
+    if (isDesktop) {
+      return ApplicationShell(
+        user: widget.user,
+        currentTitle: widget.category,
+        currentDestination: AppNavDestination.testsAndQuizzes,
+        showBackButton: true,
+        onBack: () => Navigator.of(context).maybePop(),
+        child: bodyContent,
+      );
+    }
+
     return Scaffold(
       backgroundColor: ac.bg,
       appBar: AppBar(
@@ -125,43 +191,7 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
             ),
         ],
       ),
-      body: FutureBuilder<Map<String, int>>(
-        future: _counts,
-        builder: (context, snap) {
-          if (!snap.hasData) {
-            return ListView(padding: const EdgeInsets.all(16), children: const [
-              ShimmerCard(height: 72), ShimmerCard(height: 72), ShimmerCard(height: 72),
-            ]);
-          }
-          final counts = snap.data!;
-          if (counts.isEmpty) {
-            return EmptyState(
-              icon: Icons.quiz_rounded,
-              title: 'No tests published yet',
-              subtitle: 'Once a lecturer or admin publishes a subject test, it will show up here.',
-              actionLabel: 'Refresh',
-              onAction: _load,
-            );
-          }
-          final subjects = counts.keys.toList()..sort();
-          return RefreshIndicator(
-            onRefresh: () async => _load(),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                if (_showRecommended) ...[
-                  _recommendedRail(context),
-                  const SizedBox(height: 20),
-                ],
-                for (final subject in subjects) ...[
-                  _subjectCard(context, subject, counts[subject] ?? 0),
-                  if (subject != subjects.last) const SizedBox(height: 12),
-                ],
-              ],
-            ),
-          );
-        },
-      ),
+      body: bodyContent,
     );
   }
 

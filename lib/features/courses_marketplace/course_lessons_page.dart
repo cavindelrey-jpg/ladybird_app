@@ -15,7 +15,7 @@ import '../../repositories/public_course_repository.dart';
 import '../../services/course_offline_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/widgets.dart' show showToast;
+import '../../widgets/widgets.dart';
 import 'hierarchy_browse_scaffold.dart';
 import 'lesson_reader_page.dart';
 
@@ -230,6 +230,8 @@ class _CourseLessonsPageState extends State<CourseLessonsPage> {
                 : null;
 
             return HierarchyBrowseScaffold<CourseLesson>(
+              user: widget.currentUser,
+              destination: AppNavDestination.academicCourses,
               title: widget.course.title,
               subtitle: '${lessons.length} lesson${lessons.length == 1 ? '' : 's'}',
               searchHint: 'Search lessons…',

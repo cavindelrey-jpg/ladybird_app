@@ -24,6 +24,8 @@ import '../../repositories/academic_content_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart' show showToast;
+import '../../models/app_user.dart';
+import '../../widgets/application_shell.dart';
 
 enum ViewableFileKind { image, pdf, video, docx, epub }
 
@@ -70,6 +72,61 @@ class ContentViewerPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
+    final isDesktop = MediaQuery.of(context).size.width >= 1100;
+
+    final viewerWidget = SelectionArea(
+        child: switch (kind) {
+          ViewableFileKind.image => _ImageViewer(url: fileUrl, localFilePath: localFilePath),
+          ViewableFileKind.pdf => _PdfViewer(
+              url: fileUrl,
+              localFilePath: localFilePath,
+              contentId: contentId,
+              userId: userId,
+            ),
+          ViewableFileKind.video => _VideoViewer(url: fileUrl, localFilePath: localFilePath),
+          ViewableFileKind.docx => _DocxViewer(
+              url: fileUrl,
+              localFilePath: localFilePath,
+              contentId: contentId,
+            ),
+          ViewableFileKind.epub => _EpubViewer(
+              url: fileUrl,
+              localFilePath: localFilePath,
+              contentId: contentId,
+            ),
+        },
+      );
+
+    if (isDesktop) {
+      return ApplicationShell(
+        user: userId != null ? AppUser.guest().copyWith(id: userId) : null,
+        currentTitle: title,
+        currentDestination: AppNavDestination.academicLibrary,
+        showBackButton: true,
+        onBack: () => Navigator.of(context).maybePop(),
+        contextualPanel: ReaderRightPanel(
+          title: title,
+          format: kind.name,
+          onSaveOffline: contentId != null
+              ? () async {
+                  await AcademicContentRepository.instance.saveForOffline(
+                    contentId: contentId!,
+                    fileUrl: fileUrl,
+                    title: title,
+                  );
+                }
+              : null,
+          onShare: () {
+            Share.share('Read "$title" on Academia: $fileUrl');
+          },
+        ),
+        child: Container(
+          color: kind == ViewableFileKind.video ? Colors.black : ac.bg,
+          child: viewerWidget,
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: kind == ViewableFileKind.video ? Colors.black : ac.bg,
       appBar: AppBar(
@@ -94,28 +151,7 @@ class ContentViewerPage extends StatelessWidget {
           ),
         ],
       ),
-      body: SelectionArea(
-        child: switch (kind) {
-          ViewableFileKind.image => _ImageViewer(url: fileUrl, localFilePath: localFilePath),
-          ViewableFileKind.pdf => _PdfViewer(
-              url: fileUrl,
-              localFilePath: localFilePath,
-              contentId: contentId,
-              userId: userId,
-            ),
-          ViewableFileKind.video => _VideoViewer(url: fileUrl, localFilePath: localFilePath),
-          ViewableFileKind.docx => _DocxViewer(
-              url: fileUrl,
-              localFilePath: localFilePath,
-              contentId: contentId,
-            ),
-          ViewableFileKind.epub => _EpubViewer(
-              url: fileUrl,
-              localFilePath: localFilePath,
-              contentId: contentId,
-            ),
-        },
-      ),
+      body: viewerWidget,
     );
   }
 }

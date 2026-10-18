@@ -14,6 +14,7 @@ import '../../repositories/test_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/application_shell.dart';
 import 'quiz_icon_editor.dart';
 import 'tests_list_page.dart';
 
@@ -91,71 +92,89 @@ class _TestsTopicPickerPageState extends State<TestsTopicPickerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width >= 1100;
+
+    final bodyContent = _loading
+        ? const Center(child: CircularProgressIndicator())
+        : _counts.isEmpty
+            ? EmptyState(
+                icon: Icons.topic_outlined,
+                title: 'No topics here yet',
+                subtitle: 'Check back once a quiz is published for this subject.',
+                actionLabel: 'Refresh',
+                onAction: () => _load(),
+              )
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: GridView.builder(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: _counts.length,
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 260,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 0.95,
+                  ),
+                  itemBuilder: (context, i) {
+                    final topic = (_counts.keys.toList()..sort())[i];
+                    final count = _counts[topic] ?? 0;
+                    final icon = _iconFor(topic);
+                    return Material(
+                      color: ac.surf,
+                      borderRadius: BorderRadius.circular(Rad.md),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(Rad.md),
+                        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => TestsListPage(
+                                user: widget.user, category: widget.category, subject: widget.subject, topic: topic))),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
+                          child: Stack(children: [
+                            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              HierarchyAvatar(label: topic, icon: icon.emoji, imageUrl: icon.imageUrl, size: 48),
+                              const Spacer(),
+                              Text(topic, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700),
+                                  maxLines: 2, overflow: TextOverflow.ellipsis),
+                              const SizedBox(height: 2),
+                              Text('$count quiz${count == 1 ? '' : 'zes'}', style: AppText.caption.copyWith(color: ac.txt2)),
+                            ]),
+                            if (_canManage)
+                              Positioned(
+                                top: 0, right: 0,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(14),
+                                  onTap: () => _editTopicLook(topic),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(color: ac.surf2, shape: BoxShape.circle, border: Border.all(color: ac.bdr2)),
+                                    child: Icon(Icons.edit_rounded, size: 14, color: ac.txt2),
+                                  ),
+                                ),
+                              ),
+                          ]),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+
+    if (isDesktop) {
+      return ApplicationShell(
+        user: widget.user,
+        currentTitle: '${widget.category} > ${widget.subject}',
+        currentDestination: AppNavDestination.testsAndQuizzes,
+        showBackButton: true,
+        onBack: () => Navigator.of(context).maybePop(),
+        child: bodyContent,
+      );
+    }
+
     return Scaffold(
       backgroundColor: ac.bg,
       appBar: AppBar(title: Text(widget.subject, style: AppText.h2)),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _counts.isEmpty
-              ? EmptyState(
-                  icon: Icons.topic_outlined,
-                  title: 'No topics here yet',
-                  subtitle: 'Check back once a quiz is published for this subject.',
-                  actionLabel: 'Refresh',
-                  onAction: () => _load(),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(20),
-                    itemCount: _counts.length,
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.92,
-                    ),
-                    itemBuilder: (context, i) {
-                      final topic = (_counts.keys.toList()..sort())[i];
-                      final count = _counts[topic] ?? 0;
-                      final icon = _iconFor(topic);
-                      return Material(
-                        color: ac.surf,
-                        borderRadius: BorderRadius.circular(Rad.md),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(Rad.md),
-                          onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                              builder: (_) => TestsListPage(
-                                  user: widget.user, category: widget.category, subject: widget.subject, topic: topic))),
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
-                            child: Stack(children: [
-                              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                HierarchyAvatar(label: topic, icon: icon.emoji, imageUrl: icon.imageUrl, size: 48),
-                                const Spacer(),
-                                Text(topic, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700),
-                                    maxLines: 2, overflow: TextOverflow.ellipsis),
-                                const SizedBox(height: 2),
-                                Text('$count quiz${count == 1 ? '' : 'zes'}', style: AppText.caption.copyWith(color: ac.txt2)),
-                              ]),
-                              if (_canManage)
-                                Positioned(
-                                  top: 0, right: 0,
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(14),
-                                    onTap: () => _editTopicLook(topic),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(color: ac.surf2, shape: BoxShape.circle, border: Border.all(color: ac.bdr2)),
-                                      child: Icon(Icons.edit_rounded, size: 14, color: ac.txt2),
-                                    ),
-                                  ),
-                                ),
-                            ]),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+      body: bodyContent,
     );
   }
 }

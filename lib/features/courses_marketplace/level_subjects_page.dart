@@ -54,6 +54,8 @@ class _LevelSubjectsPageState extends State<LevelSubjectsPage> {
   Widget build(BuildContext context) {
     final subjects = _counts.keys.toList()..sort();
     return HierarchyBrowseScaffold<String>(
+      user: widget.user,
+      destination: AppNavDestination.academicCourses,
       title: widget.level,
       subtitle: '${_counts.values.fold<int>(0, (a, b) => a + b)} courses',
       searchHint: 'Search subjects…',

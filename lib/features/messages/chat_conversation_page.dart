@@ -80,9 +80,11 @@ class ChatConversationPage extends StatefulWidget {
   final String otherUserId;
   final String otherUserName;
   final String? otherUserPhoto;
+  final bool embedded;
   const ChatConversationPage({
     super.key, required this.conversationId, required this.currentUser,
     required this.otherUserId, required this.otherUserName, this.otherUserPhoto,
+    this.embedded = false,
   });
 
   @override
@@ -261,8 +263,9 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       backgroundColor: ac.bg,
       appBar: AppBar(
         backgroundColor: ac.bg, elevation: 0,
+        automaticallyImplyLeading: !widget.embedded,
         iconTheme: IconThemeData(color: ac.txt),
-        titleSpacing: 0,
+        titleSpacing: widget.embedded ? 16 : 0,
         title: Row(children: [
           UserAvatar(
             initials: widget.otherUserName.isEmpty ? '?' : widget.otherUserName[0].toUpperCase(),
@@ -281,8 +284,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
             ]),
           ),
         ]),
-        actions: [
-        ],
+        actions: const [],
       ),
       body: AppBackground(child: Column(children: [
         Expanded(
@@ -1055,8 +1057,6 @@ class _SharedContentCardState extends State<_SharedContentCard> {
         case SharedContentType.clubPost:
         case SharedContentType.authorProfile:
           // Not implemented yet
-          break;
-        default:
           break;
       }
     } finally {

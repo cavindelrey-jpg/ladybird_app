@@ -18,10 +18,12 @@ import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import '../courses_marketplace/hierarchy_browse_scaffold.dart';
 import 'content_details_page.dart';
+import 'content_viewer_page.dart';
 import 'content_upload_page.dart';
 import 'bulk_past_paper_upload_page.dart';
 import 'library_folder_picker_page.dart';
 import 'folder_thumbnail_editor.dart';
+import '../../widgets/application_shell.dart';
 
 class LibraryFolderPage extends StatefulWidget {
   final String folderId;
@@ -152,6 +154,10 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
               });
 
             return HierarchyBrowseScaffold<_Entry>(
+              user: widget.user,
+              destination: widget.folderName.toLowerCase().contains('past')
+                  ? AppNavDestination.pastQuestions
+                  : AppNavDestination.academicLibrary,
               title: widget.folderName,
               subtitle: '${folders.length} folder${folders.length == 1 ? '' : 's'} · '
                   '${items.length} file${items.length == 1 ? '' : 's'}',
@@ -243,15 +249,32 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
     );
   }
 
-  void _open(BuildContext context, _Entry e) {
+  void _open(BuildContext context, _Entry e) async {
     HapticFeedback.selectionClick();
     if (e.isFolder) {
       Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => LibraryFolderPage(
               folderId: e.folder!.id, folderName: e.folder!.name, user: widget.user)));
-    } else {
-      Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => ContentDetailsPage(contentId: e.content!.id, user: widget.user)));
+    } else if (e.content != null) {
+      final fileUrl = e.content!.fileUrl;
+      final kind = fileUrl != null ? viewableKindFor(fileUrl) : null;
+      if (fileUrl != null && kind != null) {
+        final localPath = await AcademicContentRepository.instance.offlineFilePath(e.content!.id);
+        if (!context.mounted) return;
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => ContentViewerPage(
+            fileUrl: fileUrl,
+            localFilePath: localPath,
+            title: e.content!.title,
+            kind: kind,
+            contentId: e.content!.id,
+            userId: widget.user.id,
+          ),
+        ));
+      } else {
+        Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => ContentDetailsPage(contentId: e.content!.id, user: widget.user)));
+      }
     }
   }
 

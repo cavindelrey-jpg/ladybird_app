@@ -11,6 +11,8 @@ import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 import '../config/branding.dart';
 import 'chat_media_widgets.dart' show PresenceDot;
+export 'academic_progress_ring.dart';
+export 'application_shell.dart' show AppNavDestination, ApplicationShell;
 
 // ════════════════════════════════════════════════════════════════════════════
 // BUTTONS

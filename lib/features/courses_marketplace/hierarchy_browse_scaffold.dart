@@ -10,6 +10,10 @@ import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import '../../services/courses_view_mode_service.dart';
 
+import '../../models/app_user.dart';
+import '../../widgets/application_shell.dart';
+export '../../widgets/application_shell.dart' show AppNavDestination;
+
 class HierarchyBrowseScaffold<T> extends StatefulWidget {
   final String title;
   final String? subtitle;
@@ -21,6 +25,11 @@ class HierarchyBrowseScaffold<T> extends StatefulWidget {
   final Widget Function(BuildContext context, T item) listTileBuilder;
   final String emptyMessage;
   final Widget? floatingActionButton;
+
+  // Global Shell & User integration
+  final AppUser? user;
+  final AppNavDestination destination;
+  final Widget? contextualPanel;
 
   // Multi-select support
   final bool isSelecting;
@@ -43,6 +52,9 @@ class HierarchyBrowseScaffold<T> extends StatefulWidget {
     required this.listTileBuilder,
     this.emptyMessage = 'Nothing here yet.',
     this.floatingActionButton,
+    this.user,
+    this.destination = AppNavDestination.academicCourses,
+    this.contextualPanel,
     this.actions,
     this.headerWidget,
     this.isSelecting = false,
@@ -77,6 +89,56 @@ class _HierarchyBrowseScaffoldState<T> extends State<HierarchyBrowseScaffold<T>>
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     final isSelecting = widget.isSelecting;
+    final isDesktop = MediaQuery.of(context).size.width >= 1100;
+
+    if (isDesktop && !isSelecting) {
+      return ApplicationShell(
+        user: widget.user,
+        currentTitle: widget.title,
+        subtitle: widget.subtitle,
+        currentDestination: widget.destination,
+        contextualPanel: widget.contextualPanel,
+        showBackButton: true,
+        onBack: () => Navigator.of(context).maybePop(),
+        floatingActionButton: widget.floatingActionButton,
+        child: Column(
+          children: [
+            if (widget.headerWidget != null) widget.headerWidget!,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      onChanged: (v) => setState(() => _query = v),
+                      style: AppText.bodySm.copyWith(color: ac.txt),
+                      decoration: InputDecoration(
+                        hintText: widget.searchHint,
+                        hintStyle: AppText.bodySm.copyWith(color: ac.muted),
+                        prefixIcon: Icon(Icons.search_rounded, size: 18, color: ac.muted),
+                        filled: true,
+                        fillColor: ac.surf2,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  if (widget.actions != null) ...widget.actions!,
+                  HierarchyViewToggle(
+                    isGrid: _isGrid,
+                    onChanged: (grid) {
+                      setState(() => _isGrid = grid);
+                      CoursesViewModeService.setGrid(grid);
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Expanded(child: _body(ac)),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: ac.bg,
@@ -148,9 +210,9 @@ class _HierarchyBrowseScaffoldState<T> extends State<HierarchyBrowseScaffold<T>>
       return _isGrid
           ? GridView.builder(
               padding: const EdgeInsets.all(20),
-              itemCount: 6,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.85),
+              itemCount: 8,
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 220, crossAxisSpacing: 14, mainAxisSpacing: 14, childAspectRatio: 0.85),
               itemBuilder: (_, __) => const ShimmerBlock(width: double.infinity, height: double.infinity),
             )
           : ListView.separated(
@@ -174,8 +236,8 @@ class _HierarchyBrowseScaffoldState<T> extends State<HierarchyBrowseScaffold<T>>
       return GridView.builder(
         padding: const EdgeInsets.all(20),
         itemCount: items.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.85),
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 220, crossAxisSpacing: 14, mainAxisSpacing: 14, childAspectRatio: 0.85),
         itemBuilder: (context, i) => widget.gridTileBuilder(context, items[i]),
       );
     }

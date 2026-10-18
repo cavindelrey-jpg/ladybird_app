@@ -178,8 +178,8 @@ class _QuizCategoriesPageState extends State<QuizCategoriesPage> {
               child: GridView.builder(
                 padding: const EdgeInsets.all(20),
                 itemCount: _categories.length + (_canManage ? 1 : 0),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.92,
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 260, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 0.95,
                 ),
                 itemBuilder: (context, i) {
                   if (i >= _categories.length) return _addTile();

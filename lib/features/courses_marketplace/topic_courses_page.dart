@@ -44,6 +44,8 @@ class _TopicCoursesPageState extends State<TopicCoursesPage> {
   @override
   Widget build(BuildContext context) {
     return HierarchyBrowseScaffold<PublicCourse>(
+      user: widget.user,
+      destination: AppNavDestination.academicCourses,
       title: widget.topic,
       subtitle: '${_courses.length} course${_courses.length == 1 ? '' : 's'}',
       searchHint: 'Search courses…',

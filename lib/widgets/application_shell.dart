@@ -23,6 +23,13 @@ import '../repositories/library_folder_repository.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import 'create_content_sheet.dart';
+import 'academic_progress_ring.dart';
+import '../core/xp_rules.dart';
+import '../models/test_attempt.dart';
+import '../models/daily_learning_streak.dart';
+import '../repositories/xp_repository.dart';
+import '../repositories/daily_learning_repository.dart';
+import '../repositories/test_repository.dart';
 
 // Core pages
 import '../features/academic_content/library_home_page.dart';
@@ -63,21 +70,27 @@ enum AppNavDestination {
 class ApplicationShell extends StatefulWidget {
   final AppUser? user;
   final String currentTitle;
+  final String? subtitle;
   final AppNavDestination currentDestination;
   final Widget child;
   final Widget? contextualPanel;
   final bool showRightPanel;
   final Widget? floatingActionButton;
+  final bool showBackButton;
+  final VoidCallback? onBack;
 
   const ApplicationShell({
     super.key,
     required this.user,
     required this.currentTitle,
+    this.subtitle,
     required this.currentDestination,
     required this.child,
     this.contextualPanel,
     this.showRightPanel = true,
     this.floatingActionButton,
+    this.showBackButton = false,
+    this.onBack,
   });
 
   @override
@@ -89,6 +102,28 @@ class _ApplicationShellState extends State<ApplicationShell> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   AppUser get _user => widget.user ?? AppUser.guest();
+
+  Widget _buildContextualPanel(BuildContext context) {
+    if (widget.contextualPanel != null) return widget.contextualPanel!;
+    switch (widget.currentDestination) {
+      case AppNavDestination.academicCourses:
+        return CoursesRightPanel(user: widget.user);
+      case AppNavDestination.academicLibrary:
+        return LibraryRightPanel(user: widget.user);
+      case AppNavDestination.pastQuestions:
+        return PastQuestionsRightPanel(user: widget.user);
+      case AppNavDestination.testsAndQuizzes:
+        return TestsRightPanel(user: widget.user);
+      case AppNavDestination.marks:
+        return MarksRightPanel(user: widget.user);
+      case AppNavDestination.homework:
+        return HomeworkRightPanel(user: widget.user);
+      case AppNavDestination.timetable:
+        return TimetableRightPanel(user: widget.user);
+      default:
+        return DefaultAcademicRightPanel(user: widget.user);
+    }
+  }
 
   void _navigateTo(BuildContext context, AppNavDestination dest) {
     if (dest == widget.currentDestination) return;
@@ -185,6 +220,9 @@ class _ApplicationShellState extends State<ApplicationShell> {
             _GlobalTopBar(
               user: widget.user,
               pageTitle: widget.currentTitle,
+              subtitle: widget.subtitle,
+              showBackButton: widget.showBackButton,
+              onBack: widget.onBack,
               onToggleSidebar: () {
                 if (isDesktop) {
                   setState(() => _sidebarCollapsed = !_sidebarCollapsed);
@@ -230,8 +268,7 @@ class _ApplicationShellState extends State<ApplicationShell> {
                           color: ac.surf,
                           border: Border(left: BorderSide(color: ac.bdr)),
                         ),
-                        child: widget.contextualPanel ??
-                            DefaultAcademicRightPanel(user: widget.user),
+                        child: _buildContextualPanel(context),
                       ),
                     ),
                 ],
@@ -251,12 +288,18 @@ class _ApplicationShellState extends State<ApplicationShell> {
 class _GlobalTopBar extends StatelessWidget {
   final AppUser? user;
   final String pageTitle;
+  final String? subtitle;
   final VoidCallback onToggleSidebar;
+  final bool showBackButton;
+  final VoidCallback? onBack;
 
   const _GlobalTopBar({
     required this.user,
     required this.pageTitle,
+    this.subtitle,
     required this.onToggleSidebar,
+    this.showBackButton = false,
+    this.onBack,
   });
 
   @override
@@ -273,21 +316,49 @@ class _GlobalTopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Left: Hamburger button
-          IconButton(
-            icon: const Icon(Icons.menu_rounded, color: Colors.white, size: 24),
-            onPressed: onToggleSidebar,
-            tooltip: 'Navigation Menu',
-          ),
+          // Left: Back button or Hamburger button
+          if (showBackButton || Navigator.of(context).canPop())
+            IconButton(
+              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
+              onPressed: onBack ?? () => Navigator.of(context).maybePop(),
+              tooltip: 'Go Back',
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.menu_rounded, color: Colors.white, size: 24),
+              onPressed: onToggleSidebar,
+              tooltip: 'Navigation Menu',
+            ),
           const SizedBox(width: 8),
 
-          // Left: Current Page Title
-          Text(
-            pageTitle,
-            style: GoogleFonts.inter(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
+          // Left: Current Page Title + Subtitle
+          Flexible(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  pageTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: subtitle != null && subtitle!.isNotEmpty ? 17 : 20,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                if (subtitle != null && subtitle!.isNotEmpty)
+                  Text(
+                    subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFF94A3B8),
+                    ),
+                  ),
+              ],
             ),
           ),
 
@@ -709,8 +780,8 @@ class _DefaultAcademicRightPanelState extends State<DefaultAcademicRightPanel> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // 1. YOUR PROGRESS
-        _progressCard(context, ac),
+        // 1. YOUR PROGRESS (100% Real Live Data & Non-Overflowing AcademicProgressRing)
+        AcademicProgressCard(user: widget.user),
         const SizedBox(height: 16),
 
         // 2. Today's Schedule
@@ -731,140 +802,7 @@ class _DefaultAcademicRightPanelState extends State<DefaultAcademicRightPanel> {
     );
   }
 
-  Widget _progressCard(BuildContext context, AppColors ac) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: ac.surf,
-        borderRadius: BorderRadius.circular(Rad.md),
-        border: Border.all(color: ac.bdr),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.insights_rounded, size: 18, color: Color(0xFFE5A93C)),
-                  const SizedBox(width: 8),
-                  Text('YOUR PROGRESS',
-                      style: GoogleFonts.inter(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                          color: ac.txt)),
-                ],
-              ),
-              InkWell(
-                onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => XpDashboardPage(user: widget.user ?? AppUser.guest()),
-                  ));
-                },
-                child: Row(
-                  children: [
-                    Text('View Details',
-                        style: GoogleFonts.inter(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: ac.primary)),
-                    const SizedBox(width: 2),
-                    Icon(Icons.arrow_forward_rounded, size: 13, color: ac.primary),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              // Circular progress
-              SizedBox(
-                width: 76,
-                height: 76,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: 76,
-                      height: 76,
-                      child: CircularProgressIndicator(
-                        value: 0.57,
-                        strokeWidth: 7,
-                        backgroundColor: ac.bdr2,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                            Color(0xFFE5A93C)),
-                      ),
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('57%',
-                            style: GoogleFonts.inter(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: ac.txt)),
-                        Text('Course Progress',
-                            style: GoogleFonts.inter(
-                                fontSize: 8.5, color: ac.txt2)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 14),
-              // 3 stats
-              Expanded(
-                child: Row(
-                  children: [
-                    _statPill(Icons.star_rounded, '1069', 'XP Points',
-                        const Color(0xFFE5A93C), ac),
-                    const SizedBox(width: 6),
-                    _statPill(Icons.local_fire_department_rounded, '0',
-                        'Day Streak', Colors.deepOrange, ac),
-                    const SizedBox(width: 6),
-                    _statPill(Icons.emoji_events_rounded, '10', 'Quizzes Done',
-                        const Color(0xFFE5A93C), ac),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statPill(IconData icon, String val, String label, Color iconCol,
-      AppColors ac) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        decoration: BoxDecoration(
-          color: ac.surf2,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: ac.bdr2),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, size: 16, color: iconCol),
-            const SizedBox(height: 3),
-            Text(val,
-                style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: ac.txt)),
-            Text(label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(fontSize: 8.5, color: ac.txt2)),
-          ],
-        ),
-      ),
-    );
-  }
+  // Progress is now handled by the standalone AcademicProgressCard widget below.
 
   Widget _scheduleCard(BuildContext context, AppColors ac) {
     final schedule = [
@@ -1326,7 +1264,772 @@ class _DefaultAcademicRightPanelState extends State<DefaultAcademicRightPanel> {
   }
 }
 
-// Redirector helper for Past Questions
+// ────────────────────────────────────────────────────────────────────────────
+// Academic Progress Card (100% Real Live Streams, Non-Overflowing Ring)
+// ────────────────────────────────────────────────────────────────────────────
+
+class AcademicProgressCard extends StatelessWidget {
+  final AppUser? user;
+  const AcademicProgressCard({super.key, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final uid = user?.id ?? '';
+    final isGuest = user == null || user!.isGuest || uid.isEmpty;
+
+    if (isGuest) {
+      return _buildCard(context, ac, xp: 0, streak: 0, testsCount: 0, progress: 0.0);
+    }
+
+    return StreamBuilder<(int, int)>(
+      stream: XpRepository.instance.watchBalance(uid),
+      builder: (context, xpSnap) {
+        final xpData = xpSnap.data ?? (0, 0);
+        final xp = xpData.$1;
+        final lifetimeXp = xpData.$2;
+        final prog = levelProgress(lifetimeXp);
+        final levelFraction = prog.span > 0 ? (prog.into / prog.span).clamp(0.0, 1.0) : 0.0;
+
+        return StreamBuilder<DailyLearningStreak?>(
+          stream: DailyLearningRepository.instance.watchStreak(uid),
+          builder: (context, streakSnap) {
+            final streak = streakSnap.data?.currentStreak ?? 0;
+
+            return StreamBuilder<List<TestAttempt>>(
+              stream: TestRepository.instance.watchAttemptHistory(uid, limit: 100),
+              builder: (context, testSnap) {
+                final attempts = testSnap.data ?? const [];
+                final completedCount = attempts.length;
+
+                return _buildCard(
+                  context,
+                  ac,
+                  xp: xp,
+                  streak: streak,
+                  testsCount: completedCount,
+                  progress: levelFraction,
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCard(
+    BuildContext context,
+    AppColors ac, {
+    required int xp,
+    required int streak,
+    required int testsCount,
+    required double progress,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: ac.surf,
+        borderRadius: BorderRadius.circular(Rad.md),
+        border: Border.all(color: ac.bdr),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.insights_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'YOUR PROGRESS',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                      color: ac.txt,
+                    ),
+                  ),
+                ],
+              ),
+              InkWell(
+                onTap: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => XpDashboardPage(user: user ?? AppUser.guest()),
+                  ));
+                },
+                child: Row(
+                  children: [
+                    Text(
+                      'View Details',
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: ac.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(Icons.arrow_forward_rounded, size: 13, color: ac.primary),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              // Responsive non-overflowing progress ring
+              AcademicProgressRing(
+                progress: progress,
+                size: 76,
+                strokeWidth: 6,
+                subtitle: 'Level Prog',
+              ),
+              const SizedBox(width: 14),
+              // Real statistics pills
+              Expanded(
+                child: Row(
+                  children: [
+                    _statPill(Icons.star_rounded, '$xp', 'XP Points', const Color(0xFFE5A93C), ac),
+                    const SizedBox(width: 6),
+                    _statPill(Icons.local_fire_department_rounded, '$streak', 'Day Streak', Colors.deepOrange, ac),
+                    const SizedBox(width: 6),
+                    _statPill(Icons.emoji_events_rounded, '$testsCount', 'Quizzes', const Color(0xFFE5A93C), ac),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statPill(IconData icon, String val, String label, Color iconCol, AppColors ac) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          color: ac.surf2,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: ac.bdr2),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 15, color: iconCol),
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                val,
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: ac.txt,
+                ),
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(fontSize: 8.5, color: ac.txt2),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Contextual Right Panels for Secondary Pages
+// ────────────────────────────────────────────────────────────────────────────
+
+class CoursesRightPanel extends StatelessWidget {
+  final AppUser? user;
+  const CoursesRightPanel({super.key, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (user != null && !user!.isGuest) ...[
+          AcademicProgressCard(user: user),
+          const SizedBox(height: 16),
+        ],
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.school_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('EXPLORE LEVELS', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _filterBadge(context, 'Ordinary Level (GCE O/L)', Icons.menu_book_rounded, ac),
+              const SizedBox(height: 8),
+              _filterBadge(context, 'Advanced Level (GCE A/L)', Icons.auto_stories_rounded, ac),
+              const SizedBox(height: 8),
+              _filterBadge(context, 'University & Higher Ed', Icons.account_balance_rounded, ac),
+              const SizedBox(height: 8),
+              _filterBadge(context, 'Technical & Vocational', Icons.build_circle_outlined, ac),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F2447),
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: const Color(0xFF1E3A8A)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.lightbulb_outline_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('STUDY RECOMMENDATION', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFFE5A93C))),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Complete lesson quizzes right after each topic to lock in your understanding and boost retention.',
+                style: GoogleFonts.inter(fontSize: 12, color: const Color(0xFFC0D2F0), height: 1.4),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _filterBadge(BuildContext context, String title, IconData icon, AppColors ac) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: ac.surf2,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: ac.bdr2),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: ac.primary),
+          const SizedBox(width: 10),
+          Expanded(child: Text(title, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: ac.txt))),
+          Icon(Icons.chevron_right_rounded, size: 16, color: ac.muted),
+        ],
+      ),
+    );
+  }
+}
+
+class LibraryRightPanel extends StatelessWidget {
+  final AppUser? user;
+  const LibraryRightPanel({super.key, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.local_library_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('ACADEMIC REPOSITORY', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Access curriculum-approved textbooks, official exam series, and study guides with offline persistence.',
+                style: GoogleFonts.inter(fontSize: 12, color: ac.txt2, height: 1.4),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(Icons.offline_pin_rounded, size: 16, color: ac.grn),
+                  const SizedBox(width: 6),
+                  Text('Offline Reader Ready', style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w600, color: ac.grn)),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('COLLECTION TYPES', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+              const SizedBox(height: 12),
+              _categoryRow('Official Textbooks', 'PDF & EPUB', Icons.menu_book_rounded, const Color(0xFF1E6FEB), ac),
+              const SizedBox(height: 10),
+              _categoryRow('Past Exam Papers', 'GCE, Probatoire, Bacc', Icons.history_edu_rounded, const Color(0xFFE5A93C), ac),
+              const SizedBox(height: 10),
+              _categoryRow('Subject Syllabuses', 'Official Curriculum', Icons.description_outlined, const Color(0xFF16A34A), ac),
+              const SizedBox(height: 10),
+              _categoryRow('Revision Notes', 'Teacher & Student Guides', Icons.note_alt_outlined, const Color(0xFF7C3AED), ac),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _categoryRow(String title, String subtitle, IconData icon, Color color, AppColors ac) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: ac.surf2,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: ac.bdr2),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+            child: Icon(icon, size: 16, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: ac.txt)),
+                Text(subtitle, style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PastQuestionsRightPanel extends StatelessWidget {
+  final AppUser? user;
+  const PastQuestionsRightPanel({super.key, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.history_edu_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('EXAMINATION BOARDS', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _boardPill('Cameroon GCE Board (A/L & O/L)', 'English Subsystem', ac),
+              const SizedBox(height: 8),
+              _boardPill('Office du Baccalauréat (OBC)', 'French Subsystem', ac),
+              const SizedBox(height: 8),
+              _boardPill('Concours & National Exams', 'Polytech, ENAM, CUSS', ac),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('AVAILABLE SESSIONS', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final year in ['2025', '2024', '2023', '2022', '2021', '2020'])
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: ac.surf2,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: ac.bdr2),
+                      ),
+                      child: Text(year, style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w600, color: ac.txt)),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F2447),
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: const Color(0xFF1E3A8A)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.check_circle_outline_rounded, size: 16, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('MARKING SCHEMES', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: const Color(0xFFE5A93C))),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Direct-to-reader past papers include official solutions when verified by curriculum specialists.',
+                style: GoogleFonts.inter(fontSize: 11.5, color: const Color(0xFFC0D2F0), height: 1.4),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _boardPill(String title, String sub, AppColors ac) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: ac.surf2,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: ac.bdr2),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: ac.txt)),
+          const SizedBox(height: 2),
+          Text(sub, style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted)),
+        ],
+      ),
+    );
+  }
+}
+
+class TestsRightPanel extends StatelessWidget {
+  final AppUser? user;
+  const TestsRightPanel({super.key, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (user != null && !user!.isGuest) ...[
+          AcademicProgressCard(user: user),
+          const SizedBox(height: 16),
+        ],
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.bolt_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('XP REWARD SYSTEM', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _ruleRow('Standard Quiz', '+10 to +30 XP', ac),
+              const SizedBox(height: 8),
+              _ruleRow('Hard / Advanced Test', '+30 to +80 XP', ac),
+              const SizedBox(height: 8),
+              _ruleRow('7-Day Login Streak', '+50 XP Bonus', ac),
+              const SizedBox(height: 8),
+              _ruleRow('Score >= 80%', '+30% Multiplier', ac),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _ruleRow(String title, String val, AppColors ac) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(title, style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt)),
+        Text(val, style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: const Color(0xFFE5A93C))),
+      ],
+    );
+  }
+}
+
+class ReaderRightPanel extends StatelessWidget {
+  final String title;
+  final String format;
+  final VoidCallback? onSaveOffline;
+  final VoidCallback? onShare;
+
+  const ReaderRightPanel({
+    super.key,
+    required this.title,
+    required this.format,
+    this.onSaveOffline,
+    this.onShare,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.auto_stories_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('DOCUMENT DETAILS', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                title,
+                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5A93C).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      format.toUpperCase(),
+                      style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w800, color: const Color(0xFFE5A93C)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text('In-App Reader', style: GoogleFonts.inter(fontSize: 11, color: ac.muted)),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('READER CONTROLS', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+              const SizedBox(height: 12),
+              if (onSaveOffline != null)
+                _toolButton(
+                  icon: Icons.download_for_offline_rounded,
+                  label: 'Save for Offline',
+                  onTap: onSaveOffline,
+                  ac: ac,
+                ),
+              if (onShare != null) ...[
+                const SizedBox(height: 8),
+                _toolButton(
+                  icon: Icons.share_rounded,
+                  label: 'Share Document Link',
+                  onTap: onShare,
+                  ac: ac,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _toolButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onTap,
+    required AppColors ac,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: ac.surf2,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: ac.bdr2),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: ac.primary),
+            const SizedBox(width: 10),
+            Expanded(child: Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: ac.txt))),
+            Icon(Icons.chevron_right_rounded, size: 16, color: ac.muted),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class MarksRightPanel extends StatelessWidget {
+  final AppUser? user;
+  const MarksRightPanel({super.key, required this.user});
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.grade_rounded, size: 18, color: Color(0xFFE5A93C)),
+              const SizedBox(width: 8),
+              Text('ACADEMIC RECORDS', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+            ]),
+            const SizedBox(height: 12),
+            Text('Official institutional marks, report cards, and semester transcripts.', style: GoogleFonts.inter(fontSize: 12, color: ac.txt2)),
+          ]),
+        ),
+      ],
+    );
+  }
+}
+
+class HomeworkRightPanel extends StatelessWidget {
+  final AppUser? user;
+  const HomeworkRightPanel({super.key, required this.user});
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.assignment_rounded, size: 18, color: Color(0xFFE5A93C)),
+              const SizedBox(width: 8),
+              Text('ASSIGNMENT DEADLINES', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+            ]),
+            const SizedBox(height: 12),
+            Text('Track assignments given by teachers and submit coursework on time.', style: GoogleFonts.inter(fontSize: 12, color: ac.txt2)),
+          ]),
+        ),
+      ],
+    );
+  }
+}
+
+class TimetableRightPanel extends StatelessWidget {
+  final AppUser? user;
+  const TimetableRightPanel({super.key, required this.user});
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.schedule_rounded, size: 18, color: Color(0xFFE5A93C)),
+              const SizedBox(width: 8),
+              Text('DAILY SCHEDULE', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+            ]),
+            const SizedBox(height: 12),
+            Text('Real-time class schedule, room allocations, and lecture updates.', style: GoogleFonts.inter(fontSize: 12, color: ac.txt2)),
+          ]),
+        ),
+      ],
+    );
+  }
+}
 class _PastQuestionsRedirector extends StatefulWidget {
   final AppUser user;
   const _PastQuestionsRedirector({required this.user});

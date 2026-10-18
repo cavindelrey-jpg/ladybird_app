@@ -28,7 +28,6 @@ class NotificationsPage extends StatelessWidget {
       case NotificationType.dailyProgram:     return Icons.today_rounded;
       case NotificationType.message:          return Icons.chat_bubble_outline_rounded;
       case NotificationType.recommendation:   return Icons.auto_awesome_outlined;
-      default:                                return Icons.notifications_none_rounded;
     }
   }
 
@@ -46,22 +45,33 @@ class NotificationsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text('Notifications', style: GoogleFonts.inter(
-            fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
-        actions: [
-          TextButton(
-            onPressed: () => NotificationRepository.instance.markAllRead(user.id),
-            child: Text('Mark all read', style: GoogleFonts.inter(
-                fontSize: 12, fontWeight: FontWeight.w600, color: ac.primary)),
+    return ApplicationShell(
+      user: user,
+      currentTitle: 'Notifications',
+      currentDestination: AppNavDestination.none,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              color: ac.surf,
+              border: Border(bottom: BorderSide(color: ac.bdr)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Activity Feed',
+                    style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
+                TextButton(
+                  onPressed: () => NotificationRepository.instance.markAllRead(user.id),
+                  child: Text('Mark all read',
+                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: ac.primary)),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
-      body: AppBackground(child: StreamBuilder<List<AppNotification>>(
+          Expanded(
+            child: AppBackground(child: StreamBuilder<List<AppNotification>>(
         stream: NotificationRepository.instance.watchFeed(user.id),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
@@ -141,7 +151,9 @@ class NotificationsPage extends StatelessWidget {
             },
           );
         },
-      )),
-    );
+      ))),
+    ],
+  ),
+);
   }
 }

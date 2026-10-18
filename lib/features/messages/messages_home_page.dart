@@ -10,11 +10,19 @@ import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import 'chat_conversation_page.dart';
 import 'find_people_page.dart';
-import '../../widgets/application_shell.dart';
+import '../../routes/app_routes.dart';
 
 class MessagesHomePage extends StatefulWidget {
   final AppUser user;
-  const MessagesHomePage({super.key, required this.user});
+  final String? initialConversationId;
+  final int initialTab;
+
+  const MessagesHomePage({
+    super.key,
+    required this.user,
+    this.initialConversationId,
+    this.initialTab = 0,
+  });
 
   @override
   State<MessagesHomePage> createState() => _MessagesHomePageState();
@@ -24,15 +32,32 @@ class _MessagesHomePageState extends State<MessagesHomePage> with SingleTickerPr
   late TabController _tabController;
   final TextEditingController _searchCtrl = TextEditingController();
   String _filter = '';
+  String? _selectedConversationId;
   Conversation? _selectedConversation;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _selectedConversationId = widget.initialConversationId;
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTab.clamp(0, 1),
+    );
     _searchCtrl.addListener(() {
       setState(() => _filter = _searchCtrl.text.trim().toLowerCase());
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant MessagesHomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialConversationId != null &&
+        widget.initialConversationId != _selectedConversationId) {
+      setState(() {
+        _selectedConversationId = widget.initialConversationId;
+      });
+    }
   }
 
   @override
@@ -42,12 +67,316 @@ class _MessagesHomePageState extends State<MessagesHomePage> with SingleTickerPr
     super.dispose();
   }
 
+  void _selectConversation(Conversation c) {
+    setState(() {
+      _selectedConversation = c;
+      _selectedConversationId = c.id;
+    });
+    AppRoutes.updateBrowserUrl('/messages/${c.id}');
+  }
+
+  void _clearSelectedConversation() {
+    setState(() {
+      _selectedConversation = null;
+      _selectedConversationId = null;
+    });
+    AppRoutes.updateBrowserUrl('/messages');
+  }
+
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     final isDesktop = MediaQuery.of(context).size.width >= 1100;
 
-    final listPane = Column(
+    // ── Central Panel Content ──────────────────────────────────────────────
+    Widget centerWorkspace;
+    Widget? contextualPanel;
+
+    if (isDesktop) {
+      if (_selectedConversationId != null) {
+        // State 2: Open conversation displays messages centrally & conversation list on the right
+        centerWorkspace = _buildConversationDetail(context, ac, isEmbedded: true);
+        contextualPanel = _buildConversationsRightSidebar(context, ac);
+      } else {
+        // State 1: Displays conversations centrally & message requests on the right
+        centerWorkspace = _buildCentralConversationsWorkspace(context, ac);
+        contextualPanel = _buildMessageRequestsRightSidebar(context, ac);
+      }
+    } else {
+      // Mobile / Narrow: Single fluid view
+      if (_selectedConversationId != null) {
+        centerWorkspace = _buildConversationDetail(
+          context,
+          ac,
+          isEmbedded: false,
+          onBack: _clearSelectedConversation,
+        );
+      } else {
+        centerWorkspace = _buildMobileConversationsList(context, ac);
+      }
+    }
+
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'Messaging',
+      currentDestination: AppNavDestination.messages,
+      contextualPanel: contextualPanel,
+      showBackButton: !isDesktop && _selectedConversationId != null,
+      onBack: !isDesktop && _selectedConversationId != null ? _clearSelectedConversation : null,
+      floatingActionButton: (_selectedConversationId == null || isDesktop)
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                HapticFeedback.mediumImpact();
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => FindPeoplePage(user: widget.user)),
+                );
+              },
+              backgroundColor: const Color(0xFF081630),
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.edit_square, size: 18),
+              label: Text(
+                'New Message',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+            )
+          : null,
+      child: centerWorkspace,
+    );
+  }
+
+  // ── Central Workspace when viewing Conversations (Desktop) ─────────────────
+  Widget _buildCentralConversationsWorkspace(BuildContext context, AppColors ac) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header bar with search
+        Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            border: Border(bottom: BorderSide(color: ac.bdr)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Search conversations or classmates...',
+                    hintStyle: TextStyle(color: ac.muted, fontSize: 13),
+                    prefixIcon: Icon(Icons.search_rounded, color: ac.muted, size: 20),
+                    filled: true,
+                    fillColor: ac.bg,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: ac.bdr),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: ac.bdr),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              ElevatedButton.icon(
+                onPressed: () {
+                  HapticFeedback.mediumImpact();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => FindPeoplePage(user: widget.user)),
+                  );
+                },
+                icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
+                label: const Text('Start Chat'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE5A93C),
+                  foregroundColor: const Color(0xFF081630),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  textStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Conversation List
+        Expanded(
+          child: _ConversationsTab(
+            user: widget.user,
+            filter: _filter,
+            selectedConversationId: _selectedConversationId,
+            onSelectConversation: _selectConversation,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Central Conversation Detail View (Messages & Composer) ────────────────
+  Widget _buildConversationDetail(
+    BuildContext context,
+    AppColors ac, {
+    required bool isEmbedded,
+    VoidCallback? onBack,
+  }) {
+    if (_selectedConversation != null) {
+      final otherId = _selectedConversation!.otherParticipantId(widget.user.id);
+      final otherName = _selectedConversation!.participantNames[otherId] ?? 'Unknown';
+      final otherPhoto = _selectedConversation!.participantPhotos[otherId];
+
+      return ChatConversationPage(
+        key: ValueKey(_selectedConversation!.id),
+        conversationId: _selectedConversation!.id,
+        currentUser: widget.user,
+        otherUserId: otherId,
+        otherUserName: otherName,
+        otherUserPhoto: otherPhoto,
+        embedded: isEmbedded,
+      );
+    }
+
+    // Direct URL loading fallback: stream conversation by ID
+    return StreamBuilder<Conversation?>(
+      stream: MessagingRepository.instance.watchConversation(_selectedConversationId!),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator(color: Color(0xFFE5A93C)));
+        }
+
+        final conv = snapshot.data;
+        if (conv == null) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.chat_bubble_outline_rounded, size: 48, color: ac.muted),
+                const SizedBox(height: 12),
+                Text('Conversation not found.', style: GoogleFonts.inter(color: ac.txt)),
+                const SizedBox(height: 16),
+                OutlinedButton(
+                  onPressed: _clearSelectedConversation,
+                  child: const Text('Back to Conversations'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final otherId = conv.otherParticipantId(widget.user.id);
+        final otherName = conv.participantNames[otherId] ?? 'Unknown';
+        final otherPhoto = conv.participantPhotos[otherId];
+
+        return ChatConversationPage(
+          key: ValueKey(conv.id),
+          conversationId: conv.id,
+          currentUser: widget.user,
+          otherUserId: otherId,
+          otherUserName: otherName,
+          otherUserPhoto: otherPhoto,
+          embedded: isEmbedded,
+        );
+      },
+    );
+  }
+
+  // ── Right Sidebar: WhatsApp-style Conversation List (Desktop) ──────────────
+  Widget _buildConversationsRightSidebar(BuildContext context, AppColors ac) {
+    return Column(
+      children: [
+        // Sidebar header with title & Close/Overview button
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: ac.bdr)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.chat_rounded, size: 18, color: ac.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Conversations',
+                    style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.bold, color: ac.txt),
+                  ),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.view_agenda_outlined, size: 18),
+                tooltip: 'Back to Conversation Workspace',
+                color: ac.muted,
+                onPressed: _clearSelectedConversation,
+              ),
+            ],
+          ),
+        ),
+
+        // Search field
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+          child: TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              hintText: 'Search chats...',
+              hintStyle: TextStyle(color: ac.muted, fontSize: 12),
+              prefixIcon: Icon(Icons.search_rounded, color: ac.muted, size: 18),
+              filled: true,
+              fillColor: ac.bg,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+            ),
+          ),
+        ),
+
+        // Live Conversation list
+        Expanded(
+          child: _ConversationsTab(
+            user: widget.user,
+            filter: _filter,
+            selectedConversationId: _selectedConversationId,
+            onSelectConversation: _selectConversation,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Right Sidebar: Message Requests (Desktop default) ──────────────────────
+  Widget _buildMessageRequestsRightSidebar(BuildContext context, AppColors ac) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: ac.bdr)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.mark_email_unread_outlined, size: 18, color: ac.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Message Requests',
+                style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.bold, color: ac.txt),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _MessageRequestsTab(user: widget.user, filter: _filter),
+        ),
+      ],
+    );
+  }
+
+  // ── Mobile Conversations List (with Tabs) ──────────────────────────────────
+  Widget _buildMobileConversationsList(BuildContext context, AppColors ac) {
+    return Column(
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -87,106 +416,14 @@ class _MessagesHomePageState extends State<MessagesHomePage> with SingleTickerPr
               _ConversationsTab(
                 user: widget.user,
                 filter: _filter,
-                selectedConversationId: isDesktop ? _selectedConversation?.id : null,
-                onSelectConversation: (c) {
-                  if (isDesktop) {
-                    setState(() => _selectedConversation = c);
-                  } else {
-                    final otherId = c.otherParticipantId(widget.user.id);
-                    final otherName = c.participantNames[otherId] ?? 'Unknown';
-                    final otherPhoto = c.participantPhotos[otherId];
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => ChatConversationPage(
-                        conversationId: c.id,
-                        currentUser: widget.user,
-                        otherUserId: otherId,
-                        otherUserName: otherName,
-                        otherUserPhoto: otherPhoto,
-                      ),
-                    ));
-                  }
-                },
+                selectedConversationId: _selectedConversationId,
+                onSelectConversation: _selectConversation,
               ),
               _MessageRequestsTab(user: widget.user, filter: _filter),
             ],
           ),
         ),
       ],
-    );
-
-    return ApplicationShell(
-      user: widget.user,
-      currentTitle: 'Messaging',
-      currentDestination: AppNavDestination.schoolConnect,
-      showRightPanel: false, // In desktop messaging, the 2-pane chat workspace takes the full viewport
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          HapticFeedback.mediumImpact();
-          Navigator.of(context).push(MaterialPageRoute(builder: (_) => FindPeoplePage(user: widget.user)));
-        },
-        backgroundColor: ac.navy,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.edit_square, size: 18),
-        label: Text('New Message', style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13)),
-      ),
-      child: isDesktop
-          ? Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: 360,
-                  child: listPane,
-                ),
-                VerticalDivider(width: 1, thickness: 1, color: ac.bdr),
-                Expanded(
-                  child: _selectedConversation != null
-                      ? ChatConversationPage(
-                          key: ValueKey(_selectedConversation!.id),
-                          conversationId: _selectedConversation!.id,
-                          currentUser: widget.user,
-                          otherUserId: _selectedConversation!.otherParticipantId(widget.user.id),
-                          otherUserName: _selectedConversation!.participantNames[_selectedConversation!.otherParticipantId(widget.user.id)] ?? 'Unknown',
-                          otherUserPhoto: _selectedConversation!.participantPhotos[_selectedConversation!.otherParticipantId(widget.user.id)],
-                          embedded: true,
-                        )
-                      : _buildEmptyDetailState(context, ac),
-                ),
-              ],
-            )
-          : listPane,
-    );
-  }
-
-  Widget _buildEmptyDetailState(BuildContext context, AppColors ac) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: ac.surf,
-              shape: BoxShape.circle,
-              border: Border.all(color: ac.bdr),
-            ),
-            child: Icon(Icons.chat_bubble_outline_rounded, size: 54, color: ac.gold),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Select a conversation',
-            style: GoogleFonts.sora(fontSize: 18, fontWeight: FontWeight.bold, color: ac.txt),
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Text(
-              'Choose a conversation from the left to start messaging, share academic notes, or collaborate on coursework.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 13, color: ac.muted, height: 1.5),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -210,7 +447,7 @@ class _ConversationsTab extends StatelessWidget {
       stream: MessagingRepository.instance.watchConversations(user.id),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(child: CircularProgressIndicator(color: Color(0xFFE5A93C)));
         }
         if (snap.hasError) {
           return Center(child: ErrorView(message: snap.error.toString()));
@@ -222,19 +459,30 @@ class _ConversationsTab extends StatelessWidget {
           filtered = filtered.where((c) {
             final otherId = c.otherParticipantId(user.id);
             final otherName = c.participantNames[otherId] ?? '';
-            return otherName.toLowerCase().contains(filter) || c.lastMessageText.toLowerCase().contains(filter);
+            return otherName.toLowerCase().contains(filter) ||
+                c.lastMessageText.toLowerCase().contains(filter);
           }).toList();
         }
 
         if (filtered.isEmpty) {
           return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.forum_outlined, size: 56, color: AppColors.of(context).muted.withValues(alpha: .5)),
-                const SizedBox(height: 16),
-                Text('No conversations found.', style: GoogleFonts.inter(color: AppColors.of(context).muted)),
-              ],
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.forum_outlined,
+                    size: 48,
+                    color: AppColors.of(context).muted.withValues(alpha: .5),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No conversations found.',
+                    style: GoogleFonts.inter(color: AppColors.of(context).muted, fontSize: 13),
+                  ),
+                ],
+              ),
             ),
           );
         }
@@ -246,7 +494,15 @@ class _ConversationsTab extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           children: [
             if (pinned.isNotEmpty) ...[
-              Text('PINNED', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.of(context).muted, letterSpacing: 0.5)),
+              Text(
+                'PINNED',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.of(context).muted,
+                  letterSpacing: 0.5,
+                ),
+              ),
               const SizedBox(height: 8),
               ...pinned.map((c) => _ConversationRow(
                     user: user,
@@ -255,7 +511,15 @@ class _ConversationsTab extends StatelessWidget {
                     onTap: () => onSelectConversation(c),
                   )),
               const SizedBox(height: 16),
-              Text('RECENT', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.of(context).muted, letterSpacing: 0.5)),
+              Text(
+                'RECENT',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.of(context).muted,
+                  letterSpacing: 0.5,
+                ),
+              ),
               const SizedBox(height: 8),
             ],
             ...unpinned.map((c) => _ConversationRow(
@@ -280,22 +544,37 @@ class _MessageRequestsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.mark_email_unread_outlined, size: 56, color: AppColors.of(context).muted.withValues(alpha: .5)),
-          const SizedBox(height: 16),
-          Text('No pending message requests.', style: GoogleFonts.inter(color: AppColors.of(context).txt2, fontSize: 14, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Text(
-              'When new students or teachers try to network with you, their requests will appear here safely.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(color: AppColors.of(context).muted, fontSize: 12, height: 1.4),
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.mark_email_unread_outlined,
+              size: 52,
+              color: AppColors.of(context).muted.withValues(alpha: .5),
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Text(
+              'No pending requests',
+              style: GoogleFonts.inter(
+                color: AppColors.of(context).txt,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'When new students or teachers connect with you, their requests will appear here safely.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                color: AppColors.of(context).muted,
+                fontSize: 12,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -334,10 +613,10 @@ class _ConversationRow extends StatelessWidget {
         },
         child: Container(
           decoration: BoxDecoration(
-            color: isSelected ? ac.gold.withValues(alpha: 0.1) : ac.surf,
+            color: isSelected ? const Color(0xFFE5A93C).withValues(alpha: 0.15) : ac.surf,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isSelected ? ac.gold : ac.bdr,
+              color: isSelected ? const Color(0xFFE5A93C) : ac.bdr,
               width: isSelected ? 1.5 : 1.0,
             ),
           ),
@@ -352,7 +631,7 @@ class _ConversationRow extends StatelessWidget {
                   children: [
                     UserAvatar(
                       initials: otherName.isEmpty ? '?' : otherName[0].toUpperCase(),
-                      radius: 22,
+                      radius: 20,
                       photoUrl: otherPhoto,
                       showPresenceDot: true,
                       online: online,
@@ -368,7 +647,7 @@ class _ConversationRow extends StatelessWidget {
                                 child: Text(
                                   otherName,
                                   style: GoogleFonts.sora(
-                                    fontSize: 14,
+                                    fontSize: 13.5,
                                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
                                     color: ac.txt,
                                   ),
@@ -389,7 +668,7 @@ class _ConversationRow extends StatelessWidget {
                                       ? 'You: ${conversation.lastMessageText}'
                                       : conversation.lastMessageText,
                                   style: GoogleFonts.inter(
-                                    fontSize: 12.5,
+                                    fontSize: 12,
                                     fontWeight: unread > 0 ? FontWeight.bold : FontWeight.normal,
                                     color: unread > 0 ? ac.txt : ac.txt2,
                                   ),
@@ -401,10 +680,17 @@ class _ConversationRow extends StatelessWidget {
                                 const SizedBox(width: 6),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(color: ac.gold, borderRadius: BorderRadius.circular(10)),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE5A93C),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                   child: Text(
                                     '$unread',
-                                    style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.bold, color: ac.navy),
+                                    style: GoogleFonts.inter(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF081630),
+                                    ),
                                   ),
                                 ),
                               ],

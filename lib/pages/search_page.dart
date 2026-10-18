@@ -88,34 +88,65 @@ class _SearchPageState extends State<SearchPage> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.surf,
-        title: TextField(
-          controller: _ctrl,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Search...', border: InputBorder.none),
-          onSubmitted: _performSearch,
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabs: const [Tab(text: 'Library'), Tab(text: 'Groups'), Tab(text: 'People'), Tab(text: 'Courses')],
-        ),
-      ),
-      body: AppBackground(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : TabBarView(
-          controller: _tabController,
-          children: [
-            _buildLibraryList(ac),
-            _buildClubList(),
-            _buildUserList(),
-            _buildCourseList(),
-          ],
-        ),
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'Search',
+      currentDestination: AppNavDestination.none,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              color: ac.surf,
+              border: Border(bottom: BorderSide(color: ac.bdr)),
+            ),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _ctrl,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Search courses, library books, groups, people...',
+                    hintStyle: TextStyle(color: ac.muted, fontSize: 13),
+                    prefixIcon: Icon(Icons.search_rounded, color: ac.muted, size: 20),
+                    filled: true,
+                    fillColor: ac.bg,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: ac.bdr),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                  ),
+                  onSubmitted: _performSearch,
+                ),
+                const SizedBox(height: 10),
+                TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  indicatorColor: ac.gold,
+                  labelColor: ac.navy,
+                  unselectedLabelColor: ac.muted,
+                  tabs: const [Tab(text: 'Library'), Tab(text: 'Groups'), Tab(text: 'People'), Tab(text: 'Courses')],
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: AppBackground(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildLibraryList(ac),
+                        _buildClubList(),
+                        _buildUserList(),
+                        _buildCourseList(),
+                      ],
+                    ),
+            ),
+          ),
+        ],
       ),
     );
   }

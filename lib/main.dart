@@ -26,6 +26,8 @@ import 'screens/app_router.dart';
 import 'services/analytics_service.dart';
 import 'services/config_service.dart';
 import 'config/branding.dart';
+import 'core/url_strategy.dart';
+import 'routes/app_routes.dart';
 
 Future<void> main() async {
   // runZonedGuarded catches errors that occur outside Flutter's own build/
@@ -34,6 +36,7 @@ Future<void> main() async {
   // silently vanish from Crashlytics entirely.
   await runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+    setAppUrlStrategy();
 
     // Every font the app uses (Inter, Sora, Lora) ships in
     // assets/google_fonts/. Never download fonts at runtime: on a phone
@@ -152,7 +155,9 @@ class AcademiaApp extends StatelessWidget {
           ),
           themeMode: themeProvider.mode,
           themeAnimationDuration: Duration.zero,
-          home: const _MaintenanceGate(),
+          initialRoute: AppRoutes.home,
+          onGenerateRoute: AppRouteRegistry.onGenerateRoute,
+          onUnknownRoute: AppRouteRegistry.onUnknownRoute,
           // Missing entirely before this fix — flutter_quill's toolbar
           // buttons (used in both the Article and Course composers) call
           // FlutterQuillLocalizations.of(context) internally, and throw an
@@ -195,6 +200,7 @@ class AcademiaApp extends StatelessWidget {
 }
 
 /// Shows a maintenance screen if ConfigService.isMaintenanceMode is true.
+// ignore: unused_element
 class _MaintenanceGate extends StatelessWidget {
   const _MaintenanceGate();
 

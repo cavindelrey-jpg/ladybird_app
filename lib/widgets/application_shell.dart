@@ -13,11 +13,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../models/app_user.dart';
-import '../pages/help_support_page.dart';
-import '../pages/notifications_page.dart';
-import '../pages/profile_page.dart';
-import '../pages/search_page.dart';
-import '../pages/settings_page.dart';
 import '../providers/theme_provider.dart';
 import '../repositories/library_folder_repository.dart';
 import '../theme/app_colors.dart';
@@ -30,23 +25,13 @@ import '../models/daily_learning_streak.dart';
 import '../repositories/xp_repository.dart';
 import '../repositories/daily_learning_repository.dart';
 import '../repositories/test_repository.dart';
-
-// Core pages
 import '../features/academic_content/library_home_page.dart';
 import '../features/academic_content/library_folder_page.dart';
-import '../features/courses_marketplace/courses_home_page.dart';
-import '../features/dashboard/universal_home_page.dart';
-import '../features/messages/messages_home_page.dart';
-import '../features/school/attendance_page.dart';
-import '../features/school/classroom_page.dart';
 import '../features/school/daily_notices/daily_notices_page.dart';
-import '../features/school/fees_page.dart';
 import '../features/school/homework_page.dart';
-import '../features/school/marks_page.dart';
-import '../features/school/school_connect_page.dart';
 import '../features/school/timetable_page.dart';
-import '../features/testing/quiz_categories_page.dart';
 import '../features/testing/xp_dashboard_page.dart';
+import '../routes/app_routes.dart';
 
 enum AppNavDestination {
   home,
@@ -61,6 +46,7 @@ enum AppNavDestination {
   attendance,
   fees,
   classroom,
+  messages,
   announcements,
   settings,
   help,
@@ -98,10 +84,11 @@ class ApplicationShell extends StatefulWidget {
 }
 
 class _ApplicationShellState extends State<ApplicationShell> {
-  bool _sidebarCollapsed = false;
+  bool _sidebarHovered = false;
+  bool _sidebarPinned = false;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  AppUser get _user => widget.user ?? AppUser.guest();
+  bool get _isSidebarExpanded => _sidebarPinned || _sidebarHovered;
 
   Widget _buildContextualPanel(BuildContext context) {
     if (widget.contextualPanel != null) return widget.contextualPanel!;
@@ -127,64 +114,8 @@ class _ApplicationShellState extends State<ApplicationShell> {
 
   void _navigateTo(BuildContext context, AppNavDestination dest) {
     if (dest == widget.currentDestination) return;
-
-    Widget page;
-    switch (dest) {
-      case AppNavDestination.home:
-        page = UniversalHomePage(user: _user);
-        break;
-      case AppNavDestination.academicCourses:
-        page = CoursesHomePage(user: widget.user);
-        break;
-      case AppNavDestination.academicLibrary:
-        page = LibraryHomePage(user: _user);
-        break;
-      case AppNavDestination.pastQuestions:
-        page = _PastQuestionsRedirector(user: _user);
-        break;
-      case AppNavDestination.testsAndQuizzes:
-        page = QuizCategoriesPage(user: _user);
-        break;
-      case AppNavDestination.schoolConnect:
-        page = SchoolConnectPage(user: _user);
-        break;
-      case AppNavDestination.marks:
-        page = MarksPage(user: _user);
-        break;
-      case AppNavDestination.homework:
-        page = HomeworkPage(user: _user);
-        break;
-      case AppNavDestination.timetable:
-        page = TimetablePage(user: _user);
-        break;
-      case AppNavDestination.attendance:
-        page = AttendancePage(user: _user);
-        break;
-      case AppNavDestination.fees:
-        page = FeesPage(user: _user);
-        break;
-      case AppNavDestination.classroom:
-        page = ClassroomPage(user: _user);
-        break;
-      case AppNavDestination.announcements:
-        page = DailyNoticesPage(user: _user);
-        break;
-      case AppNavDestination.settings:
-        page = SettingsPage(user: _user);
-        break;
-      case AppNavDestination.help:
-        page = HelpSupportPage(user: _user);
-        break;
-      case AppNavDestination.none:
-        return;
-    }
-
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => page,
-        transitionDuration: Duration.zero,
-      ),
-    );
+    final path = AppRoutes.pathForDestination(dest);
+    Navigator.of(context).pushReplacementNamed(path);
   }
 
   @override
@@ -225,50 +156,82 @@ class _ApplicationShellState extends State<ApplicationShell> {
               onBack: widget.onBack,
               onToggleSidebar: () {
                 if (isDesktop) {
-                  setState(() => _sidebarCollapsed = !_sidebarCollapsed);
+                  setState(() => _sidebarPinned = !_sidebarPinned);
                 } else {
                   _scaffoldKey.currentState?.openDrawer();
                 }
               },
             ),
 
-            // ── Main Body: Sidebar + Main Workspace + Contextual Panel ──
+            // ── Main Body: Hover Left Sidebar + Stationary Workspace + Reserved Right Panel ──
             Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: Stack(
                 children: [
-                  // 1. Global Left Sidebar (Desktop)
-                  if (isDesktop)
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: _sidebarCollapsed ? 76 : 240,
-                      color: const Color(0xFF081630),
-                      child: _GlobalSidebarContent(
-                        user: widget.user,
-                        currentDestination: widget.currentDestination,
-                        collapsed: _sidebarCollapsed,
-                        onSelectDestination: (dest) => _navigateTo(context, dest),
-                      ),
-                    ),
+                  // 1. Fixed Structural Layout: Fixed 76px rail slot + Central Workspace + Reserved Right Panel (360px)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (isDesktop)
+                        const SizedBox(width: 76),
 
-                  // 2. Center Main Workspace
-                  Expanded(
-                    child: Container(
-                      color: ac.bg,
-                      child: widget.child,
-                    ),
+                      // Center Main Workspace (Stationary, never shifts or resizes on sidebar hover)
+                      Expanded(
+                        child: Container(
+                          color: ac.bg,
+                          child: widget.child,
+                        ),
+                      ),
+
+                      // Right Contextual Information Panel (Always reserved on desktop)
+                      if (isDesktop)
+                        SizedBox(
+                          width: 360,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: ac.surf,
+                              border: Border(left: BorderSide(color: ac.bdr)),
+                            ),
+                            child: _buildContextualPanel(context),
+                          ),
+                        ),
+                    ],
                   ),
 
-                  // 3. Right Contextual Information Panel (Desktop only)
-                  if (isDesktop && widget.showRightPanel)
-                    SizedBox(
-                      width: 360,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: ac.surf,
-                          border: Border(left: BorderSide(color: ac.bdr)),
+                  // 2. Left Sidebar (Desktop): Expands on hover or toggle, overlays without moving central content
+                  if (isDesktop)
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: MouseRegion(
+                        onEnter: (_) => setState(() => _sidebarHovered = true),
+                        onExit: (_) => setState(() => _sidebarHovered = false),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeOutCubic,
+                          width: _isSidebarExpanded ? 240 : 76,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF081630),
+                            border: const Border(
+                              right: BorderSide(color: Color(0xFF162544), width: 1),
+                            ),
+                            boxShadow: _isSidebarExpanded
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.35),
+                                      blurRadius: 16,
+                                      offset: const Offset(4, 0),
+                                    )
+                                  ]
+                                : null,
+                          ),
+                          child: _GlobalSidebarContent(
+                            user: widget.user,
+                            currentDestination: widget.currentDestination,
+                            collapsed: !_isSidebarExpanded,
+                            onSelectDestination: (dest) => _navigateTo(context, dest),
+                          ),
                         ),
-                        child: _buildContextualPanel(context),
                       ),
                     ),
                 ],
@@ -372,9 +335,7 @@ class _GlobalTopBar extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 460),
                 child: GestureDetector(
                   onTap: () {
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => SearchPage(user: user ?? AppUser.guest()),
-                    ));
+                    Navigator.of(context).pushNamed(AppRoutes.search);
                   },
                   child: Container(
                     height: 40,
@@ -432,10 +393,7 @@ class _GlobalTopBar extends StatelessWidget {
                     color: Color(0xFFC0D2F0), size: 21),
                 tooltip: 'Notifications',
                 onPressed: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) =>
-                        NotificationsPage(user: user ?? AppUser.guest()),
-                  ));
+                  Navigator.of(context).pushNamed(AppRoutes.notifications);
                 },
               ),
               Positioned(
@@ -469,10 +427,7 @@ class _GlobalTopBar extends StatelessWidget {
                     color: Color(0xFFC0D2F0), size: 20),
                 tooltip: 'Messages',
                 onPressed: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) =>
-                        MessagesHomePage(user: user ?? AppUser.guest()),
-                  ));
+                  Navigator.of(context).pushNamed(AppRoutes.messages);
                 },
               ),
               Positioned(
@@ -503,9 +458,7 @@ class _GlobalTopBar extends StatelessWidget {
                 color: Color(0xFFC0D2F0), size: 20),
             tooltip: 'Quick Notes',
             onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => MessagesHomePage(user: user ?? AppUser.guest()),
-              ));
+              Navigator.of(context).pushNamed(AppRoutes.messages);
             },
           ),
 
@@ -533,9 +486,7 @@ class _GlobalTopBar extends StatelessWidget {
                 color: Color(0xFFC0D2F0), size: 20),
             tooltip: 'Settings',
             onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => SettingsPage(user: user ?? AppUser.guest()),
-              ));
+              Navigator.of(context).pushNamed(AppRoutes.settings);
             },
           ),
 
@@ -562,9 +513,7 @@ class _UserProfileChip extends StatelessWidget {
 
     return InkWell(
       onTap: () {
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => ProfilePage(user: user ?? AppUser.guest()),
-        ));
+        Navigator.of(context).pushNamed(AppRoutes.profile);
       },
       borderRadius: BorderRadius.circular(20),
       child: Padding(
@@ -660,6 +609,8 @@ class _GlobalSidebarContent extends StatelessWidget {
                   'Tests & Quizzes'),
               _item(AppNavDestination.schoolConnect, Icons.forum_rounded,
                   'School Connect'),
+              _item(AppNavDestination.messages, Icons.chat_bubble_outline_rounded,
+                  'Messaging'),
               _item(AppNavDestination.marks, Icons.bar_chart_rounded, 'Marks'),
               _item(AppNavDestination.homework, Icons.edit_note_rounded,
                   'Homework'),

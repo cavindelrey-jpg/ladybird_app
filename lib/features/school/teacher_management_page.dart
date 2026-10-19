@@ -200,16 +200,20 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
     final ac = AppColors.of(context);
 
     if (!widget.admin.hasMinRole(UserRole.schoolAdmin)) {
-      return Scaffold(
-        backgroundColor: ac.bg,
-        appBar: AppBar(backgroundColor: ac.bg, elevation: 0),
+      return ManagementScaffold(
+        user: widget.admin,
+        destination: AppNavDestination.schoolConnect,
+        title: 'Teacher Management',
         body: Center(child: Text('You need school-admin access to manage teachers.', style: GoogleFonts.inter(color: ac.muted))),
       );
     }
 
     return ManagementScaffold(
+      user: widget.admin,
+      destination: AppNavDestination.schoolConnect,
       title: 'Teacher Management',
       sidebarItems: const [ManagementNavItem(icon: Icons.badge_outlined, label: 'Teachers', selected: true)],
+      contextualPanel: _buildTeacherContextualPanel(context, ac),
       actions: [
         IconButton(
           tooltip: 'Upload Assignments CSV',
@@ -358,6 +362,157 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
             Text('No staff accounts at this school yet. Issue Teacher codes from Access Codes.', style: GoogleFonts.inter(color: ac.muted))
           else
             for (final t in _assigned) _StaffTile(teacher: t, onTap: () => _openEditor(t)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeacherContextualPanel(BuildContext context, AppColors ac) {
+    final totalStaff = _assigned.length;
+    final totalAssignments = _assigned.fold<int>(0, (sum, u) => sum + u.teachingAssignments.length);
+    final classMasters = _assigned.where((u) => (u.classMasterOfClass ?? '').isNotEmpty).length;
+    final unassigned = _assigned.where((u) => u.teachingAssignments.isEmpty && (u.classMasterOfClass ?? '').isEmpty).length;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Faculty Overview', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
+          const SizedBox(height: 4),
+          Text('Staff assignments, Class Masters, and curriculum subjects.', style: GoogleFonts.inter(fontSize: 12, color: ac.muted)),
+          const SizedBox(height: 18),
+
+          Row(
+            children: [
+              Expanded(
+                child: _TeacherMetricCard(
+                  title: 'Total Staff',
+                  value: '$totalStaff',
+                  icon: Icons.people_outline,
+                  color: ac.primary,
+                  ac: ac,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _TeacherMetricCard(
+                  title: 'Assignments',
+                  value: '$totalAssignments',
+                  icon: Icons.menu_book_outlined,
+                  color: Colors.blue,
+                  ac: ac,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _TeacherMetricCard(
+                  title: 'Class Masters',
+                  value: '$classMasters',
+                  icon: Icons.star_border_rounded,
+                  color: Colors.amber[700]!,
+                  ac: ac,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _TeacherMetricCard(
+                  title: 'Unassigned',
+                  value: '$unassigned',
+                  icon: Icons.person_off_outlined,
+                  color: unassigned > 0 ? Colors.orange : Colors.green,
+                  ac: ac,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: ac.surf2,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: ac.bdr),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.subject_rounded, size: 18, color: ac.primary),
+                    const SizedBox(width: 8),
+                    Text('Curriculum Subjects', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: ac.txt)),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(10)),
+                      child: Text('${_subjects.length}', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: ac.primary)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text('Configured subjects taught across school classes.', style: GoogleFonts.inter(fontSize: 11, color: ac.muted)),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.tune_rounded, size: 16),
+                    label: const Text('Configure Subjects'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: ac.txt,
+                      side: BorderSide(color: ac.bdr),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (_) => ManageSubjectsDialog(schoolId: _schoolId),
+                      ).then((_) => _loadSubjects());
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          Text('Quick Actions', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: ac.txt)),
+          const SizedBox(height: 10),
+          _TeacherActionRow(
+            icon: Icons.upload_file_rounded,
+            label: 'Import CSV Roster',
+            ac: ac,
+            onTap: _openCsvImport,
+          ),
+          _TeacherActionRow(
+            icon: Icons.download_rounded,
+            label: 'Download CSV Template',
+            ac: ac,
+            onTap: _downloadTemplate,
+          ),
+          _TeacherActionRow(
+            icon: Icons.table_chart_outlined,
+            label: 'Export Assignments (CSV)',
+            ac: ac,
+            onTap: _exportCsv,
+          ),
+          _TeacherActionRow(
+            icon: Icons.picture_as_pdf_outlined,
+            label: 'Export Staff Directory (PDF)',
+            ac: ac,
+            onTap: _exportPdf,
+          ),
+          _TeacherActionRow(
+            icon: Icons.description_outlined,
+            label: 'Export Staff Directory (Word)',
+            ac: ac,
+            onTap: _exportDocx,
+          ),
         ],
       ),
     );
@@ -520,3 +675,89 @@ class _AssignmentEditorSheetState extends State<_AssignmentEditorSheet> {
     );
   }
 }
+
+class _TeacherMetricCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final AppColors ac;
+
+  const _TeacherMetricCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.ac,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: ac.surf2,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ac.bdr),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const Spacer(),
+              Text(value, style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: ac.txt)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(title, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: ac.muted)),
+        ],
+      ),
+    );
+  }
+}
+
+class _TeacherActionRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final AppColors ac;
+  final VoidCallback onTap;
+
+  const _TeacherActionRow({
+    required this.icon,
+    required this.label,
+    required this.ac,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: ac.txt2),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: ac.txt)),
+              ),
+              Icon(Icons.chevron_right_rounded, size: 16, color: ac.muted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+

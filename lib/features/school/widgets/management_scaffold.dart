@@ -13,7 +13,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../models/app_user.dart';
 import '../../../theme/app_colors.dart';
+import '../../../widgets/widgets.dart';
 
 const double kWideBreakpoint = 900;
 
@@ -27,6 +29,7 @@ class ManagementNavItem {
 
 class ManagementScaffold extends StatelessWidget {
   final String title;
+  final String? subtitle;
   final List<ManagementNavItem> sidebarItems;
   final List<Widget> actions;
   final Widget body;
@@ -34,74 +37,55 @@ class ManagementScaffold extends StatelessWidget {
   final Widget? drawer;
   final PreferredSizeWidget? bottom;
 
+  final AppUser? user;
+  final AppNavDestination destination;
+  final Widget? contextualPanel;
+
   const ManagementScaffold({
     super.key,
     required this.title,
+    this.subtitle,
     this.sidebarItems = const [],
     this.actions = const [],
     required this.body,
     this.floatingActionButton,
     this.drawer,
     this.bottom,
+    this.user,
+    this.destination = AppNavDestination.schoolConnect,
+    this.contextualPanel,
   });
 
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final isWide = MediaQuery.of(context).size.width >= kWideBreakpoint && sidebarItems.isNotEmpty;
 
-    if (!isWide) {
-      return Scaffold(
-        backgroundColor: ac.bg,
-        appBar: AppBar(
-          backgroundColor: ac.bg,
-          elevation: 0,
-          iconTheme: IconThemeData(color: ac.txt),
-          title: Text(title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w800, color: ac.txt)),
-          actions: actions,
-          bottom: bottom,
-        ),
-        drawer: drawer,
-        floatingActionButton: floatingActionButton,
-        body: body,
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: ac.bg,
+    return ApplicationShell(
+      user: user,
+      currentTitle: title,
+      subtitle: subtitle,
+      currentDestination: destination,
+      contextualPanel: contextualPanel,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
       floatingActionButton: floatingActionButton,
-      body: Row(children: [
-        Container(
-          width: 232,
-          color: ac.surf,
-          child: SafeArea(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const SizedBox(height: 8),
-              for (final item in sidebarItems) _SidebarTile(item: item, ac: ac),
-            ]),
-          ),
-        ),
-        VerticalDivider(width: 1, color: ac.bdr),
-        Expanded(
-          child: Column(children: [
+      child: Column(
+        children: [
+          if (actions.isNotEmpty)
             Container(
-              height: 60,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(children: [
-                Text(title, style: GoogleFonts.sora(fontSize: 18, fontWeight: FontWeight.w800, color: ac.txt)),
-                const Spacer(),
-                ...actions,
-              ]),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              color: ac.surf,
+              child: Row(
+                children: [
+                  const Spacer(),
+                  ...actions,
+                ],
+              ),
             ),
-            Divider(height: 1, color: ac.bdr),
-            if (bottom != null) bottom!,
-            Expanded(child: body),
-          ]),
-        ),
-      ]),
+          if (bottom != null) bottom!,
+          Expanded(child: body),
+        ],
+      ),
     );
   }
 }

@@ -137,8 +137,11 @@ class _SchoolCalendarPageState extends State<SchoolCalendarPage> {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     return ManagementScaffold(
+      user: widget.user,
+      destination: AppNavDestination.schoolConnect,
       title: 'School Calendar / Activities',
       sidebarItems: const [ManagementNavItem(icon: Icons.calendar_month_rounded, label: 'Calendar', selected: true)],
+      contextualPanel: _buildCalendarContextualPanel(context, ac),
       actions: [
         if (_canManage)
           IconButton(
@@ -252,6 +255,168 @@ class _SchoolCalendarPageState extends State<SchoolCalendarPage> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildCalendarContextualPanel(BuildContext context, AppColors ac) {
+    final totalEvents = _currentEvents.length;
+    final upcomingCount = SchoolCalendarRepository.instance.upcomingFrom(_currentEvents).length;
+    final examsCount = _currentEvents.where((e) => e.category == SchoolEventCategory.exam).length;
+    final academicCount = _currentEvents.where((e) => e.category == SchoolEventCategory.academic).length;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Calendar Overview', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
+          const SizedBox(height: 4),
+          Text('Academic milestones, examinations, and school events.', style: GoogleFonts.inter(fontSize: 12, color: ac.muted)),
+          const SizedBox(height: 18),
+
+          Row(
+            children: [
+              Expanded(
+                child: _CalendarMetricCard(
+                  title: 'Upcoming',
+                  value: '$upcomingCount',
+                  icon: Icons.upcoming_rounded,
+                  color: ac.primary,
+                  ac: ac,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _CalendarMetricCard(
+                  title: 'Total Events',
+                  value: '$totalEvents',
+                  icon: Icons.event_note_rounded,
+                  color: Colors.blue,
+                  ac: ac,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _CalendarMetricCard(
+                  title: 'Examinations',
+                  value: '$examsCount',
+                  icon: Icons.quiz_outlined,
+                  color: Colors.orange,
+                  ac: ac,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _CalendarMetricCard(
+                  title: 'Academic',
+                  value: '$academicCount',
+                  icon: Icons.school_outlined,
+                  color: Colors.teal,
+                  ac: ac,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Categories Breakdown Card
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: ac.surf2,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: ac.bdr),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Event Categories', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: ac.txt)),
+                const SizedBox(height: 10),
+                for (final cat in SchoolEventCategory.values)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: _categoryColor(ac, cat),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(cat.label, style: GoogleFonts.inter(fontSize: 12, color: ac.txt)),
+                        const Spacer(),
+                        Text(
+                          '${_currentEvents.where((e) => e.category == cat).length}',
+                          style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: ac.muted),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          if (_canManage) ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('Add Calendar Event'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ac.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () => _openComposer(),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+
+          Text('Quick Actions', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: ac.txt)),
+          const SizedBox(height: 10),
+          if (_canManage)
+            _CalendarActionRow(
+              icon: Icons.upload_file_rounded,
+              label: 'Import Activities CSV',
+              ac: ac,
+              onTap: _openCsvImport,
+            ),
+          _CalendarActionRow(
+            icon: Icons.download_rounded,
+            label: 'Download CSV Template',
+            ac: ac,
+            onTap: _downloadTemplate,
+          ),
+          _CalendarActionRow(
+            icon: Icons.table_chart_outlined,
+            label: 'Export Activities (CSV)',
+            ac: ac,
+            onTap: _exportCsv,
+          ),
+          _CalendarActionRow(
+            icon: Icons.picture_as_pdf_outlined,
+            label: 'Export Program (PDF)',
+            ac: ac,
+            onTap: _exportPdf,
+          ),
+          _CalendarActionRow(
+            icon: Icons.description_outlined,
+            label: 'Export Program (Word)',
+            ac: ac,
+            onTap: _exportDocx,
+          ),
+        ],
       ),
     );
   }
@@ -521,6 +686,91 @@ class _EventComposerSheetState extends State<_EventComposerSheet> {
             const SizedBox(height: 20),
             PrimaryBtn(label: widget.existing == null ? 'Create Event' : 'Save Changes', loading: _saving, onTap: _save),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CalendarMetricCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final AppColors ac;
+
+  const _CalendarMetricCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.ac,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: ac.surf2,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ac.bdr),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const Spacer(),
+              Text(value, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(title, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: ac.muted)),
+        ],
+      ),
+    );
+  }
+}
+
+class _CalendarActionRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final AppColors ac;
+  final VoidCallback onTap;
+
+  const _CalendarActionRow({
+    required this.icon,
+    required this.label,
+    required this.ac,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: ac.txt2),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: ac.txt)),
+              ),
+              Icon(Icons.chevron_right_rounded, size: 16, color: ac.muted),
+            ],
+          ),
         ),
       ),
     );

@@ -174,23 +174,28 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     if (!widget.user.canManageAnyTimetable) {
-      return Scaffold(
-        backgroundColor: ac.bg,
-        appBar: AppBar(backgroundColor: ac.bg, elevation: 0, title: const Text('Manage Timetable')),
+      return ManagementScaffold(
+        user: widget.user,
+        destination: AppNavDestination.timetable,
+        title: 'Manage Timetable',
         body: Center(child: Text('Only school admins can edit the timetable.', style: GoogleFonts.inter(color: ac.muted))),
       );
     }
     if (_schoolId.isEmpty) {
-      return Scaffold(
-        backgroundColor: ac.bg,
-        appBar: AppBar(backgroundColor: ac.bg, elevation: 0, title: const Text('Manage Timetable')),
+      return ManagementScaffold(
+        user: widget.user,
+        destination: AppNavDestination.timetable,
+        title: 'Manage Timetable',
         body: Center(child: Text('Your account isn\'t linked to a school.', style: GoogleFonts.inter(color: ac.muted))),
       );
     }
 
     return ManagementScaffold(
+      user: widget.user,
+      destination: AppNavDestination.timetable,
       title: 'Manage Timetable',
       sidebarItems: const [ManagementNavItem(icon: Icons.calendar_month_rounded, label: 'Timetable', selected: true)],
+      contextualPanel: _buildTimetableContextualPanel(context, ac),
       actions: [
         IconButton(
           icon: const Icon(Icons.upload_file_rounded),
@@ -562,5 +567,211 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
     startCtrl.dispose();
     endCtrl.dispose();
     roomCtrl.dispose();
+  }
+
+  Widget _buildTimetableContextualPanel(BuildContext context, AppColors ac) {
+    final classSlots = _latestSchoolSlots.where((s) => s.classLevel == _classLevel).toList();
+    final totalSlots = _latestSchoolSlots.length;
+    final activeClassDays = classSlots.map((s) => s.dayOfWeek).toSet().length;
+    final audit = auditTimetable(_latestSchoolSlots, staff: _staff);
+    final totalConflicts = audit.values.expand((l) => l).where((c) => c.isError).length;
+    final totalWarnings = audit.values.expand((l) => l).where((c) => !c.isError).length;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Schedule Status', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
+          const SizedBox(height: 4),
+          Text('Active class: $_classLevel', style: GoogleFonts.inter(fontSize: 12, color: ac.muted)),
+          const SizedBox(height: 18),
+
+          Row(
+            children: [
+              Expanded(
+                child: _TimetableMetricCard(
+                  title: '$_classLevel Periods',
+                  value: '${classSlots.length}',
+                  icon: Icons.calendar_view_week_rounded,
+                  color: ac.primary,
+                  ac: ac,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _TimetableMetricCard(
+                  title: 'School Total',
+                  value: '$totalSlots',
+                  icon: Icons.apps_rounded,
+                  color: Colors.blue,
+                  ac: ac,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _TimetableMetricCard(
+                  title: 'Days Scheduled',
+                  value: '$activeClassDays / 5',
+                  icon: Icons.today_rounded,
+                  color: Colors.teal,
+                  ac: ac,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _TimetableMetricCard(
+                  title: totalConflicts > 0 ? 'Clashes Detected' : 'Clash Status',
+                  value: totalConflicts > 0 ? '$totalConflicts Clashes' : (totalWarnings > 0 ? '$totalWarnings Warn' : 'Clean'),
+                  icon: totalConflicts > 0 ? Icons.error_outline_rounded : (totalWarnings > 0 ? Icons.warning_amber_rounded : Icons.check_circle_outline_rounded),
+                  color: totalConflicts > 0 ? Colors.red : (totalWarnings > 0 ? Colors.orange : Colors.green),
+                  ac: ac,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Primary Quick Action: Add period
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.add_rounded, size: 16),
+              label: Text('Add Period to $_classLevel'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ac.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () => _openEditor(context, null),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          Text('Spreadsheets & Documents', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: ac.txt)),
+          const SizedBox(height: 10),
+          _TimetableActionRow(
+            icon: Icons.upload_file_rounded,
+            label: 'Upload Timetable CSV',
+            ac: ac,
+            onTap: _openCsvImport,
+          ),
+          _TimetableActionRow(
+            icon: Icons.download_rounded,
+            label: 'Download CSV Template',
+            ac: ac,
+            onTap: _downloadTemplate,
+          ),
+          _TimetableActionRow(
+            icon: Icons.table_chart_outlined,
+            label: 'Export Timetable (CSV)',
+            ac: ac,
+            onTap: _exportCsv,
+          ),
+          _TimetableActionRow(
+            icon: Icons.picture_as_pdf_outlined,
+            label: 'Export Timetable (PDF)',
+            ac: ac,
+            onTap: _exportPdf,
+          ),
+          _TimetableActionRow(
+            icon: Icons.description_outlined,
+            label: 'Export Timetable (Word)',
+            ac: ac,
+            onTap: _exportDocx,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TimetableMetricCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final AppColors ac;
+
+  const _TimetableMetricCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.ac,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: ac.surf2,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ac.bdr),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const Spacer(),
+              Text(value, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(title, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: ac.muted)),
+        ],
+      ),
+    );
+  }
+}
+
+class _TimetableActionRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final AppColors ac;
+  final VoidCallback onTap;
+
+  const _TimetableActionRow({
+    required this.icon,
+    required this.label,
+    required this.ac,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: ac.txt2),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: ac.txt)),
+              ),
+              Icon(Icons.chevron_right_rounded, size: 16, color: ac.muted),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

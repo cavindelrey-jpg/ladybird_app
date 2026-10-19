@@ -18,6 +18,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Free runner disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          echo "Disk space after cleanup:"
+          df -h
+
       - name: Prune old artifacts to free storage quota
         continue-on-error: true
         env:
@@ -71,33 +82,6 @@ jobs:
                   fh.write(content)
           PY
 
-      - name: Build Web (CFPMI)
-        run: flutter build web --release --dart-define=BRAND_ID=cfpmi
-
-      - name: Archive Web build
-        run: cd build && zip -r cfpmi-web-release.zip web
-
-      - name: Upload Web Build (Artifact)
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: cfpmi-web-release
-          path: build/web
-          retention-days: 1
-
-      - name: Deploy to Cloudflare Pages directly
-        continue-on-error: true
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            echo "Deploying directly to Cloudflare Pages..."
-            npx wrangler pages deploy build/web --project-name=cfpmi --commit-dirty=true
-          else
-            echo "No Cloudflare credentials configured in secrets; skipping Cloudflare direct deploy."
-          fi
-
       - name: Build AppBundle and Split APKs
         run: |
           flutter build appbundle --release --flavor cfpmi --dart-define=BRAND_ID=cfpmi
@@ -135,7 +119,6 @@ jobs:
             if gh release upload latest-cfpmi \
               build/app/outputs/bundle/cfpmiRelease/app-cfpmi-release.aab \
               build/app/outputs/flutter-apk/*.apk \
-              build/cfpmi-web-release.zip \
               --clobber; then
               echo "Successfully uploaded release assets!"
               exit 0

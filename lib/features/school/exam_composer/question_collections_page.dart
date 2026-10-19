@@ -6,10 +6,10 @@
 import 'package:flutter/material.dart';
 import '../../../models/app_user.dart';
 import '../../../models/exam_question.dart';
-import '../../../models/test.dart';
 import '../../../repositories/exam_repository.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/app_colors.dart';
+import '../../../widgets/widgets.dart';
 import 'question_bank_picker_sheet.dart';
 import 'question_editor_dialog.dart';
 
@@ -102,85 +102,190 @@ class _QuestionCollectionsPageState extends State<QuestionCollectionsPage> {
     final ac = AppColors.of(context);
     final schoolId = widget.user.schoolId ?? '';
 
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        title: Text('My Question Collections', style: AppText.title),
-        backgroundColor: ac.bg,
-        elevation: 0,
+    return StreamBuilder<List<QuestionCollection>>(
+      stream: ExamRepository.instance.watchCollections(
+        schoolId: schoolId,
+        teacherId: widget.user.id,
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _createCollectionDialog(context),
-        backgroundColor: ac.primary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('New Collection'),
-      ),
-      body: StreamBuilder<List<QuestionCollection>>(
-        stream: ExamRepository.instance.watchCollections(
-          schoolId: schoolId,
-          teacherId: widget.user.id,
-        ),
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final collections = snap.data ?? [];
+      builder: (context, snap) {
+        final collections = snap.data ?? [];
 
-          if (collections.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.collections_bookmark_outlined, size: 56, color: ac.muted),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No saved collections yet',
-                      style: AppText.title.copyWith(fontSize: 16, color: ac.txt),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Create persistent collections like "My Revision Questions" to save and organize questions for upcoming exams.',
-                      textAlign: TextAlign.center,
-                      style: AppText.bodySm.copyWith(color: ac.muted),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton.icon(
-                      onPressed: () => _createCollectionDialog(context),
-                      icon: const Icon(Icons.add_rounded),
-                      label: const Text('Create First Collection'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ac.primary,
-                        foregroundColor: Colors.white,
+        return ApplicationShell(
+          user: widget.user,
+          currentTitle: 'My Question Collections',
+          subtitle: '${collections.length} saved sets',
+          currentDestination: AppNavDestination.testsAndQuizzes,
+          showBackButton: true,
+          onBack: () => Navigator.of(context).maybePop(),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () => _createCollectionDialog(context),
+            backgroundColor: ac.primary,
+            foregroundColor: Colors.white,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('New Collection'),
+          ),
+          contextualPanel: _buildCollectionsContextualPanel(context, ac, collections),
+          child: snap.connectionState == ConnectionState.waiting
+              ? const Center(child: CircularProgressIndicator())
+              : collections.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.collections_bookmark_outlined, size: 56, color: ac.muted),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No saved collections yet',
+                              style: AppText.title.copyWith(fontSize: 16, color: ac.txt),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Create persistent collections like "My Revision Questions" to save and organize questions for upcoming exams.',
+                              textAlign: TextAlign.center,
+                              style: AppText.bodySm.copyWith(color: ac.muted),
+                            ),
+                            const SizedBox(height: 20),
+                            ElevatedButton.icon(
+                              onPressed: () => _createCollectionDialog(context),
+                              icon: const Icon(Icons.add_rounded),
+                              label: const Text('Create First Collection'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: ac.primary,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+                      itemCount: collections.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (ctx, i) {
+                        final col = collections[i];
+                        return _CollectionCard(
+                          collection: col,
+                          user: widget.user,
+                          onTap: () {
+                            Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => _CollectionDetailPage(collection: col, user: widget.user),
+                            ));
+                          },
+                        );
+                      },
                     ),
-                  ],
-                ),
-              ),
-            );
-          }
+        );
+      },
+    );
+  }
 
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
-            itemCount: collections.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (ctx, i) {
-              final col = collections[i];
-              return _CollectionCard(
-                collection: col,
-                user: widget.user,
-                onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => _CollectionDetailPage(collection: col, user: widget.user),
-                  ));
-                },
+  Widget _buildCollectionsContextualPanel(
+    BuildContext context,
+    AppColors ac,
+    List<QuestionCollection> collections,
+  ) {
+    final totalQuestions = collections.fold<int>(0, (sum, c) => sum + c.questions.length);
+    final subjects = collections.map((c) => c.subject).where((s) => s.isNotEmpty).toSet().toList();
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Curated Collections', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          onPressed: () => _createCollectionDialog(context),
+          icon: const Icon(Icons.add_rounded, size: 18),
+          label: const Text('Create New Collection', style: TextStyle(fontWeight: FontWeight.bold)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: ac.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Collection Stats Card
+        Text('Library Overview', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            children: [
+              _metricRow(ac, 'Saved Collections', '${collections.length}', Icons.collections_bookmark_outlined),
+              const Divider(height: 16),
+              _metricRow(ac, 'Curated Questions', '$totalQuestions', Icons.help_outline_rounded),
+              const Divider(height: 16),
+              _metricRow(ac, 'Active Subjects', '${subjects.length}', Icons.subject_rounded),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        if (subjects.isNotEmpty) ...[
+          Text('Subjects Covered', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: subjects.map((subj) {
+              final count = collections.where((c) => c.subject == subj).length;
+              return Chip(
+                backgroundColor: ac.surf,
+                side: BorderSide(color: ac.bdr),
+                label: Text('$subj ($count)', style: TextStyle(fontSize: 11, color: ac.txt)),
               );
-            },
-          );
-        },
-      ),
+            }).toList(),
+          ),
+          const SizedBox(height: 20),
+        ],
+
+        // Best Practice Tip
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.lightbulb_outline_rounded, size: 18, color: ac.primary),
+                  const SizedBox(width: 8),
+                  Text('Teacher Tip', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Organize questions by topic or exam term (e.g. "Term 1 Algebra Drills"). You can pull questions directly from these collections into new exams inside the Exam Composer.',
+                style: TextStyle(fontSize: 12, color: ac.txt2, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _metricRow(AppColors ac, String label, String value, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: ac.primary),
+        const SizedBox(width: 8),
+        Expanded(child: Text(label, style: TextStyle(fontSize: 12, color: ac.txt2))),
+        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+      ],
     );
   }
 }
@@ -359,51 +464,15 @@ class _CollectionDetailPageState extends State<_CollectionDetailPage> {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
 
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        title: Text(_col.name, style: AppText.title),
-        backgroundColor: ac.bg,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_rounded),
-            tooltip: 'Add Question',
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                backgroundColor: ac.surf,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                ),
-                builder: (sCtx) => SafeArea(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ListTile(
-                        leading: Icon(Icons.search_rounded, color: ac.primary),
-                        title: const Text('Search Question Bank / Library'),
-                        onTap: () {
-                          Navigator.pop(sCtx);
-                          _addFromBank();
-                        },
-                      ),
-                      ListTile(
-                        leading: Icon(Icons.create_rounded, color: ac.primary),
-                        title: const Text('Create New Question'),
-                        onTap: () {
-                          Navigator.pop(sCtx);
-                          _createNewQuestion();
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-      body: _col.questions.isEmpty
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: _col.name,
+      subtitle: '${_col.subject.isEmpty ? "Collection" : _col.subject} · ${_col.questions.length} questions',
+      currentDestination: AppNavDestination.testsAndQuizzes,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      contextualPanel: _buildDetailContextualPanel(context, ac),
+      child: _col.questions.isEmpty
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
@@ -477,6 +546,88 @@ class _CollectionDetailPageState extends State<_CollectionDetailPage> {
                 );
               },
             ),
+    );
+  }
+
+  Widget _buildDetailContextualPanel(BuildContext context, AppColors ac) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Add Questions', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          onPressed: _addFromBank,
+          icon: const Icon(Icons.search_rounded, size: 18),
+          label: const Text('Search Question Bank', style: TextStyle(fontWeight: FontWeight.bold)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: ac.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _createNewQuestion,
+          icon: Icon(Icons.create_rounded, size: 18, color: ac.primary),
+          label: const Text('Create New Question', style: TextStyle(fontWeight: FontWeight.bold)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: ac.primary,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        Text('Collection Details', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            children: [
+              _detailRow(ac, 'Subject', _col.subject.isEmpty ? 'General' : _col.subject),
+              const Divider(height: 16),
+              _detailRow(ac, 'Questions', '${_col.questions.length} items'),
+              const Divider(height: 16),
+              _detailRow(ac, 'Total Marks', '${_col.totalMarks} marks'),
+            ],
+          ),
+        ),
+        if (_col.description.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: ac.surf,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: ac.bdr),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Notes / Description', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ac.txt)),
+                const SizedBox(height: 6),
+                Text(_col.description, style: TextStyle(fontSize: 12, color: ac.txt2, height: 1.4)),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _detailRow(AppColors ac, String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(fontSize: 12, color: ac.txt2)),
+        Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+      ],
     );
   }
 }

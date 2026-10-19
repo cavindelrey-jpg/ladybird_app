@@ -13,6 +13,7 @@ import '../../../services/exam_docx_export_service.dart';
 import '../../../services/exam_pdf_export_service.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/app_colors.dart';
+import '../../../widgets/widgets.dart';
 
 class ExamPreviewPage extends StatefulWidget {
   final Examination examination;
@@ -484,88 +485,20 @@ class _ExamPreviewPageState extends State<ExamPreviewPage> {
     final ac = AppColors.of(context);
     final tmpl = _currentTemplate;
 
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        title: Text('Examination Preview', style: AppText.title),
-        backgroundColor: ac.bg,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.tune_rounded),
-            tooltip: 'Customize Letterhead & Styling',
-            onPressed: _customizeLetterheadAndFormatting,
-          ),
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf_rounded),
-            tooltip: 'Export as PDF (.pdf)',
-            onPressed: _exportPdf,
-          ),
-          IconButton(
-            icon: const Icon(Icons.description_rounded),
-            tooltip: 'Export as Word (.docx)',
-            onPressed: _exportDocx,
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded),
-            onSelected: (v) {
-              if (v == 'template') _chooseTemplate();
-              if (v == 'pdf') _exportPdf();
-              if (v == 'docx') _exportDocx();
-              if (v == 'customize') _customizeLetterheadAndFormatting();
-              if (v == 'copy') _copyToClipboard();
-            },
-            itemBuilder: (_) => [
-              const PopupMenuItem(value: 'pdf', child: Text('Export PDF (.pdf)')),
-              const PopupMenuItem(value: 'docx', child: Text('Export Word (.docx)')),
-              const PopupMenuItem(value: 'customize', child: Text('Customize Letterhead')),
-              const PopupMenuItem(value: 'template', child: Text('Select School Template')),
-              const PopupMenuItem(value: 'copy', child: Text('Copy Plain Text')),
-            ],
-          ),
-        ],
-      ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: ac.surf,
-          border: Border(top: BorderSide(color: ac.bdr)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => setState(() => _showMarkingScheme = !_showMarkingScheme),
-                icon: Icon(_showMarkingScheme ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 18),
-                label: Text(_showMarkingScheme ? 'Hide Solutions' : 'Show Solutions', style: const TextStyle(fontSize: 12)),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _customizeLetterheadAndFormatting,
-                icon: const Icon(Icons.tune_rounded, size: 18),
-                label: const Text('Format Paper', style: TextStyle(fontSize: 12)),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: ElevatedButton.icon(
-                onPressed: _exporting ? null : _showExportMenu,
-                icon: _exporting
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.download_rounded, size: 18),
-                label: Text(_exporting ? 'Exporting…' : 'Export Document',
-                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(backgroundColor: ac.primary, foregroundColor: Colors.white),
-              ),
-            ),
-          ],
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Container(
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'Examination Preview',
+      subtitle: '${_exam.title} · ${_exam.subject}',
+      currentDestination: AppNavDestination.testsAndQuizzes,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      contextualPanel: _buildPreviewContextualPanel(context, ac, tmpl),
+      child: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
@@ -886,6 +819,202 @@ class _ExamPreviewPageState extends State<ExamPreviewPage> {
             ],
           ),
         ),
+      ),
+    ),
+    // Persistent quick action bar at the bottom of preview
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: ac.surf,
+              border: Border(top: BorderSide(color: ac.bdr)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => setState(() => _showMarkingScheme = !_showMarkingScheme),
+                    icon: Icon(_showMarkingScheme ? Icons.visibility_off_outlined : Icons.visibility_outlined, size: 18),
+                    label: Text(_showMarkingScheme ? 'Hide Solutions' : 'Show Solutions', style: const TextStyle(fontSize: 12)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _customizeLetterheadAndFormatting,
+                    icon: const Icon(Icons.tune_rounded, size: 18),
+                    label: const Text('Format Paper', style: TextStyle(fontSize: 12)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton.icon(
+                    onPressed: _exporting ? null : _showExportMenu,
+                    icon: _exporting
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.download_rounded, size: 18),
+                    label: Text(_exporting ? 'Exporting…' : 'Export Document',
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(backgroundColor: ac.primary, foregroundColor: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewContextualPanel(BuildContext context, AppColors ac, SchoolExamTemplate? tmpl) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Export Actions Section
+        Text('Export Documents', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          onPressed: _exporting ? null : _exportPdf,
+          icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+          label: const Text('Export Official PDF (.pdf)', style: TextStyle(fontWeight: FontWeight.bold)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: ac.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _exporting ? null : _exportDocx,
+          icon: Icon(Icons.description_rounded, size: 18, color: ac.primary),
+          label: const Text('Export Word (.docx)', style: TextStyle(fontWeight: FontWeight.bold)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: ac.primary,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _copyToClipboard,
+          icon: Icon(Icons.copy_rounded, size: 18, color: ac.txt2),
+          label: const Text('Copy Plain Text'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: ac.txt,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Paper Layout & Template
+        Text('Paper Configuration', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.style_outlined, size: 16, color: ac.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      tmpl?.name ?? 'Standard Template',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+              if (tmpl != null) ...[
+                const SizedBox(height: 4),
+                Text(tmpl.schoolName, style: AppText.caption.copyWith(color: ac.txt2, fontSize: 11)),
+              ],
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _chooseTemplate,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Change Template', style: TextStyle(fontSize: 12)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _customizeLetterheadAndFormatting,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  child: const Text('Format Letterhead & Fonts', style: TextStyle(fontSize: 12)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Include Digital Letterhead', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+          value: _includeLetterhead,
+          onChanged: (v) => setState(() => _includeLetterhead = v),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Include Marking Scheme', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+          subtitle: const Text('Appends model answers & rubrics', style: TextStyle(fontSize: 11)),
+          value: _showMarkingScheme,
+          onChanged: (v) => setState(() => _showMarkingScheme = v),
+        ),
+        const SizedBox(height: 24),
+
+        // Examination Specs Card
+        Text('Specifications', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            children: [
+              _specRow(ac, 'Subject', _exam.subject),
+              _specRow(ac, 'Class Level', _exam.classLevel),
+              _specRow(ac, 'Academic Year', _exam.academicYear),
+              _specRow(ac, 'Questions', '${_exam.questions.length} items'),
+              _specRow(ac, 'Total Marks', '${_exam.effectiveTotalMarks} marks'),
+              _specRow(ac, 'Duration', '${_exam.durationMinutes} minutes'),
+              _specRow(ac, 'Examiner', _exam.examinerName),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _specRow(AppColors ac, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontSize: 12, color: ac.txt2)),
+          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+        ],
       ),
     );
   }

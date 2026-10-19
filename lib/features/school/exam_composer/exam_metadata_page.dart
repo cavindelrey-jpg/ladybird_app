@@ -2,12 +2,14 @@
 // Form for entering examination metadata before opening the Exam Composer.
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../models/app_user.dart';
 import '../../../models/examination.dart';
 import '../../../repositories/exam_repository.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/app_colors.dart';
+import '../../../widgets/widgets.dart';
 import 'exam_composer_page.dart';
 
 class ExamMetadataPage extends StatefulWidget {
@@ -132,13 +134,15 @@ class _ExamMetadataPageState extends State<ExamMetadataPage> {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
 
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        title: Text('Examination Details', style: AppText.title),
-        backgroundColor: ac.bg,
-      ),
-      body: SingleChildScrollView(
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'Examination Details',
+      subtitle: 'Configure examination profile, duration & instructions',
+      currentDestination: AppNavDestination.testsAndQuizzes,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      contextualPanel: _buildMetadataContextualPanel(context, ac),
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Form(
           key: _formKey,
@@ -298,6 +302,161 @@ class _ExamMetadataPageState extends State<ExamMetadataPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildMetadataContextualPanel(BuildContext context, AppColors ac) {
+    final duration = _durationCtrl.text.trim().isEmpty ? '90' : _durationCtrl.text.trim();
+    final subject = _subjectCtrl.text.trim().isEmpty ? 'Not set' : _subjectCtrl.text.trim();
+    final classLevel = _classLevelCtrl.text.trim().isEmpty ? 'Not set' : _classLevelCtrl.text.trim();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Exam Specification', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
+          const SizedBox(height: 4),
+          Text('Rubrics, sequence standards, and official timing.', style: GoogleFonts.inter(fontSize: 12, color: ac.muted)),
+          const SizedBox(height: 18),
+
+          Row(
+            children: [
+              Expanded(
+                child: _MetadataMetricCard(
+                  title: 'Assessment',
+                  value: _type.label,
+                  icon: Icons.assignment_outlined,
+                  color: ac.primary,
+                  ac: ac,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _MetadataMetricCard(
+                  title: 'Duration',
+                  value: '$duration mins',
+                  icon: Icons.timer_outlined,
+                  color: Colors.blue,
+                  ac: ac,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _MetadataMetricCard(
+                  title: 'Class Target',
+                  value: classLevel,
+                  icon: Icons.school_outlined,
+                  color: Colors.teal,
+                  ac: ac,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _MetadataMetricCard(
+                  title: 'Subject',
+                  value: subject,
+                  icon: Icons.menu_book_outlined,
+                  color: Colors.purple,
+                  ac: ac,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Authoring Standards Card
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: ac.surf2,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: ac.bdr),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.verified_outlined, size: 16, color: ac.primary),
+                    const SizedBox(width: 8),
+                    Text('Standard Rubrics', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: ac.txt)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '• Clearly separate Section A (Objective MCQ) from Section B (Structured/Long Form).\n'
+                  '• Ensure instructions explicitly state calculator and stationery allowances.\n'
+                  '• Recommended pacing: ~1.5 minutes per point/mark allocated.',
+                  style: GoogleFonts.inter(fontSize: 11.5, color: ac.muted, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.playlist_add_rounded, size: 16),
+              label: const Text('Open Exam Composer'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ac.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: _proceedToComposer,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetadataMetricCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final AppColors ac;
+
+  const _MetadataMetricCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.ac,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: ac.surf2,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ac.bdr),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const Spacer(),
+              Text(value, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(title, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: ac.muted)),
+        ],
       ),
     );
   }

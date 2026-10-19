@@ -4,11 +4,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../models/app_user.dart';
 import '../../../models/examination.dart';
 import '../../../repositories/exam_repository.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/app_colors.dart';
+import '../../../widgets/widgets.dart';
 import 'exam_composer_page.dart';
 import 'exam_metadata_page.dart';
 import 'exam_preview_page.dart';
@@ -26,114 +28,82 @@ class ExamListPage extends StatefulWidget {
 }
 
 class _ExamListPageState extends State<ExamListPage> {
-  String _filterSubject = '';
-
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     final schoolId = widget.user.schoolId ?? '';
     final canManageTemplates = widget.user.isAdmin || widget.user.canManageSchool;
 
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        title: Text('Exam Composer', style: AppText.title),
-        backgroundColor: ac.bg,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.collections_bookmark_outlined),
-            tooltip: 'My Collections',
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => QuestionCollectionsPage(user: widget.user),
-              ));
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.drive_folder_upload_rounded),
-            tooltip: 'Mass Upload Past Papers',
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => BulkPastPaperUploadPage(user: widget.user),
-              ));
-            },
-          ),
-          if (canManageTemplates)
-            IconButton(
-              icon: const Icon(Icons.style_outlined),
-              tooltip: 'School Letterheads & Templates',
-              onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => SchoolExamTemplatesPage(user: widget.user),
-                ));
-              },
-            ),
-        ],
+    return StreamBuilder<List<Examination>>(
+      stream: ExamRepository.instance.watchExaminations(
+        schoolId: schoolId,
+        teacherId: widget.user.isAdmin ? null : widget.user.id,
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => ExamMetadataPage(user: widget.user),
-          ));
-        },
-        backgroundColor: ac.primary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Create Examination'),
-      ),
-      body: StreamBuilder<List<Examination>>(
-        stream: ExamRepository.instance.watchExaminations(
-          schoolId: schoolId,
-          teacherId: widget.user.isAdmin ? null : widget.user.id,
-        ),
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final exams = snap.data ?? [];
+      builder: (context, snap) {
+        final exams = snap.data ?? [];
+        final isLoading = snap.connectionState == ConnectionState.waiting && !snap.hasData;
 
-          if (exams.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.assignment_outlined, size: 56, color: ac.muted),
-                    const SizedBox(height: 16),
-                    Text('No examinations created yet',
-                        style: AppText.title.copyWith(fontSize: 16, color: ac.txt)),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Create official sequence papers, class tests, and mock exams with digital letterheads and question bank integration.',
-                      textAlign: TextAlign.center,
-                      style: AppText.bodySm.copyWith(color: ac.muted),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => ExamMetadataPage(user: widget.user),
-                        ));
-                      },
-                      icon: const Icon(Icons.add_rounded),
-                      label: const Text('New Examination'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ac.primary,
-                        foregroundColor: Colors.white,
+        return ApplicationShell(
+          user: widget.user,
+          currentTitle: 'Exam Composer',
+          subtitle: 'Author, preview, and format official examinations',
+          currentDestination: AppNavDestination.testsAndQuizzes,
+          showBackButton: true,
+          onBack: () => Navigator.of(context).maybePop(),
+          contextualPanel: _buildExamListContextualPanel(context, ac, exams, canManageTemplates),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () {
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => ExamMetadataPage(user: widget.user),
+              ));
+            },
+            backgroundColor: ac.primary,
+            foregroundColor: Colors.white,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Create Examination'),
+          ),
+          child: isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : exams.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(32),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.assignment_outlined, size: 56, color: ac.muted),
+                            const SizedBox(height: 16),
+                            Text('No examinations created yet',
+                                style: AppText.title.copyWith(fontSize: 16, color: ac.txt)),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Create official sequence papers, class tests, and mock exams with digital letterheads and question bank integration.',
+                              textAlign: TextAlign.center,
+                              style: AppText.bodySm.copyWith(color: ac.muted),
+                            ),
+                            const SizedBox(height: 20),
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => ExamMetadataPage(user: widget.user),
+                                ));
+                              },
+                              icon: const Icon(Icons.add_rounded),
+                              label: const Text('New Examination'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: ac.primary,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
-            itemCount: exams.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (ctx, i) {
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+                      itemCount: exams.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (ctx, i) {
               final exam = exams[i];
               return _ExamItemCard(
                 exam: exam,
@@ -166,8 +136,136 @@ class _ExamListPageState extends State<ExamListPage> {
                 },
               );
             },
-          );
-        },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildExamListContextualPanel(
+    BuildContext context,
+    AppColors ac,
+    List<Examination> exams,
+    bool canManageTemplates,
+  ) {
+    final totalExams = exams.length;
+    final totalQuestions = exams.fold<int>(0, (sum, e) => sum + e.questions.length);
+    final totalMarks = exams.fold<int>(0, (sum, e) => sum + e.effectiveTotalMarks);
+    final subjectsCount = exams.map((e) => e.subject).where((s) => s.isNotEmpty).toSet().length;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Examinations Hub', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
+          const SizedBox(height: 4),
+          Text('Authored tests, sequence exams, and question banks.', style: GoogleFonts.inter(fontSize: 12, color: ac.muted)),
+          const SizedBox(height: 18),
+
+          Row(
+            children: [
+              Expanded(
+                child: _ExamMetricCard(
+                  title: 'Exams Drafted',
+                  value: '$totalExams',
+                  icon: Icons.assignment_outlined,
+                  color: ac.primary,
+                  ac: ac,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ExamMetricCard(
+                  title: 'Questions',
+                  value: '$totalQuestions',
+                  icon: Icons.quiz_outlined,
+                  color: Colors.blue,
+                  ac: ac,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _ExamMetricCard(
+                  title: 'Marks Total',
+                  value: '$totalMarks',
+                  icon: Icons.stars_rounded,
+                  color: Colors.teal,
+                  ac: ac,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ExamMetricCard(
+                  title: 'Subjects',
+                  value: '$subjectsCount',
+                  icon: Icons.subject_rounded,
+                  color: Colors.purple,
+                  ac: ac,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.add_rounded, size: 16),
+              label: const Text('Create Examination'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ac.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => ExamMetadataPage(user: widget.user),
+                ));
+              },
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          Text('Question Bank & Tools', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: ac.txt)),
+          const SizedBox(height: 10),
+          _ExamActionRow(
+            icon: Icons.collections_bookmark_outlined,
+            label: 'My Question Collections',
+            ac: ac,
+            onTap: () {
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => QuestionCollectionsPage(user: widget.user),
+              ));
+            },
+          ),
+          _ExamActionRow(
+            icon: Icons.drive_folder_upload_rounded,
+            label: 'Mass Upload Past Papers',
+            ac: ac,
+            onTap: () {
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => BulkPastPaperUploadPage(user: widget.user),
+              ));
+            },
+          ),
+          if (canManageTemplates)
+            _ExamActionRow(
+              icon: Icons.style_outlined,
+              label: 'School Letterheads & Templates',
+              ac: ac,
+              onTap: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => SchoolExamTemplatesPage(user: widget.user),
+                ));
+              },
+            ),
+        ],
       ),
     );
   }
@@ -275,6 +373,91 @@ class _ExamItemCard extends StatelessWidget {
           const SizedBox(width: 4),
           Text(text, style: AppText.caption.copyWith(fontSize: 11, color: ac.txt2)),
         ],
+      ),
+    );
+  }
+}
+
+class _ExamMetricCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final AppColors ac;
+
+  const _ExamMetricCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.ac,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: ac.surf2,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ac.bdr),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const Spacer(),
+              Text(value, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(title, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: ac.muted)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExamActionRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final AppColors ac;
+  final VoidCallback onTap;
+
+  const _ExamActionRow({
+    required this.icon,
+    required this.label,
+    required this.ac,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: ac.txt2),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: ac.txt)),
+              ),
+              Icon(Icons.chevron_right_rounded, size: 16, color: ac.muted),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -4,13 +4,14 @@
 // Academia Library, Teacher Collections, and Preview mode.
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../models/app_user.dart';
 import '../../../models/exam_question.dart';
 import '../../../models/examination.dart';
-import '../../../models/test.dart';
 import '../../../repositories/exam_repository.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/app_colors.dart';
+import '../../../widgets/widgets.dart';
 import 'exam_preview_page.dart';
 import 'question_bank_picker_sheet.dart';
 import 'question_editor_dialog.dart';
@@ -31,7 +32,6 @@ class ExamComposerPage extends StatefulWidget {
 
 class _ExamComposerPageState extends State<ExamComposerPage> {
   late Examination _exam;
-  bool _saving = false;
 
   @override
   void initState() {
@@ -40,10 +40,8 @@ class _ExamComposerPageState extends State<ExamComposerPage> {
   }
 
   Future<void> _save() async {
-    setState(() => _saving = true);
     _exam = _exam.copyWith(updatedAt: DateTime.now());
     await ExamRepository.instance.saveExamination(_exam);
-    if (mounted) setState(() => _saving = false);
   }
 
   void _addFromQuestionBank() {
@@ -239,71 +237,15 @@ class _ExamComposerPageState extends State<ExamComposerPage> {
     final totalMarks = _exam.computedTotalMarks;
     final topicCount = _exam.questions.map((q) => q.topic).where((t) => t.isNotEmpty).toSet().length;
 
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_exam.title, style: AppText.title.copyWith(fontSize: 16)),
-            Text('${_exam.subject} · ${_exam.classLevel}',
-                style: AppText.caption.copyWith(color: ac.muted, fontSize: 11)),
-          ],
-        ),
-        backgroundColor: ac.bg,
-        actions: [
-          TextButton.icon(
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => ExamPreviewPage(examination: _exam, user: widget.user),
-              ));
-            },
-            icon: const Icon(Icons.preview_rounded, size: 18),
-            label: const Text('Preview'),
-          ),
-        ],
-      ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: ac.surf,
-          border: Border(top: BorderSide(color: ac.bdr)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _showAddQuestionOptions,
-                icon: const Icon(Icons.add_rounded),
-                label: const Text('Add Question'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => ExamPreviewPage(examination: _exam, user: widget.user),
-                  ));
-                },
-                icon: const Icon(Icons.assignment_turned_in_rounded),
-                label: const Text('Finalize / Preview'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ac.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      body: Column(
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: _exam.title,
+      subtitle: '${_exam.subject} · ${_exam.classLevel} · ${_exam.academicYear}',
+      currentDestination: AppNavDestination.testsAndQuizzes,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      contextualPanel: _buildComposerContextualPanel(context, ac),
+      child: Column(
         children: [
           // Playlist Summary Header Bar
           Container(
@@ -372,8 +314,198 @@ class _ExamComposerPageState extends State<ExamComposerPage> {
                     },
                   ),
           ),
+
+          // Bottom Bar Actions
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: ac.surf,
+              border: Border(top: BorderSide(color: ac.bdr)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _showAddQuestionOptions,
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Add Question'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => ExamPreviewPage(examination: _exam, user: widget.user),
+                      ));
+                    },
+                    icon: const Icon(Icons.assignment_turned_in_rounded),
+                    label: const Text('Finalize / Preview'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ac.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildComposerContextualPanel(BuildContext context, AppColors ac) {
+    final totalMarks = _exam.computedTotalMarks;
+    final topicCount = _exam.questions.map((q) => q.topic).where((t) => t.isNotEmpty).toSet().length;
+    final mcqCount = _exam.questions.where((q) => q.type == QuestionType.mcq).length;
+    final structuredCount = _exam.questions.where((q) => q.type == QuestionType.structured).length;
+    final essayCount = _exam.questions.where((q) => q.type == QuestionType.longForm).length;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Examination Blueprint', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
+          const SizedBox(height: 4),
+          Text('${_exam.subject} · ${_exam.classLevel}', style: GoogleFonts.inter(fontSize: 12, color: ac.muted)),
+          const SizedBox(height: 18),
+
+          Row(
+            children: [
+              Expanded(
+                child: _ComposerMetricCard(
+                  title: 'Questions',
+                  value: '${_exam.questions.length}',
+                  icon: Icons.playlist_add_check_rounded,
+                  color: ac.primary,
+                  ac: ac,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ComposerMetricCard(
+                  title: 'Total Marks',
+                  value: '$totalMarks pts',
+                  icon: Icons.stars_rounded,
+                  color: Colors.blue,
+                  ac: ac,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _ComposerMetricCard(
+                  title: 'Duration',
+                  value: '${_exam.durationMinutes} mins',
+                  icon: Icons.timer_outlined,
+                  color: Colors.teal,
+                  ac: ac,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _ComposerMetricCard(
+                  title: 'Topics Covered',
+                  value: '$topicCount',
+                  icon: Icons.category_outlined,
+                  color: Colors.purple,
+                  ac: ac,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: ac.surf2,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: ac.bdr),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Format Breakdown', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: ac.txt)),
+                const SizedBox(height: 10),
+                _formatRow(ac, 'Multiple Choice (MCQ)', mcqCount, Colors.indigo),
+                const SizedBox(height: 6),
+                _formatRow(ac, 'Structured / Short Answer', structuredCount, Colors.teal),
+                const SizedBox(height: 6),
+                _formatRow(ac, 'Essay / Long Form', essayCount, Colors.amber[800]!),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.assignment_turned_in_rounded, size: 16),
+              label: const Text('Finalize / Preview Paper'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ac.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => ExamPreviewPage(examination: _exam, user: widget.user),
+                ));
+              },
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          Text('Question Assembly', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600, color: ac.txt)),
+          const SizedBox(height: 10),
+          _ComposerActionRow(
+            icon: Icons.search_rounded,
+            label: 'Search Question Bank & Library',
+            ac: ac,
+            onTap: _addFromQuestionBank,
+          ),
+          _ComposerActionRow(
+            icon: Icons.collections_bookmark_outlined,
+            label: 'Import from My Collections',
+            ac: ac,
+            onTap: _addFromCollections,
+          ),
+          _ComposerActionRow(
+            icon: Icons.edit_note_rounded,
+            label: 'Write Question from Scratch',
+            ac: ac,
+            onTap: _createQuestionFromScratch,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _formatRow(AppColors ac, String label, int count, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: Text(label, style: GoogleFonts.inter(fontSize: 12, color: ac.txt))),
+        Text('$count', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+      ],
     );
   }
 
@@ -514,6 +646,91 @@ class _PlaylistQuestionCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ComposerMetricCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final AppColors ac;
+
+  const _ComposerMetricCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+    required this.ac,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: ac.surf2,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ac.bdr),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const Spacer(),
+              Text(value, style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(title, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w500, color: ac.muted)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ComposerActionRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final AppColors ac;
+  final VoidCallback onTap;
+
+  const _ComposerActionRow({
+    required this.icon,
+    required this.label,
+    required this.ac,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: ac.txt2),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(label, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w500, color: ac.txt)),
+              ),
+              Icon(Icons.chevron_right_rounded, size: 16, color: ac.muted),
+            ],
+          ),
+        ),
       ),
     );
   }

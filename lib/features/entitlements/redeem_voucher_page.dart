@@ -69,15 +69,16 @@ class _RedeemVoucherPageState extends State<RedeemVoucherPage> {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     final ent = widget.user.entitlement;
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg,
-        elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text('Redeem a Voucher', style: AppText.title),
-      ),
-      body: AppBackground(
+
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'Redeem Voucher',
+      subtitle: 'Unlock Premium learning and offline access',
+      currentDestination: AppNavDestination.fees,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      contextualPanel: _buildVoucherContextualPanel(context, ac),
+      child: AppBackground(
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
@@ -182,6 +183,136 @@ class _RedeemVoucherPageState extends State<RedeemVoucherPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildVoucherContextualPanel(BuildContext context, AppColors ac) {
+    final ent = widget.user.entitlement;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Account Status', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    widget.user.isPremium ? Icons.workspace_premium_rounded : Icons.lock_open_rounded,
+                    color: widget.user.isPremium ? ac.gold : ac.muted,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.user.entitlementLabel,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+              if (ent.isActive && ent.expiresAt != null) ...[
+                const SizedBox(height: 8),
+                const Divider(height: 1),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Expires', style: TextStyle(fontSize: 12, color: ac.txt2)),
+                    Text(
+                      _fmtDate(ent.expiresAt!),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                if (ent.daysRemaining != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Time Left', style: TextStyle(fontSize: 12, color: ac.txt2)),
+                      Text(
+                        '${ent.daysRemaining} days',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: ac.primary),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Premium Benefits Card
+        Text('Premium Features', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            children: [
+              _benefitRow(ac, Icons.menu_book_rounded, 'Full Past Exam Papers & Marking Schemes'),
+              const SizedBox(height: 10),
+              _benefitRow(ac, Icons.quiz_rounded, 'Unlimited Quizzes & Answer Explanations'),
+              const SizedBox(height: 10),
+              _benefitRow(ac, Icons.download_done_rounded, 'Complete Offline Content Synchronization'),
+              const SizedBox(height: 10),
+              _benefitRow(ac, Icons.graphic_eq_rounded, 'Audio Notes & Interactive Pronunciation'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Voucher Help Card
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.help_outline_rounded, size: 18, color: ac.primary),
+                  const SizedBox(width: 8),
+                  Text('Voucher FAQ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Vouchers are purchased from school sales points or authorized agents. When redeemed, time is added on top of your existing subscription.',
+                style: TextStyle(fontSize: 12, color: ac.txt2, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _benefitRow(AppColors ac, IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: ac.primary),
+        const SizedBox(width: 10),
+        Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: ac.txt))),
+      ],
     );
   }
 

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/dictionary_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_theme.dart';
+import '../widgets/widgets.dart';
 
 class DictionaryScreen extends StatefulWidget {
   const DictionaryScreen({super.key});
@@ -59,22 +61,15 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
     final ac = Theme.of(context).extension<AppColors>()!;
     final all = DictionaryService.instance.allEntries;
     
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg,
-        elevation: 0,
-        title: Text('Academia Dictionary', style: GoogleFonts.lora(color: ac.txt, fontWeight: FontWeight.w600, fontSize: 18)),
-        iconTheme: IconThemeData(color: ac.txt),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.casino_outlined, color: ac.primary),
-            tooltip: 'Random Concept',
-            onPressed: _openRandom,
-          ),
-        ],
-      ),
-      body: all.isEmpty
+    return ApplicationShell(
+      user: null,
+      currentTitle: 'Academia Dictionary',
+      subtitle: 'Academic concepts, definitions, and references',
+      currentDestination: AppNavDestination.academicLibrary,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      contextualPanel: _buildDictionaryContextualPanel(context, ac),
+      child: all.isEmpty
           ? Center(
               child: DictionaryService.instance.loadFailed
                   ? Padding(
@@ -93,51 +88,175 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
                   : CircularProgressIndicator(color: ac.primary),
             )
           : Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _onSearch,
-              style: TextStyle(color: ac.txt),
-              decoration: InputDecoration(
-                hintText: 'Search concepts, definitions, synonyms...',
-                hintStyle: TextStyle(color: ac.muted),
-                prefixIcon: Icon(Icons.search, color: ac.muted),
-                suffixIcon: _searchController.text.isNotEmpty 
-                  ? IconButton(
-                      icon: Icon(Icons.clear, size: 20, color: ac.muted),
-                      onPressed: () {
-                        _searchController.clear();
-                        _onSearch('');
-                      },
-                    )
-                  : null,
-                filled: true,
-                fillColor: ac.surf,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: _onSearch,
+                    style: TextStyle(color: ac.txt),
+                    decoration: InputDecoration(
+                      hintText: 'Search concepts, definitions, synonyms...',
+                      hintStyle: TextStyle(color: ac.muted),
+                      prefixIcon: Icon(Icons.search, color: ac.muted),
+                      suffixIcon: _searchController.text.isNotEmpty 
+                        ? IconButton(
+                            icon: Icon(Icons.clear, size: 20, color: ac.muted),
+                            onPressed: () {
+                              _searchController.clear();
+                              _onSearch('');
+                            },
+                          )
+                        : null,
+                      filled: true,
+                      fillColor: ac.surf,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ),
+                
+                if (!_isSearching && _selectedLetter == null && _selectedDiscipline == null)
+                  _buildLanding(ac),
+                  
+                if (_isSearching || _selectedLetter != null || _selectedDiscipline != null)
+                  Expanded(child: _buildResultsList(ac)),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildDictionaryContextualPanel(BuildContext context, AppColors ac) {
+    final recent = DictionaryService.instance.recentEntries;
+    final disciplines = DictionaryService.instance.getAllDisciplines();
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Quick Tools', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          onPressed: _openRandom,
+          icon: const Icon(Icons.casino_outlined, size: 18),
+          label: const Text('Random Concept', style: TextStyle(fontWeight: FontWeight.bold)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: ac.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        if (_isSearching || _selectedLetter != null || _selectedDiscipline != null) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () {
+              _searchController.clear();
+              setState(() {
+                _isSearching = false;
+                _selectedLetter = null;
+                _selectedDiscipline = null;
+                _searchResults = [];
+              });
+            },
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Reset / Show All'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ],
+        const SizedBox(height: 20),
+
+        // Statistics
+        Text('Dictionary Overview', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            children: [
+              _metricRow(ac, 'Total Terms', '${DictionaryService.instance.allEntries.length}', Icons.menu_book_rounded),
+              const Divider(height: 16),
+              _metricRow(ac, 'Disciplines', '${disciplines.length}', Icons.category_outlined),
+              const Divider(height: 16),
+              _metricRow(ac, 'Recent Searches', '${recent.length}', Icons.history_rounded),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        if (recent.isNotEmpty) ...[
+          Text('Recent Concepts', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: recent.take(8).map((e) => ActionChip(
+              backgroundColor: ac.surf,
+              side: BorderSide(color: ac.bdr),
+              label: Text(e.word, style: TextStyle(fontSize: 11, color: ac.txt)),
+              onPressed: () => _openEntry(e),
+            )).toList(),
+          ),
+          const SizedBox(height: 20),
+        ],
+
+        Text('Top Disciplines', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: disciplines.take(12).map((d) => InkWell(
+            onTap: () => setState(() { _selectedDiscipline = d; _selectedLetter = null; }),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: (_selectedDiscipline == d ? ac.primary : ac.surf),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _selectedDiscipline == d ? ac.primary : ac.bdr),
+              ),
+              child: Text(
+                d,
+                style: TextStyle(
+                  color: _selectedDiscipline == d ? Colors.white : ac.txt2,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 11,
                 ),
               ),
             ),
-          ),
-          
-          if (!_isSearching && _selectedLetter == null && _selectedDiscipline == null)
-            _buildLanding(ac),
-            
-          if (_isSearching || _selectedLetter != null || _selectedDiscipline != null)
-            Expanded(child: _buildResultsList(ac)),
-        ],
-      ),
+          )).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _metricRow(AppColors ac, String label, String value, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: ac.primary),
+        const SizedBox(width: 8),
+        Expanded(child: Text(label, style: TextStyle(fontSize: 12, color: ac.txt2))),
+        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+      ],
     );
   }
   
   Widget _buildResultsList(AppColors ac) {
     List<DictionaryEntry> items = [];
-    if (_isSearching) items = _searchResults;
-    else if (_selectedLetter != null) items = DictionaryService.instance.getByLetter(_selectedLetter!);
-    else if (_selectedDiscipline != null) items = DictionaryService.instance.getByDiscipline(_selectedDiscipline!);
+    if (_isSearching) {
+      items = _searchResults;
+    } else if (_selectedLetter != null) {
+      items = DictionaryService.instance.getByLetter(_selectedLetter!);
+    } else if (_selectedDiscipline != null) {
+      items = DictionaryService.instance.getByDiscipline(_selectedDiscipline!);
+    }
     
     if (items.isEmpty) {
       return Padding(
@@ -307,14 +426,15 @@ class DictionaryEntryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final ac = Theme.of(context).extension<AppColors>()!;
     
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg,
-        elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-      ),
-      body: SingleChildScrollView(
+    return ApplicationShell(
+      user: null,
+      currentTitle: entry.word,
+      subtitle: '${entry.partOfSpeech} · ${entry.discipline}',
+      currentDestination: AppNavDestination.academicLibrary,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      contextualPanel: _buildEntryContextualPanel(context, ac),
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,6 +526,78 @@ class DictionaryEntryScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildEntryContextualPanel(BuildContext context, AppColors ac) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Concept Metadata', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            children: [
+              _specRow(ac, 'Part of Speech', entry.partOfSpeech),
+              const Divider(height: 16),
+              _specRow(ac, 'Discipline', entry.discipline),
+              const Divider(height: 16),
+              _specRow(ac, 'Difficulty', 'Level ${entry.difficulty}'),
+              const Divider(height: 16),
+              _specRow(ac, 'Syllables', '${entry.syllableCount} syllables'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        Text('Actions', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          onPressed: () {
+            final all = DictionaryService.instance.allEntries;
+            if (all.isEmpty) return;
+            final r = all[Random().nextInt(all.length)];
+            DictionaryService.instance.markAsViewed(r.id);
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => DictionaryEntryScreen(entry: r)),
+            );
+          },
+          icon: const Icon(Icons.casino_outlined, size: 18),
+          label: const Text('Next Random Concept', style: TextStyle(fontWeight: FontWeight.bold)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: ac.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).maybePop(),
+          icon: const Icon(Icons.arrow_back_rounded, size: 18),
+          label: const Text('Back to Dictionary'),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _specRow(AppColors ac, String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(fontSize: 12, color: ac.txt2)),
+        Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+      ],
     );
   }
 }

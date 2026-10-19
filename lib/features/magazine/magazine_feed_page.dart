@@ -81,8 +81,6 @@ import 'top_writers_page.dart';
 import 'gallery_viewer_page.dart';
 import 'magazine_video_player_page.dart';
 import '../clubs/clubs_page.dart';
-import '../../pages/notifications_page.dart';
-import '../../repositories/notification_repository.dart';
 import 'magazine_search_page.dart';
 
 enum _FeedTab { forYou, trending, following, local, global }
@@ -204,174 +202,250 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      body: AppBackground(child: SafeArea(
-        child: Column(children: [
-          _header(context),
-          const SizedBox(height: 8),
-          _tabRow(),
-          const SizedBox(height: 16),
-          Expanded(
-            child: StreamBuilder<List<MagazineArticle>>(
-              stream: _streamForTab(),
-              builder: (context, snap) {
-                if (_tab == _FeedTab.local && !_hasSchool) {
-                  return _localFeedEmptyState();
-                }
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const _FeedSkeleton();
-                }
-                if (snap.hasError) {
-                  return ErrorView(message: snap.error.toString());
-                }
-                final articles = _applySort(snap.data ?? const <MagazineArticle>[]);
-                if (articles.isEmpty) return _emptyState();
 
-                return ListView(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  children: [
-                    if (_tab == _FeedTab.forYou || _tab == _FeedTab.global)
-                      _FeaturedCarousel(user: widget.user),
-                    if (_tab == _FeedTab.forYou && _showRecommended)
-                      _RecommendedSection(user: widget.user!),
-                    if (_tab == _FeedTab.forYou) ...[
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'Academia Magazine',
+      subtitle: 'Write. Share. Inspire.',
+      currentDestination: AppNavDestination.academicLibrary,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      floatingActionButton: _canCompose
+          ? FloatingActionButton.extended(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => ArticleComposerPage(user: widget.user!))),
+              backgroundColor: ac.primary,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.edit_note_rounded),
+              label: const Text('Write an Article'),
+            )
+          : null,
+      contextualPanel: _buildMagazineContextualPanel(context, ac),
+      child: AppBackground(
+        child: Column(
+          children: [
+            const SizedBox(height: 8),
+            _tabRow(),
+            const SizedBox(height: 16),
+            Expanded(
+              child: StreamBuilder<List<MagazineArticle>>(
+                stream: _streamForTab(),
+                builder: (context, snap) {
+                  if (_tab == _FeedTab.local && !_hasSchool) {
+                    return _localFeedEmptyState();
+                  }
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const _FeedSkeleton();
+                  }
+                  if (snap.hasError) {
+                    return ErrorView(message: snap.error.toString());
+                  }
+                  final articles = _applySort(snap.data ?? const <MagazineArticle>[]);
+                  if (articles.isEmpty) return _emptyState();
+
+                  return ListView(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    children: [
+                      if (_tab == _FeedTab.forYou || _tab == _FeedTab.global)
+                        _FeaturedCarousel(user: widget.user),
+                      if (_tab == _FeedTab.forYou && _showRecommended)
+                        _RecommendedSection(user: widget.user!),
+                      if (_tab == _FeedTab.forYou) ...[
+                        const SizedBox(height: 20),
+                        _StudentGallerySection(user: widget.user),
+                        const SizedBox(height: 20),
+                        _LatestVideosSection(user: widget.user),
+                      ],
+                      if (_tab == _FeedTab.trending) ...[
+                        const SizedBox(height: 20),
+                        _RecommendedClubsSection(user: widget.user),
+                      ],
+                      if (_tab == _FeedTab.following && !_isGuest)
+                        _FollowingAuthorsSection(userId: widget.user!.id, currentUser: widget.user),
                       const SizedBox(height: 20),
-                      _StudentGallerySection(user: widget.user),
-                      const SizedBox(height: 20),
-                      _LatestVideosSection(user: widget.user),
-                    ],
-                    if (_tab == _FeedTab.trending) ...[
-                      const SizedBox(height: 20),
-                      _RecommendedClubsSection(user: widget.user),
-                    ],
-                    if (_tab == _FeedTab.following && !_isGuest)
-                      _FollowingAuthorsSection(userId: widget.user!.id, currentUser: widget.user),
-                    const SizedBox(height: 20),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(children: [
-                        Expanded(child: Text(_sectionTitle, style: AppText.h2.copyWith(fontSize: 16))),
-                        Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(Rad.xs),
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              Navigator.of(context).push(MaterialPageRoute(
-                                  builder: (_) => _AllArticlesPage(
-                                      title: _sectionTitle, stream: _streamForTab(), user: widget.user)));
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                              child: Text('See all', style: AppText.subtitle.copyWith(
-                                  color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(children: [
+                          Expanded(child: Text(_sectionTitle, style: AppText.h2.copyWith(fontSize: 16))),
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(Rad.xs),
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => _AllArticlesPage(
+                                        title: _sectionTitle, stream: _streamForTab(), user: widget.user)));
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                                child: Text('See all', style: AppText.subtitle.copyWith(
+                                    color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                              ),
                             ),
                           ),
-                        ),
-                      ]),
-                    ),
-                    const SizedBox(height: 12),
-                    ...articles.map((a) => Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                      child: ArticleListCard(
-                        article: a,
-                        currentUser: widget.user,
-                        onOpen: () => Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => ArticleReaderPage(article: a, currentUser: widget.user))),
-                        onOpenAuthor: () => Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => AuthorProfilePage(authorId: a.authorId, currentUser: widget.user))),
+                        ]),
                       ),
-                    )),
-                    if (_tab == _FeedTab.trending && !_isGuest)
-                      _PopularInNetworkSection(userId: widget.user!.id, currentUser: widget.user),
-                  ],
-                );
-              },
+                      const SizedBox(height: 12),
+                      ...articles.map((a) => Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        child: ArticleListCard(
+                          article: a,
+                          currentUser: widget.user,
+                          onOpen: () => Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => ArticleReaderPage(article: a, currentUser: widget.user))),
+                          onOpenAuthor: () => Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => AuthorProfilePage(authorId: a.authorId, currentUser: widget.user))),
+                        ),
+                      )),
+                      if (_tab == _FeedTab.trending && !_isGuest)
+                        _PopularInNetworkSection(userId: widget.user!.id, currentUser: widget.user),
+                    ],
+                  );
+                },
+              ),
             ),
-          ),
-        ]),
-      ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _header(BuildContext context) {
-    final canPop = Navigator.of(context).canPop();
-    final ac = AppColors.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 14, 16, 8),
-      child: Row(children: [
-        if (canPop)
-          IconButton(
-            icon: Icon(Icons.arrow_back_rounded, color: ac.txt),
-            onPressed: () => Navigator.of(context).pop(),
-          )
-        else
-          const SizedBox(width: 8),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Academia Magazine', style: AppText.h1.copyWith(fontSize: 20)),
-            Text('Write. Share. Inspire.', style: AppText.caption.copyWith(fontSize: 12)),
-          ]),
-        ),
-        IconButton(
-          icon: Icon(Icons.search_rounded, color: ac.txt2),
-          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => MagazineSearchPage(user: widget.user))),
-        ),
-        if (_canCompose)
-          IconButton(
-            icon: Icon(Icons.leaderboard_outlined, color: ac.txt2),
-            tooltip: 'Top Writers',
+  Widget _buildMagazineContextualPanel(BuildContext context, AppColors ac) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Publishing & Discover', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        if (_canCompose) ...[
+          ElevatedButton.icon(
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => const TopWritersPage())),
-          ),
-        widget.user == null || widget.user!.isGuest
-            ? IconButton(
-                icon: Icon(Icons.notifications_outlined, color: ac.txt2),
-                onPressed: () => showToast(context, 'Sign in to see notifications'),
-              )
-            : StreamBuilder<int>(
-                stream: NotificationRepository.instance.watchUnreadCount(widget.user!.id),
-                builder: (context, snap) {
-                  final count = snap.data ?? 0;
-                  return Stack(clipBehavior: Clip.none, children: [
-                    IconButton(
-                      icon: Icon(Icons.notifications_outlined, color: ac.txt2),
-                      onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => NotificationsPage(user: widget.user!))),
-                    ),
-                    if (count > 0)
-                      Positioned(
-                        top: 6, right: 6,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          constraints: const BoxConstraints(minWidth: 16),
-                          decoration: BoxDecoration(color: ac.red, borderRadius: BorderRadius.circular(8)),
-                          child: Text(count > 9 ? '9+' : '$count', textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
-                        ),
-                      ),
-                  ]);
-                },
-              ),
-        Material(
-          color: Colors.transparent,
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: _canCompose
-                ? () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => AuthorProfilePage(authorId: widget.user!.id, currentUser: widget.user)))
-                : null,
-            child: UserAvatar(
-              initials: (widget.user?.name.isNotEmpty ?? false) ? widget.user!.name[0].toUpperCase() : '?',
-              radius: 18, photoUrl: widget.user?.photoUrl,
+                builder: (_) => ArticleComposerPage(user: widget.user!))),
+            icon: const Icon(Icons.edit_note_rounded, size: 18),
+            label: const Text('Write an Article', style: TextStyle(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ac.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
           ),
+          const SizedBox(height: 8),
+        ],
+        OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => MagazineSearchPage(user: widget.user))),
+          icon: const Icon(Icons.search_rounded, size: 18),
+          label: const Text('Search Articles'),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
         ),
-      ]),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const TopWritersPage())),
+          icon: const Icon(Icons.leaderboard_outlined, size: 18),
+          label: const Text('Top Writers Leaderboard'),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Sort & Display
+        Text('Feed Controls', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Sort Feed By', style: TextStyle(fontSize: 12, color: ac.txt2)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: ['Newest', 'Most liked', 'Most discussed'].map((opt) {
+                  final isSelected = _sort == opt;
+                  return ChoiceChip(
+                    label: Text(opt, style: TextStyle(fontSize: 11, color: isSelected ? Colors.white : ac.txt)),
+                    selected: isSelected,
+                    selectedColor: ac.primary,
+                    backgroundColor: ac.surf,
+                    onSelected: (_) => setState(() => _sort = opt),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Topics & Categories
+        Text('Article Categories', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            'Essay',
+            'Opinion',
+            'Story',
+            'Creative Writing',
+            'News',
+            'Guide',
+            'Interview',
+            'Review',
+          ].map((cat) {
+            final color = _categoryColor(cat);
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: .1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: color.withValues(alpha: .3)),
+              ),
+              child: Text(cat, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 20),
+
+        // Mission Card
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.auto_stories_rounded, size: 18, color: ac.primary),
+                  const SizedBox(width: 8),
+                  Text('Academia Voice', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Publish student journalism, creative pieces, club reports, and academic essays to inspire the school community.',
+                style: TextStyle(fontSize: 12, color: ac.txt2, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -633,6 +707,7 @@ class ArticleListCard extends StatelessWidget {
   final AppUser? currentUser;
   final VoidCallback onOpen, onOpenAuthor;
   const ArticleListCard({
+    super.key,
     required this.article, required this.currentUser,
     required this.onOpen, required this.onOpenAuthor,
   });
@@ -1316,15 +1391,14 @@ class _AllArticlesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text(title, style: AppText.title),
-      ),
-      body: AppBackground(child: StreamBuilder<List<MagazineArticle>>(
+    return ApplicationShell(
+      user: user,
+      currentTitle: title,
+      currentDestination: AppNavDestination.academicLibrary,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      contextualPanel: const SizedBox.shrink(),
+      child: AppBackground(child: StreamBuilder<List<MagazineArticle>>(
         stream: stream,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
@@ -1366,14 +1440,14 @@ class _AllGalleryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text('Student Gallery', style: AppText.title),
-      ),
-      body: AppBackground(child: StreamBuilder<List<MagazineGalleryPost>>(
+    return ApplicationShell(
+      user: user,
+      currentTitle: 'Student Gallery',
+      currentDestination: AppNavDestination.academicLibrary,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      contextualPanel: const SizedBox.shrink(),
+      child: AppBackground(child: StreamBuilder<List<MagazineGalleryPost>>(
         stream: MagazineRepository.instance.watchGalleryPosts(limit: 150),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
@@ -1434,14 +1508,14 @@ class _AllVideosPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text('Latest Videos', style: AppText.title),
-      ),
-      body: AppBackground(child: StreamBuilder<List<MagazineVideoPost>>(
+    return ApplicationShell(
+      user: user,
+      currentTitle: 'Latest Videos',
+      currentDestination: AppNavDestination.academicLibrary,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      contextualPanel: const SizedBox.shrink(),
+      child: AppBackground(child: StreamBuilder<List<MagazineVideoPost>>(
         stream: MagazineRepository.instance.watchVideoPosts(limit: 150),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {

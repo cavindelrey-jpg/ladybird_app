@@ -64,6 +64,7 @@ class ApplicationShell extends StatefulWidget {
   final Widget? floatingActionButton;
   final bool showBackButton;
   final VoidCallback? onBack;
+  final List<Widget>? actions;
 
   const ApplicationShell({
     super.key,
@@ -77,6 +78,7 @@ class ApplicationShell extends StatefulWidget {
     this.floatingActionButton,
     this.showBackButton = false,
     this.onBack,
+    this.actions,
   });
 
   @override
@@ -124,11 +126,11 @@ class _ApplicationShellState extends State<ApplicationShell> {
     final width = MediaQuery.of(context).size.width;
     final isWideDesktop = width >= 1440;
     final isDesktop = width >= 960;
-    final isMedium = width >= 650;
-    final leftRailWidth = isMedium ? 76.0 : 64.0;
+    final isMedium = width >= 700;
+    final leftRailWidth = isMedium ? 76.0 : (width >= 500 ? 64.0 : 56.0);
     final rightPanelWidth = isWideDesktop
         ? 520.0
-        : (isDesktop ? 360.0 : (isMedium ? 260.0 : 200.0));
+        : (isDesktop ? 360.0 : (isMedium ? 260.0 : 0.0));
 
     return Scaffold(
       key: _scaffoldKey,
@@ -136,90 +138,106 @@ class _ApplicationShellState extends State<ApplicationShell> {
       floatingActionButton: widget.floatingActionButton,
       drawer: null,
       body: SafeArea(
-        child: Column(
-          children: [
-            // ── Top Bar ──────────────────────────────────────────────
-            _GlobalTopBar(
-              user: widget.user,
-              pageTitle: widget.currentTitle,
-              subtitle: widget.subtitle,
-              showBackButton: widget.showBackButton,
-              onBack: widget.onBack,
-              onToggleSidebar: () {},
-            ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final isWideDesktop = width >= 1440;
+            final isDesktop = width >= 960;
+            final isMedium = width >= 700;
+            final leftRailWidth = isMedium ? 76.0 : (width >= 500 ? 64.0 : 56.0);
+            final rightPanelWidth = isWideDesktop
+                ? 520.0
+                : (isDesktop ? 360.0 : (isMedium ? 260.0 : 0.0));
 
-            // ── Main Body: Persistent Left Sidebar + Stationary Workspace + Reserved Right Panel ──
-            Expanded(
-              child: Stack(
-                children: [
-                  // 1. Fixed Structural Layout: Persistent compact rail slot + Central Workspace + Reserved Right Panel
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+            return Column(
+              children: [
+                // ── Top Bar ──────────────────────────────────────────────
+                _GlobalTopBar(
+                  user: widget.user,
+                  pageTitle: widget.currentTitle,
+                  subtitle: widget.subtitle,
+                  showBackButton: widget.showBackButton,
+                  onBack: widget.onBack,
+                  actions: widget.actions,
+                  containerWidth: width,
+                  onToggleSidebar: () {},
+                ),
+
+                // ── Main Body: Persistent Left Sidebar + Stationary Workspace + Reserved Right Panel ──
+                Expanded(
+                  child: Stack(
                     children: [
-                      SizedBox(width: leftRailWidth),
+                      // 1. Fixed Structural Layout: Persistent compact rail slot + Central Workspace + Reserved Right Panel
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(width: leftRailWidth),
 
-                      // Center Main Workspace (Stationary, never shifts or resizes on sidebar hover)
-                      Expanded(
-                        child: Container(
-                          color: ac.bg,
-                          child: widget.child,
-                        ),
+                          // Center Main Workspace (Stationary, never shifts or resizes on sidebar hover)
+                          Expanded(
+                            child: Container(
+                              color: ac.bg,
+                              child: widget.child,
+                            ),
+                          ),
+
+                          // Right Contextual Information Panel (Always reserved across desktop & tablet pages)
+                          if (rightPanelWidth > 0)
+                            SizedBox(
+                              width: rightPanelWidth,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: ac.surf,
+                                  border: Border(left: BorderSide(color: ac.bdr)),
+                                ),
+                                child: _buildContextualPanel(context),
+                              ),
+                            ),
+                        ],
                       ),
 
-                      // Right Contextual Information Panel (Always reserved across all pages)
-                      SizedBox(
-                        width: rightPanelWidth,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: ac.surf,
-                            border: Border(left: BorderSide(color: ac.bdr)),
+                      // 2. Left Sidebar: Expands on hover or toggle, overlays without moving central content
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        child: MouseRegion(
+                          onEnter: (_) => setState(() => _sidebarHovered = true),
+                          onExit: (_) => setState(() => _sidebarHovered = false),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutCubic,
+                            width: _isSidebarExpanded ? 240 : leftRailWidth,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF081630),
+                              border: const Border(
+                                right: BorderSide(color: Color(0xFF162544), width: 1),
+                              ),
+                              boxShadow: _isSidebarExpanded
+                                  ? [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.35),
+                                        blurRadius: 16,
+                                        offset: const Offset(4, 0),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: _GlobalSidebarContent(
+                              user: widget.user,
+                              currentDestination: widget.currentDestination,
+                              collapsed: !_isSidebarExpanded,
+                              onSelectDestination: (dest) => _navigateTo(context, dest),
+                            ),
                           ),
-                          child: _buildContextualPanel(context),
                         ),
                       ),
                     ],
                   ),
-
-                  // 2. Left Sidebar: Expands on hover or toggle, overlays without moving central content
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: MouseRegion(
-                      onEnter: (_) => setState(() => _sidebarHovered = true),
-                      onExit: (_) => setState(() => _sidebarHovered = false),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeOutCubic,
-                        width: _isSidebarExpanded ? 240 : leftRailWidth,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF081630),
-                          border: const Border(
-                            right: BorderSide(color: Color(0xFF162544), width: 1),
-                          ),
-                          boxShadow: _isSidebarExpanded
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.35),
-                                    blurRadius: 16,
-                                    offset: const Offset(4, 0),
-                                  )
-                                ]
-                              : null,
-                        ),
-                        child: _GlobalSidebarContent(
-                          user: widget.user,
-                          currentDestination: widget.currentDestination,
-                          collapsed: !_isSidebarExpanded,
-                          onSelectDestination: (dest) => _navigateTo(context, dest),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -237,6 +255,8 @@ class _GlobalTopBar extends StatelessWidget {
   final VoidCallback onToggleSidebar;
   final bool showBackButton;
   final VoidCallback? onBack;
+  final List<Widget>? actions;
+  final double? containerWidth;
 
   const _GlobalTopBar({
     required this.user,
@@ -245,16 +265,27 @@ class _GlobalTopBar extends StatelessWidget {
     required this.onToggleSidebar,
     this.showBackButton = false,
     this.onBack,
+    this.actions,
+    this.containerWidth,
   });
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDark;
+    ThemeProvider? themeProvider;
+    try {
+      themeProvider = Provider.of<ThemeProvider>(context);
+    } catch (_) {
+      // Standalone tests or contexts without ThemeProvider
+    }
+    final isDark = themeProvider?.isDark ?? (Theme.of(context).brightness == Brightness.dark);
+    final width = containerWidth ?? MediaQuery.of(context).size.width;
+    final isCompact = width < 768;
+    final isVeryCompact = width < 500;
+    final isMicro = width < 380;
 
     return Container(
       height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.symmetric(horizontal: isMicro ? 8 : 16),
       decoration: const BoxDecoration(
         color: Color(0xFF081630),
         border: Border(bottom: BorderSide(color: Color(0xFF162544), width: 1)),
@@ -271,8 +302,8 @@ class _GlobalTopBar extends StatelessWidget {
           else
             const SizedBox(width: 8),
 
-          // Left: Current Page Title + Subtitle
-          Flexible(
+          // Left: Current Page Title + Subtitle (Expands to fill available space without overflowing)
+          Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -282,7 +313,7 @@ class _GlobalTopBar extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
-                    fontSize: subtitle != null && subtitle!.isNotEmpty ? 17 : 20,
+                    fontSize: subtitle != null && subtitle!.isNotEmpty ? 16 : 18,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),
@@ -302,175 +333,177 @@ class _GlobalTopBar extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(width: 24),
+          if (actions != null) ...[
+            const SizedBox(width: 8),
+            ...actions!,
+          ],
 
-          // Center/Right: Search field
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 460),
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.of(context).pushNamed(AppRoutes.search);
-                  },
-                  child: Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF102142),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFF203666)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.search_rounded,
-                            size: 18, color: Color(0xFF8CA3CF)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Search courses, topics, subjects...',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: const Color(0xFF8CA3CF),
-                            ),
-                          ),
+          if (!isCompact) ...[
+            const SizedBox(width: 16),
+            // Center/Right: Search field
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.of(context).pushNamed(AppRoutes.search);
+                },
+                child: Container(
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF102142),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0xFF203666)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.search_rounded,
+                          size: 18, color: Color(0xFF8CA3CF)),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Search courses, topics...',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: const Color(0xFF8CA3CF),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
-          ),
-
-          const SizedBox(width: 16),
-
-          // Controls ordered from right going left into the page:
-          // [Search field] -> [Toggle] -> [Notifications] -> [Messages] -> [Notes] -> [Action +] -> [Settings] -> [Profile]
-          // Light/Dark mode toggle
-          IconButton(
-            icon: Icon(
-              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-              color: const Color(0xFFC0D2F0),
-              size: 20,
-            ),
-            tooltip: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
-            onPressed: () => themeProvider.toggle(),
-          ),
-
-          // Notifications with badge
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined,
-                    color: Color(0xFFC0D2F0), size: 21),
-                tooltip: 'Notifications',
-                onPressed: () {
-                  Navigator.of(context).pushNamed(AppRoutes.notifications);
-                },
-              ),
-              Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF4B400),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    '3',
-                    style: GoogleFonts.inter(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF0B1F4D),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          // Messages with badge
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.chat_bubble_outline_rounded,
-                    color: Color(0xFFC0D2F0), size: 20),
-                tooltip: 'Messages',
-                onPressed: () {
-                  Navigator.of(context).pushNamed(AppRoutes.messages);
-                },
-              ),
-              Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFF4B400),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    '2',
-                    style: GoogleFonts.inter(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF0B1F4D),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          // Notes / comment icon
-          IconButton(
-            icon: const Icon(Icons.comment_outlined,
-                color: Color(0xFFC0D2F0), size: 20),
-            tooltip: 'Quick Notes',
-            onPressed: () {
-              Navigator.of(context).pushNamed(AppRoutes.messages);
-            },
-          ),
-
-          // Action + button
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: const BoxDecoration(
-              color: Color(0xFF1B3260),
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
-              tooltip: 'Create Content',
-              onPressed: () {
-                if (user != null) {
-                  showCreateContentSheet(context, user!);
-                }
-              },
-            ),
-          ),
-
-          // Settings shortcut
-          IconButton(
-            icon: const Icon(Icons.settings_outlined,
-                color: Color(0xFFC0D2F0), size: 20),
-            tooltip: 'Settings',
-            onPressed: () {
-              Navigator.of(context).pushNamed(AppRoutes.settings);
-            },
-          ),
+          ],
 
           const SizedBox(width: 8),
 
-          // User Profile (far right)
-          _UserProfileChip(user: user),
+          if (!isVeryCompact) ...[
+            // Light/Dark mode toggle
+            IconButton(
+              icon: Icon(
+                isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                color: const Color(0xFFC0D2F0),
+                size: 20,
+              ),
+              tooltip: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+              onPressed: () => themeProvider?.toggle(),
+            ),
+
+            // Notifications with badge
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_outlined,
+                      color: Color(0xFFC0D2F0), size: 21),
+                  tooltip: 'Notifications',
+                  onPressed: () {
+                    Navigator.of(context).pushNamed(AppRoutes.notifications);
+                  },
+                ),
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF4B400),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '3',
+                      style: GoogleFonts.inter(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0B1F4D),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+
+          if (!isCompact) ...[
+            // Messages with badge
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chat_bubble_outline_rounded,
+                      color: Color(0xFFC0D2F0), size: 20),
+                  tooltip: 'Messages',
+                  onPressed: () {
+                    Navigator.of(context).pushNamed(AppRoutes.messages);
+                  },
+                ),
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFF4B400),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '2',
+                      style: GoogleFonts.inter(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0B1F4D),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // Notes / comment icon
+            IconButton(
+              icon: const Icon(Icons.comment_outlined,
+                  color: Color(0xFFC0D2F0), size: 20),
+              tooltip: 'Quick Notes',
+              onPressed: () {
+                Navigator.of(context).pushNamed(AppRoutes.messages);
+              },
+            ),
+
+            // Action + button
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: const BoxDecoration(
+                color: Color(0xFF1B3260),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
+                tooltip: 'Create Content',
+                onPressed: () {
+                  if (user != null) {
+                    showCreateContentSheet(context, user!);
+                  }
+                },
+              ),
+            ),
+
+            // Settings shortcut
+            IconButton(
+              icon: const Icon(Icons.settings_outlined,
+                  color: Color(0xFFC0D2F0), size: 20),
+              tooltip: 'Settings',
+              onPressed: () {
+                Navigator.of(context).pushNamed(AppRoutes.settings);
+              },
+            ),
+          ],
+
+          if (!isMicro) ...[
+            const SizedBox(width: 8),
+            // User Profile (far right)
+            _UserProfileChip(user: user, compact: isVeryCompact),
+          ],
         ],
       ),
     );
@@ -479,7 +512,8 @@ class _GlobalTopBar extends StatelessWidget {
 
 class _UserProfileChip extends StatelessWidget {
   final AppUser? user;
-  const _UserProfileChip({required this.user});
+  final bool compact;
+  const _UserProfileChip({required this.user, this.compact = false});
 
   @override
   Widget build(BuildContext context) {
@@ -494,7 +528,7 @@ class _UserProfileChip extends StatelessWidget {
       },
       borderRadius: BorderRadius.circular(20),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -515,32 +549,34 @@ class _UserProfileChip extends StatelessWidget {
                     )
                   : null,
             ),
-            const SizedBox(width: 8),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: GoogleFonts.inter(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
+            if (!compact) ...[
+              const SizedBox(width: 8),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: GoogleFonts.inter(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                Text(
-                  role,
-                  style: GoogleFonts.inter(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w400,
-                    color: const Color(0xFF8CA3CF),
+                  Text(
+                    role,
+                    style: GoogleFonts.inter(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w400,
+                      color: const Color(0xFF8CA3CF),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 4),
-            const Icon(Icons.keyboard_arrow_down_rounded,
-                size: 16, color: Color(0xFF8CA3CF)),
+                ],
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.keyboard_arrow_down_rounded,
+                  size: 16, color: Color(0xFF8CA3CF)),
+            ],
           ],
         ),
       ),

@@ -40,125 +40,273 @@ class _PersonalStudyPageState extends State<PersonalStudyPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg,
-        elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text('Personal Timetable', style: AppText.title),
-        actions: [
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: ElevatedButton.icon(
-                key: const Key('add_session_appbar_btn'),
-                onPressed: () => _openCreateSheet(context),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Add Session', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ac.primary,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
+
+    return StreamBuilder<List<PersonalStudySlot>>(
+      stream: PersonalStudyRepository.instance.watchAll(widget.user.id),
+      builder: (context, snap) {
+        final slots = snap.data ?? const <PersonalStudySlot>[];
+
+        return ApplicationShell(
+          user: widget.user,
+          currentTitle: 'Personal Timetable',
+          subtitle: '${slots.length} sessions scheduled',
+          currentDestination: AppNavDestination.timetable,
+          showBackButton: true,
+          onBack: () => Navigator.of(context).maybePop(),
+          actions: [
+            ElevatedButton.icon(
+              key: const Key('add_session_appbar_btn'),
+              onPressed: () => _openCreateSheet(context),
+              icon: const Icon(Icons.add_rounded, size: 16),
+              label: const Text('Add Session', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ac.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
+          ],
+          floatingActionButton: FloatingActionButton.extended(
+            backgroundColor: ac.primary,
+            foregroundColor: Colors.white,
+            elevation: 3,
+            icon: const Icon(Icons.add_rounded, color: Colors.white),
+            label: const Text('Add to Personal Timetable',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+            onPressed: () => _openCreateSheet(context),
           ),
-        ],
-      ),
-      body: AppBackground(
-        child: StreamBuilder<List<PersonalStudySlot>>(
-          stream: PersonalStudyRepository.instance.watchAll(widget.user.id),
-          builder: (context, snap) {
-            if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
-              return const Padding(padding: EdgeInsets.all(20), child: ShimmerBlock(height: 400));
-            }
-            if (snap.hasError && (!snap.hasData || snap.data!.isEmpty)) {
-              return ErrorView(message: snap.error.toString());
-            }
-            final slots = snap.data ?? const <PersonalStudySlot>[];
-            if (slots.isEmpty) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          color: ac.primaryBg,
-                          shape: BoxShape.circle,
+          contextualPanel: _buildStudyContextualPanel(context, ac, slots),
+          child: AppBackground(
+            child: Builder(
+              builder: (ctx) {
+                if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+                  return const Padding(padding: EdgeInsets.all(20), child: ShimmerBlock(height: 400));
+                }
+                if (snap.hasError && (!snap.hasData || snap.data!.isEmpty)) {
+                  return ErrorView(message: snap.error.toString());
+                }
+                if (slots.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 72,
+                            height: 72,
+                            decoration: BoxDecoration(
+                              color: ac.primaryBg,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.event_note_outlined, size: 36, color: ac.primary),
+                          ),
+                          const SizedBox(height: 16),
+                          Text('No study sessions planned yet',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Plan your study times, revision sessions, and practice quizzes.\n'
+                            "Today's active sessions will appear directly on your Home screen.",
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(fontSize: 13, color: ac.txt2, height: 1.4),
+                          ),
+                          const SizedBox(height: 24),
+                          PrimaryBtn(
+                            label: 'Create Personal Timetable',
+                            icon: Icons.add_rounded,
+                            onTap: () => _openCreateSheet(context),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                final byDay = <int, List<PersonalStudySlot>>{};
+                for (final s in slots) {
+                  byDay.putIfAbsent(s.dayOfWeek, () => []).add(s);
+                }
+                for (final list in byDay.values) {
+                  list.sort((a, b) => a.startTime.compareTo(b.startTime));
+                }
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                  children: [
+                    for (var day = 1; day <= 7; day++)
+                      if (byDay.containsKey(day)) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8, bottom: 8),
+                          child: Text(
+                            _fullDayName(day),
+                            style: AppText.h2.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
+                          ),
                         ),
-                        child: Icon(Icons.event_note_outlined, size: 36, color: ac.primary),
-                      ),
-                      const SizedBox(height: 16),
-                      Text('No study sessions planned yet',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Plan your study times, revision sessions, and practice quizzes.\n'
-                        "Today's active sessions will appear directly on your Home screen.",
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.inter(fontSize: 13, color: ac.txt2, height: 1.4),
-                      ),
-                      const SizedBox(height: 24),
-                      PrimaryBtn(
-                        label: 'Create Personal Timetable',
-                        icon: Icons.add_rounded,
-                        onTap: () => _openCreateSheet(context),
-                      ),
+                        ...byDay[day]!.map((s) => _SlotCard(
+                              user: widget.user,
+                              slot: s,
+                              onUpdated: () {
+                                if (mounted) setState(() {});
+                              },
+                            )),
+                        const SizedBox(height: 12),
+                      ],
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStudyContextualPanel(BuildContext context, AppColors ac, List<PersonalStudySlot> slots) {
+    final todayWeekday = DateTime.now().weekday;
+    final todaySlots = slots.where((s) => s.dayOfWeek == todayWeekday).toList()
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+    final daysActive = slots.map((s) => s.dayOfWeek).toSet().length;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Quick Actions', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          onPressed: () => _openCreateSheet(context),
+          icon: const Icon(Icons.add_rounded, size: 18),
+          label: const Text('Add Study Session', style: TextStyle(fontWeight: FontWeight.bold)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: ac.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Weekly Overview Card
+        Text('Study Routine', style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            children: [
+              _metricRow(ac, 'Total Planned Sessions', '${slots.length}', Icons.event_note_outlined),
+              const Divider(height: 16),
+              _metricRow(ac, 'Active Days / Week', '$daysActive / 7 days', Icons.calendar_today_outlined),
+              const Divider(height: 16),
+              _metricRow(ac, "Today's Sessions", '${todaySlots.length}', Icons.schedule_rounded),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Today's Routine
+        Text("Today's Schedule", style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        if (todaySlots.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: ac.surf,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: ac.bdr),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.check_circle_outline_rounded, color: ac.muted, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'No sessions scheduled for today. Enjoy your rest or plan a revision block.',
+                    style: TextStyle(fontSize: 12, color: ac.txt2),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          ...todaySlots.map((s) => Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: ac.surf,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: ac.bdr2),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: ac.primary,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(s.activity, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      if (s.subject != null && s.subject!.isNotEmpty)
+                        Text(s.subject!, style: TextStyle(color: ac.txt2, fontSize: 11)),
                     ],
                   ),
                 ),
-              );
-            }
-            final byDay = <int, List<PersonalStudySlot>>{};
-            for (final s in slots) {
-              byDay.putIfAbsent(s.dayOfWeek, () => []).add(s);
-            }
-            for (final list in byDay.values) {
-              list.sort((a, b) => a.startTime.compareTo(b.startTime));
-            }
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              children: [
-                for (var day = 1; day <= 7; day++)
-                  if (byDay.containsKey(day)) ...[
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8, bottom: 8),
-                      child: Text(
-                        _fullDayName(day),
-                        style: AppText.h2.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    ...byDay[day]!.map((s) => _SlotCard(
-                          user: widget.user,
-                          slot: s,
-                          onUpdated: () {
-                            if (mounted) setState(() {});
-                          },
-                        )),
-                    const SizedBox(height: 12),
-                  ],
+                Text('${s.startTime} - ${s.endTime}', style: TextStyle(color: ac.muted, fontSize: 11)),
               ],
-            );
-          },
+            ),
+          )),
+        const SizedBox(height: 20),
+
+        // Study Advice Card
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.lightbulb_outline_rounded, size: 18, color: ac.primary),
+                  const SizedBox(width: 8),
+                  Text('Productivity Tip', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Break your study blocks into focused 45-minute intervals with 10-minute rests. Consistency across several days is more effective than marathon cram sessions.',
+                style: TextStyle(fontSize: 12, color: ac.txt2, height: 1.4),
+              ),
+            ],
+          ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: ac.primary,
-        foregroundColor: Colors.white,
-        elevation: 3,
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: const Text('Add to Personal Timetable',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
-        onPressed: () => _openCreateSheet(context),
-      ),
+      ],
+    );
+  }
+
+  Widget _metricRow(AppColors ac, String label, String value, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: ac.primary),
+        const SizedBox(width: 8),
+        Expanded(child: Text(label, style: TextStyle(fontSize: 12, color: ac.txt2))),
+        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+      ],
     );
   }
 

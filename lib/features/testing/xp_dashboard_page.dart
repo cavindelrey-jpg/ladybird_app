@@ -22,6 +22,7 @@ import '../../core/xp_rules.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/application_shell.dart';
 import 'test_result_page.dart';
 import 'leaderboard_page.dart';
 
@@ -32,21 +33,14 @@ class XpDashboardPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        title: Text('XP Dashboard', style: AppText.h2),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.leaderboard_rounded, color: ac.txt),
-            tooltip: 'Leaderboard',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => LeaderboardPage(user: user)),
-            ),
-          ),
-        ],
-      ),
-      body: ListView(
+    return ApplicationShell(
+      user: user,
+      currentTitle: 'XP Dashboard',
+      subtitle: 'Learning Milestones & Achievement Statistics',
+      currentDestination: AppNavDestination.testsAndQuizzes,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           _levelCard(),

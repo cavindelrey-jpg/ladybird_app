@@ -17,6 +17,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
+import '../../widgets/application_shell.dart';
 
 class LeaderboardPage extends StatefulWidget {
   final AppUser user;
@@ -39,23 +40,30 @@ class _LeaderboardPageState extends State<LeaderboardPage> with SingleTickerProv
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text('Leaderboard', style: AppText.title),
-        bottom: _showGlobal
-            ? TabBar(
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'Leaderboard',
+      subtitle: 'Academic Rankings & XP Leaderboard',
+      currentDestination: AppNavDestination.testsAndQuizzes,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      child: Column(
+        children: [
+          if (_showGlobal)
+            Container(
+              color: ac.surf,
+              child: TabBar(
                 controller: _tabs,
-                labelColor: ac.primary, unselectedLabelColor: ac.muted,
+                labelColor: ac.primary,
+                unselectedLabelColor: ac.muted,
                 indicatorColor: ac.primary,
                 tabs: const [Tab(text: 'My School'), Tab(text: 'Academia')],
-              )
-            : null,
-      ),
-      body: AppBackground(child: TabBarView(
-        controller: _tabs,
+              ),
+            ),
+          Expanded(
+            child: AppBackground(
+              child: TabBarView(
+                controller: _tabs,
         children: [
           _LeaderboardList(
             future: LeaderboardRepository.instance.getSchoolLeaderboard(widget.user.schoolId ?? ''),
@@ -71,7 +79,7 @@ class _LeaderboardPageState extends State<LeaderboardPage> with SingleTickerProv
               emptySubtitle: 'No ranked students yet — be the first to earn XP.',
             ),
         ],
-      )),
+      ))),
     );
   }
 }

@@ -166,32 +166,13 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
       },
     );
 
-    if (isDesktop) {
-      return ApplicationShell(
-        user: widget.user,
-        currentTitle: widget.category,
-        currentDestination: AppNavDestination.testsAndQuizzes,
-        showBackButton: true,
-        onBack: () => Navigator.of(context).maybePop(),
-        child: bodyContent,
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        title: Text(widget.category, style: AppText.h2),
-        actions: [
-          if (!isGuest)
-            IconButton(
-              icon: Icon(Icons.bolt_rounded, color: ac.gold),
-              tooltip: 'XP Dashboard',
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => XpDashboardPage(user: widget.user))),
-            ),
-        ],
-      ),
-      body: bodyContent,
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: widget.category,
+      currentDestination: AppNavDestination.testsAndQuizzes,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      child: bodyContent,
     );
   }
 

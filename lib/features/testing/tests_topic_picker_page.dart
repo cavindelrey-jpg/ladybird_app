@@ -160,21 +160,13 @@ class _TestsTopicPickerPageState extends State<TestsTopicPickerPage> {
                 ),
               );
 
-    if (isDesktop) {
-      return ApplicationShell(
-        user: widget.user,
-        currentTitle: '${widget.category} > ${widget.subject}',
-        currentDestination: AppNavDestination.testsAndQuizzes,
-        showBackButton: true,
-        onBack: () => Navigator.of(context).maybePop(),
-        child: bodyContent,
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(title: Text(widget.subject, style: AppText.h2)),
-      body: bodyContent,
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: '${widget.category} > ${widget.subject}',
+      currentDestination: AppNavDestination.testsAndQuizzes,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      child: bodyContent,
     );
   }
 }

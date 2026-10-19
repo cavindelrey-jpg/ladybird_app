@@ -88,21 +88,13 @@ class TestsListPage extends StatelessWidget {
       },
     );
 
-    if (isDesktop) {
-      return ApplicationShell(
-        user: user,
-        currentTitle: topic ?? subject,
-        currentDestination: AppNavDestination.testsAndQuizzes,
-        showBackButton: true,
-        onBack: () => Navigator.of(context).maybePop(),
-        child: bodyContent,
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(title: Text(topic ?? subject, style: AppText.h2)),
-      body: bodyContent,
+    return ApplicationShell(
+      user: user,
+      currentTitle: topic ?? subject,
+      currentDestination: AppNavDestination.testsAndQuizzes,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      child: bodyContent,
     );
   }
 

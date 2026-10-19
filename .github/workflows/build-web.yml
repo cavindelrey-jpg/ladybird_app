@@ -1,0 +1,72 @@
+name: Build Web (CFPMI)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'lib/**'
+      - 'web/**'
+      - 'assets/**'
+      - 'pubspec.yaml'
+      - '.github/workflows/build-web.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.6'
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Web (CFPMI)
+        run: flutter build web --release --dart-define=BRAND_ID=cfpmi
+
+      - name: Archive Web build
+        run: cd build && zip -r cfpmi-web-release.zip web
+
+      - name: Upload Web Build (Artifact)
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: cfpmi-web-release
+          path: build/web
+          retention-days: 1
+
+      - name: Publish Web Asset to GitHub Release
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view latest-cfpmi || gh release create latest-cfpmi \
+            --title "CFPMI - Latest Release (v2.0.1+2)" \
+            --notes "Automated CFPMI build release"
+
+          for attempt in 1 2 3; do
+            echo "Uploading web release asset (attempt $attempt)..."
+            if gh release upload latest-cfpmi \
+              build/cfpmi-web-release.zip \
+              --clobber; then
+              echo "Successfully uploaded web release asset!"
+              exit 0
+            fi
+            echo "Upload failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "Failed to upload release asset after 3 attempts."
+          exit 1

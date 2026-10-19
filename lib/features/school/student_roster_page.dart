@@ -120,7 +120,7 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
     try {
       showToast(context, 'Generating Class Roster PDF...');
       final file = await SchoolDocumentExportService.instance.exportStudentRosterPdf(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'Ladybird International School',
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'CFPMI',
         classLevel: _selectedClass ?? 'All Classes',
         students: _students,
       );
@@ -139,7 +139,7 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
     try {
       showToast(context, 'Generating Class Roster Word document...');
       final file = await SchoolDocumentExportService.instance.exportStudentRosterDocx(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'Ladybird International School',
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'CFPMI',
         classLevel: _selectedClass ?? 'All Classes',
         students: _students,
       );

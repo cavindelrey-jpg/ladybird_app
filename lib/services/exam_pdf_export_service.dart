@@ -36,7 +36,7 @@ class ExamPdfExportService {
       id: 'default',
       schoolId: '',
       name: 'Default',
-      schoolName: 'Ladybird International School',
+      schoolName: 'CFPMI',
     );
 
     // Try loading logo bytes from asset if custom bytes not supplied

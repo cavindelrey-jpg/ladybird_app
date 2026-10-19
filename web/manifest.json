@@ -1,11 +1,11 @@
 {
-    "name": "Ladybird Group of Schools",
-    "short_name": "Ladybird",
+    "name": "CFPMI",
+    "short_name": "CFPMI",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#FFFFFF",
-    "theme_color": "#0A7A3B",
-    "description": "Ladybird Group of Schools - Solid Foundation. Discipline. Success.",
+    "background_color": "#081630",
+    "theme_color": "#1E6FEB",
+    "description": "CFPMI - Professional Training & Academic Excellence",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

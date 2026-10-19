@@ -346,7 +346,7 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
       }).toList();
 
       final file = await SchoolDocumentExportService.instance.exportMarksPdf(
-        schoolName: widget.staff.schoolName.isNotEmpty ? widget.staff.schoolName : 'Ladybird International School',
+        schoolName: widget.staff.schoolName.isNotEmpty ? widget.staff.schoolName : 'CFPMI',
         classLevel: _class!,
         subject: _subject!,
         sequenceName: _sequence.label,
@@ -385,7 +385,7 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
       }).toList();
 
       final file = await SchoolDocumentExportService.instance.exportMarksDocx(
-        schoolName: widget.staff.schoolName.isNotEmpty ? widget.staff.schoolName : 'Ladybird International School',
+        schoolName: widget.staff.schoolName.isNotEmpty ? widget.staff.schoolName : 'CFPMI',
         classLevel: _class!,
         subject: _subject!,
         sequenceName: _sequence.label,

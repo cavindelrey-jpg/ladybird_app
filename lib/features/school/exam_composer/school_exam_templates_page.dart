@@ -22,7 +22,7 @@ class _SchoolExamTemplatesPageState extends State<SchoolExamTemplatesPage> {
   void _editTemplate(BuildContext context, SchoolExamTemplate? initial) {
     final schoolId = widget.user.schoolId ?? '';
     final nameCtrl = TextEditingController(text: initial?.name ?? 'Standard Exam Letterhead');
-    final schoolNameCtrl = TextEditingController(text: initial?.schoolName ?? 'Ladybird International School');
+    final schoolNameCtrl = TextEditingController(text: initial?.schoolName ?? 'CFPMI');
     final countryHeaderCtrl = TextEditingController(
       text: initial?.countryHeader ??
           'REPUBLIC OF CAMEROON\nPeace - Work - Fatherland\nMINISTRY OF SECONDARY EDUCATION',

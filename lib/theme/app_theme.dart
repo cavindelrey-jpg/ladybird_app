@@ -328,6 +328,7 @@ AppColors _brandColors({required bool dark}) {
     case 'green_hill':
       return dark ? AppColors.greenHillDark : AppColors.greenHillLight;
     case 'ladybird':
+    case 'cfpmi':
       return dark ? AppColors.ladybirdDark : AppColors.ladybirdLight;
     default:
       return dark ? AppColors.dark : AppColors.light;

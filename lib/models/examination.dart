@@ -115,7 +115,7 @@ class SchoolExamTemplate {
       schoolId: json['school_id'] as String? ?? '',
       name: json['name'] as String? ?? 'Standard Examination Template',
       type: ExamTemplateType.fromString(json['type'] as String?),
-      schoolName: json['school_name'] as String? ?? 'Ladybird International School',
+      schoolName: json['school_name'] as String? ?? 'CFPMI',
       schoolLogoUrl: json['school_logo_url'] as String?,
       countryHeader: json['country_header'] as String? ??
           'REPUBLIC OF CAMEROON\nPeace - Work - Fatherland\nMINISTRY OF SECONDARY EDUCATION',

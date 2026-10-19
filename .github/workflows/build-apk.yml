@@ -1,4 +1,4 @@
-name: Build Ladybird APK
+name: Build CFPMI APK
 
 on:
   workflow_dispatch:
@@ -45,9 +45,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
-          key: android-debug-keystore-ladybird
+          key: android-debug-keystore-cfpmi
 
-      - name: Regenerate app icon + splash from Ladybird branding
+      - name: Regenerate app icon + splash from CFPMI branding
         run: |
           flutter pub run flutter_launcher_icons
           flutter pub run flutter_native_splash:create
@@ -73,22 +73,22 @@ jobs:
 
       - name: Build AppBundle and Split APKs
         run: |
-          flutter build appbundle --release --flavor ladybird --dart-define=BRAND_ID=ladybird
-          flutter build apk --release --flavor ladybird --dart-define=BRAND_ID=ladybird --target-platform android-arm64
+          flutter build appbundle --release --flavor cfpmi --dart-define=BRAND_ID=cfpmi
+          flutter build apk --release --flavor cfpmi --dart-define=BRAND_ID=cfpmi --target-platform android-arm64
 
       - name: Upload AppBundle (Artifact)
         uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
-          name: ladybird-release-aab
-          path: build/app/outputs/bundle/ladybirdRelease/app-ladybird-release.aab
+          name: cfpmi-release-aab
+          path: build/app/outputs/bundle/cfpmiRelease/app-cfpmi-release.aab
           retention-days: 1
 
       - name: Upload Split APKs (Artifact)
         uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
-          name: ladybird-release-apks
+          name: cfpmi-release-apks
           path: build/app/outputs/flutter-apk/*.apk
           retention-days: 1
 
@@ -98,15 +98,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Ensure release exists
-          gh release view latest-ladybird || gh release create latest-ladybird \
-            --title "Ladybird Schools - Latest Release (v2.0.1+2)" \
-            --notes "Automated build release"
+          gh release view latest-cfpmi || gh release create latest-cfpmi \
+            --title "CFPMI - Latest Release (v2.0.1+2)" \
+            --notes "Automated CFPMI build release"
 
           # Upload and overwrite assets with retry
           for attempt in 1 2 3; do
             echo "Uploading release assets (attempt $attempt)..."
-            if gh release upload latest-ladybird \
-              build/app/outputs/bundle/ladybirdRelease/app-ladybird-release.aab \
+            if gh release upload latest-cfpmi \
+              build/app/outputs/bundle/cfpmiRelease/app-cfpmi-release.aab \
               build/app/outputs/flutter-apk/*.apk \
               --clobber; then
               echo "Successfully uploaded release assets!"

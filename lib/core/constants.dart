@@ -2,7 +2,7 @@
 class AppConstants {
   AppConstants._();
 
-  static const String appName    = 'Ladybird Group of Schools';
+  static const String appName    = 'CFPMI';
   static const String appVersion = '2.0.1';
 
   // Firestore collections — schools subcollections

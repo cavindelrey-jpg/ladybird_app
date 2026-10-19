@@ -80,8 +80,13 @@ android {
     productFlavors {
         create("ladybird") {
             dimension = "brand"
-            applicationId = "com.example.academia_app.ladybird"
-            resValue("string", "app_name", "Ladybird Schools")
+            applicationId = "com.cfpmischools.app"
+            resValue("string", "app_name", "CFPMI")
+        }
+        create("cfpmi") {
+            dimension = "brand"
+            applicationId = "com.cfpmischools.app"
+            resValue("string", "app_name", "CFPMI")
         }
     }
 }

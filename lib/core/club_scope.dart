@@ -31,6 +31,9 @@ class ClubScope {
     if (s == 'ladybird' || s == 'ladybird_app' || s == 'lady_bird') {
       return 'ladybird';
     }
+    if (s == 'cfpmi' || s == 'cfpmi_schools' || s == 'cfpmi_app' || s == 'cfpmischools') {
+      return 'cfpmi';
+    }
     if (s == 'st_stephen' || s == 'ststephen' || s == 'st_stephens') {
       return 'st_stephen';
     }

@@ -1,10 +1,11 @@
 {
-  "appName": "Ladybird Group of Schools",
-  "tagline": "High Moral Standards, Academic Excellence",
+  "appName": "CFPMI",
+  "tagline": "Professional Training & Academic Excellence",
   "primaryColor": "#1E6FEB",
   "secondaryColor": "#0B1F4D",
   "accentColor": "#F4B400",
   "logoAssetPath": "assets/branding/ladybird_logo.jpg",
   "splashAssetPath": "assets/branding/ladybird_logo.jpg",
-  "voucherPrefix": "LB"
+  "voucherPrefix": "CF",
+  "schoolId": "cfpmi"
 }

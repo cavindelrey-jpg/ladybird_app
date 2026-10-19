@@ -27,7 +27,7 @@ class ExamDocxExportService {
       id: 'default',
       schoolId: '',
       name: 'Default',
-      schoolName: 'Ladybird International School',
+      schoolName: 'CFPMI',
     );
 
     final archive = Archive();

@@ -7,7 +7,7 @@ class PublicPortalScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ladybird Academy - Admissions & Portal'),
+        title: const Text('CFPMI - Admissions & Portal'),
         centerTitle: true,
       ),
       body: Center(
@@ -16,7 +16,7 @@ class PublicPortalScreen extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              const Text('Welcome to Ladybird Academy', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+              const Text('Welcome to CFPMI', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
               const SizedBox(height: 32),
               Card(
                 child: Padding(

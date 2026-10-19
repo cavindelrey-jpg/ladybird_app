@@ -105,7 +105,7 @@ class _SchoolCalendarPageState extends State<SchoolCalendarPage> {
     try {
       showToast(context, 'Generating Program of Activities PDF...');
       final file = await SchoolDocumentExportService.instance.exportActivitiesPdf(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'Ladybird International School',
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'CFPMI',
         events: _currentEvents,
       );
       if (!mounted) return;
@@ -123,7 +123,7 @@ class _SchoolCalendarPageState extends State<SchoolCalendarPage> {
     try {
       showToast(context, 'Generating Program of Activities Word document...');
       final file = await SchoolDocumentExportService.instance.exportActivitiesDocx(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'Ladybird International School',
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'CFPMI',
         events: _currentEvents,
       );
       if (!mounted) return;

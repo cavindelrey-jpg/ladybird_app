@@ -124,7 +124,7 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
     try {
       showToast(context, 'Generating Timetable PDF...');
       final file = await SchoolDocumentExportService.instance.exportTimetablePdf(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'Ladybird International School',
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'CFPMI',
         classLevel: _classLevel,
         slots: slots,
       );
@@ -144,7 +144,7 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
     try {
       showToast(context, 'Generating Timetable Word document...');
       final file = await SchoolDocumentExportService.instance.exportTimetableDocx(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'Ladybird International School',
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'CFPMI',
         classLevel: _classLevel,
         slots: slots,
       );

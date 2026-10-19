@@ -72,6 +72,7 @@ class AppColors extends ThemeExtension<AppColors> {
       case 'green_hill':
         return isDark ? greenHillDark : greenHillLight;
       case 'ladybird':
+      case 'cfpmi':
         return isDark ? ladybirdDark : ladybirdLight;
       default:
         return Theme.of(context).extension<AppColors>() ?? (isDark ? dark : light);

@@ -138,7 +138,7 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
       }
       showToast(context, 'Generating Staff Directory PDF...');
       final file = await SchoolDocumentExportService.instance.exportStaffDirectoryPdf(
-        schoolName: widget.admin.schoolName.isNotEmpty ? widget.admin.schoolName : 'Ladybird International School',
+        schoolName: widget.admin.schoolName.isNotEmpty ? widget.admin.schoolName : 'CFPMI',
         staff: staff,
       );
       if (!mounted) return;
@@ -157,7 +157,7 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
       }
       showToast(context, 'Generating Staff Directory Word document...');
       final file = await SchoolDocumentExportService.instance.exportStaffDirectoryDocx(
-        schoolName: widget.admin.schoolName.isNotEmpty ? widget.admin.schoolName : 'Ladybird International School',
+        schoolName: widget.admin.schoolName.isNotEmpty ? widget.admin.schoolName : 'CFPMI',
         staff: staff,
       );
       if (!mounted) return;

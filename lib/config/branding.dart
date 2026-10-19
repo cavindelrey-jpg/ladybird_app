@@ -47,7 +47,8 @@ class Branding {
   static String _fallbackPrefix(String brandId) {
     switch (brandId) {
       case 'green_hill': return 'GH';
-      case 'ladybird':   return 'LB';
+      case 'ladybird':   return 'CF';
+      case 'cfpmi':      return 'CF';
       case 'academia':   return 'AC';
       default:           return brandId.toUpperCase();
     }
@@ -56,42 +57,30 @@ class Branding {
   static String? _fallbackSchoolId(String brandId) {
     switch (brandId) {
       case 'green_hill': return 'green_hill';
-      case 'ladybird':   return 'ladybird';
+      case 'ladybird':   return 'cfpmi';
+      case 'cfpmi':      return 'cfpmi';
       case 'academia':   return null;
       default:           return brandId;
     }
   }
 
-  // This repo is the Ladybird fork of the Green Hills app (see
-  // docs/AUTOPILOT_LOG.md for the fork record) -- it ships as Ladybird
-  // only, same reasoning the Green Hills repo already used for defaulting
-  // to its own brand: "just run it" (a plain `flutter run`, an IDE launch
-  // config, a CI step someone forgets to flag) should render Ladybird,
-  // not fall through to Academia's or Green Hills' identity.
+  // CFPMI application brand configuration (domain: cfpmischools.com)
   static const String _envBrandId =
-      String.fromEnvironment('BRAND_ID', defaultValue: 'ladybird');
+      String.fromEnvironment('BRAND_ID', defaultValue: 'cfpmi');
 
   /// Hardcoded fallback so every screen has *something* to read even if
-  /// asset loading hasn't completed yet (or fails) -- matches this
-  /// codebase's existing "never a blank/broken screen" standard. main()
-  /// awaits [load] before runApp, so in practice this is only ever seen
-  /// for one frame at worst. Mirrors assets/branding/ladybird.json so
-  /// that one frame is Ladybird too. Name/tagline are exact (from
-  /// mockups/mockup1.jpg's home-screen header and mockups/mockup2.jpg's
-  /// logo); colors are eyeballed from those two images -- no colorpicker
-  /// tool available in this sandbox -- close but not pixel-exact. See
-  /// docs/AUTOPILOT_LOG.md.
+  /// asset loading hasn't completed yet (or fails).
   static Branding _current = const Branding(
     brandId: _envBrandId,
-    appName: 'Ladybird Group of Schools',
-    tagline: 'High Moral Standards, Academic Excellence',
+    appName: 'CFPMI',
+    tagline: 'Professional Training & Academic Excellence',
     primaryColor: const Color(0xFF1E6FEB),
     secondaryColor: const Color(0xFF0B1F4D),
     accentColor: const Color(0xFFF4B400),
     logoAssetPath: 'assets/branding/ladybird_logo.jpg',
     splashAssetPath: 'assets/branding/ladybird_logo.jpg',
-    voucherPrefix: 'LB',
-    schoolId: 'ladybird',
+    voucherPrefix: 'CF',
+    schoolId: 'cfpmi',
   );
 
   static Branding get current => _current;
@@ -103,15 +92,15 @@ class Branding {
     } else {
       _current = const Branding(
         brandId: _envBrandId,
-        appName: 'Ladybird Group of Schools',
-        tagline: 'High Moral Standards, Academic Excellence',
+        appName: 'CFPMI',
+        tagline: 'Professional Training & Academic Excellence',
         primaryColor: const Color(0xFF1E6FEB),
         secondaryColor: const Color(0xFF0B1F4D),
         accentColor: const Color(0xFFF4B400),
         logoAssetPath: 'assets/branding/ladybird_logo.jpg',
         splashAssetPath: 'assets/branding/ladybird_logo.jpg',
-        voucherPrefix: 'LB',
-        schoolId: 'ladybird',
+        voucherPrefix: 'CF',
+        schoolId: 'cfpmi',
       );
     }
   }

@@ -121,25 +121,35 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text('Edit Profile',
-            style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
-        actions: [
-          TextButton(
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'Edit Profile',
+      subtitle: 'Update your display name, bio, level, and subjects',
+      currentDestination: AppNavDestination.none,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: TextButton(
             onPressed: _saving ? null : _save,
             child: _saving
                 ? const SizedBox(width: 16, height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : Text('Save', style: GoogleFonts.sora(
-                    fontSize: 14, fontWeight: FontWeight.w700, color: ac.primary)),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: ac.primary,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text('Save', style: GoogleFonts.inter(
+                        fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+                  ),
           ),
-        ],
-      ),
-      body: AppBackground(child: SingleChildScrollView(
+        ),
+      ],
+      contextualPanel: _buildProfileEditContextualPanel(context, ac),
+      child: AppBackground(child: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(children: [
           Center(
@@ -247,6 +257,78 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
           ),
         ]),
       )),
+    );
+  }
+
+  Widget _buildProfileEditContextualPanel(BuildContext context, AppColors ac) {
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Row(
+          children: [
+            Icon(Icons.badge_outlined, color: ac.primary, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'Account Overview',
+              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: ac.txt),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        // Info card
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            children: [
+              _infoRow(ac, 'Role', widget.user.roleLabel, Icons.verified_user_outlined),
+              const Divider(height: 16),
+              _infoRow(ac, 'School ID', widget.user.schoolId ?? 'Independent', Icons.school_outlined),
+              const Divider(height: 16),
+              _infoRow(ac, 'Email', widget.user.email.isNotEmpty ? widget.user.email : 'Not linked', Icons.email_outlined),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // Guidelines
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Profile Guidelines', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: ac.txt)),
+              const SizedBox(height: 8),
+              Text(
+                'Your display name and bio are visible on your published articles, discussions, and leaderboards. Keep your favorite subjects updated to receive tailored course recommendations.',
+                style: GoogleFonts.inter(fontSize: 12, color: ac.txt2, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _infoRow(AppColors ac, String label, String value, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: ac.primary),
+        const SizedBox(width: 8),
+        Text(label, style: GoogleFonts.inter(fontSize: 12, color: ac.txt2)),
+        const Spacer(),
+        Text(value, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: ac.txt)),
+      ],
     );
   }
 

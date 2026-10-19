@@ -14,8 +14,11 @@ import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 import '../features/courses_marketplace/course_lessons_page.dart';
 import '../features/magazine/article_reader_page.dart';
-
+import '../features/magazine/magazine_feed_page.dart';
+import '../routes/app_routes.dart';
+import '../widgets/application_shell.dart';
 import '../widgets/app_background.dart';
+
 class BookmarksPage extends StatefulWidget {
   final AppUser user;
   const BookmarksPage({super.key, required this.user});
@@ -31,63 +34,144 @@ class _BookmarksPageState extends State<BookmarksPage> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        title: Text('My Bookmarks', style: GoogleFonts.sora(fontWeight: FontWeight.w700, color: ac.txt)),
-        iconTheme: IconThemeData(color: ac.txt),
-        bottom: TabBar(controller: _tc, labelColor: ac.primary, unselectedLabelColor: ac.txt2,
-            indicatorColor: ac.primary, tabs: const [Tab(text: 'Courses'), Tab(text: 'Magazine')]),
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'My Bookmarks',
+      subtitle: 'Saved courses and magazine articles',
+      currentDestination: AppNavDestination.none,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      contextualPanel: _buildBookmarksContextualPanel(context, ac),
+      child: AppBackground(
+        child: Column(
+          children: [
+            Container(
+              color: ac.surf,
+              child: TabBar(
+                controller: _tc,
+                labelColor: ac.primary,
+                unselectedLabelColor: ac.txt2,
+                indicatorColor: ac.primary,
+                tabs: const [Tab(text: 'Courses'), Tab(text: 'Magazine')],
+              ),
+            ),
+            Expanded(
+              child: TabBarView(
+                controller: _tc,
+                children: [
+                  StreamBuilder<List<PublicCourse>>(
+                    stream: PublicCourseRepository.instance.watchBookmarkedCourses(widget.user.id),
+                    builder: (context, snap) {
+                      if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+                      final courses = snap.data!;
+                      if (courses.isEmpty) {
+                        return const _Empty(icon: Icons.bookmark_border_rounded, text: 'No saved courses yet.');
+                      }
+                      return ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: courses.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (context, i) {
+                          final c = courses[i];
+                          return _BookmarkTile(
+                            title: c.title, subtitle: c.creatorName, imageUrl: c.coverImageUrl,
+                            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) => CourseLessonsPage(course: c, currentUser: widget.user))),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                  StreamBuilder<List<MagazineArticle>>(
+                    stream: MagazineRepository.instance.watchBookmarkedArticles(widget.user.id),
+                    builder: (context, snap) {
+                      if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+                      final articles = snap.data!;
+                      if (articles.isEmpty) {
+                        return const _Empty(icon: Icons.bookmark_border_rounded, text: 'No saved articles yet.');
+                      }
+                      return ListView.separated(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: articles.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (context, i) {
+                          final a = articles[i];
+                          return _BookmarkTile(
+                            title: a.title, subtitle: a.authorName, imageUrl: a.thumbnailUrl,
+                            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) => ArticleReaderPage(article: a, currentUser: widget.user))),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-      body: AppBackground(child: TabBarView(controller: _tc, children: [
-        StreamBuilder<List<PublicCourse>>(
-          stream: PublicCourseRepository.instance.watchBookmarkedCourses(widget.user.id),
-          builder: (context, snap) {
-            if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-            final courses = snap.data!;
-            if (courses.isEmpty) {
-              return const _Empty(icon: Icons.bookmark_border_rounded, text: 'No saved courses yet.');
-            }
-            return ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: courses.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, i) {
-                final c = courses[i];
-                return _BookmarkTile(
-                  title: c.title, subtitle: c.creatorName, imageUrl: c.coverImageUrl,
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => CourseLessonsPage(course: c, currentUser: widget.user))),
-                );
-              },
-            );
-          },
+    );
+  }
+
+  Widget _buildBookmarksContextualPanel(BuildContext context, AppColors ac) {
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Row(
+          children: [
+            Icon(Icons.bookmark_rounded, color: ac.primary, size: 20),
+            const SizedBox(width: 8),
+            Text('Saved Reading', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: ac.txt)),
+          ],
         ),
-        StreamBuilder<List<MagazineArticle>>(
-          stream: MagazineRepository.instance.watchBookmarkedArticles(widget.user.id),
-          builder: (context, snap) {
-            if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-            final articles = snap.data!;
-            if (articles.isEmpty) {
-              return const _Empty(icon: Icons.bookmark_border_rounded, text: 'No saved articles yet.');
-            }
-            return ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: articles.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, i) {
-                final a = articles[i];
-                return _BookmarkTile(
-                  title: a.title, subtitle: a.authorName, imageUrl: a.thumbnailUrl,
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => ArticleReaderPage(article: a, currentUser: widget.user))),
-                );
-              },
-            );
-          },
+        const SizedBox(height: 14),
+
+        // Quick tip
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: ac.surf2,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Quick Access', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: ac.txt)),
+              const SizedBox(height: 6),
+              Text(
+                'Bookmark full courses and insightful articles so you can revisit them anytime without searching through the catalog.',
+                style: GoogleFonts.inter(fontSize: 12, color: ac.txt2, height: 1.4),
+              ),
+            ],
+          ),
         ),
-      ])),
+        const SizedBox(height: 20),
+
+        // Browse Links
+        Text('Explore More', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: ac.txt)),
+        const SizedBox(height: 10),
+        ListTile(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          tileColor: ac.surf,
+          leading: Icon(Icons.menu_book_rounded, color: ac.primary),
+          title: Text('Explore Courses', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: ac.txt)),
+          trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: ac.muted),
+          onTap: () => Navigator.of(context).pushNamed(AppRoutes.courses),
+        ),
+        const SizedBox(height: 8),
+        ListTile(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          tileColor: ac.surf,
+          leading: Icon(Icons.article_outlined, color: ac.primary),
+          title: Text('School Magazine', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: ac.txt)),
+          trailing: Icon(Icons.arrow_forward_ios_rounded, size: 14, color: ac.muted),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => MagazineFeedPage(user: widget.user)),
+          ),
+        ),
+      ],
     );
   }
 }

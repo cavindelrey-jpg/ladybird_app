@@ -28,7 +28,6 @@ import '../../services/course_offline_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/app_background.dart';
 import '../../widgets/formula_embed_builder.dart';
 import '../../widgets/media_players.dart';
 import '../../widgets/premium_unlock_sheet.dart';
@@ -97,45 +96,56 @@ class _LessonReaderPageState extends State<LessonReaderPage> with SingleTickerPr
     final ac = AppColors.of(context);
     final lesson = widget.lesson;
     final hasVideo = (lesson.videoUrl ?? '').isNotEmpty;
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text(lesson.title, style: AppText.title.copyWith(fontSize: 15), maxLines: 1, overflow: TextOverflow.ellipsis),
+    return ApplicationShell(
+      user: widget.currentUser,
+      currentTitle: lesson.title,
+      subtitle: widget.course.title,
+      currentDestination: AppNavDestination.academicCourses,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      contextualPanel: _LessonReaderRightPanel(
+        course: widget.course,
+        lesson: lesson,
+        currentUser: widget.currentUser,
+        onContinue: () => _continue(context),
       ),
-      body: AppBackground(child: Column(children: [
-        if (hasVideo)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: _LockedVideoCard(lesson: lesson, currentUser: widget.currentUser),
-          ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: TabBar(
-            controller: _tabCtrl,
-            labelColor: ac.primary, unselectedLabelColor: ac.muted,
-            indicatorColor: ac.primary,
-            labelStyle: AppText.subtitle.copyWith(fontSize: 13, fontWeight: FontWeight.w700),
-            unselectedLabelStyle: AppText.subtitle.copyWith(fontSize: 13),
-            tabs: const [
-              Tab(text: 'Overview'), Tab(text: 'Resources'), Tab(text: 'Notes'), Tab(text: 'Comments'),
-            ],
-          ),
-        ),
-        Expanded(
-          child: TabBarView(controller: _tabCtrl, children: [
-            _OverviewTab(course: widget.course, lesson: lesson, hasVideo: hasVideo, currentUser: widget.currentUser,
-                onContinue: () => _continue(context)),
-            const _EmptyTab(message: 'No resources have been added to this lesson yet.'),
-            const _EmptyTab(message: 'Your personal notes for this lesson will appear here.'),
-            _CommentsTab(
-              course: widget.course, currentUser: widget.currentUser,
-              commentCtrl: _commentCtrl, posting: _postingComment, onPost: _postComment,
+      child: Column(
+        children: [
+          if (hasVideo)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: _LockedVideoCard(lesson: lesson, currentUser: widget.currentUser),
             ),
-          ]),
-        ),
-      ])),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: TabBar(
+              controller: _tabCtrl,
+              labelColor: ac.primary, unselectedLabelColor: ac.muted,
+              indicatorColor: ac.primary,
+              labelStyle: AppText.subtitle.copyWith(fontSize: 13, fontWeight: FontWeight.w700),
+              unselectedLabelStyle: AppText.subtitle.copyWith(fontSize: 13),
+              tabs: const [
+                Tab(text: 'Overview'), Tab(text: 'Resources'), Tab(text: 'Notes'), Tab(text: 'Comments'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabCtrl,
+              children: [
+                _OverviewTab(course: widget.course, lesson: lesson, hasVideo: hasVideo, currentUser: widget.currentUser,
+                    onContinue: () => _continue(context)),
+                const _EmptyTab(message: 'No resources have been added to this lesson yet.'),
+                const _EmptyTab(message: 'Your personal notes for this lesson will appear here.'),
+                _CommentsTab(
+                  course: widget.course, currentUser: widget.currentUser,
+                  commentCtrl: _commentCtrl, posting: _postingComment, onPost: _postComment,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -632,3 +642,177 @@ class _CommentsTab extends StatelessWidget {
     );
   }
 }
+
+class _LessonReaderRightPanel extends StatelessWidget {
+  final PublicCourse course;
+  final CourseLesson lesson;
+  final AppUser? currentUser;
+  final VoidCallback onContinue;
+
+  const _LessonReaderRightPanel({
+    required this.course,
+    required this.lesson,
+    required this.currentUser,
+    required this.onContinue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final userId = currentUser?.id ?? 'guest';
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.auto_stories_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('LESSON DETAILS',
+                      style: AppText.label.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                lesson.title,
+                style: AppText.title.copyWith(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                course.title,
+                style: AppText.caption.copyWith(color: ac.muted, fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  if (course.category.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: ac.bluBg, borderRadius: BorderRadius.circular(6)),
+                      child: Text(course.category,
+                          style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w600, color: ac.blu)),
+                    ),
+                  if (course.level.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: ac.grnBg, borderRadius: BorderRadius.circular(6)),
+                      child: Text(course.level,
+                          style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w600, color: ac.grn)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Divider(),
+              const SizedBox(height: 8),
+              if (lesson.durationSeconds != null && lesson.durationSeconds! > 0) ...[
+                _statRow(ac, Icons.schedule_rounded, 'Duration', '${(lesson.durationSeconds! / 60).ceil()} mins'),
+                const SizedBox(height: 6),
+              ],
+              _statRow(ac, Icons.visibility_outlined, 'Viewers', '${lesson.viewCount}'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.bolt_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('ACTIONS & NAVIGATION',
+                      style: AppText.label.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: onContinue,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE5A93C),
+                    foregroundColor: const Color(0xFF081630),
+                  ),
+                  icon: const Icon(Icons.navigate_next_rounded, size: 20),
+                  label: const Text('Next Lesson / Finish'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              StreamBuilder<Set<String>>(
+                stream: CourseOfflineService.instance.watchCompletedLessonIds(userId, course.id),
+                builder: (context, snap) {
+                  final completed = (snap.data ?? const <String>{}).contains(lesson.id);
+                  return SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        HapticFeedback.lightImpact();
+                        await CourseOfflineService.instance.toggleLessonCompleted(
+                          userId,
+                          course.id,
+                          lesson.id,
+                        );
+                      },
+                      icon: Icon(
+                        completed ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                        size: 18,
+                        color: completed ? Colors.green : ac.muted,
+                      ),
+                      label: Text(
+                        completed ? 'Completed' : 'Mark as Completed',
+                        style: TextStyle(color: completed ? Colors.green : ac.txt),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Share.share('Study "${lesson.title}" from "${course.title}" on Academia.');
+                  },
+                  icon: const Icon(Icons.share_outlined, size: 18),
+                  label: const Text('Share Lesson'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _statRow(AppColors ac, IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: ac.muted),
+        const SizedBox(width: 6),
+        Text(label, style: AppText.caption.copyWith(color: ac.muted, fontSize: 12)),
+        const Spacer(),
+        Text(value, style: AppText.caption.copyWith(color: ac.txt, fontWeight: FontWeight.w600, fontSize: 12)),
+      ],
+    );
+  }
+}
+

@@ -48,6 +48,12 @@ class _TopicCoursesPageState extends State<TopicCoursesPage> {
       destination: AppNavDestination.academicCourses,
       title: widget.topic,
       subtitle: '${_courses.length} course${_courses.length == 1 ? '' : 's'}',
+      contextualPanel: _TopicCoursesRightPanel(
+        level: widget.level,
+        subject: widget.subject,
+        topic: widget.topic,
+        coursesCount: _courses.length,
+      ),
       searchHint: 'Search courses…',
       loading: _loading,
       items: _courses,
@@ -134,3 +140,82 @@ class _CourseTile extends StatelessWidget {
     );
   }
 }
+
+class _TopicCoursesRightPanel extends StatelessWidget {
+  final String level;
+  final String subject;
+  final String topic;
+  final int coursesCount;
+
+  const _TopicCoursesRightPanel({
+    required this.level,
+    required this.subject,
+    required this.topic,
+    required this.coursesCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.menu_book_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('TOPIC COURSES',
+                      style: AppText.label.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                topic,
+                style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$subject · $level',
+                style: AppText.caption.copyWith(color: ac.muted, fontSize: 12),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE5A93C).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '$coursesCount Published Course${coursesCount == 1 ? '' : 's'}',
+                  style: AppText.caption.copyWith(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFFE5A93C),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Divider(),
+              const SizedBox(height: 8),
+              Text(
+                'Each course is structured into sequential lesson units with rich reading material, offline caching, and knowledge assessments.',
+                style: AppText.caption.copyWith(color: ac.muted, fontSize: 11.5),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+

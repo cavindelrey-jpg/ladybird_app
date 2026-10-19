@@ -53,11 +53,17 @@ class _LevelSubjectsPageState extends State<LevelSubjectsPage> {
   @override
   Widget build(BuildContext context) {
     final subjects = _counts.keys.toList()..sort();
+    final totalCourses = _counts.values.fold<int>(0, (a, b) => a + b);
     return HierarchyBrowseScaffold<String>(
       user: widget.user,
       destination: AppNavDestination.academicCourses,
       title: widget.level,
-      subtitle: '${_counts.values.fold<int>(0, (a, b) => a + b)} courses',
+      subtitle: '$totalCourses courses',
+      contextualPanel: _LevelSubjectsRightPanel(
+        level: widget.level,
+        subjectCount: subjects.length,
+        totalCourses: totalCourses,
+      ),
       searchHint: 'Search subjects…',
       loading: _loading,
       items: subjects,
@@ -179,3 +185,95 @@ class _SubjectTile extends StatelessWidget {
     );
   }
 }
+
+class _LevelSubjectsRightPanel extends StatelessWidget {
+  final String level;
+  final int subjectCount;
+  final int totalCourses;
+
+  const _LevelSubjectsRightPanel({
+    required this.level,
+    required this.subjectCount,
+    required this.totalCourses,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.school_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('CURRICULUM LEVEL',
+                      style: AppText.label.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                level,
+                style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5A93C).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '$subjectCount Subject${subjectCount == 1 ? '' : 's'}',
+                      style: AppText.caption.copyWith(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFFE5A93C),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: ac.surf2,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '$totalCourses Courses',
+                      style: AppText.caption.copyWith(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: ac.muted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Divider(),
+              const SizedBox(height: 8),
+              Text(
+                'Explore all subjects under $level. Select any subject to view detailed topic modules and verified courses.',
+                style: AppText.caption.copyWith(color: ac.muted, fontSize: 11.5),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+

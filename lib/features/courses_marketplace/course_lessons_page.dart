@@ -234,6 +234,16 @@ class _CourseLessonsPageState extends State<CourseLessonsPage> {
               destination: AppNavDestination.academicCourses,
               title: widget.course.title,
               subtitle: '${lessons.length} lesson${lessons.length == 1 ? '' : 's'}',
+              contextualPanel: _CourseLessonsRightPanel(
+                course: widget.course,
+                totalLessons: total,
+                completedLessons: completed,
+                progressPct: pct,
+                isDownloaded: _isDownloaded,
+                downloading: _downloading,
+                downloadProgress: _downloadProgress,
+                onDownloadPress: _handleDownloadPress,
+              ),
               searchHint: 'Search lessons…',
               loading: loading,
               items: lessons,
@@ -391,3 +401,171 @@ class _LessonTile extends StatelessWidget {
     );
   }
 }
+
+class _CourseLessonsRightPanel extends StatelessWidget {
+  final PublicCourse course;
+  final int totalLessons;
+  final int completedLessons;
+  final double progressPct;
+  final bool isDownloaded;
+  final bool downloading;
+  final double downloadProgress;
+  final VoidCallback onDownloadPress;
+
+  const _CourseLessonsRightPanel({
+    required this.course,
+    required this.totalLessons,
+    required this.completedLessons,
+    required this.progressPct,
+    required this.isDownloaded,
+    required this.downloading,
+    required this.downloadProgress,
+    required this.onDownloadPress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.menu_book_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('COURSE OVERVIEW',
+                      style: AppText.label.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                course.title,
+                style: AppText.title.copyWith(fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt),
+              ),
+              if (course.description.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  course.description,
+                  style: AppText.caption.copyWith(color: ac.txt2, fontSize: 12),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  if (course.category.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: ac.bluBg, borderRadius: BorderRadius.circular(6)),
+                      child: Text(course.category,
+                          style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w600, color: ac.blu)),
+                    ),
+                  if (course.level.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: ac.grnBg, borderRadius: BorderRadius.circular(6)),
+                      child: Text(course.level,
+                          style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w600, color: ac.grn)),
+                    ),
+                  if (course.topic.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: ac.goldBg, borderRadius: BorderRadius.circular(6)),
+                      child: Text(course.topic,
+                          style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w600, color: ac.gold)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Divider(),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.checklist_rounded, size: 16, color: ac.muted),
+                  const SizedBox(width: 6),
+                  Text('Lessons Completed', style: AppText.caption.copyWith(color: ac.muted, fontSize: 12)),
+                  const Spacer(),
+                  Text('$completedLessons / $totalLessons',
+                      style: AppText.caption.copyWith(color: ac.txt, fontWeight: FontWeight.w700, fontSize: 12)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progressPct,
+                  backgroundColor: ac.surf3,
+                  color: progressPct >= 1.0 ? Colors.green : ac.primary,
+                  minHeight: 6,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.offline_pin_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('OFFLINE ACCESS',
+                      style: AppText.label.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: downloading ? null : onDownloadPress,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isDownloaded ? ac.surf2 : const Color(0xFFE5A93C),
+                    foregroundColor: isDownloaded ? ac.txt : const Color(0xFF081630),
+                  ),
+                  icon: downloading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : Icon(
+                          isDownloaded ? Icons.offline_pin_rounded : Icons.download_for_offline_outlined,
+                          size: 18,
+                          color: isDownloaded ? Colors.green : const Color(0xFF081630),
+                        ),
+                  label: Text(
+                    downloading
+                        ? 'Downloading… ${(downloadProgress * 100).toInt()}%'
+                        : (isDownloaded ? 'Downloaded (Offline Ready)' : 'Download Full Course'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+

@@ -71,6 +71,20 @@ jobs:
                   fh.write(content)
           PY
 
+      - name: Build Web (CFPMI)
+        run: flutter build web --release --dart-define=BRAND_ID=cfpmi
+
+      - name: Archive Web build
+        run: cd build && zip -r cfpmi-web-release.zip web
+
+      - name: Upload Web Build (Artifact)
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: cfpmi-web-release
+          path: build/web
+          retention-days: 1
+
       - name: Build AppBundle and Split APKs
         run: |
           flutter build appbundle --release --flavor cfpmi --dart-define=BRAND_ID=cfpmi
@@ -108,6 +122,7 @@ jobs:
             if gh release upload latest-cfpmi \
               build/app/outputs/bundle/cfpmiRelease/app-cfpmi-release.aab \
               build/app/outputs/flutter-apk/*.apk \
+              build/cfpmi-web-release.zip \
               --clobber; then
               echo "Successfully uploaded release assets!"
               exit 0

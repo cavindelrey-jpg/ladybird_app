@@ -559,6 +559,41 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             ),
           ),
           Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: 280,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.horizontal(right: Radius.circular(Rad.md)),
+              child: Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF132D5E).withOpacity(0.0),
+                          const Color(0xFFD97706).withOpacity(0.12),
+                          const Color(0xFF1E3A8A).withOpacity(0.35),
+                        ],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 24,
+                    top: 24,
+                    bottom: 36,
+                    child: Opacity(
+                      opacity: 0.15,
+                      child: const Icon(Icons.auto_stories_rounded, size: 140, color: Color(0xFFF4B400)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
             right: 24,
             bottom: 16,
             child: Row(
@@ -745,11 +780,11 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
 
   Widget _mockupRecommendedArticles(BuildContext context) {
     final articles = [
-      ('Biology', const Color(0xFF0284C7), 'The Role of Genetics in Modern Medicine', '2 min read'),
-      ('Geography', const Color(0xFF16A34A), 'Climate Change and Its Global Impact', '4 min read'),
-      ('Psychology', const Color(0xFF7C3AED), 'The Science of Memory', '3 min read'),
-      ('History', const Color(0xFFEA580C), 'The African Renaissance', '5 min read'),
-      ('Mathematics', const Color(0xFF0D9488), 'Solving Quadratic Equations', '3 min read'),
+      ('Biology', const Color(0xFF0284C7), 'The Role of Genetics in Modern Medicine', '2 min read', Icons.biotech_rounded),
+      ('Geography', const Color(0xFF16A34A), 'Climate Change and Its Global Impact', '4 min read', Icons.public_rounded),
+      ('Psychology', const Color(0xFF7C3AED), 'The Science of Memory', '3 min read', Icons.psychology_rounded),
+      ('History', const Color(0xFFEA580C), 'The African Renaissance', '5 min read', Icons.account_balance_rounded),
+      ('Mathematics', const Color(0xFF0D9488), 'Solving Quadratic Equations', '3 min read', Icons.functions_rounded),
     ];
 
     return Column(
@@ -791,7 +826,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
             itemCount: articles.length,
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, i) {
-              final (tag, tagColor, title, readTime) = articles[i];
+              final (tag, tagColor, title, readTime, icon) = articles[i];
               return Container(
                 width: 190,
                 decoration: BoxDecoration(
@@ -815,7 +850,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                           ),
                         ),
                         child: Center(
-                          child: Icon(Icons.auto_stories_rounded, color: Colors.white.withOpacity(0.7), size: 32),
+                          child: Icon(icon, color: Colors.white.withOpacity(0.9), size: 34),
                         ),
                       ),
                       Padding(

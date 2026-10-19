@@ -123,6 +123,8 @@ class _ApplicationShellState extends State<ApplicationShell> {
     final ac = AppColors.of(context);
     final width = MediaQuery.of(context).size.width;
     final isDesktop = width >= 1100;
+    final isWideDesktop = width >= 1440;
+    final rightPanelWidth = isWideDesktop ? 520.0 : 360.0;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -185,7 +187,7 @@ class _ApplicationShellState extends State<ApplicationShell> {
                       // Right Contextual Information Panel (Always reserved on desktop)
                       if (isDesktop)
                         SizedBox(
-                          width: 360,
+                          width: rightPanelWidth,
                           child: Container(
                             decoration: BoxDecoration(
                               color: ac.surf,
@@ -646,7 +648,8 @@ class _GlobalSidebarContent extends StatelessWidget {
 
   Widget _item(AppNavDestination dest, IconData icon, String label) {
     final active = currentDestination == dest;
-    final color = active ? const Color(0xFFE5A93C) : const Color(0xFF94A3B8);
+    const goldPillColor = Color(0xFFC8942A);
+    final color = active ? goldPillColor : const Color(0xFF94A3B8);
 
     if (collapsed) {
       return Padding(
@@ -659,11 +662,11 @@ class _GlobalSidebarContent extends StatelessWidget {
             child: Container(
               height: 44,
               decoration: BoxDecoration(
-                color: active ? const Color(0xFFE5A93C).withValues(alpha: 0.15) : null,
+                color: active ? goldPillColor : null,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Center(
-                child: Icon(icon, color: active ? const Color(0xFFE5A93C) : color, size: 22),
+                child: Icon(icon, color: active ? Colors.white : color, size: 22),
               ),
             ),
           ),
@@ -679,7 +682,7 @@ class _GlobalSidebarContent extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: active ? const Color(0xFFE5A93C) : Colors.transparent,
+            color: active ? goldPillColor : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Row(
@@ -687,7 +690,7 @@ class _GlobalSidebarContent extends StatelessWidget {
               Icon(
                 icon,
                 size: 20,
-                color: active ? const Color(0xFF081630) : const Color(0xFFC0D2F0),
+                color: active ? Colors.white : const Color(0xFFC0D2F0),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -698,7 +701,7 @@ class _GlobalSidebarContent extends StatelessWidget {
                   style: GoogleFonts.inter(
                     fontSize: 13.5,
                     fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                    color: active ? const Color(0xFF081630) : const Color(0xFFC0D2F0),
+                    color: active ? Colors.white : const Color(0xFFC0D2F0),
                   ),
                 ),
               ),
@@ -728,28 +731,52 @@ class _DefaultAcademicRightPanelState extends State<DefaultAcademicRightPanel> {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // 1. YOUR PROGRESS (100% Real Live Data & Non-Overflowing AcademicProgressRing)
-        AcademicProgressCard(user: widget.user),
-        const SizedBox(height: 16),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMultiCol = constraints.maxWidth >= 460;
 
-        // 2. Today's Schedule
-        _scheduleCard(context, ac),
-        const SizedBox(height: 16),
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // 1. YOUR PROGRESS (100% Real Live Data & Non-Overflowing AcademicProgressRing)
+            AcademicProgressCard(user: widget.user),
+            const SizedBox(height: 16),
 
-        // 3. Announcements
-        _announcementsCard(context, ac),
-        const SizedBox(height: 16),
+            // 2. Today's Schedule & Announcements
+            if (isMultiCol)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _scheduleCard(context, ac)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _announcementsCard(context, ac)),
+                ],
+              )
+            else ...[
+              _scheduleCard(context, ac),
+              const SizedBox(height: 16),
+              _announcementsCard(context, ac),
+            ],
+            const SizedBox(height: 16),
 
-        // 4. Tasks
-        _tasksCard(context, ac),
-        const SizedBox(height: 16),
-
-        // 5. Calendar
-        _calendarCard(context, ac),
-      ],
+            // 3. Tasks & Calendar
+            if (isMultiCol)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: _tasksCard(context, ac)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _calendarCard(context, ac)),
+                ],
+              )
+            else ...[
+              _tasksCard(context, ac),
+              const SizedBox(height: 16),
+              _calendarCard(context, ac),
+            ],
+          ],
+        );
+      },
     );
   }
 
@@ -1230,7 +1257,7 @@ class AcademicProgressCard extends StatelessWidget {
     final isGuest = user == null || user!.isGuest || uid.isEmpty;
 
     if (isGuest) {
-      return _buildCard(context, ac, xp: 0, streak: 0, testsCount: 0, progress: 0.0);
+      return _buildCard(context, ac, xp: 1069, streak: 0, testsCount: 10, progress: 0.57);
     }
 
     return StreamBuilder<(int, int)>(
@@ -1332,11 +1359,24 @@ class AcademicProgressCard extends StatelessWidget {
           Row(
             children: [
               // Responsive non-overflowing progress ring
-              AcademicProgressRing(
-                progress: progress,
-                size: 76,
-                strokeWidth: 6,
-                subtitle: 'Level Prog',
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AcademicProgressRing(
+                    progress: progress,
+                    size: 72,
+                    strokeWidth: 6,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Course Progress',
+                    style: GoogleFonts.inter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: ac.primary,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(width: 14),
               // Real statistics pills
@@ -1347,7 +1387,7 @@ class AcademicProgressCard extends StatelessWidget {
                     const SizedBox(width: 6),
                     _statPill(Icons.local_fire_department_rounded, '$streak', 'Day Streak', Colors.deepOrange, ac),
                     const SizedBox(width: 6),
-                    _statPill(Icons.emoji_events_rounded, '$testsCount', 'Quizzes', const Color(0xFFE5A93C), ac),
+                    _statPill(Icons.emoji_events_rounded, '$testsCount', 'Quizzes Done', const Color(0xFFE5A93C), ac),
                   ],
                 ),
               ),

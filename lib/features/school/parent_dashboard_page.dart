@@ -28,6 +28,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
+import '../../widgets/application_shell.dart';
 
 class ParentDashboardPage extends StatefulWidget {
   final AppUser user;
@@ -50,14 +51,12 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text('My Children', style: AppText.title),
-      ),
-      body: AppBackground(child: FutureBuilder<List<LinkedStudent>>(
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'Parent Portal',
+      subtitle: 'My Children & Academic Linkages',
+      currentDestination: AppNavDestination.home,
+      child: AppBackground(child: FutureBuilder<List<LinkedStudent>>(
         future: _linkedFuture,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {

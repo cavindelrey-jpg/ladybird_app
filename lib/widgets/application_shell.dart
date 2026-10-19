@@ -105,10 +105,10 @@ class _ApplicationShellState extends State<ApplicationShell> {
         return MarksRightPanel(user: widget.user);
       case AppNavDestination.homework:
         return HomeworkRightPanel(user: widget.user);
-      case AppNavDestination.timetable:
-        return TimetableRightPanel(user: widget.user);
-      default:
+      case AppNavDestination.home:
         return DefaultAcademicRightPanel(user: widget.user);
+      default:
+        return const SizedBox.expand();
     }
   }
 
@@ -122,30 +122,19 @@ class _ApplicationShellState extends State<ApplicationShell> {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     final width = MediaQuery.of(context).size.width;
-    final isDesktop = width >= 1100;
     final isWideDesktop = width >= 1440;
-    final rightPanelWidth = isWideDesktop ? 520.0 : 360.0;
+    final isDesktop = width >= 960;
+    final isMedium = width >= 650;
+    final leftRailWidth = isMedium ? 76.0 : 64.0;
+    final rightPanelWidth = isWideDesktop
+        ? 520.0
+        : (isDesktop ? 360.0 : (isMedium ? 260.0 : 200.0));
 
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: ac.bg,
       floatingActionButton: widget.floatingActionButton,
-      drawer: isDesktop
-          ? null
-          : Drawer(
-              backgroundColor: const Color(0xFF081630),
-              child: SafeArea(
-                child: _GlobalSidebarContent(
-                  user: widget.user,
-                  currentDestination: widget.currentDestination,
-                  collapsed: false,
-                  onSelectDestination: (dest) {
-                    Navigator.of(context).pop();
-                    _navigateTo(context, dest);
-                  },
-                ),
-              ),
-            ),
+      drawer: null,
       body: SafeArea(
         child: Column(
           children: [
@@ -156,25 +145,18 @@ class _ApplicationShellState extends State<ApplicationShell> {
               subtitle: widget.subtitle,
               showBackButton: widget.showBackButton,
               onBack: widget.onBack,
-              onToggleSidebar: () {
-                if (isDesktop) {
-                  setState(() => _sidebarPinned = !_sidebarPinned);
-                } else {
-                  _scaffoldKey.currentState?.openDrawer();
-                }
-              },
+              onToggleSidebar: () {},
             ),
 
-            // ── Main Body: Hover Left Sidebar + Stationary Workspace + Reserved Right Panel ──
+            // ── Main Body: Persistent Left Sidebar + Stationary Workspace + Reserved Right Panel ──
             Expanded(
               child: Stack(
                 children: [
-                  // 1. Fixed Structural Layout: Fixed 76px rail slot + Central Workspace + Reserved Right Panel (360px)
+                  // 1. Fixed Structural Layout: Persistent compact rail slot + Central Workspace + Reserved Right Panel
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (isDesktop)
-                        const SizedBox(width: 76),
+                      SizedBox(width: leftRailWidth),
 
                       // Center Main Workspace (Stationary, never shifts or resizes on sidebar hover)
                       Expanded(
@@ -184,58 +166,56 @@ class _ApplicationShellState extends State<ApplicationShell> {
                         ),
                       ),
 
-                      // Right Contextual Information Panel (Always reserved on desktop)
-                      if (isDesktop)
-                        SizedBox(
-                          width: rightPanelWidth,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: ac.surf,
-                              border: Border(left: BorderSide(color: ac.bdr)),
-                            ),
-                            child: _buildContextualPanel(context),
+                      // Right Contextual Information Panel (Always reserved across all pages)
+                      SizedBox(
+                        width: rightPanelWidth,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: ac.surf,
+                            border: Border(left: BorderSide(color: ac.bdr)),
                           ),
+                          child: _buildContextualPanel(context),
                         ),
+                      ),
                     ],
                   ),
 
-                  // 2. Left Sidebar (Desktop): Expands on hover or toggle, overlays without moving central content
-                  if (isDesktop)
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      child: MouseRegion(
-                        onEnter: (_) => setState(() => _sidebarHovered = true),
-                        onExit: (_) => setState(() => _sidebarHovered = false),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeOutCubic,
-                          width: _isSidebarExpanded ? 240 : 76,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF081630),
-                            border: const Border(
-                              right: BorderSide(color: Color(0xFF162544), width: 1),
-                            ),
-                            boxShadow: _isSidebarExpanded
-                                ? [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(alpha: 0.35),
-                                      blurRadius: 16,
-                                      offset: const Offset(4, 0),
-                                    )
-                                  ]
-                                : null,
+                  // 2. Left Sidebar: Expands on hover or toggle, overlays without moving central content
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: MouseRegion(
+                      onEnter: (_) => setState(() => _sidebarHovered = true),
+                      onExit: (_) => setState(() => _sidebarHovered = false),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutCubic,
+                        width: _isSidebarExpanded ? 240 : leftRailWidth,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF081630),
+                          border: const Border(
+                            right: BorderSide(color: Color(0xFF162544), width: 1),
                           ),
-                          child: _GlobalSidebarContent(
-                            user: widget.user,
-                            currentDestination: widget.currentDestination,
-                            collapsed: !_isSidebarExpanded,
-                            onSelectDestination: (dest) => _navigateTo(context, dest),
-                          ),
+                          boxShadow: _isSidebarExpanded
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.35),
+                                    blurRadius: 16,
+                                    offset: const Offset(4, 0),
+                                  )
+                                ]
+                              : null,
+                        ),
+                        child: _GlobalSidebarContent(
+                          user: widget.user,
+                          currentDestination: widget.currentDestination,
+                          collapsed: !_isSidebarExpanded,
+                          onSelectDestination: (dest) => _navigateTo(context, dest),
                         ),
                       ),
                     ),
+                  ),
                 ],
               ),
             ),
@@ -281,7 +261,7 @@ class _GlobalTopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Left: Back button or Hamburger button
+          // Left: Back button only if navigated to or showBackButton is true
           if (showBackButton || Navigator.of(context).canPop())
             IconButton(
               icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
@@ -289,12 +269,7 @@ class _GlobalTopBar extends StatelessWidget {
               tooltip: 'Go Back',
             )
           else
-            IconButton(
-              icon: const Icon(Icons.menu_rounded, color: Colors.white, size: 24),
-              onPressed: onToggleSidebar,
-              tooltip: 'Navigation Menu',
-            ),
-          const SizedBox(width: 8),
+            const SizedBox(width: 8),
 
           // Left: Current Page Title + Subtitle
           Flexible(

@@ -64,22 +64,26 @@ class _LeaderboardPageState extends State<LeaderboardPage> with SingleTickerProv
             child: AppBackground(
               child: TabBarView(
                 controller: _tabs,
-        children: [
-          _LeaderboardList(
-            future: LeaderboardRepository.instance.getSchoolLeaderboard(widget.user.schoolId ?? ''),
-            me: widget.user.id,
-            emptySubtitle: widget.user.schoolId == null || widget.user.schoolId!.isEmpty
-                ? 'Join a school to see its leaderboard.'
-                : 'No ranked students yet — be the first to earn XP.',
-          ),
-          if (_showGlobal)
-            _LeaderboardList(
-              future: LeaderboardRepository.instance.getGlobalLeaderboard(),
-              me: widget.user.id,
-              emptySubtitle: 'No ranked students yet — be the first to earn XP.',
+                children: [
+                  _LeaderboardList(
+                    future: LeaderboardRepository.instance.getSchoolLeaderboard(widget.user.schoolId ?? ''),
+                    me: widget.user.id,
+                    emptySubtitle: widget.user.schoolId == null || widget.user.schoolId!.isEmpty
+                        ? 'Join a school to see its leaderboard.'
+                        : 'No ranked students yet — be the first to earn XP.',
+                  ),
+                  if (_showGlobal)
+                    _LeaderboardList(
+                      future: LeaderboardRepository.instance.getGlobalLeaderboard(),
+                      me: widget.user.id,
+                      emptySubtitle: 'No ranked students yet — be the first to earn XP.',
+                    ),
+                ],
+              ),
             ),
+          ),
         ],
-      ))),
+      ),
     );
   }
 }

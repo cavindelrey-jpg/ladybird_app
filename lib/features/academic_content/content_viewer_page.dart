@@ -72,7 +72,6 @@ class ContentViewerPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final isDesktop = MediaQuery.of(context).size.width >= 1100;
 
     final viewerWidget = SelectionArea(
         child: switch (kind) {
@@ -97,61 +96,32 @@ class ContentViewerPage extends StatelessWidget {
         },
       );
 
-    if (isDesktop) {
-      return ApplicationShell(
-        user: userId != null ? AppUser.guest().copyWith(id: userId) : null,
-        currentTitle: title,
-        currentDestination: AppNavDestination.academicLibrary,
-        showBackButton: true,
-        onBack: () => Navigator.of(context).maybePop(),
-        contextualPanel: ReaderRightPanel(
-          title: title,
-          format: kind.name,
-          onSaveOffline: contentId != null
-              ? () async {
-                  await AcademicContentRepository.instance.saveForOffline(
-                    contentId: contentId!,
-                    fileUrl: fileUrl,
-                    title: title,
-                  );
-                }
-              : null,
-          onShare: () {
-            Share.share('Read "$title" on Academia: $fileUrl');
-          },
-        ),
-        child: Container(
-          color: kind == ViewableFileKind.video ? Colors.black : ac.bg,
-          child: viewerWidget,
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: kind == ViewableFileKind.video ? Colors.black : ac.bg,
-      appBar: AppBar(
-        title: Text(
-          title,
-          style: AppText.title.copyWith(
-            color: kind == ViewableFileKind.video ? Colors.white : ac.txt,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        backgroundColor: kind == ViewableFileKind.video ? Colors.black : ac.bg,
-        iconTheme: IconThemeData(
-          color: kind == ViewableFileKind.video ? Colors.white : ac.txt,
-        ),
-        actions: [
-          _ViewerSaveOfflineAction(
-            contentId: contentId,
-            fileUrl: fileUrl,
-            title: title,
-            localFilePath: localFilePath,
-          ),
-        ],
+    return ApplicationShell(
+      user: userId != null ? AppUser.guest().copyWith(id: userId) : null,
+      currentTitle: title,
+      currentDestination: AppNavDestination.academicLibrary,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      contextualPanel: ReaderRightPanel(
+        title: title,
+        format: kind.name,
+        onSaveOffline: contentId != null
+            ? () async {
+                await AcademicContentRepository.instance.saveForOffline(
+                  contentId: contentId!,
+                  fileUrl: fileUrl,
+                  title: title,
+                );
+              }
+            : null,
+        onShare: () {
+          Share.share('Read "$title" on Academia: $fileUrl');
+        },
       ),
-      body: viewerWidget,
+      child: Container(
+        color: kind == ViewableFileKind.video ? Colors.black : ac.bg,
+        child: viewerWidget,
+      ),
     );
   }
 }

@@ -12,14 +12,12 @@ import '../../models/app_user.dart';
 import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../core/result.dart';
-import '../../widgets/widgets.dart' show showToast;
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import 'content_edit_page.dart';
 import 'content_delete_dialog.dart';
 import 'content_viewer_page.dart';
-
-import '../../widgets/app_background.dart';
+import '../../widgets/widgets.dart';
 class ContentDetailsPage extends StatefulWidget {
   final String contentId;
   final AppUser user;
@@ -43,15 +41,24 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
       stream: AcademicContentRepository.instance.watchOne(widget.contentId),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: AppBackground(child: Center(child: CircularProgressIndicator())),
+          return ApplicationShell(
+            user: widget.user,
+            currentTitle: 'Loading Content…',
+            currentDestination: AppNavDestination.academicLibrary,
+            showBackButton: true,
+            onBack: () => Navigator.of(context).maybePop(),
+            child: const Center(child: CircularProgressIndicator()),
           );
         }
         final item = snap.data;
         if (item == null) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Not Found')),
-            body: const Center(child: Text('Content no longer exists.')),
+          return ApplicationShell(
+            user: widget.user,
+            currentTitle: 'Content Not Found',
+            currentDestination: AppNavDestination.academicLibrary,
+            showBackButton: true,
+            onBack: () => Navigator.of(context).maybePop(),
+            child: const Center(child: Text('Content no longer exists.')),
           );
         }
 
@@ -73,71 +80,22 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
             item.uploadedBy == widget.user.id;
 
         final ac = AppColors.of(context);
-        return Scaffold(
-          backgroundColor: ac.bg,
-          appBar: AppBar(
-            title: Text(item.contentType.label, style: AppText.title),
-            actions: [
-              StreamBuilder<bool>(
-                stream: AcademicContentRepository.instance.watchIsSaved(item.id, widget.user.id),
-                builder: (context, savedSnap) {
-                  final saved = savedSnap.data ?? false;
-                  return IconButton(
-                    icon: Icon(saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-                        color: saved ? ac.grn : ac.txt2),
-                    tooltip: saved ? 'Saved' : 'Save for offline',
-                    onPressed: () async {
-                      HapticFeedback.lightImpact();
-                      final wasSaved = saved;
-                      await AcademicContentRepository.instance.toggleSave(item.id, widget.user.id);
-                      if (wasSaved) {
-                        // Un-saving also drops the locally-downloaded file
-                        // rather than leaving an orphaned copy on disk.
-                        await AcademicContentRepository.instance.removeOfflineFile(item.id);
-                      } else if ((item.fileUrl ?? '').isNotEmpty) {
-                        // Fire-and-forget: "Save for offline" should
-                        // actually put the file on the device, not just
-                        // bookmark it. Best-effort -- a failed download
-                        // here still leaves the bookmark saved, and the
-                        // content simply opens over the network like
-                        // before.
-                        showToast(context, 'Downloading for offline…');
-                        final res = await AcademicContentRepository.instance.downloadForOffline(item);
-                        if (!context.mounted) return;
-                        showToast(context,
-                            res is Failure<String> ? res.message : 'Saved — available offline in your Library.',
-                            isError: res is Failure<String>);
-                      }
-                    },
-                  );
-                },
-              ),
-              if (canEdit) ...[
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ContentEditPage(content: item, user: widget.user),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.delete_outline, color: ac.red),
-                  onPressed: () => showDialog(
-                    context: context,
-                    builder: (_) => ContentDeleteDialog(
-                      content: item,
-                      onDeleted: () => Navigator.pop(context),
-                    ),
-                  ),
-                ),
-              ],
-            ],
+        return ApplicationShell(
+          user: widget.user,
+          currentTitle: item.title,
+          subtitle: item.contentType.label,
+          currentDestination: (item.contentType == ContentType.pastPaper || item.subject.toLowerCase().contains('past'))
+              ? AppNavDestination.pastQuestions
+              : AppNavDestination.academicLibrary,
+          showBackButton: true,
+          onBack: () => Navigator.of(context).maybePop(),
+          contextualPanel: _ContentDetailsRightPanel(
+            item: item,
+            user: widget.user,
+            canEdit: canEdit,
           ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -397,3 +355,226 @@ class _DownloadButtonState extends State<_DownloadButton> {
     );
   }
 }
+
+class _ContentDetailsRightPanel extends StatelessWidget {
+  final AcademicContent item;
+  final AppUser user;
+  final bool canEdit;
+
+  const _ContentDetailsRightPanel({
+    required this.item,
+    required this.user,
+    required this.canEdit,
+  });
+
+  String _formatDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final fileUrl = item.fileUrl;
+    final viewable = fileUrl != null && viewableKindFor(fileUrl) != null;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('DOCUMENT OVERVIEW',
+                      style: AppText.label.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                item.title,
+                style: AppText.title.copyWith(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _TypeBadge(type: item.contentType),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: ac.bluBg, borderRadius: BorderRadius.circular(6)),
+                    child: Text(item.subject,
+                        style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w600, color: ac.blu)),
+                  ),
+                  if (item.level.isNotEmpty && item.level != 'All Levels')
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: ac.grnBg, borderRadius: BorderRadius.circular(6)),
+                      child: Text(item.level,
+                          style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w600, color: ac.grn)),
+                    ),
+                  if (item.examBoard.isNotEmpty && item.examBoard != 'N/A')
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: ac.goldBg, borderRadius: BorderRadius.circular(6)),
+                      child: Text(item.year != null ? '${item.examBoard} ${item.year}' : item.examBoard,
+                          style: AppText.caption.copyWith(fontSize: 11, fontWeight: FontWeight.w600, color: ac.gold)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Divider(),
+              const SizedBox(height: 8),
+              _metaRow(ac, Icons.calendar_today_outlined, 'Uploaded', _formatDate(item.uploadDate)),
+              const SizedBox(height: 6),
+              _metaRow(ac, Icons.visibility_outlined, 'Views', '${item.views}'),
+              const SizedBox(height: 6),
+              _metaRow(ac, Icons.download_outlined, 'Downloads', '${item.downloads}'),
+              if (item.fileSizeBytes != null && item.fileSizeBytes! > 0) ...[
+                const SizedBox(height: 6),
+                _metaRow(ac, Icons.description_outlined, 'File Size', '${(item.fileSizeBytes! / 1024).toStringAsFixed(1)} KB'),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.bolt_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('QUICK ACTIONS',
+                      style: AppText.label.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (viewable)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final kind = viewableKindFor(fileUrl);
+                        if (kind != null) {
+                          await AcademicContentRepository.instance.incrementDownloads(item.id);
+                          final localPath = await AcademicContentRepository.instance.offlineFilePath(item.id);
+                          if (!context.mounted) return;
+                          Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => ContentViewerPage(
+                              fileUrl: fileUrl,
+                              localFilePath: localPath,
+                              title: item.title,
+                              kind: kind,
+                              contentId: item.id,
+                              userId: user.id,
+                            ),
+                          ));
+                        }
+                      },
+                      icon: const Icon(Icons.menu_book_rounded, size: 18),
+                      label: const Text('Open Reader'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFE5A93C),
+                        foregroundColor: const Color(0xFF081630),
+                      ),
+                    ),
+                  ),
+                ),
+              StreamBuilder<bool>(
+                stream: AcademicContentRepository.instance.watchIsSaved(item.id, user.id),
+                builder: (context, savedSnap) {
+                  final saved = savedSnap.data ?? false;
+                  return SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        HapticFeedback.lightImpact();
+                        final wasSaved = saved;
+                        await AcademicContentRepository.instance.toggleSave(item.id, user.id);
+                        if (wasSaved) {
+                          await AcademicContentRepository.instance.removeOfflineFile(item.id);
+                        } else if ((item.fileUrl ?? '').isNotEmpty) {
+                          if (context.mounted) {
+                            showToast(context, 'Downloading for offline…');
+                          }
+                          final res = await AcademicContentRepository.instance.downloadForOffline(item);
+                          if (!context.mounted) return;
+                          showToast(context,
+                              res is Failure<String> ? res.message : 'Saved — available offline in your Library.',
+                              isError: res is Failure<String>);
+                        }
+                      },
+                      icon: Icon(saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                          size: 18, color: saved ? ac.grn : ac.txt),
+                      label: Text(saved ? 'Saved Offline' : 'Save for Offline',
+                          style: TextStyle(color: saved ? ac.grn : ac.txt)),
+                    ),
+                  );
+                },
+              ),
+              if (canEdit) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => ContentEditPage(content: item, user: user)),
+                    ),
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    label: const Text('Edit Resource'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => showDialog(
+                      context: context,
+                      builder: (_) => ContentDeleteDialog(
+                        content: item,
+                        onDeleted: () => Navigator.pop(context),
+                      ),
+                    ),
+                    icon: Icon(Icons.delete_outline, size: 18, color: ac.red),
+                    label: Text('Delete Resource', style: TextStyle(color: ac.red)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _metaRow(AppColors ac, IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: ac.muted),
+        const SizedBox(width: 6),
+        Text(label, style: AppText.caption.copyWith(color: ac.muted, fontSize: 12)),
+        const Spacer(),
+        Text(value, style: AppText.caption.copyWith(color: ac.txt, fontWeight: FontWeight.w600, fontSize: 12)),
+      ],
+    );
+  }
+}
+

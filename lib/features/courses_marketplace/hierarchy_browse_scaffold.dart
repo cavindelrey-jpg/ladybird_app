@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/app_background.dart';
 import '../../services/courses_view_mode_service.dart';
 
 import '../../models/app_user.dart';
@@ -89,21 +88,41 @@ class _HierarchyBrowseScaffoldState<T> extends State<HierarchyBrowseScaffold<T>>
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     final isSelecting = widget.isSelecting;
-    final isDesktop = MediaQuery.of(context).size.width >= 1100;
 
-    if (isDesktop && !isSelecting) {
-      return ApplicationShell(
-        user: widget.user,
-        currentTitle: widget.title,
-        subtitle: widget.subtitle,
-        currentDestination: widget.destination,
-        contextualPanel: widget.contextualPanel,
-        showBackButton: true,
-        onBack: () => Navigator.of(context).maybePop(),
-        floatingActionButton: widget.floatingActionButton,
-        child: Column(
-          children: [
-            if (widget.headerWidget != null) widget.headerWidget!,
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: isSelecting ? (widget.selectionTitle ?? 'Select Items') : widget.title,
+      subtitle: isSelecting ? null : widget.subtitle,
+      currentDestination: widget.destination,
+      contextualPanel: widget.contextualPanel,
+      showBackButton: true,
+      onBack: isSelecting ? widget.onCancelSelection : () => Navigator.of(context).maybePop(),
+      floatingActionButton: isSelecting ? null : widget.floatingActionButton,
+      child: Column(
+        children: [
+          if (widget.headerWidget != null) widget.headerWidget!,
+          if (isSelecting)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              color: ac.surf2,
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: widget.onCancelSelection,
+                    tooltip: 'Cancel Selection',
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    widget.selectionTitle ?? 'Select Items',
+                    style: AppText.title.copyWith(fontSize: 15, color: ac.txt),
+                  ),
+                  const Spacer(),
+                  if (widget.selectionActions != null) ...widget.selectionActions!,
+                ],
+              ),
+            )
+          else
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
               child: Row(
@@ -134,73 +153,8 @@ class _HierarchyBrowseScaffoldState<T> extends State<HierarchyBrowseScaffold<T>>
                 ],
               ),
             ),
-            Expanded(child: _body(ac)),
-          ],
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: ac.bg,
-      floatingActionButton: isSelecting ? null : widget.floatingActionButton,
-      appBar: isSelecting
-          ? AppBar(
-              backgroundColor: ac.surf,
-              elevation: 1,
-              leading: IconButton(
-                icon: const Icon(Icons.close_rounded),
-                onPressed: widget.onCancelSelection,
-              ),
-              title: Text(widget.selectionTitle ?? 'Select Items',
-                  style: AppText.title.copyWith(fontSize: 16, color: ac.txt)),
-              actions: [
-                if (widget.selectionActions != null) ...widget.selectionActions!,
-              ],
-            )
-          : AppBar(
-              backgroundColor: ac.bg,
-              elevation: 0,
-              iconTheme: IconThemeData(color: ac.txt),
-              title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(widget.title, style: AppText.title.copyWith(fontSize: 16)),
-                if (widget.subtitle != null)
-                  Text(widget.subtitle!, style: AppText.caption.copyWith(fontSize: 11)),
-              ]),
-              actions: [
-                if (widget.actions != null) ...widget.actions!,
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: HierarchyViewToggle(
-                    isGrid: _isGrid,
-                    onChanged: (grid) {
-                      setState(() => _isGrid = grid);
-                      CoursesViewModeService.setGrid(grid);
-                    },
-                  ),
-                ),
-              ],
-            ),
-      body: AppBackground(
-        child: Column(children: [
-          if (widget.headerWidget != null) widget.headerWidget!,
-          if (!isSelecting)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: TextField(
-                onChanged: (v) => setState(() => _query = v),
-                style: AppText.bodySm.copyWith(color: ac.txt),
-                decoration: InputDecoration(
-                  hintText: widget.searchHint,
-                  hintStyle: AppText.bodySm.copyWith(color: ac.muted),
-                  prefixIcon: Icon(Icons.search_rounded, size: 18, color: ac.muted),
-                  filled: true,
-                  fillColor: ac.surf2,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                ),
-              ),
-            ),
           Expanded(child: _body(ac)),
-        ]),
+        ],
       ),
     );
   }

@@ -23,7 +23,6 @@ import 'content_upload_page.dart';
 import 'bulk_past_paper_upload_page.dart';
 import 'library_folder_picker_page.dart';
 import 'folder_thumbnail_editor.dart';
-import '../../widgets/application_shell.dart';
 
 class LibraryFolderPage extends StatefulWidget {
   final String folderId;
@@ -130,15 +129,15 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
             if ((folderSnap.hasError || itemSnap.hasError) && folders.isEmpty && items.isEmpty) {
               CrashService.instance.recordError(folderSnap.error ?? itemSnap.error, null,
                   context: 'LibraryFolderPage(${widget.folderId})');
-              return Scaffold(
-                backgroundColor: ac.bg,
-                appBar: AppBar(
-                  backgroundColor: ac.bg,
-                  elevation: 0,
-                  iconTheme: IconThemeData(color: ac.txt),
-                  title: Text(widget.folderName, style: AppText.title.copyWith(fontSize: 16, color: ac.txt)),
-                ),
-                body: AppBackground(
+              return ApplicationShell(
+                user: widget.user,
+                currentTitle: widget.folderName,
+                currentDestination: widget.folderName.toLowerCase().contains('past')
+                    ? AppNavDestination.pastQuestions
+                    : AppNavDestination.academicLibrary,
+                showBackButton: true,
+                onBack: () => Navigator.of(context).maybePop(),
+                child: AppBackground(
                   child: ErrorView(message: "Couldn't load this folder — ${folderSnap.error ?? itemSnap.error}"),
                 ),
               );
@@ -161,6 +160,13 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
               title: widget.folderName,
               subtitle: '${folders.length} folder${folders.length == 1 ? '' : 's'} · '
                   '${items.length} file${items.length == 1 ? '' : 's'}',
+              contextualPanel: _LibraryFolderContextualPanel(
+                folderName: widget.folderName,
+                folderCount: folders.length,
+                itemCount: items.length,
+                canManage: _canManage,
+                onAdd: _canManage ? () => _showAddSheet(context) : null,
+              ),
               searchHint: 'Search this folder…',
               loading: loading,
               items: entries,
@@ -633,3 +639,115 @@ class _EntryTile extends StatelessWidget {
       Container(color: ac.surf2, alignment: Alignment.center,
           child: Text(item.contentType.emoji, style: const TextStyle(fontSize: 26)));
 }
+
+class _LibraryFolderContextualPanel extends StatelessWidget {
+  final String folderName;
+  final int folderCount;
+  final int itemCount;
+  final bool canManage;
+  final VoidCallback? onAdd;
+
+  const _LibraryFolderContextualPanel({
+    required this.folderName,
+    required this.folderCount,
+    required this.itemCount,
+    required this.canManage,
+    this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.folder_open_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'FOLDER DETAILS',
+                    style: AppText.label.copyWith(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: ac.txt,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                folderName,
+                style: AppText.title.copyWith(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5A93C).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '$folderCount Subfolder${folderCount == 1 ? '' : 's'}',
+                      style: AppText.caption.copyWith(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFFE5A93C),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: ac.surf2,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '$itemCount File${itemCount == 1 ? '' : 's'}',
+                      style: AppText.caption.copyWith(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: ac.muted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (canManage && onAdd != null) ...[
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: onAdd,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Add Content'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE5A93C),
+                      foregroundColor: const Color(0xFF081630),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+

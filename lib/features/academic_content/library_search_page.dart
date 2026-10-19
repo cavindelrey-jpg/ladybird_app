@@ -11,7 +11,6 @@ import '../../repositories/academic_content_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/app_background.dart';
 import 'content_details_page.dart';
 
 class LibrarySearchPage extends StatefulWidget {
@@ -56,40 +55,48 @@ class _LibrarySearchPageState extends State<LibrarySearchPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        titleSpacing: 0,
-        title: Container(
-          height: 40,
-          margin: const EdgeInsets.only(right: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(color: ac.surf2, borderRadius: BorderRadius.circular(20), border: Border.all(color: ac.bdr)),
-          child: Row(children: [
-            Icon(Icons.search_rounded, size: 18, color: ac.muted),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: _ctrl,
-                autofocus: true,
-                onChanged: _onChanged,
-                style: AppText.bodySm.copyWith(color: ac.txt),
-                decoration: InputDecoration(
-                  hintText: 'Search past papers, notes, documents…',
-                  hintStyle: AppText.bodySm.copyWith(color: ac.muted, fontSize: 12.5),
-                  border: InputBorder.none, isDense: true,
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: 'Library Search',
+      subtitle: 'Search past papers, notes, books, and documents',
+      currentDestination: AppNavDestination.academicLibrary,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      contextualPanel: const _LibrarySearchRightPanel(),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _ctrl,
+                    autofocus: true,
+                    onChanged: _onChanged,
+                    style: AppText.bodySm.copyWith(color: ac.txt),
+                    decoration: InputDecoration(
+                      hintText: 'Search past papers, notes, documents…',
+                      hintStyle: AppText.bodySm.copyWith(color: ac.muted, fontSize: 13),
+                      prefixIcon: Icon(Icons.search_rounded, size: 18, color: ac.muted),
+                      suffixIcon: _query.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 16),
+                              onPressed: () { _ctrl.clear(); _onChanged(''); },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: ac.surf2,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-            if (_query.isNotEmpty)
-              InkWell(onTap: () { _ctrl.clear(); _onChanged(''); },
-                  child: Icon(Icons.close_rounded, size: 16, color: ac.muted)),
-          ]),
-        ),
+          ),
+          Expanded(child: _body(ac)),
+        ],
       ),
-      body: AppBackground(child: _body(ac)),
     );
   }
 
@@ -182,3 +189,62 @@ class _ResultTile extends StatelessWidget {
   Widget _placeholder(AppColors ac) => Container(color: ac.surf2, alignment: Alignment.center,
       child: Text(item.contentType.emoji, style: const TextStyle(fontSize: 20)));
 }
+
+class _LibrarySearchRightPanel extends StatelessWidget {
+  const _LibrarySearchRightPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.lightbulb_outline_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('SEARCH TIPS',
+                      style: AppText.label.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _tipItem(ac, 'Subject Names', 'e.g. "Mathematics", "Biology", "Commerce"'),
+              const SizedBox(height: 8),
+              _tipItem(ac, 'Exam Board & Year', 'e.g. "ECZ 2023", "GCE 2022"'),
+              const SizedBox(height: 8),
+              _tipItem(ac, 'Content Types', 'e.g. "Past Paper", "Syllabus", "Revision Notes"'),
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 8),
+              Text(
+                'Instant live matching begins after entering at least one character.',
+                style: AppText.caption.copyWith(color: ac.muted, fontSize: 11.5),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tipItem(AppColors ac, String title, String example) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: AppText.title.copyWith(fontSize: 12.5, color: ac.txt)),
+        Text(example, style: AppText.caption.copyWith(fontSize: 11, color: ac.muted)),
+      ],
+    );
+  }
+}
+

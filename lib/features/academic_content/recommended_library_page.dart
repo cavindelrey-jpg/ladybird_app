@@ -11,7 +11,6 @@ import '../../repositories/academic_content_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/app_background.dart';
 import 'content_details_page.dart';
 
 class RecommendedLibraryPage extends StatelessWidget {
@@ -20,23 +19,23 @@ class RecommendedLibraryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text('Recommended for You', style: AppText.title.copyWith(fontSize: 16, color: ac.txt)),
-      ),
-      body: AppBackground(child: FutureBuilder<List<AcademicContent>>(
+    return ApplicationShell(
+      user: user,
+      currentTitle: 'Recommended for You',
+      subtitle: 'Curated materials tailored to your curriculum',
+      currentDestination: AppNavDestination.academicLibrary,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      contextualPanel: const _RecommendedRightPanel(),
+      child: FutureBuilder<List<AcademicContent>>(
         future: AcademicContentRepository.instance.recommendedForUser(user.id.isEmpty ? null : user.id, limit: 30),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.72),
-              itemCount: 6,
+              padding: const EdgeInsets.all(20),
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 220, crossAxisSpacing: 14, mainAxisSpacing: 14, childAspectRatio: 0.72),
+              itemCount: 8,
               itemBuilder: (_, __) => const ShimmerBlock(),
             );
           }
@@ -49,9 +48,9 @@ class RecommendedLibraryPage extends StatelessWidget {
             );
           }
           return GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.72),
+            padding: const EdgeInsets.all(20),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 220, crossAxisSpacing: 14, mainAxisSpacing: 14, childAspectRatio: 0.72),
             itemCount: items.length,
             itemBuilder: (context, i) => _Card(
               item: items[i],
@@ -63,7 +62,52 @@ class RecommendedLibraryPage extends StatelessWidget {
             ),
           );
         },
-      )),
+      ),
+    );
+  }
+}
+
+class _RecommendedRightPanel extends StatelessWidget {
+  const _RecommendedRightPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.auto_awesome_rounded, size: 18, color: Color(0xFFE5A93C)),
+                  const SizedBox(width: 8),
+                  Text('SMART CURATION',
+                      style: AppText.label.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: ac.txt)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Personalized Learning',
+                style: AppText.title.copyWith(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Green Hills curates materials, past examination papers, and revision notes aligned with your level and subject enrollments.',
+                style: AppText.bodySm.copyWith(color: ac.txt2, fontSize: 12.5),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

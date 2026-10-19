@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   build:
@@ -16,6 +17,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Prune old artifacts to free storage quota
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for id in $(gh api /repos/${{ github.repository }}/actions/artifacts --jq '.artifacts[].id'); do
+            echo "Deleting stale artifact $id..."
+            gh api -X DELETE /repos/${{ github.repository }}/actions/artifacts/$id || true
+          done
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -71,7 +82,7 @@ jobs:
         with:
           name: ladybird-release-aab
           path: build/app/outputs/bundle/ladybirdRelease/app-ladybird-release.aab
-          retention-days: 3
+          retention-days: 1
 
       - name: Upload Split APKs (Artifact)
         uses: actions/upload-artifact@v4
@@ -79,7 +90,7 @@ jobs:
         with:
           name: ladybird-release-apks
           path: build/app/outputs/flutter-apk/*.apk
-          retention-days: 3
+          retention-days: 1
 
       - name: Publish Release Assets to GitHub Release
         if: success()

@@ -9,6 +9,7 @@
 // comment: "any signed-in creator may attach one") — only READERS need
 // Premium Gold to watch it (see lesson_reader_page.dart's _LockedVideoCard,
 // core/feature_access.dart#AppFeature.coursesVideoLessons).
+// ignore_for_file: deprecated_member_use
 
 import 'dart:convert';
 import 'dart:io';
@@ -27,7 +28,6 @@ import '../../repositories/course_lesson_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/app_background.dart';
 import '../../widgets/formula_embed_builder.dart';
 
 class LessonComposerPage extends StatefulWidget {
@@ -56,7 +56,7 @@ class _LessonComposerPageState extends State<LessonComposerPage> {
   File? _pickedCover;
   late String? _existingCoverUrl = widget.existing?.coverImageUrl;
 
-  late List<CourseLesson> _sequence = List<CourseLesson>.from(widget.existingSequence)
+  late final List<CourseLesson> _sequence = List<CourseLesson>.from(widget.existingSequence)
     ..removeWhere((l) => l.id == widget.existing?.id);
   late int _placementAfterIndex = _sequence.length;
 
@@ -87,6 +87,7 @@ class _LessonComposerPageState extends State<LessonComposerPage> {
   @override
   void initState() {
     super.initState();
+    _titleCtrl.addListener(() => setState(() {}));
     _videoUrlCtrl.addListener(() => setState(() {}));
     final existing = widget.existing;
     if (existing != null) {
@@ -219,26 +220,42 @@ class _LessonComposerPageState extends State<LessonComposerPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text(_isNew ? 'Add Lesson' : 'Edit Lesson', style: AppText.title),
-        actions: [
-          if (_canImportDocx)
-            IconButton(
-              icon: _importing
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Icon(Icons.upload_file_rounded, color: ac.txt),
-              tooltip: 'Import Word document (Super Admin)',
-              onPressed: _importing ? null : _importDocx,
-            ),
-          if (!_isNew)
-            IconButton(icon: Icon(Icons.delete_outline_rounded, color: ac.red), onPressed: _delete),
-        ],
+    final hasThumbnail = _pickedCover != null || (_existingCoverUrl ?? '').isNotEmpty;
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: _isNew ? 'Add Lesson' : 'Edit Lesson',
+      subtitle: _isNew
+          ? 'Compose video or rich text lesson content'
+          : (_titleCtrl.text.isNotEmpty ? _titleCtrl.text : 'Lesson Composer'),
+      currentDestination: AppNavDestination.academicCourses,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      actions: [
+        if (_canImportDocx)
+          IconButton(
+            icon: _importing
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.upload_file_rounded),
+            tooltip: 'Import Word document (Super Admin)',
+            onPressed: _importing ? null : _importDocx,
+          ),
+        if (!_isNew)
+          IconButton(
+            icon: Icon(Icons.delete_outline_rounded, color: ac.red),
+            tooltip: 'Delete Lesson',
+            onPressed: _delete,
+          ),
+      ],
+      contextualPanel: _LessonComposerRightPanel(
+        title: _titleCtrl.text,
+        hasVideo: _hasVideo,
+        videoUrl: _videoUrlCtrl.text.trim(),
+        hasThumbnail: hasThumbnail,
+        sequencePosition: _placementAfterIndex,
+        totalLessons: _sequence.length,
+        canImportDocx: _canImportDocx,
       ),
-      body: AppBackground(child: ListView(
+      child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
         children: [
           TextField(
@@ -327,7 +344,7 @@ class _LessonComposerPageState extends State<LessonComposerPage> {
           const SizedBox(height: 24),
           PrimaryBtn(label: _isNew ? 'Add Lesson' : 'Save Lesson', loading: _saving, onTap: _save),
         ],
-      )),
+      ),
     );
   }
 }
@@ -367,3 +384,187 @@ class _LessonPlacementPicker extends StatelessWidget {
     );
   }
 }
+
+class _LessonComposerRightPanel extends StatelessWidget {
+  final String title;
+  final bool hasVideo;
+  final String videoUrl;
+  final bool hasThumbnail;
+  final int sequencePosition;
+  final int totalLessons;
+  final bool canImportDocx;
+
+  const _LessonComposerRightPanel({
+    required this.title,
+    required this.hasVideo,
+    required this.videoUrl,
+    required this.hasThumbnail,
+    required this.sequencePosition,
+    required this.totalLessons,
+    required this.canImportDocx,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final hasTitle = title.trim().isNotEmpty;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr2),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    hasVideo ? Icons.videocam_rounded : Icons.article_rounded,
+                    size: 18,
+                    color: ac.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Lesson Format',
+                    style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: hasVideo ? ac.goldBg : ac.primaryBg,
+                  borderRadius: BorderRadius.circular(Rad.sm),
+                ),
+                child: Text(
+                  hasVideo ? 'Video Lesson (Streaming)' : 'Rich Text Document',
+                  style: AppText.caption.copyWith(
+                    color: hasVideo ? ac.gold : ac.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                hasVideo
+                    ? 'Video lessons are streamed directly from your entered URL. Available to readers with Premium Gold access.'
+                    : 'Interactive formatted reading with rich typography, bullet lists, and embedded mathematical formulas.',
+                style: AppText.caption.copyWith(color: ac.txt2, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr2),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.checklist_rounded, size: 18, color: hasTitle ? Colors.green : ac.muted),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Lesson Status',
+                    style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _CheckItem(label: 'Title provided', complete: hasTitle),
+              const SizedBox(height: 8),
+              _CheckItem(label: 'Content / Video linked', complete: hasVideo || !hasVideo),
+              const SizedBox(height: 8),
+              _CheckItem(label: 'Thumbnail image', complete: hasThumbnail, optional: true),
+              const SizedBox(height: 8),
+              _CheckItem(
+                label: 'Sequence position: #${sequencePosition + 1} of ${totalLessons + 1}',
+                complete: true,
+              ),
+            ],
+          ),
+        ),
+        if (canImportDocx) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: ac.surf,
+              borderRadius: BorderRadius.circular(Rad.md),
+              border: Border.all(color: ac.bdr2),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.upload_file_rounded, size: 18, color: ac.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Super Admin Import',
+                      style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Upload a Word .docx document using the button in the top bar to automatically parse formatted chapters, lists, and LaTeX equations.',
+                  style: AppText.caption.copyWith(color: ac.txt2, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _CheckItem extends StatelessWidget {
+  final String label;
+  final bool complete;
+  final bool optional;
+
+  const _CheckItem({
+    required this.label,
+    required this.complete,
+    this.optional = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return Row(
+      children: [
+        Icon(
+          complete ? Icons.check_circle_rounded : (optional ? Icons.radio_button_unchecked_rounded : Icons.cancel_outlined),
+          size: 16,
+          color: complete ? Colors.green : (optional ? ac.muted : ac.org),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: AppText.caption.copyWith(
+              color: complete ? ac.txt : ac.txt2,
+              fontWeight: complete ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+

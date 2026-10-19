@@ -4,6 +4,7 @@
 // (see models/course_lesson.dart) — so this screen is title/description/
 // cover/placement plus a Lessons manager; actual lesson content (including
 // the optional Video Lesson URL) is authored in lesson_composer_page.dart.
+// ignore_for_file: deprecated_member_use
 
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -18,7 +19,6 @@ import '../../core/result.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/app_background.dart';
 import 'lesson_composer_page.dart';
 
 class CourseComposerPage extends StatefulWidget {
@@ -74,6 +74,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
   @override
   void initState() {
     super.initState();
+    _titleCtrl.addListener(() => setState(() {}));
     _loadLevels();
     _loadIconMap();
     if (_level.isNotEmpty) _loadTopicSuggestions();
@@ -280,18 +281,34 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return Scaffold(
-      backgroundColor: ac.bg,
-      appBar: AppBar(
-        backgroundColor: ac.bg, elevation: 0,
-        iconTheme: IconThemeData(color: ac.txt),
-        title: Text(_isNew ? 'Create Course' : 'Edit Course', style: AppText.title),
-        actions: [
-          if (!_isNew)
-            IconButton(icon: Icon(Icons.delete_outline_rounded, color: ac.red), onPressed: _delete),
-        ],
+    final hasCover = _pickedCover != null || (widget.existing?.coverImageUrl ?? '').isNotEmpty;
+    return ApplicationShell(
+      user: widget.user,
+      currentTitle: _isNew ? 'Create Course' : 'Edit Course',
+      subtitle: _isNew
+          ? 'Course metadata & curriculum placement'
+          : (_titleCtrl.text.isNotEmpty ? _titleCtrl.text : 'Course Composer'),
+      currentDestination: AppNavDestination.academicCourses,
+      showBackButton: true,
+      onBack: () => Navigator.of(context).maybePop(),
+      actions: [
+        if (!_isNew)
+          IconButton(
+            icon: Icon(Icons.delete_outline_rounded, color: ac.red),
+            tooltip: 'Delete Course',
+            onPressed: _delete,
+          ),
+      ],
+      contextualPanel: _CourseComposerRightPanel(
+        title: _titleCtrl.text,
+        subject: _subject,
+        level: _level,
+        topic: _topic,
+        lessonCount: _lessons.length,
+        hasCover: hasCover,
+        isPublished: _workingCourse.published,
       ),
-      body: AppBackground(child: ListView(
+      child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
         children: [
           Material(
@@ -469,7 +486,7 @@ class _CourseComposerPageState extends State<CourseComposerPage> {
             Expanded(child: PrimaryBtn(label: 'Publish', loading: _saving, onTap: () => _save(publish: true))),
           ]),
         ],
-      )),
+      ),
     );
   }
 }
@@ -620,3 +637,185 @@ class _PrerequisitesPicker extends StatelessWidget {
     );
   }
 }
+
+class _CourseComposerRightPanel extends StatelessWidget {
+  final String title;
+  final String subject;
+  final String level;
+  final String topic;
+  final int lessonCount;
+  final bool hasCover;
+  final bool isPublished;
+
+  const _CourseComposerRightPanel({
+    required this.title,
+    required this.subject,
+    required this.level,
+    required this.topic,
+    required this.lessonCount,
+    required this.hasCover,
+    required this.isPublished,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    final hasTitle = title.trim().isNotEmpty;
+    final hasPlacement = level.isNotEmpty && subject.isNotEmpty && topic.trim().isNotEmpty;
+    final canPublish = hasTitle && hasPlacement && lessonCount > 0;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr2),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.checklist_rounded, size: 18, color: canPublish ? Colors.green : ac.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Course Readiness',
+                    style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _ChecklistRow(label: 'Course title', complete: hasTitle),
+              const SizedBox(height: 8),
+              _ChecklistRow(label: 'Curriculum placement', complete: hasPlacement),
+              const SizedBox(height: 8),
+              _ChecklistRow(label: 'Cover image', complete: hasCover, optional: true),
+              const SizedBox(height: 8),
+              _ChecklistRow(label: 'At least 1 lesson ($lessonCount added)', complete: lessonCount > 0),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr2),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.alt_route_rounded, size: 18, color: ac.gold),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Curriculum Placement',
+                    style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _PlacementRow(label: 'Level', value: level.isEmpty ? 'Not selected' : level),
+              const SizedBox(height: 6),
+              _PlacementRow(label: 'Subject', value: subject.isEmpty ? 'Not selected' : subject),
+              const SizedBox(height: 6),
+              _PlacementRow(label: 'Topic', value: topic.isEmpty ? 'Not selected' : topic),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: ac.surf,
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(color: ac.bdr2),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, size: 18, color: ac.muted),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Publishing Guide',
+                    style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                '• Drafts remain private to your creator dashboard.\n'
+                '• Publishing makes the course and its sequence visible to enrolled students.\n'
+                '• Lessons can be created with rich formatted text or streaming video.',
+                style: AppText.caption.copyWith(color: ac.txt2, height: 1.5),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChecklistRow extends StatelessWidget {
+  final String label;
+  final bool complete;
+  final bool optional;
+
+  const _ChecklistRow({
+    required this.label,
+    required this.complete,
+    this.optional = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return Row(
+      children: [
+        Icon(
+          complete ? Icons.check_circle_rounded : (optional ? Icons.radio_button_unchecked_rounded : Icons.cancel_outlined),
+          size: 16,
+          color: complete ? Colors.green : (optional ? ac.muted : ac.org),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: AppText.caption.copyWith(
+              color: complete ? ac.txt : ac.txt2,
+              fontWeight: complete ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PlacementRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _PlacementRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: AppText.caption.copyWith(color: ac.txt2)),
+        Text(value, style: AppText.caption.copyWith(fontWeight: FontWeight.w700, color: ac.txt)),
+      ],
+    );
+  }
+}
+

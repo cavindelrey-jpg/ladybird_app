@@ -49,14 +49,17 @@ jobs:
           retention-days: 1
 
       - name: Deploy to Cloudflare Pages directly
-        uses: cloudflare/pages-action@v1
         continue-on-error: true
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: ${{ secrets.CLOUDFLARE_PROJECT_NAME || 'cfpmi' }}
-          directory: 'build/web'
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Deploying directly to Cloudflare Pages..."
+            npx wrangler pages deploy build/web --project-name=cfpmi --commit-dirty=true
+          else
+            echo "No Cloudflare credentials configured in secrets; skipping Cloudflare direct deploy."
+          fi
 
       - name: Publish Web Asset to GitHub Release
         if: success()

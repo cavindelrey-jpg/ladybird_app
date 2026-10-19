@@ -48,6 +48,16 @@ jobs:
           path: build/web
           retention-days: 1
 
+      - name: Deploy to Cloudflare Pages directly
+        uses: cloudflare/pages-action@v1
+        continue-on-error: true
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: ${{ secrets.CLOUDFLARE_PROJECT_NAME || 'cfpmi' }}
+          directory: 'build/web'
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Publish Web Asset to GitHub Release
         if: success()
         env:

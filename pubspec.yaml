@@ -57,13 +57,13 @@ dependencies:
   path: ^1.9.1
   pdfrx: ^2.6.5
   pdf: ^3.12.0
+  flutter_native_splash: ^2.4.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.13.1
-  flutter_native_splash: ^2.4.3
   # Already a transitive dep of flutter_quill (used internally for its
   # rich-paste HTML->Delta conversion) — declared directly so the
   # section-3 paste-structure test can import it without an analyzer lint.

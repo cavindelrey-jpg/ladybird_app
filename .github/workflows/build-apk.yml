@@ -1,0 +1,135 @@
+name: Build Ladybird APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free runner disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.6'
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: |
+          flutter pub get
+          chmod +x scripts/patch_pdfrx.sh || true
+          ./scripts/patch_pdfrx.sh || true
+          find ~/.pub-cache/hosted/pub.dev/pdfrx_engine* -name "pdf_file_cache.dart" -exec sed -i 's/cache\.blockSize/cache!\.blockSize/g' {} + || true
+          find ~/.pub-cache/hosted/pub.dev/pdfrx_engine* -name "pdf_file_cache.dart" -exec sed -i 's/await cache\.read/await cache!\.read/g' {} + || true
+
+      # Cache the debug keystore so every release build uses the exact same
+      # signing certificate. This enables in-place APK updates on Android devices
+      # without uninstalling or signature conflict errors.
+      - name: Cache debug keystore (keeps APK signing key stable across builds)
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-ladybird
+
+      - name: Regenerate app icon + splash from Ladybird branding
+        run: |
+          flutter pub run flutter_launcher_icons
+          flutter pub run flutter_native_splash:create
+
+      - name: Re-apply Android 12 splash crop fix (regeneration overwrites it)
+        run: |
+          sed -i 's|@drawable/android12splash</item>|@drawable/android12splash_inset</item>|' \
+            android/app/src/main/res/values-v31/styles.xml \
+            android/app/src/main/res/values-night-v31/styles.xml 2>/dev/null || true
+
+          python3 - <<'PY'
+          import re
+          for f in [
+              "android/app/src/main/res/values-v31/styles.xml",
+              "android/app/src/main/res/values-night-v31/styles.xml",
+          ]:
+              try:
+                  with open(f) as fh:
+                      content = fh.read()
+                  content = re.sub(r"<!--.*?-->", "", content, flags=re.DOTALL)
+                  with open(f, "w") as fh:
+                      fh.write(content)
+              except Exception:
+                  pass
+          PY
+
+      - name: Build AppBundle and Split APK
+        run: |
+          chmod +x scripts/patch_pdfrx.sh || true
+          ./scripts/patch_pdfrx.sh || true
+          find ~/.pub-cache/hosted/pub.dev/pdfrx_engine* -name "pdf_file_cache.dart" -exec sed -i 's/cache\.blockSize/cache!\.blockSize/g' {} + || true
+          find ~/.pub-cache/hosted/pub.dev/pdfrx_engine* -name "pdf_file_cache.dart" -exec sed -i 's/await cache\.read/await cache!\.read/g' {} + || true
+          flutter build appbundle --release --flavor ladybird --dart-define=BRAND_ID=ladybird --target-platform android-arm64 --no-pub
+          flutter build apk --release --flavor ladybird --dart-define=BRAND_ID=ladybird --target-platform android-arm64 --no-pub
+
+      - name: Upload AppBundle (Artifact)
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: ladybird-release-aab
+          path: build/app/outputs/bundle/ladybirdRelease/app-ladybird-release.aab
+          retention-days: 7
+
+      - name: Upload Split APKs (Artifact)
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: ladybird-release-apk
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 7
+
+      - name: Publish Release Assets to GitHub Release
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Ensure release exists
+          gh release view latest-ladybird || gh release create latest-ladybird \
+            --title "Ladybird Group of Schools - Latest Release (v2.0.1+2)" \
+            --notes "Automated Ladybird build release"
+
+          # Upload and overwrite assets with retry
+          for attempt in 1 2 3; do
+            echo "Uploading release assets (attempt $attempt)..."
+            if gh release upload latest-ladybird \
+              build/app/outputs/bundle/ladybirdRelease/app-ladybird-release.aab \
+              build/app/outputs/flutter-apk/*.apk \
+              --clobber; then
+              echo "Successfully uploaded release assets!"
+              exit 0
+            fi
+            echo "Upload failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "Failed to upload release assets after 3 attempts."
+          exit 1

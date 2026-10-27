@@ -79,6 +79,12 @@ class AppUser {
   final bool isFirstLogin;
   final bool adminAccessRevoked;
 
+  /// Official student name on the school class list (e.g. "Brice Ngono")
+  final String officialStudentName;
+
+  /// Account username handle (e.g. "brice2026")
+  final String username;
+
   /// production_plan.md §8 — the account's access grant.
   ///
   /// This REPLACES the old flat `isPremium` bool as the source of truth.
@@ -184,6 +190,8 @@ class AppUser {
     this.courseIds = const [],
     this.isFirstLogin = false,
     this.adminAccessRevoked = false,
+    this.officialStudentName = '',
+    this.username = '',
     this.entitlement = const Entitlement.free(),
     bool isPremium = false,
     this.bio = '',
@@ -223,6 +231,9 @@ class AppUser {
   /// True only for §9's Gifted Premium — premium paid for by someone else.
   bool get isGiftedPremium =>
       entitlement.isActive && entitlement.source == EntitlementSource.gift;
+
+  /// Premium Bronze: XP-gated past papers, notes, books, plus community access.
+  bool get isBronze => entitlement.isBronze && entitlement.isActive;
 
   /// Premium Silver: every premium feature except Video Courses.
   bool get isSilver => entitlement.isSilver && entitlement.isActive;
@@ -505,6 +516,8 @@ class AppUser {
     courseIds: List<String>.from(d['course_ids'] ?? []),
     isFirstLogin: d['is_first_login'] ?? false,
     adminAccessRevoked: d['admin_access_revoked'] ?? false,
+    officialStudentName: d['official_name'] ?? d['student_name'] ?? d['official_student_name'] ?? d['name'] ?? '',
+    username: d['username'] ?? d['name'] ?? '',
     isPremium: d['is_premium'] ?? false,
     entitlement: Entitlement(
       tier: EntitlementTier.values.firstWhere(
@@ -542,6 +555,9 @@ class AppUser {
   /// excluded (it's the auth.users FK, set once at signup, never rewritten).
   Map<String, dynamic> toSupabase() => {
     'name': name, 'email': email, 'photo_url': photoUrl,
+    'official_name': officialStudentName.isNotEmpty ? officialStudentName : name,
+    'student_name': officialStudentName.isNotEmpty ? officialStudentName : name,
+    'username': username.isNotEmpty ? username : name,
     'role': role.name, 'role_name': roleName,
     'account_type': accountType.name, 'status': status.name,
     'institution_id': schoolId, 'school_name': _schoolName, 'serial_number': serialNumber, 'department_id': departmentId,
@@ -611,6 +627,7 @@ class AppUser {
 
   AppUser copyWith({
     String? id, String? name, String? email, String? photoUrl,
+    String? officialStudentName, String? username,
     UserRole? role, String? roleName,
     AccountType? accountType, AccountStatus? status,
     String? schoolId, String? schoolName, String? serialNumber, String? departmentId,
@@ -627,6 +644,8 @@ class AppUser {
     String? classMasterOfClass, String? schoolVoucherRef,
   }) => AppUser(
     id: id ?? this.id, name: name ?? this.name,
+    officialStudentName: officialStudentName ?? this.officialStudentName,
+    username: username ?? this.username,
     email: email ?? this.email, photoUrl: photoUrl ?? this.photoUrl,
     role: role ?? this.role, roleName: roleName ?? this.roleName,
     accountType: accountType ?? this.accountType,

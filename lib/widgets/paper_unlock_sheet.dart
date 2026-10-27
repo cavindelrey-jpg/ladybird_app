@@ -1,47 +1,81 @@
 // lib/widgets/paper_unlock_sheet.dart
-// Shown when a student taps to open a past paper they haven't unlocked
-// yet. Premium subscribers never see this — isPaperUnlocked() already
+// Shown when a student taps to open a past paper, note or book they haven't unlocked
+// yet. Silver & Gold subscribers never see this — isContentUnlocked() already
 // returns true for them before this sheet would ever be triggered.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/app_user.dart';
+import '../models/academic_content.dart';
+import '../models/entitlement.dart';
 import '../models/xp_transaction.dart';
 import '../repositories/xp_repository.dart';
 import '../core/result.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 import 'widgets.dart';
+import 'premium_unlock_sheet.dart';
 
-/// Returns true if the paper ended up unlocked just now via XP —
+/// Returns true if the content ended up unlocked just now via XP —
 /// false if the user backed out.
+Future<bool> showContentUnlockSheet(
+  BuildContext context, {
+  required AppUser user,
+  required String contentId,
+  required String contentTitle,
+  ContentType contentType = ContentType.pastPaper,
+  int? cost,
+}) async {
+  final effectiveCost = cost ?? XpRepository.costForContentType(contentType);
+  final result = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (_) => _ContentUnlockSheetContent(
+      user: user,
+      contentId: contentId,
+      contentTitle: contentTitle,
+      contentType: contentType,
+      cost: effectiveCost,
+    ),
+  );
+  return result ?? false;
+}
+
+/// Backward-compatible alias for past paper unlock
 Future<bool> showPaperUnlockSheet(
   BuildContext context, {
   required AppUser user,
   required String paperId,
   required String paperTitle,
   int cost = kPaperUnlockCost,
-}) async {
-  final result = await showModalBottomSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-    builder: (_) => _PaperUnlockSheetContent(user: user, paperId: paperId, paperTitle: paperTitle, cost: cost),
-  );
-  return result ?? false;
-}
+}) => showContentUnlockSheet(
+  context,
+  user: user,
+  contentId: paperId,
+  contentTitle: paperTitle,
+  contentType: ContentType.pastPaper,
+  cost: cost,
+);
 
-class _PaperUnlockSheetContent extends StatefulWidget {
+class _ContentUnlockSheetContent extends StatefulWidget {
   final AppUser user;
-  final String paperId, paperTitle;
+  final String contentId, contentTitle;
+  final ContentType contentType;
   final int cost;
-  const _PaperUnlockSheetContent({required this.user, required this.paperId, required this.paperTitle, required this.cost});
+  const _ContentUnlockSheetContent({
+    required this.user,
+    required this.contentId,
+    required this.contentTitle,
+    required this.contentType,
+    required this.cost,
+  });
 
   @override
-  State<_PaperUnlockSheetContent> createState() => _PaperUnlockSheetContentState();
+  State<_ContentUnlockSheetContent> createState() => _ContentUnlockSheetContentState();
 }
 
-class _PaperUnlockSheetContentState extends State<_PaperUnlockSheetContent> {
+class _ContentUnlockSheetContentState extends State<_ContentUnlockSheetContent> {
   bool _unlocking = false;
   String? _error;
 
@@ -49,7 +83,7 @@ class _PaperUnlockSheetContentState extends State<_PaperUnlockSheetContent> {
     HapticFeedback.mediumImpact();
     setState(() { _unlocking = true; _error = null; });
     final result = await XpRepository.instance.spendXp(
-      userId: widget.user.id, paperId: widget.paperId, cost: widget.cost,
+      userId: widget.user.id, paperId: widget.contentId, cost: widget.cost,
     );
     if (!mounted) return;
     if (result is Success) {
@@ -60,9 +94,40 @@ class _PaperUnlockSheetContentState extends State<_PaperUnlockSheetContent> {
     }
   }
 
+  void _openUpgradeSheet() {
+    Navigator.pop(context, false);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.of(context).surf,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(Rad.xl)),
+      ),
+      builder: (_) => PremiumUnlockSheet(
+        userId: widget.user.id,
+        initialTier: EntitlementTier.silver,
+        onUnlockSuccess: () {},
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
+    final typeName = switch (widget.contentType) {
+      ContentType.pastPaper => 'Past Paper',
+      ContentType.note => 'Lecture Notes',
+      ContentType.book => 'Book / Textbook',
+      _ => 'Academic Resource',
+    };
+
+    final typeIcon = switch (widget.contentType) {
+      ContentType.pastPaper => Icons.assignment_outlined,
+      ContentType.note => Icons.description_outlined,
+      ContentType.book => Icons.menu_book_rounded,
+      _ => Icons.article_outlined,
+    };
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -72,12 +137,12 @@ class _PaperUnlockSheetContentState extends State<_PaperUnlockSheetContent> {
           Container(
             width: 56, height: 56,
             decoration: BoxDecoration(color: ac.goldBg, shape: BoxShape.circle),
-            child: Icon(Icons.lock_outline_rounded, color: ac.gold, size: 26),
+            child: Icon(typeIcon, color: ac.gold, size: 26),
           ),
           const SizedBox(height: 14),
-          Text('Unlock this paper', style: AppText.h2.copyWith(fontSize: 17)),
+          Text('Unlock this $typeName', style: AppText.h2.copyWith(fontSize: 17)),
           const SizedBox(height: 4),
-          Text(widget.paperTitle, style: AppText.bodySm, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
+          Text(widget.contentTitle, style: AppText.bodySm, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 20),
           FutureBuilder<(int, int)>(
             future: XpRepository.instance.getBalance(widget.user.id),
@@ -117,7 +182,7 @@ class _PaperUnlockSheetContentState extends State<_PaperUnlockSheetContent> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text('Not enough XP yet — need ${widget.cost - balance} more. '
-                        'Or unlock everything instantly with Premium.',
+                        'Earn XP by completing quizzes and daily challenges, or unlock all resources with Silver/Gold.',
                         style: AppText.caption.copyWith(color: ac.red), textAlign: TextAlign.center),
                   ),
                 if (_error != null)
@@ -128,9 +193,11 @@ class _PaperUnlockSheetContentState extends State<_PaperUnlockSheetContent> {
                 SizedBox(
                   width: double.infinity,
                   child: PrimaryBtn(
-                    label: 'Unlock with XP',
+                    label: canAfford ? 'Unlock with ${widget.cost} XP' : 'Upgrade to Silver (Unlimited)',
                     loading: _unlocking,
-                    onTap: canAfford && !_unlocking ? _unlockWithXp : () {},
+                    onTap: canAfford
+                        ? (!_unlocking ? _unlockWithXp : () {})
+                        : _openUpgradeSheet,
                   ),
                 ),
                 const SizedBox(height: 8),

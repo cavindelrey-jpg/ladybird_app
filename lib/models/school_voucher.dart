@@ -113,16 +113,30 @@ extension SchoolRoleX on SchoolRole {
 /// encodes. `null` on [SchoolVoucher.premiumTier] means the 'N' (none)
 /// segment — only ever used for an auto-issued parent-role code, which
 /// grants functional parent access without a content-premium perk.
-enum VoucherPremiumTier { silver, gold }
+enum VoucherPremiumTier { bronze, silver, gold }
 
 extension VoucherPremiumTierX on VoucherPremiumTier {
-  String get code => this == VoucherPremiumTier.gold ? 'G' : 'S';
-  String get label => this == VoucherPremiumTier.gold ? 'Gold' : 'Silver';
+  String get code {
+    switch (this) {
+      case VoucherPremiumTier.bronze: return 'B';
+      case VoucherPremiumTier.silver: return 'S';
+      case VoucherPremiumTier.gold:   return 'G';
+    }
+  }
+
+  String get label {
+    switch (this) {
+      case VoucherPremiumTier.bronze: return 'Bronze';
+      case VoucherPremiumTier.silver: return 'Silver';
+      case VoucherPremiumTier.gold:   return 'Gold';
+    }
+  }
 
   static VoucherPremiumTier? fromCode(String c) {
     switch (c.toUpperCase()) {
-      case 'G': return VoucherPremiumTier.gold;
+      case 'B': return VoucherPremiumTier.bronze;
       case 'S': return VoucherPremiumTier.silver;
+      case 'G': return VoucherPremiumTier.gold;
       default:  return null;
     }
   }

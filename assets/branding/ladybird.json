@@ -6,5 +6,6 @@
   "accentColor": "#F4B400",
   "logoAssetPath": "assets/branding/ladybird_logo.jpg",
   "splashAssetPath": "assets/branding/ladybird_logo.jpg",
-  "voucherPrefix": "LB"
+  "voucherPrefix": "LB",
+  "schoolId": "ladybird"
 }

@@ -19,6 +19,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../config/branding.dart';
 import '../../core/marks_csv.dart';
 import '../../core/result.dart';
 import '../../models/academic_content.dart' show kAcademicSubjects, kAcademicLevels;
@@ -373,7 +374,7 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
       }).toList();
 
       final file = await SchoolDocumentExportService.instance.exportMarksPdf(
-        schoolName: widget.staff.schoolName.isNotEmpty ? widget.staff.schoolName : 'CFPMI',
+        schoolName: widget.staff.schoolName.isNotEmpty ? widget.staff.schoolName : Branding.current.appName,
         classLevel: _class!,
         subject: _subject!,
         sequenceName: _sequence.label,
@@ -412,7 +413,7 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
       }).toList();
 
       final file = await SchoolDocumentExportService.instance.exportMarksDocx(
-        schoolName: widget.staff.schoolName.isNotEmpty ? widget.staff.schoolName : 'CFPMI',
+        schoolName: widget.staff.schoolName.isNotEmpty ? widget.staff.schoolName : Branding.current.appName,
         classLevel: _class!,
         subject: _subject!,
         sequenceName: _sequence.label,
@@ -826,8 +827,26 @@ class _MarksEntryPageState extends State<MarksEntryPage> {
         ),
         const SizedBox(width: 11),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600, color: ac.txt)),
+          Row(
+            children: [
+              Flexible(
+                child: Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w600, color: ac.txt)),
+              ),
+              if (s.username != null && s.username!.isNotEmpty && s.username != s.name) ...[
+                const SizedBox(width: 5),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0.5),
+                  decoration: BoxDecoration(
+                    color: ac.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text('@${s.username}',
+                      style: GoogleFonts.inter(fontSize: 9.5, fontWeight: FontWeight.w600, color: ac.primary)),
+                ),
+              ],
+            ],
+          ),
           if (error != null)
             Text(error, style: GoogleFonts.inter(fontSize: 11, color: ac.red))
           else if (saved)

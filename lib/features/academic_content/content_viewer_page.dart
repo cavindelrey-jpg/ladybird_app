@@ -24,7 +24,12 @@ import '../../core/epub_parser.dart';
 import '../../core/result.dart';
 import '../../models/academic_content.dart';
 import '../../models/app_user.dart';
+import '../../models/entitlement.dart';
+import '../../config/branding.dart';
 import '../../repositories/academic_content_repository.dart';
+import '../../repositories/xp_repository.dart';
+import '../../widgets/paper_unlock_sheet.dart';
+import '../../widgets/premium_unlock_sheet.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/application_shell.dart';
@@ -217,6 +222,107 @@ class _ContentViewerPageState extends State<ContentViewerPage> {
         ? _WebDocBody(fileUrl: fileUrl, kind: kind)
         : (isViewOnly ? innerViewer : SelectionArea(child: innerViewer));
 
+    final isGatedType = item != null &&
+        (item.contentType == ContentType.pastPaper ||
+            item.contentType == ContentType.note ||
+            item.contentType == ContentType.book);
+    final needsUnlockCheck = isGatedType &&
+        !currentUser.isSilver &&
+        !currentUser.isGold &&
+        Branding.current.xpEconomyEnabled;
+
+    final effectiveViewerBody = needsUnlockCheck
+        ? StreamBuilder<bool>(
+            stream: XpRepository.instance.watchIsContentUnlocked(
+              currentUser,
+              contentId: item.id,
+              contentType: item.contentType,
+            ),
+            builder: (context, snap) {
+              final isUnlocked = snap.data ?? false;
+              if (isUnlocked) return viewerBody;
+              final cost = XpRepository.costForContentType(item.contentType);
+              return Center(
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 440),
+                  margin: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(28),
+                  decoration: BoxDecoration(
+                    color: ac.surf,
+                    borderRadius: BorderRadius.circular(Rad.lg),
+                    border: Border.all(color: ac.bdr),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(color: ac.goldBg, shape: BoxShape.circle),
+                        child: Icon(Icons.lock_rounded, color: ac.gold, size: 30),
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        '${item.contentType.label} Locked',
+                        style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700, color: ac.txt),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'This resource is gated for Bronze members. Unlock with XP or upgrade to Silver for unlimited access.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(fontSize: 13, color: ac.txt2, height: 1.4),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => showContentUnlockSheet(
+                            context,
+                            user: currentUser,
+                            contentId: item.id,
+                            contentTitle: item.title,
+                            contentType: item.contentType,
+                          ),
+                          icon: const Icon(Icons.bolt_rounded, size: 18),
+                          label: Text('Unlock with $cost XP'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: ac.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () => showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: ac.surf,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(top: Radius.circular(Rad.xl)),
+                            ),
+                            builder: (_) => PremiumUnlockSheet(
+                              userId: currentUser.id,
+                              initialTier: EntitlementTier.silver,
+                              onUnlockSuccess: () {},
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: const Text('Upgrade to Silver / Gold'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          )
+        : viewerBody;
+
     return ApplicationShell(
       user: currentUser,
       currentTitle: title,
@@ -373,7 +479,7 @@ class _ContentViewerPageState extends State<ContentViewerPage> {
             ),
       child: Container(
         color: kind == ViewableFileKind.video ? Colors.black : ac.bg,
-        child: viewerBody,
+        child: effectiveViewerBody,
       ),
     );
   }

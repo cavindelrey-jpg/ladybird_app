@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../config/branding.dart';
 import '../../core/result.dart';
 import '../../core/teacher_csv.dart';
 import '../../core/universal_file_saver.dart';
@@ -150,7 +151,7 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
       }
       showToast(context, 'Generating Staff Directory PDF...');
       final file = await SchoolDocumentExportService.instance.exportStaffDirectoryPdf(
-        schoolName: widget.admin.schoolName.isNotEmpty ? widget.admin.schoolName : 'CFPMI',
+        schoolName: widget.admin.schoolName.isNotEmpty ? widget.admin.schoolName : Branding.current.appName,
         staff: staff,
       );
       if (!mounted) return;
@@ -169,7 +170,7 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
       }
       showToast(context, 'Generating Staff Directory Word document...');
       final file = await SchoolDocumentExportService.instance.exportStaffDirectoryDocx(
-        schoolName: widget.admin.schoolName.isNotEmpty ? widget.admin.schoolName : 'CFPMI',
+        schoolName: widget.admin.schoolName.isNotEmpty ? widget.admin.schoolName : Branding.current.appName,
         staff: staff,
       );
       if (!mounted) return;

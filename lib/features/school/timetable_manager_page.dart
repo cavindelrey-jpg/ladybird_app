@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../config/branding.dart';
 import '../../core/result.dart';
 import '../../core/timetable_conflicts.dart';
 import '../../core/timetable_csv.dart' hide normalizeTime;
@@ -139,7 +140,7 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
     try {
       showToast(context, 'Generating Timetable PDF...');
       final file = await SchoolDocumentExportService.instance.exportTimetablePdf(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'CFPMI',
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : Branding.current.appName,
         classLevel: _classLevel,
         slots: slots,
       );
@@ -159,7 +160,7 @@ class _TimetableManagerPageState extends State<TimetableManagerPage> {
     try {
       showToast(context, 'Generating Timetable Word document...');
       final file = await SchoolDocumentExportService.instance.exportTimetableDocx(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'CFPMI',
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : Branding.current.appName,
         classLevel: _classLevel,
         slots: slots,
       );

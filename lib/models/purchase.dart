@@ -45,6 +45,7 @@ enum PurchaseStatus {
 /// it backs the app's OWN direct-payment sheet (premium_unlock_sheet.dart),
 /// which genuinely does need to display a sticker price up front.
 enum EntitlementPackage {
+  bronze1Month, bronze3Months, bronze6Months, bronze1Year,
   silver1Month, silver3Months, silver6Months, silver1Year,
   gold1Month, gold3Months, gold6Months, gold1Year,
 }
@@ -55,6 +56,11 @@ extension EntitlementPackageX on EntitlementPackage {
   /// stamp their own `tier` field at issuance time.
   EntitlementTier get tier {
     switch (this) {
+      case EntitlementPackage.bronze1Month:
+      case EntitlementPackage.bronze3Months:
+      case EntitlementPackage.bronze6Months:
+      case EntitlementPackage.bronze1Year:
+        return EntitlementTier.bronze;
       case EntitlementPackage.silver1Month:
       case EntitlementPackage.silver3Months:
       case EntitlementPackage.silver6Months:
@@ -73,12 +79,16 @@ extension EntitlementPackageX on EntitlementPackage {
   /// the arithmetic auditable (a "1 year" voucher is exactly 365 days).
   int get durationDays {
     switch (this) {
+      case EntitlementPackage.bronze1Month:
       case EntitlementPackage.silver1Month:
       case EntitlementPackage.gold1Month:   return 30;
+      case EntitlementPackage.bronze3Months:
       case EntitlementPackage.silver3Months:
       case EntitlementPackage.gold3Months:  return 90;
+      case EntitlementPackage.bronze6Months:
       case EntitlementPackage.silver6Months:
       case EntitlementPackage.gold6Months:  return 180;
+      case EntitlementPackage.bronze1Year:
       case EntitlementPackage.silver1Year:
       case EntitlementPackage.gold1Year:    return 365;
     }
@@ -86,6 +96,10 @@ extension EntitlementPackageX on EntitlementPackage {
 
   String get label {
     switch (this) {
+      case EntitlementPackage.bronze1Month:  return 'Premium Bronze — 1 month';
+      case EntitlementPackage.bronze3Months: return 'Premium Bronze — 3 months';
+      case EntitlementPackage.bronze6Months: return 'Premium Bronze — 6 months';
+      case EntitlementPackage.bronze1Year:   return 'Premium Bronze — 1 year';
       case EntitlementPackage.silver1Month:  return 'Premium Silver — 1 month';
       case EntitlementPackage.silver3Months: return 'Premium Silver — 3 months';
       case EntitlementPackage.silver6Months: return 'Premium Silver — 6 months';
@@ -103,6 +117,10 @@ extension EntitlementPackageX on EntitlementPackage {
   /// reasonable default price ladder; not a live pricing feed.
   int get suggestedPriceFcfa {
     switch (this) {
+      case EntitlementPackage.bronze1Month:  return 500;
+      case EntitlementPackage.bronze3Months: return 1300;
+      case EntitlementPackage.bronze6Months: return 2500;
+      case EntitlementPackage.bronze1Year:   return 4500;
       case EntitlementPackage.silver1Month:  return 1500;
       case EntitlementPackage.silver3Months: return 4000;
       case EntitlementPackage.silver6Months: return 7500;

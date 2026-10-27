@@ -1,14 +1,7 @@
 // lib/features/onboarding/voucher_signup_screen.dart
-// The account-creation screen reached ONLY from VoucherEntryScreen after a
-// voucher code has already been entered and format-validated — deliberately
-// NOT the same screen as the general Academia Individual/Silver/Gold path
-// (account_choice_screen.dart -> create_account_screen.dart): a voucher
-// holder isn't picking a tier, the code already carries it (its own G/S
-// suffix — see lib/models/school_voucher.dart's VoucherPremiumTier), so
-// there's nothing to choose. Just name/email/password, then the voucher is
-// redeemed immediately against the freshly-created account in this same
-// screen (no PendingVoucher-style deferral needed — signUpIndependent
-// already returns a real uid synchronously).
+// The account-creation screen reached from VoucherEntryScreen after a
+// voucher code has been validated. Supports automatic class-list placement
+// using separate account usernames and official student names.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -16,9 +9,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../core/result.dart';
-import '../../services/auth_service.dart';
+import '../../models/academic_content.dart' show kAcademicLevels;
 import '../../repositories/academia_voucher_repository.dart';
 import '../../repositories/school_access_repository.dart';
+import '../../repositories/student_roster_repository.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 
@@ -33,18 +28,29 @@ class VoucherSignUpScreen extends StatefulWidget {
 
 class _VoucherSignUpScreenState extends State<VoucherSignUpScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _nameCtrl = TextEditingController();
+  final _officialNameCtrl = TextEditingController();
+  final _usernameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+
+  late String _selectedClass = kAcademicLevels.first;
   bool _loading = false;
   bool _obscure = true;
   String? _error;
 
   bool get _isAcademiaCode => widget.voucherCode.startsWith('AC-');
+  bool get _isStudentCode {
+    if (_isAcademiaCode) return false;
+    final parts = widget.voucherCode.split('-');
+    return parts.length >= 2 && (parts[1] == 'S' || parts[1] == 'STUDENT');
+  }
 
   @override
   void dispose() {
-    _nameCtrl.dispose(); _emailCtrl.dispose(); _passwordCtrl.dispose();
+    _officialNameCtrl.dispose();
+    _usernameCtrl.dispose();
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
     super.dispose();
   }
 
@@ -52,10 +58,13 @@ class _VoucherSignUpScreenState extends State<VoucherSignUpScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() { _loading = true; _error = null; });
     try {
+      final username = _isStudentCode ? _usernameCtrl.text.trim() : _officialNameCtrl.text.trim();
+      final officialName = _officialNameCtrl.text.trim();
+
       final user = await AuthService.instance.signUpIndependent(
         email: _emailCtrl.text.trim(),
         password: _passwordCtrl.text,
-        name: _nameCtrl.text.trim(),
+        name: username,
       );
       if (!mounted) return;
       TextInput.finishAutofillContext();
@@ -63,18 +72,30 @@ class _VoucherSignUpScreenState extends State<VoucherSignUpScreen> {
       final redeemResult = _isAcademiaCode
           ? await AcademiaVoucherRepository.instance
               .redeemVoucher(userId: user.id, rawCode: widget.voucherCode)
-          : await SchoolAccessRepository.instance
-              .redeemSchoolVoucher(userId: user.id, rawCode: widget.voucherCode);
+          : await SchoolAccessRepository.instance.redeemSchoolVoucher(
+              userId: user.id,
+              rawCode: widget.voucherCode,
+              classLevel: _isStudentCode ? _selectedClass : null,
+            );
 
       if (!mounted) return;
       switch (redeemResult) {
-        case Success():
+        case Success(:final value):
           showToast(context, 'Account activated');
+          // Automatic class-list placement for enrolled school students
+          if (_isStudentCode && value is SchoolRedemptionOutcome) {
+            final schoolId = value.school.id;
+            try {
+              await StudentRosterRepository.instance.ensureStudentOnClassList(
+                schoolId: schoolId,
+                classLevel: _selectedClass,
+                officialName: officialName,
+                username: username,
+                userId: user.id,
+              );
+            } catch (_) {}
+          }
         case Failure(:final message):
-          // Account exists either way — surface the problem but still let
-          // them in; they can retry the code from Profile rather than
-          // being stuck on a dead-end screen with an account that can't
-          // sign back in.
           showToast(context, 'Account created, but the code failed: $message', isError: true);
       }
       Navigator.of(context).popUntil((r) => r.isFirst);
@@ -117,11 +138,12 @@ class _VoucherSignUpScreenState extends State<VoucherSignUpScreen> {
                     style: GoogleFonts.sora(fontSize: 24, fontWeight: FontWeight.w800, color: ac.txt)),
                 const SizedBox(height: 6),
                 Text(
-                  'Your code already grants your role and Premium tier — just '
-                  'name, email, and password to finish.',
+                  _isStudentCode
+                      ? 'Enter your official student name for class lists, and choose an account username for app login.'
+                      : 'Your code already grants your role and Premium tier — just fill in your details to finish.',
                   style: GoogleFonts.inter(fontSize: 13, color: ac.txt2),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 24),
 
                 if (_error != null) ...[
                   Container(
@@ -139,14 +161,55 @@ class _VoucherSignUpScreenState extends State<VoucherSignUpScreen> {
                   const SizedBox(height: 16),
                 ],
 
+                // 1. Official Student Name
                 _VoucherField(
-                  controller: _nameCtrl,
-                  hint: 'Full name',
-                  icon: Icons.person_outline_rounded,
+                  controller: _officialNameCtrl,
+                  hint: _isStudentCode ? 'Official Full Name (e.g. Brice Ngono)' : 'Full Name',
+                  icon: Icons.badge_outlined,
                   autofillHints: const [AutofillHints.name],
-                  validator: (v) => (v == null || v.trim().length < 2) ? 'Enter your name' : null,
+                  validator: (v) => (v == null || v.trim().length < 2) ? 'Enter your official name' : null,
                 ),
                 const SizedBox(height: 12),
+
+                // 2. Separate Account Username (for students)
+                if (_isStudentCode) ...[
+                  _VoucherField(
+                    controller: _usernameCtrl,
+                    hint: 'Account Username (e.g. brice2026)',
+                    icon: Icons.alternate_email_rounded,
+                    autofillHints: const [AutofillHints.username],
+                    validator: (v) => (v == null || v.trim().length < 2) ? 'Enter an account username' : null,
+                  ),
+                  const SizedBox(height: 12),
+
+                  // 3. Class Level Placement
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: ac.surf,
+                      borderRadius: BorderRadius.circular(Rad.md),
+                      border: Border.all(color: ac.bdr),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _selectedClass,
+                        isExpanded: true,
+                        icon: Icon(Icons.arrow_drop_down_rounded, color: ac.txt2),
+                        dropdownColor: ac.surf,
+                        items: kAcademicLevels.take(7).map((c) => DropdownMenuItem(
+                          value: c,
+                          child: Text(c, style: GoogleFonts.inter(fontSize: 14, color: ac.txt)),
+                        )).toList(),
+                        onChanged: (val) {
+                          if (val != null) setState(() => _selectedClass = val);
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                // 4. Email address
                 _VoucherField(
                   controller: _emailCtrl,
                   hint: 'Email address',
@@ -156,6 +219,8 @@ class _VoucherSignUpScreenState extends State<VoucherSignUpScreen> {
                   validator: (v) => (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
                 ),
                 const SizedBox(height: 12),
+
+                // 5. Password
                 _VoucherField(
                   controller: _passwordCtrl,
                   hint: 'Password',
@@ -218,9 +283,6 @@ class _VoucherField extends StatelessWidget {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md), borderSide: BorderSide(color: ac.bdr)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md), borderSide: BorderSide(color: ac.bdr)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md), borderSide: BorderSide(color: ac.primary, width: 2)),
-        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md), borderSide: BorderSide(color: ac.red)),
-        focusedErrorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(Rad.md), borderSide: BorderSide(color: ac.red, width: 2)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       ),
     );
   }

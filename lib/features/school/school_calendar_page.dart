@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../config/branding.dart';
 import '../../core/result.dart';
 import '../../core/school_calendar_csv.dart';
 import '../../models/app_user.dart';
@@ -106,7 +107,7 @@ class _SchoolCalendarPageState extends State<SchoolCalendarPage> {
     try {
       showToast(context, 'Generating Program of Activities PDF...');
       final file = await SchoolDocumentExportService.instance.exportActivitiesPdf(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'CFPMI',
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : Branding.current.appName,
         events: _currentEvents,
       );
       if (!mounted) return;
@@ -124,7 +125,7 @@ class _SchoolCalendarPageState extends State<SchoolCalendarPage> {
     try {
       showToast(context, 'Generating Program of Activities Word document...');
       final file = await SchoolDocumentExportService.instance.exportActivitiesDocx(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'CFPMI',
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : Branding.current.appName,
         events: _currentEvents,
       );
       if (!mounted) return;

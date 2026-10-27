@@ -6,5 +6,6 @@
   "accentColor": "#86EFAC",
   "logoAssetPath": "assets/branding/green_hill_logo.png",
   "splashAssetPath": "assets/branding/green_hill_logo.png",
-  "voucherPrefix": "GH"
+  "voucherPrefix": "GH",
+  "schoolId": "green_hill"
 }

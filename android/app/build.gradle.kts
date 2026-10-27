@@ -42,11 +42,7 @@ android {
     }
 
     defaultConfig {
-        // CFPMI fork of the Ladybird app -- defaults to the cfpmi
-        // package so a flavor-less `flutter run`/`flutter build` (no
-        // --flavor flag) matches this repo's primary identity, same
-        // reasoning as BRAND_ID's default in lib/config/branding.dart.
-        applicationId = "com.cfpmi.app"
+        applicationId = "com.ladybird.app"
         minSdk = flutter.minSdkVersion
         targetSdk = 36
         // No manual ndk.abiFilters here -- Flutter's own --split-per-abi
@@ -104,10 +100,25 @@ android {
     //   flutter build apk --flavor cfpmi --dart-define=BRAND_ID=cfpmi
     flavorDimensions += "brand"
     productFlavors {
+        create("ladybird") {
+            dimension = "brand"
+            applicationId = "com.ladybird.app"
+            resValue("string", "app_name", "Ladybird")
+        }
+        create("greenhill") {
+            dimension = "brand"
+            applicationId = "com.example.academia_app.greenhill"
+            resValue("string", "app_name", "Green Hills")
+        }
         create("cfpmi") {
             dimension = "brand"
             applicationId = "com.cfpmi.app"
             resValue("string", "app_name", "CFPMI")
+        }
+        create("academia") {
+            dimension = "brand"
+            applicationId = "com.example.academia_app"
+            resValue("string", "app_name", "Academia")
         }
     }
 }

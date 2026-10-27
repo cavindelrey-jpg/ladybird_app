@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../config/branding.dart';
 import '../../../core/logo_codec.dart';
 import '../../../models/app_user.dart';
 import '../../../models/examination.dart';
@@ -26,7 +27,9 @@ class _SchoolExamTemplatesPageState extends State<SchoolExamTemplatesPage> {
     final schoolId = widget.user.effectiveSchoolId;
     String? logoUri = initial?.schoolLogoUrl;
     final nameCtrl = TextEditingController(text: initial?.name ?? 'Standard Exam Letterhead');
-    final schoolNameCtrl = TextEditingController(text: initial?.schoolName ?? 'CFPMI');
+    final schoolNameCtrl = TextEditingController(
+      text: initial?.schoolName ?? (widget.user.schoolName.isNotEmpty ? widget.user.schoolName : Branding.current.appName),
+    );
     final countryHeaderCtrl = TextEditingController(
       text: initial?.countryHeader ??
           'REPUBLIC OF CAMEROON\nPeace - Work - Fatherland\nMINISTRY OF SECONDARY EDUCATION',

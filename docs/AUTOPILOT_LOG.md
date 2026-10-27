@@ -5677,3 +5677,36 @@ Defaults chosen (per autopilot rules; reversible via git):
   opening a course lesson, which needs live course data — unreachable offline.
   Its two-column reading+TOC layout is analyze-clean and code-verified only.
 - Guest shell still on its own nav (no global top bar) — deferred to long-tail.
+
+
+## 2026-10-27 — Entitlement Tiers, Content Bulk Upload & Management, Roster Usernames, and White-Label Parity
+
+Directive: Full correction list implementation across both Ladybird and CFPMI/Green Hills applications:
+1. **Bronze, Silver, and Gold Entitlement Tiers**:
+   - Added `EntitlementTier.bronze` alongside silver and gold across `lib/models/entitlement.dart`, `lib/core/feature_access.dart`, `lib/models/app_user.dart`, and `lib/models/school_voucher.dart`.
+   - Updated package purchasing and voucher redemption (`'B'`/`'Bronze'` prefix maps to bronze tier).
+   - Added Bronze plan cards in `lib/widgets/premium_unlock_sheet.dart` with transparent pricing (500, 1300, 2500, 4500 FCFA).
+2. **XP-Gated Academic Content for Bronze**:
+   - Implemented XP gating for Bronze accounts on Past Papers (150 XP), Academic Notes (100 XP), and Books (200 XP).
+   - Silver and Gold tiers enjoy unlimited automatic access without XP deduction.
+   - White-label school mode with XP disabled allows access without obstruction.
+   - Updated `lib/repositories/xp_repository.dart`, `lib/widgets/paper_unlock_sheet.dart` (`showContentUnlockSheet`), and `lib/features/academic_content/content_viewer_page.dart`.
+3. **Bulk Upload Across All Content Categories with Thumbnail Assignment**:
+   - Created `lib/features/academic_content/bulk_content_upload_page.dart` supporting all content categories: `pastPaper`, `note`, `book`, `presentation`, `assignment`, `researchPaper`, `video`.
+   - Supports multi-file selection, category assignment, thumbnail picker per file or batch-wide, and automatic tag-based thumbnail lookup.
+   - Refactored `bulk_past_paper_upload_page.dart` to forward to the new bulk content upload page.
+4. **Full File-Manager Bulk Actions**:
+   - Enhanced `lib/features/academic_content/library_folder_page.dart` with multi-select checkboxes for both individual files and subfolders.
+   - Added full bulk toolbar: Select All / Deselect All, Bulk Move (with folder selector dialog), Bulk Delete (with confirmation), and Bulk Offline Download.
+5. **Permanent Homepage Banner Fix**:
+   - Resolved the disappearing banner issue in `lib/widgets/hero_banner_carousel.dart` by adding rich branded default slides when `hero_slides` table returns empty.
+   - Added 12-second auto-advance timer and re-integrated `HeroBannerCarousel` into `lib/features/dashboard/universal_home_page.dart`.
+6. **Automatic Class-List Placement with Separate Usernames and Official Names**:
+   - Decoupled `officialStudentName` and `username` across `lib/models/student_record.dart`, `lib/models/app_user.dart`, and CSV import/export.
+   - Updated `lib/features/onboarding/voucher_signup_screen.dart` with distinct fields for Official Name, Username, and Class Level.
+   - Implemented `StudentRosterRepository.instance.ensureStudentOnClassList` to automatically link new student accounts to class lists.
+   - Updated Marks Entry, Student Roster, and document generation (ID cards, honor roll, certificates) to display official names with username badges.
+7. **White-Label Synchronization & Migrations**:
+   - Fully synchronized changes between `/root/ladybird_app` and `/root/cfpmi_app`.
+   - Created non-destructive migration `supabase/migrations/20261027010000_entitlement_and_roster_enhancements.sql`.
+   - Dynamic `Branding.current.appName` replaces hardcoded fallbacks across all school document exports.

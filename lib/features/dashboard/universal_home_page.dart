@@ -59,6 +59,8 @@ import '../academic_content/content_details_page.dart';
 import '../academic_content/content_viewer_page.dart';
 import '../academic_content/library_folder_page.dart';
 import '../academic_content/library_home_page.dart';
+import '../../widgets/hero_banner_carousel.dart';
+import '../../models/hero_slide.dart';
 import '../announcements/announcements_page.dart';
 import '../clubs/clubs_page.dart';
 import '../courses_marketplace/courses_home_page.dart';
@@ -461,6 +463,11 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
           children: [
             _greetingHeader(context),
             const SizedBox(height: 16),
+            HeroBannerCarousel(
+              placement: HeroPlacement.home,
+              user: _u,
+            ),
+            const SizedBox(height: 16),
             _commandCenterHero(context),
             const SizedBox(height: 18),
             _progressAndGoalsStrip(context),
@@ -708,7 +715,7 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
                   if (_isGuest) {
                     return _heroCardLayout(
                       context,
-                      eyebrow: 'WELCOME TO CFPMI',
+                      eyebrow: 'WELCOME TO ${Branding.current.appName.toUpperCase()}',
                       eyebrowIcon: Icons.login_rounded,
                       eyebrowColor: ac.gold,
                       title: 'Sign In to Your Account',

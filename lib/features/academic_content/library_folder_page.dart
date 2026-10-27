@@ -128,6 +128,89 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
     }
   }
 
+  Future<void> _batchMove(
+    BuildContext context,
+    List<AcademicContent> allItems,
+    List<LibraryFolder> allFolders,
+  ) async {
+    final selectedContent = allItems.where((i) => _selectedIds.contains(i.id)).toList();
+    final selectedFolders = allFolders.where((f) => _selectedIds.contains(f.id)).toList();
+    if (selectedContent.isEmpty && selectedFolders.isEmpty) return;
+
+    final blockedFolderIds = selectedFolders.map((f) => f.id).toSet();
+    final destination = await Navigator.of(context).push<String?>(
+      MaterialPageRoute(
+        builder: (_) => LibraryFolderPickerPage(
+          folderId: null,
+          title: 'Move ${_selectedIds.length} item(s)',
+          disabledFolderIds: blockedFolderIds,
+        ),
+      ),
+    );
+    if (destination == null || !mounted) return;
+
+    int movedCount = 0;
+    for (final item in selectedContent) {
+      final res = await LibraryFolderRepository.instance.moveItem(item.id, destination);
+      if (res is Success) movedCount++;
+    }
+    for (final folder in selectedFolders) {
+      final res = await LibraryFolderRepository.instance.moveFolder(folder.id, destination);
+      if (res is Success) movedCount++;
+    }
+
+    if (mounted) {
+      _exitSelection();
+      showToast(context, 'Moved $movedCount item(s)');
+    }
+  }
+
+  Future<void> _batchDelete(
+    BuildContext context,
+    List<AcademicContent> allItems,
+    List<LibraryFolder> allFolders,
+  ) async {
+    final selectedContent = allItems.where((i) => _selectedIds.contains(i.id)).toList();
+    final selectedFolders = allFolders.where((f) => _selectedIds.contains(f.id)).toList();
+    final totalCount = selectedContent.length + selectedFolders.length;
+    if (totalCount == 0) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        title: Text('Delete $totalCount item(s)?'),
+        content: Text(
+          'Are you sure you want to delete $totalCount selected item(s)? '
+          'Files and subfolders will be permanently removed.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(dCtx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    int deletedCount = 0;
+    for (final item in selectedContent) {
+      final res = await AcademicContentRepository.instance.delete(item.id);
+      if (res is Success) deletedCount++;
+    }
+    for (final folder in selectedFolders) {
+      final res = await LibraryFolderRepository.instance.deleteFolder(folder.id);
+      if (res is Success) deletedCount++;
+    }
+
+    if (mounted) {
+      _exitSelection();
+      showToast(context, 'Deleted $deletedCount item(s)');
+    }
+  }
+
   AppNavDestination get _effectiveDestination {
     if (widget.navDestination != null) return widget.navDestination!;
     if (widget.folderName.toLowerCase().contains('past')) {
@@ -233,14 +316,27 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
                 TextButton(
                   onPressed: () {
                     setState(() {
-                      _selectedIds.addAll(items.map((i) => i.id));
+                      final allIds = <String>{
+                        ...items.map((i) => i.id),
+                        ...folders.map((f) => f.id),
+                      };
+                      if (_selectedIds.length == allIds.length && allIds.isNotEmpty) {
+                        _selectedIds.clear();
+                        _isSelecting = false;
+                      } else {
+                        _selectedIds.addAll(allIds);
+                      }
                     });
                   },
-                  child: const Text('Select All'),
+                  child: Text(
+                    _selectedIds.length == (items.length + folders.length) && (items.isNotEmpty || folders.isNotEmpty)
+                        ? 'Deselect All'
+                        : 'Select All',
+                  ),
                 ),
                 if (_batchDownloading)
                   const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    padding: EdgeInsets.symmetric(horizontal: 12),
                     child: Center(
                       child: SizedBox(
                         width: 20,
@@ -249,27 +345,45 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
                       ),
                     ),
                   )
-                else
+                else ...[
                   IconButton(
                     icon: const Icon(Icons.download_rounded),
-                    tooltip: 'Save selected offline',
+                    tooltip: 'Save selected files offline',
                     onPressed: _selectedIds.isEmpty ? null : () => _batchDownloadOffline(items),
                   ),
+                  if (_canManage) ...[
+                    IconButton(
+                      icon: const Icon(Icons.drive_file_move_outlined),
+                      tooltip: 'Move selected to folder…',
+                      onPressed: _selectedIds.isEmpty ? null : () => _batchMove(context, items, folders),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.delete_outline_rounded, color: ac.red),
+                      tooltip: 'Delete selected',
+                      onPressed: _selectedIds.isEmpty ? null : () => _batchDelete(context, items, folders),
+                    ),
+                  ],
+                ],
               ],
               gridTileBuilder: (context, e) => _EntryTile(
                 entry: e,
                 isGrid: true,
                 canManage: _canManage,
                 isSelecting: _isSelecting,
-                isSelected: e.content != null && _selectedIds.contains(e.content!.id),
+                isSelected: (e.content != null && _selectedIds.contains(e.content!.id)) ||
+                    (e.folder != null && _selectedIds.contains(e.folder!.id)),
                 onOpen: () {
-                  if (_isSelecting && e.content != null) {
-                    _toggleItem(e.content!.id);
+                  if (_isSelecting) {
+                    final id = e.content?.id ?? e.folder?.id;
+                    if (id != null) _toggleItem(id);
                   } else {
                     _open(context, e);
                   }
                 },
-                onLongPress: e.content != null ? () => _enterSelection(e.content!.id) : null,
+                onLongPress: () {
+                  final id = e.content?.id ?? e.folder?.id;
+                  if (id != null) _enterSelection(id);
+                },
                 onRename: () => _renameFolder(context, e.folder!),
                 onDelete: () => _deleteFolder(context, e.folder!),
                 onMoveFolder: () => _moveFolder(context, e.folder!),
@@ -280,15 +394,20 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
                 isGrid: false,
                 canManage: _canManage,
                 isSelecting: _isSelecting,
-                isSelected: e.content != null && _selectedIds.contains(e.content!.id),
+                isSelected: (e.content != null && _selectedIds.contains(e.content!.id)) ||
+                    (e.folder != null && _selectedIds.contains(e.folder!.id)),
                 onOpen: () {
-                  if (_isSelecting && e.content != null) {
-                    _toggleItem(e.content!.id);
+                  if (_isSelecting) {
+                    final id = e.content?.id ?? e.folder?.id;
+                    if (id != null) _toggleItem(id);
                   } else {
                     _open(context, e);
                   }
                 },
-                onLongPress: e.content != null ? () => _enterSelection(e.content!.id) : null,
+                onLongPress: () {
+                  final id = e.content?.id ?? e.folder?.id;
+                  if (id != null) _enterSelection(id);
+                },
                 onRename: () => _renameFolder(context, e.folder!),
                 onDelete: () => _deleteFolder(context, e.folder!),
                 onMoveFolder: () => _moveFolder(context, e.folder!),
@@ -381,12 +500,12 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
           ),
           ListTile(
             leading: Icon(Icons.drive_folder_upload_rounded, color: ac.primary),
-            title: const Text('Bulk upload past papers'),
-            subtitle: const Text('Select many PDFs at once, filed here'),
+            title: const Text('Bulk upload content (all categories)'),
+            subtitle: const Text('Select multiple files with thumbnail assignment, filed here'),
             onTap: () {
               Navigator.pop(sheetContext);
               Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => BulkPastPaperUploadPage(
+                  builder: (_) => BulkContentUploadPage(
                       user: widget.user, folderId: widget.folderId)));
             },
           ),
@@ -531,8 +650,35 @@ class _EntryTile extends StatelessWidget {
         onLongPress: canManage ? () => _showFolderMenu(context, folder) : null,
         child: Container(
           padding: EdgeInsets.all(isGrid ? 10 : 12),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr2)),
-          child: tile,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(Rad.md),
+            border: Border.all(
+              color: isSelected ? ac.primary : ac.bdr2,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Stack(
+            children: [
+              tile,
+              if (isSelecting)
+                Positioned(
+                  top: 2,
+                  right: 2,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isSelected ? ac.primary : Colors.black45,
+                      shape: BoxShape.circle,
+                    ),
+                    padding: const EdgeInsets.all(2),
+                    child: Icon(
+                      isSelected ? Icons.check : Icons.circle_outlined,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

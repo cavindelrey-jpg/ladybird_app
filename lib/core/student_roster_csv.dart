@@ -8,6 +8,7 @@ import 'marks_csv.dart' show encodeCsv, decodeCsv;
 
 const List<String> kStudentRosterCsvColumns = [
   'studentName',
+  'username',
   'classLevel',
   'matricule',
   'parentContact',
@@ -74,6 +75,8 @@ StudentRosterPlan parseStudentRosterCsv(
     final h = rawHeader[i].toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
     if (h == 'studentname' || h == 'name' || h == 'fullname') {
       colMap['studentName'] = i;
+    } else if (h == 'username' || h == 'handle' || h == 'accountname' || h == 'accountusername') {
+      colMap['username'] = i;
     } else if (h == 'classlevel' || h == 'class' || h == 'form') {
       colMap['classLevel'] = i;
     } else if (h == 'matricule' || h == 'studentid' || h == 'id' || h == 'registrationnumber') {
@@ -175,10 +178,13 @@ StudentRosterPlan parseStudentRosterCsv(
       }
     }
 
+    final username = raw['username'] ?? '';
+
     row.resolved = StudentRecord(
       id: studentId,
       schoolId: schoolId,
       name: name,
+      username: username.isNotEmpty ? username : null,
       classLevel: matchedClass,
       matricule: matricule.isNotEmpty ? matricule : null,
       parentContact: parentContact.isNotEmpty ? parentContact : null,
@@ -194,10 +200,10 @@ StudentRosterPlan parseStudentRosterCsv(
 String generateStudentRosterCsvTemplate() {
   final rows = [
     kStudentRosterCsvColumns,
-    ['Brice Ngono', 'Form 4', 'LBS-2026-001', '+237 670001122', 'M'],
-    ['Clarisse Tchakounte', 'Form 4', 'LBS-2026-002', '+237 671112233', 'F'],
-    ['Yannick Ebanda', 'Form 5', 'LBS-2026-015', '+237 690223344', 'M'],
-    ['Vanessa Nkwenti', 'Form 5', 'LBS-2026-016', '+237 673334455', 'F'],
+    ['Brice Ngono', 'brice2026', 'Form 4', 'LBS-2026-001', '+237 670001122', 'M'],
+    ['Clarisse Tchakounte', 'clarisse_t', 'Form 4', 'LBS-2026-002', '+237 671112233', 'F'],
+    ['Yannick Ebanda', 'yannick_e', 'Form 5', 'LBS-2026-015', '+237 690223344', 'M'],
+    ['Vanessa Nkwenti', 'vanessa_n', 'Form 5', 'LBS-2026-016', '+237 673334455', 'F'],
   ];
   return encodeCsv(rows);
 }
@@ -208,6 +214,7 @@ String exportStudentRosterCsv(List<StudentRecord> students) {
   for (final s in students) {
     rows.add([
       s.name,
+      s.username ?? '',
       s.classLevel,
       s.matricule ?? '',
       s.parentContact ?? '',

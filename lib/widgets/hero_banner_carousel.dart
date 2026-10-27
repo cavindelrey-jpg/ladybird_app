@@ -17,6 +17,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../config/branding.dart';
 import '../models/app_user.dart';
 import '../models/hero_slide.dart';
 import '../repositories/hero_slide_repository.dart';
@@ -83,27 +84,111 @@ class _HeroBannerCarouselState extends State<HeroBannerCarousel> {
     });
   }
 
+  List<HeroSlide> _defaultSlides() {
+    final brand = Branding.current;
+    final isLadybird = brand.brandId.contains('ladybird') || brand.schoolId == 'ladybird';
+    final isGreenHills = brand.brandId.contains('green_hill') || brand.schoolId == 'green_hill';
+
+    if (isLadybird) {
+      return [
+        HeroSlide(
+          id: 'default_ladybird_1',
+          headline: 'Ladybird Group of Schools',
+          subtext: 'Nurturing academic excellence, character, and digital innovation for Form 1 through Upper Sixth.',
+          ctaLabel: 'Explore Library',
+          statLine: 'Curated Syllabus Resources & Past Papers',
+          destination: HeroDestination.library,
+          createdBy: 'system',
+        ),
+        HeroSlide(
+          id: 'default_ladybird_2',
+          headline: 'Past Questions & Revision',
+          subtext: 'Prepare for national exams with complete GCE Ordinary & Advanced Level past papers and marking guides.',
+          ctaLabel: 'View Papers',
+          statLine: 'GCE, Probatoire & School Examinations',
+          destination: HeroDestination.pastQuestions,
+          createdBy: 'system',
+        ),
+        HeroSlide(
+          id: 'default_ladybird_3',
+          headline: 'Digital School Connect',
+          subtext: 'Daily class timetables, teacher announcements, attendance records, and sequence marks in real time.',
+          ctaLabel: 'Open School Hub',
+          statLine: 'Connected Digital Campus',
+          destination: HeroDestination.courses,
+          createdBy: 'system',
+        ),
+      ];
+    } else if (isGreenHills) {
+      return [
+        HeroSlide(
+          id: 'default_greenhills_1',
+          headline: 'Green Hills Academic Complex',
+          subtext: 'Empowering curious minds through STEM mastery, holistic education, and modern learning tools.',
+          ctaLabel: 'Open Library',
+          statLine: 'Comprehensive Academic Materials',
+          destination: HeroDestination.library,
+          createdBy: 'system',
+        ),
+        HeroSlide(
+          id: 'default_greenhills_2',
+          headline: 'Examination Revision Center',
+          subtext: 'Access past examination questions, study packs, and subject notes for top academic performance.',
+          ctaLabel: 'Past Papers',
+          statLine: 'Over 4,500 Academic Resources',
+          destination: HeroDestination.pastQuestions,
+          createdBy: 'system',
+        ),
+        HeroSlide(
+          id: 'default_greenhills_3',
+          headline: 'Student Campus Life',
+          subtext: 'Check your schedule, submit homework, collaborate in school clubs, and track your term marks.',
+          ctaLabel: 'Explore Clubs',
+          statLine: 'Active Clubs & Communities',
+          destination: HeroDestination.clubs,
+          createdBy: 'system',
+        ),
+      ];
+    }
+
+    return [
+      HeroSlide(
+        id: 'default_generic_1',
+        headline: '${brand.appName} Digital Portal',
+        subtext: 'Your complete digital academic command center for textbooks, notes, past papers, and class results.',
+        ctaLabel: 'Open Library',
+        statLine: 'Curated Educational Content',
+        destination: HeroDestination.library,
+        createdBy: 'system',
+      ),
+      HeroSlide(
+        id: 'default_generic_2',
+        headline: 'Past Examination Papers',
+        subtext: 'Revise effectively with GCE, BAC, and national exam papers with structured answers.',
+        ctaLabel: 'View Papers',
+        statLine: 'National Exam Bank',
+        destination: HeroDestination.pastQuestions,
+        createdBy: 'system',
+      ),
+      HeroSlide(
+        id: 'default_generic_3',
+        headline: 'Active Learning & Challenges',
+        subtext: 'Earn XP, keep your daily study streak alive, and test your knowledge with interactive quizzes.',
+        ctaLabel: 'Start Challenge',
+        statLine: 'Daily Learning Streak',
+        destination: HeroDestination.courses,
+        createdBy: 'system',
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<HeroSlide>>(
       stream: _slidesStream,
       builder: (context, snap) {
-        final slides = snap.data ?? const <HeroSlide>[];
-        if (slides.isEmpty) {
-          if (!_isGuest && _u!.isSuperAdmin) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => HeroSlideManagerPage(
-                        createdByUid: _u!.id, initialPlacement: widget.placement))),
-                icon: const Icon(Icons.add_photo_alternate_outlined),
-                label: Text('Add your first ${widget.placement.label} banner'),
-              ),
-            );
-          }
-          return const SizedBox.shrink();
-        }
+        final remoteSlides = snap.data ?? const <HeroSlide>[];
+        final slides = remoteSlides.isNotEmpty ? remoteSlides : _defaultSlides();
         _ensureAutoAdvance(slides.length);
         return SizedBox(
           height: 176,

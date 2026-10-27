@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../config/branding.dart';
 import '../../core/result.dart';
 import '../../core/student_roster_csv.dart';
 import '../../models/academic_content.dart' show kAcademicLevels;
@@ -139,7 +140,7 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
     try {
       showToast(context, 'Generating Class Roster PDF...');
       final file = await SchoolDocumentExportService.instance.exportStudentRosterPdf(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'CFPMI',
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : Branding.current.appName,
         classLevel: _selectedClass ?? 'All Classes',
         students: _students,
       );
@@ -158,7 +159,7 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
     try {
       showToast(context, 'Generating Class Roster Word document...');
       final file = await SchoolDocumentExportService.instance.exportStudentRosterDocx(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'CFPMI',
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : Branding.current.appName,
         classLevel: _selectedClass ?? 'All Classes',
         students: _students,
       );
@@ -173,7 +174,7 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
     try {
       showToast(context, 'Generating Student ID Card for ${s.name}...');
       final file = await SchoolDocumentExportService.instance.exportStudentIdCardPdf(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'CFPMI',
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : Branding.current.appName,
         student: s,
       );
       if (!mounted) return;
@@ -187,7 +188,7 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
     try {
       showToast(context, 'Generating Certificate for ${s.name}...');
       final file = await SchoolDocumentExportService.instance.exportCertificatePdf(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'CFPMI',
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : Branding.current.appName,
         studentName: s.name,
         classLevel: s.classLevel,
         certificateTitle: 'Certificate of Merit & Academic Excellence',
@@ -226,7 +227,7 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
       }
 
       final file = await SchoolDocumentExportService.instance.exportHonourRollPdf(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : 'CFPMI',
+        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : Branding.current.appName,
         classLevel: _selectedClass ?? 'All Classes',
         term: 'First Term',
         students: honourList,
@@ -253,6 +254,7 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
   Future<void> _promptAddStudent({StudentRecord? editing}) async {
     final isEdit = editing != null;
     final nameCtrl = TextEditingController(text: editing?.name ?? '');
+    final usernameCtrl = TextEditingController(text: editing?.username ?? '');
     final matriculeCtrl = TextEditingController(text: editing?.matricule ?? '');
     final contactCtrl = TextEditingController(text: editing?.parentContact ?? '');
     final availableClasses = _activeClassList;
@@ -271,8 +273,13 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
               children: [
                 TextField(
                   controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Student Full Name *', hintText: 'e.g. Brice Ngono'),
+                  decoration: const InputDecoration(labelText: 'Official Student Full Name *', hintText: 'e.g. Brice Ngono'),
                   textCapitalization: TextCapitalization.words,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: usernameCtrl,
+                  decoration: const InputDecoration(labelText: 'Account Username (Optional)', hintText: 'e.g. brice2026'),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
@@ -326,6 +333,7 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
 
     if (saved == true && nameCtrl.text.trim().isNotEmpty) {
       final name = nameCtrl.text.trim();
+      final username = usernameCtrl.text.trim().isNotEmpty ? usernameCtrl.text.trim() : null;
       final matricule = matriculeCtrl.text.trim().isNotEmpty ? matriculeCtrl.text.trim() : null;
       final contact = contactCtrl.text.trim().isNotEmpty ? contactCtrl.text.trim() : null;
 
@@ -333,6 +341,8 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
         id: editing?.id ?? 'std_${DateTime.now().millisecondsSinceEpoch}_${name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')}',
         schoolId: _schoolId,
         name: name,
+        username: username,
+        accountId: editing?.accountId,
         classLevel: classLevel,
         matricule: matricule,
         parentContact: contact,
@@ -666,7 +676,25 @@ class _StudentRosterPageState extends State<StudentRosterPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(s.name, style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
+                Row(
+                  children: [
+                    Text(s.name, style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
+                    if (s.username != null && s.username!.isNotEmpty && s.username != s.name) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: ac.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '@${s.username}',
+                          style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: ac.primary),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
                 const SizedBox(height: 2),
                 Wrap(
                   spacing: 6,

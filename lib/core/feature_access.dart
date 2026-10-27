@@ -25,6 +25,7 @@ import '../models/app_user.dart';
 enum FeatureAccessLevel {
   free,          // anyone, including a signed-out Guest
   authenticated, // any signed-in account, any entitlement tier
+  bronze,        // signed-in AND an active Bronze-or-above entitlement
   silver,        // signed-in AND an active Silver-or-above entitlement
   gold,          // signed-in AND an active Gold entitlement
   unavailable,   // not gated by account tier — role-gated or staff-only,
@@ -102,9 +103,12 @@ class FeatureAccess {
         return true;
       case FeatureAccessLevel.authenticated:
         return !u.isGuest;
+      case FeatureAccessLevel.bronze:
+        // Bronze or above (Bronze, Silver, Gold all satisfy Bronze gate)
+        return !u.isGuest && (u.isBronze || u.isSilver || u.isGold);
       case FeatureAccessLevel.silver:
         // Gold also satisfies a Silver gate — Gold is a superset of Silver.
-        return !u.isGuest && u.entitlement.isActive;
+        return !u.isGuest && (u.isSilver || u.isGold);
       case FeatureAccessLevel.gold:
         return !u.isGuest && u.isGold;
       case FeatureAccessLevel.unavailable:
@@ -125,10 +129,14 @@ class FeatureAccess {
     switch (level) {
       case FeatureAccessLevel.authenticated:
         return 'Sign in to continue.';
+      case FeatureAccessLevel.bronze:
+        return 'Unlock with Premium Bronze to continue.';
       case FeatureAccessLevel.silver:
-        return 'Upgrade to Premium to continue.';
+        return u.isBronze
+            ? 'Upgrade to Premium Silver to unlock direct access.'
+            : 'Upgrade to Premium to continue.';
       case FeatureAccessLevel.gold:
-        return u.isSilver
+        return (u.isSilver || u.isBronze)
             ? 'Video Courses need Premium Gold — upgrade to unlock.'
             : 'Upgrade to Premium Gold to continue.';
       case FeatureAccessLevel.free:

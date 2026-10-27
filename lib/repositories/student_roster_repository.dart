@@ -2,6 +2,7 @@
 // Manages school student roster records and class lists.
 
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../config/branding.dart';
 import '../core/offline_cache.dart';
 import '../core/realtime_tolerant.dart';
 import '../core/result.dart';
@@ -23,7 +24,8 @@ class StudentRosterRepository {
   static String resolveSchoolId(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) {
-      return _knownSchoolIds['cfpmi']!;
+      final eff = Branding.current.effectiveSchoolId?.toLowerCase() ?? '';
+      return _knownSchoolIds[eff] ?? _knownSchoolIds['ladybird'] ?? _knownSchoolIds['cfpmi']!;
     }
     return _knownSchoolIds[trimmed.toLowerCase()] ?? trimmed;
   }
@@ -83,20 +85,29 @@ class StudentRosterRepository {
             try {
               var uQuery = db
                   .from('users')
-                  .select('id, name, class_level, phone')
+                  .select('id, name, official_name, student_name, username, class_level, phone')
                   .eq('institution_id', resolvedSchoolId)
                   .eq('role', 'student');
               if (classLevel != null && classLevel.isNotEmpty) {
                 uQuery = uQuery.eq('class_level', classLevel);
               }
               final uRows = await uQuery.order('name', ascending: true);
-              final userStudents = (uRows as List).map((r) => StudentRecord(
-                id: r['id'] as String,
-                schoolId: resolvedSchoolId,
-                name: (r['name'] as String?) ?? 'Student',
-                classLevel: (r['class_level'] as String?) ?? (classLevel ?? ''),
-                parentContact: r['phone'] as String?,
-              )).toList();
+              final userStudents = (uRows as List).map((r) {
+                final official = (r['official_name'] as String?) ??
+                    (r['student_name'] as String?) ??
+                    (r['name'] as String?) ??
+                    'Student';
+                final username = (r['username'] as String?) ?? (r['name'] as String?);
+                return StudentRecord(
+                  id: r['id'] as String,
+                  schoolId: resolvedSchoolId,
+                  name: official,
+                  username: username,
+                  accountId: r['id'] as String,
+                  classLevel: (r['class_level'] as String?) ?? (classLevel ?? ''),
+                  parentContact: r['phone'] as String?,
+                );
+              }).toList();
 
               final mergedMap = {for (final s in (cached ?? <StudentRecord>[])) s.id: s};
               for (final s in userStudents) {
@@ -194,6 +205,106 @@ class StudentRosterRepository {
       }
     }
     return const Success(null);
+  }
+
+  /// Automatically places or links a student onto the school's class list
+  /// using their separate account username and official student name.
+  Future<Result<StudentRecord>> ensureStudentOnClassList({
+    required String schoolId,
+    required String classLevel,
+    required String officialName,
+    String? username,
+    String? userId,
+    String? matricule,
+    String? parentContact,
+    String? gender,
+  }) async {
+    final resolvedSchoolId = resolveSchoolId(schoolId);
+    final cleanOfficialName = officialName.trim();
+    final cleanClass = classLevel.trim();
+    if (cleanOfficialName.isEmpty || cleanClass.isEmpty) {
+      return const Failure('Official student name and class level are required', null);
+    }
+
+    try {
+      final db = _db;
+      StudentRecord? existingRecord;
+
+      // 1. Check if student already exists on class list by official student name or matricule
+      if (db != null) {
+        if (matricule != null && matricule.trim().isNotEmpty) {
+          final mRows = await db
+              .from('school_students')
+              .select()
+              .eq('school_id', resolvedSchoolId)
+              .eq('class_level', cleanClass)
+              .eq('matricule', matricule.trim());
+          if (mRows is List && mRows.isNotEmpty) {
+            existingRecord = StudentRecord.fromMap(mRows.first as Map<String, dynamic>);
+          }
+        }
+        if (existingRecord == null) {
+          final allClassRows = await db
+              .from('school_students')
+              .select()
+              .eq('school_id', resolvedSchoolId)
+              .eq('class_level', cleanClass);
+          if (allClassRows is List) {
+            for (final row in allClassRows) {
+              final r = StudentRecord.fromMap(row as Map<String, dynamic>);
+              if (r.name.trim().toLowerCase() == cleanOfficialName.toLowerCase()) {
+                existingRecord = r;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      final recordId = existingRecord?.id ??
+          (userId != null && userId.isNotEmpty
+              ? 'stu_$userId'
+              : 'stu_${DateTime.now().millisecondsSinceEpoch}_${cleanOfficialName.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '')}');
+
+      final record = StudentRecord(
+        id: recordId,
+        schoolId: resolvedSchoolId,
+        name: cleanOfficialName,
+        username: username ?? existingRecord?.username,
+        accountId: userId ?? existingRecord?.accountId,
+        classLevel: cleanClass,
+        matricule: matricule ?? existingRecord?.matricule,
+        parentContact: parentContact ?? existingRecord?.parentContact,
+        gender: gender ?? existingRecord?.gender,
+        createdAt: existingRecord?.createdAt ?? DateTime.now(),
+      );
+
+      // Save to Supabase
+      if (db != null) {
+        await db.from('school_students').upsert(record.toMap());
+      }
+
+      // Also ensure local cache has the new/updated record immediately
+      final cacheKey = 'roster_${resolvedSchoolId}_$cleanClass';
+      final cached = await OfflineCache.instance.get<List<StudentRecord>>(
+        cacheKey,
+        (json) => OfflineCache.listFromJson(json, (j) => StudentRecord.fromMap(j)),
+      ) ?? <StudentRecord>[];
+
+      final map = {for (final s in cached) s.id: s};
+      map[record.id] = record;
+      final updatedList = map.values.toList()
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+      await OfflineCache.instance.set(
+        cacheKey,
+        OfflineCache.listToJson(updatedList, (s) => s.toMap()),
+      );
+
+      return Success(record);
+    } catch (e) {
+      return Failure('Failed to place student on class list', e);
+    }
   }
 
   Future<Result<void>> batchUpsert(String schoolId, List<StudentRecord> students) async {

@@ -71,28 +71,19 @@ class Branding {
   // an IDE launch config, a CI step someone forgets to flag) should
   // render CFPMI, not fall through to Academia's or Ladybird's identity.
   static const String _envBrandId =
-      String.fromEnvironment('BRAND_ID', defaultValue: 'cfpmi');
+      String.fromEnvironment('BRAND_ID', defaultValue: 'ladybird');
 
-  /// Hardcoded fallback so every screen has *something* to read even if
-  /// asset loading hasn't completed yet (or fails) -- matches this
-  /// codebase's existing "never a blank/broken screen" standard. main()
-  /// awaits [load] before runApp, so in practice this is only ever seen
-  /// for one frame at worst. Mirrors assets/branding/cfpmi.json so that
-  /// one frame is CFPMI too. Name/tagline/colors are PLACEHOLDERS pending
-  /// the real CFPMI brand assets (the homepage mockup lives in the
-  /// external "Ladybird Docs" OneDrive folder, not available to this
-  /// sandbox) -- see docs/AUTOPILOT_LOG.md.
   static Branding _current = const Branding(
     brandId: _envBrandId,
-    appName: 'CFPMI',
-    tagline: 'Professional Training & Academic Excellence',
-    primaryColor: const Color(0xFF0B1F3A),
-    secondaryColor: const Color(0xFF087F5B),
-    accentColor: const Color(0xFFF4C542),
-    logoAssetPath: 'assets/branding/cfpmi_logo.png',
-    splashAssetPath: 'assets/branding/cfpmi_logo.png',
-    voucherPrefix: 'CF',
-    schoolId: 'cfpmi',
+    appName: 'Ladybird Group of Schools',
+    tagline: 'High Moral Standards, Academic Excellence',
+    primaryColor: const Color(0xFF1E6FEB),
+    secondaryColor: const Color(0xFF0B1F4D),
+    accentColor: const Color(0xFFF4B400),
+    logoAssetPath: 'assets/branding/ladybird_logo.jpg',
+    splashAssetPath: 'assets/branding/ladybird_logo.jpg',
+    voucherPrefix: 'LB',
+    schoolId: 'ladybird',
   );
 
   static Branding get current => _current;
@@ -104,15 +95,15 @@ class Branding {
     } else {
       _current = const Branding(
         brandId: _envBrandId,
-        appName: 'CFPMI',
-        tagline: 'Professional Training & Academic Excellence',
-        primaryColor: const Color(0xFF0B1F3A),
-        secondaryColor: const Color(0xFF087F5B),
-        accentColor: const Color(0xFFF4C542),
-        logoAssetPath: 'assets/branding/cfpmi_logo.png',
-        splashAssetPath: 'assets/branding/cfpmi_logo.png',
-        voucherPrefix: 'CF',
-        schoolId: 'cfpmi',
+        appName: 'Ladybird Group of Schools',
+        tagline: 'High Moral Standards, Academic Excellence',
+        primaryColor: const Color(0xFF1E6FEB),
+        secondaryColor: const Color(0xFF0B1F4D),
+        accentColor: const Color(0xFFF4B400),
+        logoAssetPath: 'assets/branding/ladybird_logo.jpg',
+        splashAssetPath: 'assets/branding/ladybird_logo.jpg',
+        voucherPrefix: 'LB',
+        schoolId: 'ladybird',
       );
     }
   }

@@ -67,6 +67,10 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
 
   EntitlementPackage get _package {
     switch ((_tier, _months)) {
+      case (EntitlementTier.bronze, 1):  return EntitlementPackage.bronze1Month;
+      case (EntitlementTier.bronze, 3):  return EntitlementPackage.bronze3Months;
+      case (EntitlementTier.bronze, 6):  return EntitlementPackage.bronze6Months;
+      case (EntitlementTier.bronze, 12): return EntitlementPackage.bronze1Year;
       case (EntitlementTier.silver, 1):  return EntitlementPackage.silver1Month;
       case (EntitlementTier.silver, 3):  return EntitlementPackage.silver3Months;
       case (EntitlementTier.silver, 6):  return EntitlementPackage.silver6Months;
@@ -207,7 +211,7 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Unlock Premium', style: AppText.h2.copyWith(fontSize: 17)),
-                  Text('Choose Silver or Gold, and how long.', style: AppText.bodySm),
+                  Text('Choose Bronze, Silver or Gold, and duration.', style: AppText.bodySm),
                 ]),
               ),
               Container(
@@ -235,17 +239,26 @@ class _PremiumUnlockSheetState extends State<PremiumUnlockSheet> {
             Row(children: [
               Expanded(
                 child: _TierCard(
+                  label: 'Bronze',
+                  sub: 'XP-Gated Access',
+                  isSelected: _tier == EntitlementTier.bronze,
+                  onTap: () => setState(() => _tier = EntitlementTier.bronze),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _TierCard(
                   label: 'Silver',
-                  sub: 'Courses, Library & Quizzes',
+                  sub: 'Courses & Library',
                   isSelected: _tier == EntitlementTier.silver,
                   onTap: () => setState(() => _tier = EntitlementTier.silver),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Expanded(
                 child: _TierCard(
                   label: 'Gold',
-                  sub: 'Everything + Video Lessons',
+                  sub: 'Video Lessons',
                   isSelected: _tier == EntitlementTier.gold,
                   isRecommended: true,
                   onTap: () => setState(() => _tier = EntitlementTier.gold),

@@ -34,7 +34,7 @@
 /// core/feature_access.dart#AppFeature.coursesVideoLessons, the one place
 /// that gate is decided). New *reasons* for premium access still belong in
 /// [EntitlementSource], not here.
-enum EntitlementTier { free, silver, gold }
+enum EntitlementTier { free, bronze, silver, gold }
 
 /// WHY an account has its current tier.
 ///
@@ -118,6 +118,7 @@ class Entitlement {
         !exp.isAfter(DateTime.now());
   }
 
+  bool get isBronze => tier == EntitlementTier.bronze;
   bool get isSilver => tier == EntitlementTier.silver;
   bool get isGold => tier == EntitlementTier.gold;
 
@@ -153,6 +154,7 @@ class Entitlement {
   static String _tierLabel(EntitlementTier t) {
     switch (t) {
       case EntitlementTier.free:   return 'Individual';
+      case EntitlementTier.bronze: return 'Premium Bronze';
       case EntitlementTier.silver: return 'Premium Silver';
       case EntitlementTier.gold:   return 'Premium Gold';
     }

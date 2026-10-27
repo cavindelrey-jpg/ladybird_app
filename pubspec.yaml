@@ -89,17 +89,17 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/branding/cfpmi_logo.png"
+  image_path: "assets/branding/ladybird_logo.jpg"
   remove_alpha_ios: true
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/branding/cfpmi_logo.png"
+  adaptive_icon_foreground: "assets/branding/ladybird_logo.jpg"
 
 flutter_native_splash:
   color: "#FFFFFF"
-  image: "assets/branding/cfpmi_logo.png"
+  image: "assets/branding/ladybird_logo.jpg"
   android_12:
     color: "#FFFFFF"
-    image: "assets/branding/cfpmi_logo.png"
+    image: "assets/branding/ladybird_logo.jpg"
   android: true
   ios: true
 

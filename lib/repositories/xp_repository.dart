@@ -14,7 +14,7 @@
 // static lookup) — same caveat as before, just re-homed.
 
 import '../models/app_user.dart';
-
+import '../models/academic_content.dart' show ContentType;
 import '../models/xp_transaction.dart';
 import '../core/result.dart';
 import '../config/branding.dart';
@@ -136,28 +136,72 @@ class XpRepository {
       .realtimeTolerant()
       .map((rows) => rows.map(XpTransaction.fromSupabase).toList());
 
-  /// Checks unlock status. Premium subscribers unlock everything
-  /// implicitly, and so does every white-label school build (Green
-  /// Hills, Legitbell, ...) — the XP/paywall economy is Academia-only,
-  /// see Branding.xpEconomyEnabled.
-  Future<bool> isPaperUnlocked(AppUser user, String paperId) async {
-    if (user.isPremium || !Branding.current.xpEconomyEnabled) return true;
+  /// Cost in XP to unlock an academic item for Bronze / XP-gated users.
+  static int costForContentType(ContentType type) {
+    switch (type) {
+      case ContentType.pastPaper: return 150;
+      case ContentType.note:      return 100;
+      case ContentType.book:      return 200;
+      default:                    return 100;
+    }
+  }
+
+  /// Checks unlock status for an academic content item.
+  /// Silver and Gold subscribers unlock everything implicitly with no XP needed.
+  /// White-label school builds without XP economy also unlock everything.
+  /// For Bronze subscribers, papers, notes and books are XP-gated — unlocked only if
+  /// recorded in `unlocked_papers`.
+  Future<bool> isContentUnlocked(
+    AppUser user, {
+    required String contentId,
+    required ContentType contentType,
+  }) async {
+    if (user.isSilver || user.isGold || !Branding.current.xpEconomyEnabled) return true;
+
+    final isGatedType = contentType == ContentType.pastPaper ||
+        contentType == ContentType.note ||
+        contentType == ContentType.book;
+    if (!isGatedType) return true;
+
+    if (user.id.isEmpty) return false;
+
     final row = await _db
         .from('unlocked_papers')
         .select()
         .eq('user_id', user.id)
-        .eq('paper_id', paperId)
+        .eq('paper_id', contentId)
         .maybeSingle();
     return row != null;
   }
 
-  Stream<bool> watchIsPaperUnlocked(AppUser user, String paperId) {
-    if (user.isPremium || !Branding.current.xpEconomyEnabled) return Stream.value(true);
+  Stream<bool> watchIsContentUnlocked(
+    AppUser user, {
+    required String contentId,
+    required ContentType contentType,
+  }) {
+    if (user.isSilver || user.isGold || !Branding.current.xpEconomyEnabled) return Stream.value(true);
+
+    final isGatedType = contentType == ContentType.pastPaper ||
+        contentType == ContentType.note ||
+        contentType == ContentType.book;
+    if (!isGatedType) return Stream.value(true);
+
+    if (user.id.isEmpty) return Stream.value(false);
+
     return _db
         .from('unlocked_papers')
         .stream(primaryKey: ['user_id', 'paper_id'])
         .eq('user_id', user.id)
         .realtimeTolerant()
-        .map((rows) => rows.any((r) => r['paper_id'] == paperId));
+        .map((rows) => rows.any((r) => r['paper_id'] == contentId));
+  }
+
+  /// Checks unlock status for a past paper. Backward-compatible alias for [isContentUnlocked].
+  Future<bool> isPaperUnlocked(AppUser user, String paperId) async {
+    return isContentUnlocked(user, contentId: paperId, contentType: ContentType.pastPaper);
+  }
+
+  Stream<bool> watchIsPaperUnlocked(AppUser user, String paperId) {
+    return watchIsContentUnlocked(user, contentId: paperId, contentType: ContentType.pastPaper);
   }
 }

@@ -80,6 +80,7 @@ class _ContentUnlockSheetContentState extends State<_ContentUnlockSheetContent> 
   String? _error;
 
   Future<void> _unlockWithXp() async {
+    if (_unlocking) return;
     HapticFeedback.mediumImpact();
     setState(() { _unlocking = true; _error = null; });
     final result = await XpRepository.instance.spendXp(

@@ -1,9 +1,7 @@
-name: CFPMI CI (test then build)
+name: Ladybird CI (test then build)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 permissions:
   contents: write
@@ -47,56 +45,38 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Build web (CFPMI)
+      - name: Build web (Ladybird)
         run: |
-          flutter build web --release --dart-define=BRAND_ID=cfpmi
+          flutter build web --release --dart-define=BRAND_ID=ladybird
           cp web/_redirects build/web/_redirects 2>/dev/null || true
 
       - name: Upload web build (artifact)
         uses: actions/upload-artifact@v4
         with:
-          name: cfpmi-web
+          name: ladybird-web
           path: build/web
           retention-days: 7
 
-      # ── Deploy the web build to Cloudflare Pages (production).
-      # Sanitizes whitespace/newlines from repo secrets before invoking wrangler.
-      - name: Deploy to Cloudflare Pages
-        continue-on-error: true
-        env:
-          CLOUDFLARE_API_TOKEN_RAW: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID_RAW: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN_RAW" ]; then
-            echo "Cloudflare token not configured. Skipping deploy."
-            exit 0
-          fi
-          export CLOUDFLARE_API_TOKEN=$(printf '%s' "$CLOUDFLARE_API_TOKEN_RAW" | tr -d '\r\n[:space:]')
-          export CLOUDFLARE_ACCOUNT_ID=$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID_RAW" | tr -d '\r\n[:space:]')
-          npx --yes wrangler@latest pages deploy build/web --project-name=cfpmi --branch=main --commit-dirty=true
-
-      - name: Build Android APK (CFPMI)
-        run: flutter build apk --release --flavor cfpmi --dart-define=BRAND_ID=cfpmi --target-platform android-arm64
+      - name: Build Android APK (Ladybird)
+        run: flutter build apk --release --flavor ladybird --dart-define=BRAND_ID=ladybird --target-platform android-arm64
 
       - name: Upload APK (artifact)
         uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
-          name: cfpmi-release-apk
+          name: ladybird-release-apk
           path: build/app/outputs/flutter-apk/*.apk
           retention-days: 7
 
       # ── Android App Bundle (.aab) — the artifact uploaded to Google Play.
       # Signed with the committed upload key (android/key.properties +
-      # android/app/upload-keystore.jks); applicationId com.cfpmi.app.
-      - name: Build Android App Bundle (AAB, CFPMI)
-        # arm64 only — keeps the .aab well under 100 MB (drops the
-        # armeabi-v7a + x86_64 engine libs). Covers modern Android devices.
-        run: flutter build appbundle --release --flavor cfpmi --dart-define=BRAND_ID=cfpmi --target-platform android-arm64
+      # android/app/upload-keystore.jks); applicationId com.ladybird.app.
+      - name: Build Android App Bundle (AAB, Ladybird)
+        run: flutter build appbundle --release --flavor ladybird --dart-define=BRAND_ID=ladybird --target-platform android-arm64
 
       - name: Upload AAB (artifact)
         uses: actions/upload-artifact@v4
         with:
-          name: cfpmi-release-aab
+          name: ladybird-release-aab
           path: build/app/outputs/bundle/**/*.aab
           retention-days: 14

@@ -5,6 +5,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/result.dart';
 import '../../models/app_user.dart';
 import '../../models/library_folder.dart';
@@ -125,6 +127,159 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Downloaded $successCount item${successCount == 1 ? '' : 's'} for offline access.')),
       );
+    }
+  }
+
+  Future<void> _batchCopy(
+    BuildContext context,
+    List<AcademicContent> allItems,
+    List<LibraryFolder> allFolders,
+  ) async {
+    final selectedContent = allItems.where((i) => _selectedIds.contains(i.id)).toList();
+    if (selectedContent.isEmpty) {
+      showToast(context, 'Only file contents can be copied.');
+      return;
+    }
+
+    final destination = await Navigator.of(context).push<String?>(
+      MaterialPageRoute(
+        builder: (_) => LibraryFolderPickerPage(
+          folderId: null,
+          title: 'Copy ${selectedContent.length} file(s) to…',
+        ),
+      ),
+    );
+    if (destination == null || !mounted) return;
+
+    int copiedCount = 0;
+    for (final item in selectedContent) {
+      final copyItem = AcademicContent(
+        id: '',
+        title: item.title.startsWith('Copy of ') ? item.title : 'Copy of ${item.title}',
+        description: item.description,
+        type: item.type,
+        category: item.category,
+        subject: item.subject,
+        level: item.level,
+        fileUrl: item.fileUrl,
+        thumbnailUrl: item.thumbnailUrl,
+        fileSize: item.fileSize,
+        fileType: item.fileType,
+        uploaderId: widget.user.id,
+        schoolId: widget.user.schoolId,
+        visibility: item.visibility,
+        examBoard: item.examBoard,
+        year: item.year,
+        paperNumber: item.paperNumber,
+        term: item.term,
+        tags: item.tags,
+        folderId: destination.isEmpty ? null : destination,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      final res = await AcademicContentRepository.instance.add(copyItem);
+      if (res is Success) copiedCount++;
+    }
+
+    if (mounted) {
+      _exitSelection();
+      showToast(context, 'Copied $copiedCount file(s)');
+    }
+  }
+
+  Future<void> _batchRename(
+    BuildContext context,
+    List<AcademicContent> allItems,
+    List<LibraryFolder> allFolders,
+  ) async {
+    final selectedContent = allItems.where((i) => _selectedIds.contains(i.id)).toList();
+    final selectedFolders = allFolders.where((f) => _selectedIds.contains(f.id)).toList();
+    final total = selectedContent.length + selectedFolders.length;
+    if (total == 0) return;
+
+    if (total == 1) {
+      if (selectedFolders.isNotEmpty) {
+        final f = selectedFolders.first;
+        final newName = await _promptName(context, title: 'Rename folder', initial: f.name);
+        if (newName != null && newName.trim().isNotEmpty && newName != f.name) {
+          final res = await LibraryFolderRepository.instance.renameFolder(f.id, newName.trim());
+          if (mounted && res is Success) {
+            _exitSelection();
+            showToast(context, 'Renamed folder');
+          }
+        }
+      } else {
+        final c = selectedContent.first;
+        final newName = await _promptName(context, title: 'Rename content', initial: c.title);
+        if (newName != null && newName.trim().isNotEmpty && newName != c.title) {
+          final updated = c.copyWith(title: newName.trim(), updatedAt: DateTime.now());
+          final res = await AcademicContentRepository.instance.update(updated);
+          if (mounted && res is Success) {
+            _exitSelection();
+            showToast(context, 'Renamed content');
+          }
+        }
+      }
+      return;
+    }
+
+    final prefix = await _promptName(context, title: 'Add prefix to $total selected items', initial: '');
+    if (prefix == null || prefix.trim().isEmpty || !mounted) return;
+
+    int renamed = 0;
+    for (final c in selectedContent) {
+      final updated = c.copyWith(title: '${prefix.trim()} ${c.title}', updatedAt: DateTime.now());
+      final res = await AcademicContentRepository.instance.update(updated);
+      if (res is Success) renamed++;
+    }
+    for (final f in selectedFolders) {
+      final res = await LibraryFolderRepository.instance.renameFolder(f.id, '${prefix.trim()} ${f.name}');
+      if (res is Success) renamed++;
+    }
+
+    if (mounted) {
+      _exitSelection();
+      showToast(context, 'Renamed $renamed item(s)');
+    }
+  }
+
+  Future<void> _batchChangeThumbnail(
+    BuildContext context,
+    List<AcademicContent> allItems,
+  ) async {
+    final selectedContent = allItems.where((i) => _selectedIds.contains(i.id)).toList();
+    if (selectedContent.isEmpty) {
+      showToast(context, 'No files selected to change thumbnail.');
+      return;
+    }
+
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: ImageSource.gallery, maxWidth: 800);
+    if (image == null || !mounted) return;
+
+    showToast(context, 'Uploading thumbnail for ${selectedContent.length} item(s)...');
+    try {
+      final bytes = await image.readAsBytes();
+      final ext = image.name.split('.').last.toLowerCase();
+      final path = 'thumbnails/batch_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      await Supabase.instance.client.storage
+          .from('content')
+          .uploadBinary(path, bytes);
+      final thumbUrl = Supabase.instance.client.storage.from('content').getPublicUrl(path);
+
+      int updated = 0;
+      for (final c in selectedContent) {
+        final upd = c.copyWith(thumbnailUrl: thumbUrl, updatedAt: DateTime.now());
+        final res = await AcademicContentRepository.instance.update(upd);
+        if (res is Success) updated++;
+      }
+
+      if (mounted) {
+        _exitSelection();
+        showToast(context, 'Updated thumbnail for $updated item(s)');
+      }
+    } catch (e) {
+      if (mounted) showToast(context, 'Failed to update thumbnails: $e', isError: true);
     }
   }
 
@@ -352,6 +507,21 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
                     onPressed: _selectedIds.isEmpty ? null : () => _batchDownloadOffline(items),
                   ),
                   if (_canManage) ...[
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      tooltip: 'Rename selected',
+                      onPressed: _selectedIds.isEmpty ? null : () => _batchRename(context, items, folders),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.copy_rounded),
+                      tooltip: 'Copy selected files to folder…',
+                      onPressed: _selectedIds.isEmpty ? null : () => _batchCopy(context, items, folders),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.image_outlined),
+                      tooltip: 'Change thumbnail for selected',
+                      onPressed: _selectedIds.isEmpty ? null : () => _batchChangeThumbnail(context, items),
+                    ),
                     IconButton(
                       icon: const Icon(Icons.drive_file_move_outlined),
                       tooltip: 'Move selected to folder…',

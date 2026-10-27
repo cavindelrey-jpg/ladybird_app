@@ -76,7 +76,7 @@ class _HeroBannerCarouselState extends State<HeroBannerCarousel> {
   void _ensureAutoAdvance(int slideCount) {
     _slideCount = slideCount;
     if (_autoTimer != null || slideCount <= 1) return;
-    _autoTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    _autoTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       if (!_pageCtrl.hasClients || _slideCount <= 1) return;
       final next = (_index + 1) % _slideCount;
       _pageCtrl.animateToPage(next,

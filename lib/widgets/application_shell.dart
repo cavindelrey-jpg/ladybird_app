@@ -42,6 +42,7 @@ import '../pages/search_page.dart';
 import '../pages/settings_page.dart';
 import '../providers/theme_provider.dart';
 import 'compact_sign_in_dialog.dart';
+import 'app_drawer.dart';
 import '../repositories/academic_content_repository.dart';
 import '../repositories/announcement_repository.dart';
 import '../repositories/course_lesson_repository.dart';
@@ -417,6 +418,126 @@ class _ApplicationShellState extends State<ApplicationShell> {
     }
   }
 
+  int _resolveMobileNavIndex() {
+    switch (widget.currentDestination) {
+      case AppNavDestination.home:
+        return 0;
+      case AppNavDestination.academicCourses:
+        return 1;
+      case AppNavDestination.academicLibrary:
+      case AppNavDestination.pastQuestions:
+        return 2;
+      case AppNavDestination.clubs:
+      case AppNavDestination.messages:
+        return 3;
+      default:
+        if (widget.currentTitle?.toLowerCase() == 'profile') return 4;
+        return 0;
+    }
+  }
+
+  void _onMobileNavSelect(BuildContext context, int index) {
+    switch (index) {
+      case 0:
+        _navigateTo(context, AppNavDestination.home);
+        break;
+      case 1:
+        _navigateTo(context, AppNavDestination.academicCourses);
+        break;
+      case 2:
+        _navigateTo(context, AppNavDestination.academicLibrary);
+        break;
+      case 3:
+        _navigateTo(context, AppNavDestination.clubs);
+        break;
+      case 4:
+        final u = _user;
+        if (u == null || u.isGuest) {
+          showCompactSignInDialog(context);
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ProfilePage(user: u),
+            ),
+          );
+        }
+        break;
+    }
+  }
+
+  Widget _buildMobileBottomBar(BuildContext context, AppColors ac) {
+    final navIndex = _resolveMobileNavIndex();
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFF081630),
+        border: const Border(
+          top: BorderSide(color: Color(0xFF162544), width: 1),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: NavigationBarTheme(
+        data: NavigationBarThemeData(
+          backgroundColor: const Color(0xFF081630),
+          indicatorColor: const Color(0xFFE5A93C).withValues(alpha: 0.22),
+          labelTextStyle: WidgetStateProperty.resolveWith((states) {
+            final isSel = states.contains(WidgetState.selected);
+            return GoogleFonts.inter(
+              fontSize: 11,
+              fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+              color: isSel ? const Color(0xFFE5A93C) : const Color(0xFF8CA3CF),
+            );
+          }),
+          iconTheme: WidgetStateProperty.resolveWith((states) {
+            final isSel = states.contains(WidgetState.selected);
+            return IconThemeData(
+              color: isSel ? const Color(0xFFE5A93C) : const Color(0xFF8CA3CF),
+              size: 22,
+            );
+          }),
+        ),
+        child: NavigationBar(
+          height: 64,
+          selectedIndex: navIndex < 0 ? 0 : navIndex,
+          onDestinationSelected: (i) => _onMobileNavSelect(context, i),
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home_rounded),
+              label: 'Home',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.school_outlined),
+              selectedIcon: Icon(Icons.school_rounded),
+              label: 'Courses',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.menu_book_outlined),
+              selectedIcon: Icon(Icons.menu_book_rounded),
+              label: 'Library',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.groups_outlined),
+              selectedIcon: Icon(Icons.groups_rounded),
+              label: 'Groups',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outlined),
+              selectedIcon: Icon(Icons.person_rounded),
+              label: 'Profile',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
@@ -433,7 +554,22 @@ class _ApplicationShellState extends State<ApplicationShell> {
 
     return Scaffold(
       backgroundColor: ac.bg,
-      floatingActionButton: widget.floatingActionButton,
+      drawer: isDesktop
+          ? null
+          : AppDrawer(
+              user: _user,
+              onHomeTap: () => _navigateTo(context, AppNavDestination.home),
+            ),
+      floatingActionButton: widget.floatingActionButton ??
+          (isDesktop
+              ? null
+              : FloatingActionButton(
+                  backgroundColor: const Color(0xFFE5A93C),
+                  foregroundColor: const Color(0xFF081630),
+                  onPressed: () => showCreateContentSheet(context, _user),
+                  child: const Icon(Icons.add_rounded, size: 28),
+                )),
+      bottomNavigationBar: isDesktop ? null : _buildMobileBottomBar(context, ac),
       body: SafeArea(
         child: Column(
           children: [
@@ -443,6 +579,7 @@ class _ApplicationShellState extends State<ApplicationShell> {
               pageTitle: _pageTitle,
               subtitle: widget.subtitle,
               showBackButton: showBack,
+              isDesktop: isDesktop,
               onBack: widget.onBack ??
                   () {
                     if (Navigator.of(context).canPop()) {
@@ -452,23 +589,18 @@ class _ApplicationShellState extends State<ApplicationShell> {
               onNavigateHome: () => _navigateTo(context, AppNavDestination.home),
             ),
 
-            // ── Main 3-Column Body (Permanent Left Rail + Workspace + Right Sidebar) ──
+            // ── Main Body (Desktop: 3-Column Rail+Workspace+Right Panel; Mobile: Full 100% Workspace) ──
             Expanded(
               child: Stack(
                 children: [
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // 1. Permanent Left Rail Reserved Space
-                      // Permanent left boundary: uses expanded navigation rail width (244px on desktop)
-                      // so when the rail expands on hover, it never covers the workspace or right sidebar,
-                      // and when collapsed, the empty margin is intentional.
+                      // 1. Permanent Left Rail Reserved Space (Desktop only)
                       if (isDesktop)
-                        const SizedBox(width: _expandedRailWidth)
-                      else
-                        const SizedBox(width: _collapsedRailWidth),
+                        const SizedBox(width: _expandedRailWidth),
 
-                      // 2. Central Workspace (constrained width)
+                      // 2. Central Workspace (full responsive width on mobile, constrained on desktop)
                       Expanded(
                         child: Container(
                           color: ac.bg,
@@ -507,66 +639,67 @@ class _ApplicationShellState extends State<ApplicationShell> {
                     ],
                   ),
 
-                  // 1b. Permanent Left Rail (Smooth Hover/Tap Expansion Overlay)
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    child: MouseRegion(
-                      onEnter: (_) {
-                        if (!_sidebarHovered) {
-                          setState(() => _sidebarHovered = true);
-                        }
-                      },
-                      onExit: (_) {
-                        if (_sidebarHovered) {
-                          setState(() => _sidebarHovered = false);
-                        }
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        curve: Curves.easeOutCubic,
-                        width: _isExpanded
-                            ? _expandedRailWidth
-                            : _collapsedRailWidth,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF081630),
-                          border: const Border(
-                            right: BorderSide(
-                              color: Color(0xFF162544),
-                              width: 1,
+                  // 1b. Permanent Left Rail (Desktop only: Smooth Hover/Tap Expansion Overlay)
+                  if (isDesktop)
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      child: MouseRegion(
+                        onEnter: (_) {
+                          if (!_sidebarHovered) {
+                            setState(() => _sidebarHovered = true);
+                          }
+                        },
+                        onExit: (_) {
+                          if (_sidebarHovered) {
+                            setState(() => _sidebarHovered = false);
+                          }
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOutCubic,
+                          width: _isExpanded
+                              ? _expandedRailWidth
+                              : _collapsedRailWidth,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF081630),
+                            border: const Border(
+                              right: BorderSide(
+                                color: Color(0xFF162544),
+                                width: 1,
+                              ),
                             ),
+                            boxShadow: _isExpanded
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.35),
+                                      blurRadius: 20,
+                                      offset: const Offset(6, 0),
+                                    ),
+                                  ]
+                                : null,
                           ),
-                          boxShadow: _isExpanded
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.35),
-                                    blurRadius: 20,
-                                    offset: const Offset(6, 0),
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        child: _GlobalSidebarContent(
-                          user: _user,
-                          currentDestination: widget.currentDestination,
-                          collapsed: !_isExpanded,
-                          onTouchToggle: () {
-                            setState(() => _touchExpanded = !_touchExpanded);
-                          },
-                          onSelectDestination: (dest) {
-                            if (_isExpanded) {
-                              setState(() {
-                                _sidebarHovered = false;
-                                _touchExpanded = false;
-                              });
-                            }
-                            _navigateTo(context, dest);
-                          },
+                          child: _GlobalSidebarContent(
+                            user: _user,
+                            currentDestination: widget.currentDestination,
+                            collapsed: !_isExpanded,
+                            onTouchToggle: () {
+                              setState(() => _touchExpanded = !_touchExpanded);
+                            },
+                            onSelectDestination: (dest) {
+                              if (_isExpanded) {
+                                setState(() {
+                                  _sidebarHovered = false;
+                                  _touchExpanded = false;
+                                });
+                              }
+                              _navigateTo(context, dest);
+                            },
+                          ),
                         ),
                       ),
                     ),
-                  ),
 
                   // 4. "Skip to content" keyboard accessibility button (WCAG standard)
                   Positioned(
@@ -754,6 +887,7 @@ class _GlobalTopBar extends StatelessWidget {
   final String pageTitle;
   final String? subtitle;
   final bool showBackButton;
+  final bool isDesktop;
   final VoidCallback onBack;
   final VoidCallback onNavigateHome;
 
@@ -762,6 +896,7 @@ class _GlobalTopBar extends StatelessWidget {
     required this.pageTitle,
     this.subtitle,
     required this.showBackButton,
+    this.isDesktop = true,
     required this.onBack,
     required this.onNavigateHome,
   });
@@ -829,7 +964,7 @@ class _GlobalTopBar extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // Optional Back Button for nested pages
+              // Optional Back Button for nested pages, or Drawer Menu button for top-level mobile pages
               if (showBackButton) ...[
                 IconButton(
                   constraints: isNarrow
@@ -845,6 +980,25 @@ class _GlobalTopBar extends StatelessWidget {
                   ),
                   tooltip: 'Back',
                   onPressed: onBack,
+                ),
+                const SizedBox(width: 4),
+              ] else if (!isDesktop) ...[
+                Builder(
+                  builder: (ctx) => IconButton(
+                    constraints: isNarrow
+                        ? const BoxConstraints(minWidth: 32, minHeight: 32)
+                        : const BoxConstraints(minWidth: 40, minHeight: 40),
+                    padding: isNarrow
+                        ? const EdgeInsets.all(4)
+                        : const EdgeInsets.all(8),
+                    icon: const Icon(
+                      Icons.menu_rounded,
+                      color: Color(0xFFC0D2F0),
+                      size: 22,
+                    ),
+                    tooltip: 'Menu',
+                    onPressed: () => Scaffold.of(ctx).openDrawer(),
+                  ),
                 ),
                 const SizedBox(width: 4),
               ],

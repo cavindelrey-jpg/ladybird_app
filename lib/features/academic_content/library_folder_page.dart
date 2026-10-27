@@ -157,25 +157,21 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
         id: '',
         title: item.title.startsWith('Copy of ') ? item.title : 'Copy of ${item.title}',
         description: item.description,
-        type: item.type,
-        category: item.category,
+        contentType: item.contentType,
         subject: item.subject,
         level: item.level,
         fileUrl: item.fileUrl,
         thumbnailUrl: item.thumbnailUrl,
-        fileSize: item.fileSize,
-        fileType: item.fileType,
-        uploaderId: widget.user.id,
-        schoolId: widget.user.schoolId,
-        visibility: item.visibility,
+        fileSizeBytes: item.fileSizeBytes,
+        uploadedBy: widget.user.id,
+        uploaderName: widget.user.name,
+        institutionId: widget.user.schoolId ?? '',
         examBoard: item.examBoard,
         year: item.year,
-        paperNumber: item.paperNumber,
-        term: item.term,
         tags: item.tags,
         folderId: destination.isEmpty ? null : destination,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        uploadDate: DateTime.now(),
+        accessPolicy: item.accessPolicy,
       );
       final res = await AcademicContentRepository.instance.add(copyItem);
       if (res is Success) copiedCount++;
@@ -212,7 +208,7 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
         final c = selectedContent.first;
         final newName = await _promptName(context, title: 'Rename content', initial: c.title);
         if (newName != null && newName.trim().isNotEmpty && newName != c.title) {
-          final updated = c.copyWith(title: newName.trim(), updatedAt: DateTime.now());
+          final updated = c.copyWith(title: newName.trim());
           final res = await AcademicContentRepository.instance.update(updated);
           if (mounted && res is Success) {
             _exitSelection();
@@ -228,7 +224,7 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
 
     int renamed = 0;
     for (final c in selectedContent) {
-      final updated = c.copyWith(title: '${prefix.trim()} ${c.title}', updatedAt: DateTime.now());
+      final updated = c.copyWith(title: '${prefix.trim()} ${c.title}');
       final res = await AcademicContentRepository.instance.update(updated);
       if (res is Success) renamed++;
     }
@@ -269,7 +265,7 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
 
       int updated = 0;
       for (final c in selectedContent) {
-        final upd = c.copyWith(thumbnailUrl: thumbUrl, updatedAt: DateTime.now());
+        final upd = c.copyWith(thumbnailUrl: thumbUrl);
         final res = await AcademicContentRepository.instance.update(upd);
         if (res is Success) updated++;
       }

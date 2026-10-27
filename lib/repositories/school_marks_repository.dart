@@ -153,8 +153,11 @@ class SchoolMarksRepository {
         for (final r in rows)
           RosterStudent(
             id: r['id'] as String,
-            name: (r['name'] as String?)?.trim().isNotEmpty == true ? r['name'] as String : 'Unnamed student',
+            name: (r['official_name'] as String?)?.trim().isNotEmpty == true
+                ? r['official_name'] as String
+                : ((r['name'] as String?)?.trim().isNotEmpty == true ? r['name'] as String : 'Unnamed student'),
             classLevel: r['class_level']?.toString() ?? classLevel,
+            username: (r['username'] as String?) ?? (r['name'] as String?),
           ),
       ];
 
@@ -170,6 +173,7 @@ class SchoolMarksRepository {
                 id: sr.id,
                 name: sr.name,
                 classLevel: sr.classLevel,
+                username: sr.username,
               ));
               existingIds.add(sr.id);
               existingNames.add(sr.name.trim().toLowerCase());

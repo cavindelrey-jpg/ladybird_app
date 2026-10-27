@@ -22,7 +22,13 @@ class RosterStudent {
   final String id;
   final String name;
   final String classLevel;
-  const RosterStudent({required this.id, required this.name, required this.classLevel});
+  final String? username;
+  const RosterStudent({
+    required this.id,
+    required this.name,
+    required this.classLevel,
+    this.username,
+  });
 }
 
 String _normName(String s) => s.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');

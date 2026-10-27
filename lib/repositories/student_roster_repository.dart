@@ -296,7 +296,7 @@ class StudentRosterRepository {
       final updatedList = map.values.toList()
         ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
-      await OfflineCache.instance.set(
+      await OfflineCache.instance.put(
         cacheKey,
         OfflineCache.listToJson(updatedList, (s) => s.toMap()),
       );

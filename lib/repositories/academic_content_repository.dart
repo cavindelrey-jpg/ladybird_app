@@ -804,6 +804,24 @@ class AcademicContentRepository {
     }
   }
 
+  /// Uploads a thumbnail image to Supabase Storage in the thumbnails folder.
+  Future<Result<String>> uploadThumbnail({
+    File? file,
+    Uint8List? bytes,
+    String? fileName,
+    required String institutionId,
+    void Function(double)? onProgress,
+  }) {
+    return uploadFile(
+      file: file,
+      bytes: bytes,
+      fileName: fileName,
+      folder: 'thumbnails',
+      institutionId: institutionId,
+      onProgress: onProgress,
+    );
+  }
+
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   Future<void> _tryDeleteStorageFile(dynamic url) async {

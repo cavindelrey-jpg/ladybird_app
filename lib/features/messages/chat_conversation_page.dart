@@ -953,6 +953,8 @@ class _SharedContentCardState extends State<_SharedContentCard> {
                 builder: (_) => ContentDetailsPage(contentId: id, user: widget.currentUser)));
           }
           break;
+        case SharedContentType.clubPost:
+          break;
       }
     } finally {
       if (mounted) setState(() => _opening = false);
@@ -965,6 +967,7 @@ class _SharedContentCardState extends State<_SharedContentCard> {
         SharedContentType.quiz => Icons.quiz_rounded,
         SharedContentType.article => Icons.article_rounded,
         SharedContentType.pastPaper => Icons.history_edu_rounded,
+        SharedContentType.clubPost => Icons.forum_rounded,
       };
 
   @override

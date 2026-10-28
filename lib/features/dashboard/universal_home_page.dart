@@ -52,6 +52,9 @@ import '../../repositories/xp_repository.dart';
 import '../../screens/command_center_screen.dart';
 import '../../screens/dictionary_screen.dart';
 import '../../services/auth_service.dart';
+import '../../core/constants.dart';
+import '../../repositories/notification_repository.dart';
+import '../../widgets/app_drawer.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/widgets.dart';
@@ -112,7 +115,15 @@ List<String> rankHomeSubjectsByUsage(
 
 class UniversalHomePage extends StatefulWidget {
   final AppUser? user;
-  const UniversalHomePage({super.key, this.user});
+  final bool embedded;
+  final ValueChanged<String>? onSelectSection;
+
+  const UniversalHomePage({
+    super.key,
+    this.user,
+    this.embedded = false,
+    this.onSelectSection,
+  });
 
   @override
   State<UniversalHomePage> createState() => _UniversalHomePageState();
@@ -450,50 +461,200 @@ class _UniversalHomePageState extends State<UniversalHomePage> {
   // ── Build Method ───────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    return ApplicationShell(
-      user: _u,
-      currentTitle: 'Home',
-      currentDestination: AppNavDestination.home,
-      child: RefreshIndicator(
-        color: ac.primary,
-        backgroundColor: ac.surf,
-        onRefresh: _handleRefresh,
-        child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
-          children: [
-            _greetingHeader(context),
-            const SizedBox(height: 16),
-            HeroBannerCarousel(
-              placement: HeroPlacement.home,
-              user: _u,
-            ),
-            const SizedBox(height: 16),
-            _commandCenterHero(context),
-            const SizedBox(height: 18),
-            _progressAndGoalsStrip(context),
-            const SizedBox(height: 22),
-            _sectionHeader('Academic Hubs'),
-            const SizedBox(height: 10),
-            _academicHubsGrid(context),
-            const SizedBox(height: 16),
-            _secondaryToolsRow(context),
-            const SizedBox(height: 22),
-            _sectionHeader(
-              'Recommended Learning Materials',
-              onViewAll: () => _open(context, LibraryHomePage(user: _userOrGuest)),
-              viewAllLabel: 'Open Library',
-            ),
-            const SizedBox(height: 10),
-            _recommendedRow(context),
-            const SizedBox(height: 22),
-            _scheduleAndTasksRow(context),
-            const SizedBox(height: 16),
-            _campusAndCommunityRow(context),
-            const SizedBox(height: 20),
-            _academicProfileSummaryCard(context),
-            const SizedBox(height: 24),
-          ],
+    final isDesktop = MediaQuery.of(context).size.width >= 900;
+    if (isDesktop) {
+      return ApplicationShell(
+        user: _u,
+        currentTitle: 'Home',
+        currentDestination: AppNavDestination.home,
+        child: RefreshIndicator(
+          color: ac.primary,
+          backgroundColor: ac.surf,
+          onRefresh: _handleRefresh,
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 20),
+            children: [
+              _greetingHeader(context),
+              const SizedBox(height: 16),
+              HeroBannerCarousel(
+                placement: HeroPlacement.home,
+                user: _u,
+              ),
+              const SizedBox(height: 16),
+              _commandCenterHero(context),
+              const SizedBox(height: 18),
+              _progressAndGoalsStrip(context),
+              const SizedBox(height: 22),
+              _sectionHeader('Academic Hubs'),
+              const SizedBox(height: 10),
+              _academicHubsGrid(context),
+              const SizedBox(height: 16),
+              _secondaryToolsRow(context),
+              const SizedBox(height: 22),
+              _sectionHeader(
+                'Recommended Learning Materials',
+                onViewAll: () => _open(context, LibraryHomePage(user: _userOrGuest)),
+                viewAllLabel: 'Open Library',
+              ),
+              const SizedBox(height: 10),
+              _recommendedRow(context),
+              const SizedBox(height: 22),
+              _scheduleAndTasksRow(context),
+              const SizedBox(height: 16),
+              _campusAndCommunityRow(context),
+              const SizedBox(height: 20),
+              _academicProfileSummaryCard(context),
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
+      );
+    }
+
+    // ── Mobile Layout (faithful to canonical mobile experience) ──────────
+    final mobileContent = RefreshIndicator(
+      color: ac.primary,
+      backgroundColor: ac.surf,
+      onRefresh: _handleRefresh,
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: 36),
+        children: [
+          _topBar(context),
+          const SizedBox(height: 16),
+          HeroBannerCarousel(
+            placement: HeroPlacement.home,
+            user: _u,
+          ),
+          const SizedBox(height: 16),
+          _commandCenterHero(context),
+          const SizedBox(height: 18),
+          _progressAndGoalsStrip(context),
+          const SizedBox(height: 22),
+          _sectionHeader('Academic Hubs'),
+          const SizedBox(height: 10),
+          _academicHubsGrid(context),
+          const SizedBox(height: 16),
+          _secondaryToolsRow(context),
+          const SizedBox(height: 22),
+          _sectionHeader(
+            'Recommended Learning Materials',
+            onViewAll: () => _open(context, LibraryHomePage(user: _userOrGuest)),
+            viewAllLabel: 'Open Library',
+          ),
+          const SizedBox(height: 10),
+          _recommendedRow(context),
+          const SizedBox(height: 22),
+          _scheduleAndTasksRow(context),
+          const SizedBox(height: 16),
+          _campusAndCommunityRow(context),
+          const SizedBox(height: 20),
+          _academicProfileSummaryCard(context),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+
+    if (widget.embedded) {
+      return Container(
+        color: ac.bg,
+        child: SafeArea(
+          bottom: false,
+          child: mobileContent,
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: ac.bg,
+      drawer: AppDrawer(user: _u),
+      body: SafeArea(
+        child: mobileContent,
+      ),
+    );
+  }
+
+  // ── Top Bar (Mobile: Hamburger · App Name · Search · Bell · Avatar) ─
+  Widget _topBar(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 8, 12, 0),
+      child: Row(
+        children: [
+          Builder(
+            builder: (ctx) => IconButton(
+              icon: Icon(Icons.menu_rounded, color: ac.navy, size: 24),
+              onPressed: () => Scaffold.of(ctx).openDrawer(),
+              tooltip: 'Menu',
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            AppConstants.appName,
+            style: GoogleFonts.sora(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: ac.navy,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            icon: Icon(Icons.search_rounded, color: ac.navy, size: 23),
+            tooltip: 'Search',
+            onPressed: () => _open(context, SearchPage(user: _userOrGuest)),
+          ),
+          StreamBuilder<int>(
+            stream: _isGuest
+                ? Stream.value(0)
+                : NotificationRepository.instance.watchUnreadCount(_u!.id),
+            builder: (context, snap) {
+              final unread = snap.data ?? 0;
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      unread > 0
+                          ? Icons.notifications_rounded
+                          : Icons.notifications_none_rounded,
+                      color: ac.navy,
+                      size: 23,
+                    ),
+                    tooltip: 'Notifications',
+                    onPressed: () =>
+                        _open(context, NotificationsPage(user: _userOrGuest)),
+                  ),
+                  if (unread > 0)
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: Container(
+                        width: 9,
+                        height: 9,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDC2626),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: ac.surf, width: 1.5),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(width: 4),
+          UserAvatar(
+            initials: _isGuest ? '?' : _u!.initials,
+            photoUrl: _isGuest ? null : _u!.photoUrl,
+            radius: 17,
+            onTap: () {
+              if (_isGuest) {
+                showCompactSignInDialog(context);
+              } else {
+                _open(context, ProfilePage(user: _u!));
+              }
+            },
+          ),
+        ],
       ),
     );
   }

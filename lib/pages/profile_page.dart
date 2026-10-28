@@ -19,10 +19,12 @@ import 'settings_page.dart';
 
 import '../widgets/app_background.dart';
 import '../widgets/application_shell.dart';
+import '../widgets/academia_app_bar.dart';
 
 class ProfilePage extends StatelessWidget {
   final AppUser user;
-  const ProfilePage({super.key, required this.user});
+  final bool embedded;
+  const ProfilePage({super.key, required this.user, this.embedded = false});
 
   /// Entitlement label plus its real remaining days, e.g.
   /// "Gifted Premium · 118 days left". Falls back to the bare label for a
@@ -48,73 +50,93 @@ class ProfilePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     final rc   = _roleColor(ac, user.role);
+    final width = MediaQuery.of(context).size.width;
+    final isDesktop = width >= 900;
 
-    return ApplicationShell(
-      currentTitle: 'Profile',
-      currentDestination: AppNavDestination.none,
-      user: user,
-      child: AppBackground(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(children: [
-            // Avatar
-            user.photoUrl != null && user.photoUrl!.isNotEmpty
-                ? CircleAvatar(radius: 40, backgroundImage: NetworkImage(user.photoUrl!))
-                : Container(
-                    width: 80, height: 80,
-                    decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: rc.withValues(alpha: .1),
-                        border: Border.all(color: rc.withValues(alpha: .3), width: 2)),
-                    child: Center(child: Text(user.initials,
-                        style: GoogleFonts.inter(fontSize: 28, fontWeight: FontWeight.w700, color: rc))),
-                  ),
-            const SizedBox(height: 12),
-            Text(user.name, style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700, color: ac.txt)),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                  color: rc.withValues(alpha: .1), borderRadius: BorderRadius.circular(20)),
-              child: Text(user.roleLabel,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: rc))),
-            const SizedBox(height: 14),
-            if (user.bio.trim().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text(user.bio, textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(fontSize: 13, color: ac.txt2, height: 1.5)),
-              )
-            else
-              Text('No bio yet — tell people a bit about yourself.',
-                  style: GoogleFonts.inter(fontSize: 12, color: ac.muted, fontStyle: FontStyle.italic)),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => ProfileEditPage(user: user))),
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: const Text('Edit Profile'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => SettingsPage(user: user))),
-                  icon: const Icon(Icons.settings_outlined, size: 16),
-                  label: const Text('Settings'),
-                ),
-                TextButton.icon(
-                  onPressed: () => AuthService.instance.performSignOut(context),
-                  icon: Icon(Icons.logout_rounded, size: 16, color: ac.red),
-                  label: Text('Sign Out',
-                      style: GoogleFonts.inter(fontSize: 13, color: ac.red, fontWeight: FontWeight.w600)),
-                ),
-              ],
+    final actions = [
+      IconButton(
+        onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => SettingsPage(user: user))),
+        icon: Icon(Icons.settings_outlined, color: ac.txt2),
+        tooltip: 'Settings',
+      ),
+      TextButton.icon(
+        onPressed: () => AuthService.instance.performSignOut(context),
+        icon: Icon(Icons.logout_rounded, size: 18, color: ac.red),
+        label: Text('Sign Out',
+            style: GoogleFonts.inter(fontSize: 13, color: ac.red, fontWeight: FontWeight.w600)),
+      ),
+    ];
+
+    final profileBody = AppBackground(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(children: [
+          if (!isDesktop && embedded) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: actions,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 8),
+          ],
+          // Avatar
+          user.photoUrl != null && user.photoUrl!.isNotEmpty
+              ? CircleAvatar(radius: 40, backgroundImage: NetworkImage(user.photoUrl!))
+              : Container(
+                  width: 80, height: 80,
+                  decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: rc.withValues(alpha: .1),
+                      border: Border.all(color: rc.withValues(alpha: .3), width: 2)),
+                  child: Center(child: Text(user.initials,
+                      style: GoogleFonts.inter(fontSize: 28, fontWeight: FontWeight.w700, color: rc))),
+                ),
+          const SizedBox(height: 12),
+          Text(user.name, style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w700, color: ac.txt)),
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+                color: rc.withValues(alpha: .1), borderRadius: BorderRadius.circular(20)),
+            child: Text(user.roleLabel,
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: rc))),
+          const SizedBox(height: 14),
+          if (user.bio.trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(user.bio, textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(fontSize: 13, color: ac.txt2, height: 1.5)),
+            )
+          else
+            Text('No bio yet — tell people a bit about yourself.',
+                style: GoogleFonts.inter(fontSize: 12, color: ac.muted, fontStyle: FontStyle.italic)),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ProfileEditPage(user: user))),
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                label: const Text('Edit Profile'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => SettingsPage(user: user))),
+                icon: const Icon(Icons.settings_outlined, size: 16),
+                label: const Text('Settings'),
+              ),
+              TextButton.icon(
+                onPressed: () => AuthService.instance.performSignOut(context),
+                icon: Icon(Icons.logout_rounded, size: 16, color: ac.red),
+                label: Text('Sign Out',
+                    style: GoogleFonts.inter(fontSize: 13, color: ac.red, fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
 
           // ── Section 1: Contact / Account Information ──────────────────
           _SectionHeader('Contact / Account Information'),
@@ -136,22 +158,12 @@ class ProfilePage extends StatelessWidget {
           if (user.courseIds.isNotEmpty)
             _InfoRow(Icons.auto_stories_outlined, 'Courses',
                 '${user.courseIds.length} course(s) enrolled'),
-          // Sales desk — staff only. Same gate as the page itself
-          // (AppUser.canManageUsers, i.e. departmentAdmin and above).
           if (user.canManageUsers)
             _InfoRow(Icons.point_of_sale_outlined, 'Sales Desk', '',
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => SalesDeskPage(user: user)))),
 
           // ── Section 2: School Navigation ───────────────────────────────
-          // Gated on isSchoolMember (a redeemed school voucher), NOT on
-          // !isGuest -- holding any signed-in Academia account must never
-          // by itself surface a school's private features (architecture
-          // brief item 2). No "Connect Your School" fallback for a non-
-          // member anymore -- school membership is established once, at
-          // first launch, by voucher_signup_screen.dart; there's no
-          // second code to enter later, so this section simply doesn't
-          // show until membership already exists.
           if (user.isSchoolMember || Branding.current.brandId != 'academia') ...[
             const SizedBox(height: 8),
             _SectionHeader('School Navigation'),
@@ -179,11 +191,6 @@ class ProfilePage extends StatelessWidget {
             _InfoRow(Icons.bookmark_border_rounded, 'My Bookmarks', '',
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => BookmarksPage(user: user)))),
-            // Personal Study Plan (production_plan.md §5) — self-authored,
-            // distinct from the official school Timetable above. Renamed
-            // from "My Study Timetable" to "My Study Plan" specifically
-            // to stop the two being confused now that a real school
-            // Timetable also exists.
             _InfoRow(Icons.event_note_outlined, 'My Study Plan', '',
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => PersonalStudyPage(user: user)))),
@@ -202,7 +209,22 @@ class ProfilePage extends StatelessWidget {
                 onTap: () => openRedeemVoucher(context, user)),
           ],
         ]),
-      )),
+      ),
+    );
+
+    if (!isDesktop) {
+      return Scaffold(
+        backgroundColor: ac.bg,
+        appBar: embedded ? null : AcademiaAppBar(title: 'Profile', user: user, actions: actions),
+        body: profileBody,
+      );
+    }
+
+    return ApplicationShell(
+      currentTitle: 'Profile',
+      currentDestination: AppNavDestination.none,
+      user: user,
+      child: profileBody,
     );
   }
 }

@@ -211,6 +211,106 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
+    final width = MediaQuery.of(context).size.width;
+    final isDesktop = width >= 900;
+
+    final feedBody = AppBackground(
+      child: SafeArea(
+        child: Column(
+          children: [
+            if (!isDesktop) _header(context) else const SizedBox(height: 12),
+            _tabRow(),
+            const SizedBox(height: 16),
+            Expanded(
+              child: StreamBuilder<List<MagazineArticle>>(
+                stream: _streamForTab(),
+                builder: (context, snap) {
+                  if (_tab == _FeedTab.local && !_hasSchool) {
+                    return _localFeedEmptyState();
+                  }
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const _FeedSkeleton();
+                  }
+                  if (snap.hasError) {
+                    return ErrorView(message: snap.error.toString());
+                  }
+                  final articles = _applySort(snap.data ?? const <MagazineArticle>[]);
+                  if (articles.isEmpty) return _emptyState();
+
+                  return ListView(
+                    padding: const EdgeInsets.only(bottom: 24),
+                    children: [
+                      if (_tab == _FeedTab.forYou || _tab == _FeedTab.global)
+                        _FeaturedCarousel(user: widget.user),
+                      if (_tab == _FeedTab.forYou && _showRecommended)
+                        _RecommendedSection(user: widget.user!),
+                      if (_tab == _FeedTab.forYou) ...[
+                        const SizedBox(height: 20),
+                        _StudentGallerySection(user: widget.user),
+                        const SizedBox(height: 20),
+                        _LatestVideosSection(user: widget.user),
+                      ],
+                      if (_tab == _FeedTab.trending) ...[
+                        const SizedBox(height: 20),
+                        _RecommendedClubsSection(user: widget.user),
+                      ],
+                      if (_tab == _FeedTab.following && !_isGuest)
+                        _FollowingAuthorsSection(userId: widget.user!.id, currentUser: widget.user),
+                      const SizedBox(height: 20),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Row(children: [
+                          Expanded(child: Text(_sectionTitle, style: AppText.h2.copyWith(fontSize: 16))),
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(Rad.xs),
+                              onTap: () {
+                                HapticFeedback.selectionClick();
+                                Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => _AllArticlesPage(
+                                        title: _sectionTitle, stream: _streamForTab(), user: widget.user)));
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                                child: Text('See all', style: AppText.subtitle.copyWith(
+                                    color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                              ),
+                            ),
+                          ),
+                        ]),
+                      ),
+                      const SizedBox(height: 12),
+                      ...articles.map((a) => Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        child: ArticleListCard(
+                          article: a,
+                          currentUser: widget.user,
+                          onOpen: () => Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => ArticleReaderPage(article: a, currentUser: widget.user))),
+                          onOpenAuthor: () => Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => AuthorProfilePage(authorId: a.authorId, currentUser: widget.user))),
+                        ),
+                      )),
+                      if (_tab == _FeedTab.trending && !_isGuest)
+                        _PopularInNetworkSection(userId: widget.user!.id, currentUser: widget.user),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!isDesktop) {
+      return Scaffold(
+        backgroundColor: ac.bg,
+        body: feedBody,
+      );
+    }
+
     return ApplicationShell(
       user: widget.user,
       currentTitle: 'Academia Magazine',
@@ -254,94 +354,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
           ),
         ],
       ],
-      child: AppBackground(
-        child: SafeArea(
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              _tabRow(),
-              const SizedBox(height: 16),
-              Expanded(
-                child: StreamBuilder<List<MagazineArticle>>(
-                  stream: _streamForTab(),
-                  builder: (context, snap) {
-                if (_tab == _FeedTab.local && !_hasSchool) {
-                  return _localFeedEmptyState();
-                }
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const _FeedSkeleton();
-                }
-                if (snap.hasError) {
-                  return ErrorView(message: snap.error.toString());
-                }
-                final articles = _applySort(snap.data ?? const <MagazineArticle>[]);
-                if (articles.isEmpty) return _emptyState();
-
-                return ListView(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  children: [
-                    if (_tab == _FeedTab.forYou || _tab == _FeedTab.global)
-                      _FeaturedCarousel(user: widget.user),
-                    if (_tab == _FeedTab.forYou && _showRecommended)
-                      _RecommendedSection(user: widget.user!),
-                    if (_tab == _FeedTab.forYou) ...[
-                      const SizedBox(height: 20),
-                      _StudentGallerySection(user: widget.user),
-                      const SizedBox(height: 20),
-                      _LatestVideosSection(user: widget.user),
-                    ],
-                    if (_tab == _FeedTab.trending) ...[
-                      const SizedBox(height: 20),
-                      _RecommendedClubsSection(user: widget.user),
-                    ],
-                    if (_tab == _FeedTab.following && !_isGuest)
-                      _FollowingAuthorsSection(userId: widget.user!.id, currentUser: widget.user),
-                    const SizedBox(height: 20),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(children: [
-                        Expanded(child: Text(_sectionTitle, style: AppText.h2.copyWith(fontSize: 16))),
-                        Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(Rad.xs),
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              Navigator.of(context).push(MaterialPageRoute(
-                                  builder: (_) => _AllArticlesPage(
-                                      title: _sectionTitle, stream: _streamForTab(), user: widget.user)));
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                              child: Text('See all', style: AppText.subtitle.copyWith(
-                                  color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
-                            ),
-                          ),
-                        ),
-                      ]),
-                    ),
-                    const SizedBox(height: 12),
-                    ...articles.map((a) => Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                      child: ArticleListCard(
-                        article: a,
-                        currentUser: widget.user,
-                        onOpen: () => Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => ArticleReaderPage(article: a, currentUser: widget.user))),
-                        onOpenAuthor: () => Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => AuthorProfilePage(authorId: a.authorId, currentUser: widget.user))),
-                      ),
-                    )),
-                    if (_tab == _FeedTab.trending && !_isGuest)
-                      _PopularInNetworkSection(userId: widget.user!.id, currentUser: widget.user),
-                  ],
-                );
-              },
-            ),
-          ),
-        ]),
-      ),
-      ),
+      child: feedBody,
     );
   }
 

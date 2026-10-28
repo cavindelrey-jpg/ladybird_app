@@ -18,7 +18,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show User;
 import '../models/models.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_theme.dart';
 import '../services/auth_service.dart';
+import '../services/connectivity_service.dart';
+import '../repositories/magazine_repository.dart';
+import '../widgets/app_drawer.dart';
+import '../widgets/create_content_sheet.dart';
 import 'first_login_screen.dart';
 import '../features/dashboard/universal_home_page.dart';
 import '../features/school/parent_dashboard_page.dart';
@@ -740,19 +745,237 @@ class _SuspendedScreen extends StatelessWidget {
 
 // ────────────────────────────────────────────────────────────────────────────
 // HomeShell — primary authenticated/guest landing
+// Desktop (>= 900px): Persistent ApplicationShell workspaces.
+// Mobile (< 900px): Native mobile shell with capsule NavigationBar,
+// AppDrawer, and gold FAB.
 // ────────────────────────────────────────────────────────────────────────────
 
-class HomeShell extends StatelessWidget {
+class HomeShell extends StatefulWidget {
   final AppUser user;
   const HomeShell({super.key, required this.user});
 
   @override
-  Widget build(BuildContext context) {
-    if (user.isParent) {
-      return ParentDashboardPage(user: user);
+  State<HomeShell> createState() => _HomeShellState();
+}
+
+class _HomeShellState extends State<HomeShell> {
+  int _tab = 0;
+  final Set<int> _visitedTabs = {0};
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(MagazineRepository.instance.settlePendingXp(widget.user.id));
+  }
+
+  List<_NavDef> _buildNav() {
+    final u = widget.user;
+    final nav = <_NavDef>[
+      const _NavDef('Home', Icons.home_rounded, Icons.home_outlined, UserRole.guest),
+      const _NavDef('Groups', Icons.groups_rounded, Icons.groups_outlined, UserRole.guest),
+      const _NavDef('Library', Icons.menu_book_rounded, Icons.menu_book_outlined, UserRole.guest),
+      const _NavDef('Magazine', Icons.auto_stories_rounded, Icons.auto_stories_outlined, UserRole.guest),
+      const _NavDef('Courses', Icons.school_rounded, Icons.school_outlined, UserRole.guest),
+      const _NavDef('Profile', Icons.person_rounded, Icons.person_outlined, UserRole.guest),
+    ];
+    return nav.where((n) => u.hasMinRole(n.minRole)).toList();
+  }
+
+  Widget _buildPage(AppColors ac, _NavDef def) {
+    final u = widget.user;
+    if (!u.hasMinRole(def.minRole)) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.lock_outline_rounded, size: 48, color: ac.muted),
+              const SizedBox(height: 12),
+              Text(
+                'Access Restricted',
+                style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+        ),
+      );
     }
-    return UniversalHomePage(user: user);
+    switch (def.label) {
+      case 'Home':
+        return u.isParent ? ParentDashboardPage(user: u) : UniversalHomePage(user: u, embedded: true);
+      case 'Groups':
+        return ClubsPage(user: u, embedded: true);
+      case 'Library':
+        return LibraryHomePage(user: u, embedded: true);
+      case 'Magazine':
+        return MagazineFeedPage(user: u, embedded: true);
+      case 'Courses':
+        return CoursesHomePage(user: u, embedded: true);
+      case 'Profile':
+        return ProfilePage(user: u, embedded: true);
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width >= 900;
+    if (isDesktop) {
+      if (widget.user.isParent) {
+        return ParentDashboardPage(user: widget.user);
+      }
+      return UniversalHomePage(user: widget.user);
+    }
+
+    final ac = AppColors.of(context);
+    final nav = _buildNav();
+    final safeTab = _tab.clamp(0, nav.length - 1);
+    _visitedTabs.add(safeTab);
+
+    return Scaffold(
+      drawer: AppDrawer(
+        user: widget.user,
+        onHomeTap: () => setState(() => _tab = 0),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const _OfflineBanner(),
+            Expanded(
+              child: IndexedStack(
+                index: safeTab,
+                children: List.generate(
+                  nav.length,
+                  (i) => _visitedTabs.contains(i)
+                      ? _buildPage(ac, nav[i])
+                      : const SizedBox.shrink(),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: ac.gold,
+        onPressed: () => showCreateContentSheet(context, widget.user),
+        child: Icon(Icons.add_rounded, color: ac.navy),
+      ),
+      bottomNavigationBar: DecoratedBox(
+        decoration: BoxDecoration(
+          color: ac.surf,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(Rad.lg)),
+          boxShadow: Shad.lg,
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(Rad.lg)),
+          child: NavigationBar(
+            selectedIndex: safeTab,
+            onDestinationSelected: (i) => setState(() => _tab = i),
+            labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+            destinations: nav
+                .map((n) => NavigationDestination(
+                      icon: Icon(n.outlinedIcon),
+                      selectedIcon: Icon(n.filledIcon),
+                      label: n.label,
+                    ))
+                .toList(),
+          ),
+        ),
+      ),
+    );
   }
 }
+
+class _NavDef {
+  final String label;
+  final IconData filledIcon, outlinedIcon;
+  final UserRole minRole;
+  const _NavDef(this.label, this.filledIcon, this.outlinedIcon, this.minRole);
+}
+
+class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final ac = AppColors.of(context);
+    return StreamBuilder<bool>(
+      stream: ConnectivityService().watchOffline(),
+      builder: (context, snap) {
+        if (snap.data != true) return const SizedBox.shrink();
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          color: ac.orgBg,
+          child: Row(
+            children: [
+              Icon(Icons.wifi_off_rounded, size: 16, color: ac.org),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Offline — saved downloads & dictionary open.',
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: ac.org,
+                  ),
+                ),
+              ),
+              InkWell(
+                borderRadius: BorderRadius.circular(4),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DictionaryScreen()),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: ac.org.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Dictionary',
+                    style: GoogleFonts.inter(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: ac.org,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              InkWell(
+                borderRadius: BorderRadius.circular(4),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => LibraryHomePage(user: AppUser.guest()),
+                  ),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: ac.org.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Downloads',
+                    style: GoogleFonts.inter(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: ac.org,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 
 

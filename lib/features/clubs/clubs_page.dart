@@ -123,11 +123,34 @@ class _ClubsPageState extends State<ClubsPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
+    final width = MediaQuery.of(context).size.width;
+    final isDesktop = width >= 900;
 
     return StreamBuilder<List<Club>>(
       stream: _clubsStream,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+          if (!isDesktop) {
+            return Scaffold(
+              backgroundColor: ac.bg,
+              appBar: widget.embedded
+                  ? null
+                  : AppBar(
+                      backgroundColor: ac.bg,
+                      elevation: 0,
+                      title: Text(
+                        'Academic Groups',
+                        style: GoogleFonts.inter(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: ac.navy,
+                        ),
+                      ),
+                      iconTheme: IconThemeData(color: ac.navy),
+                    ),
+              body: const _ClubsSkeleton(),
+            );
+          }
           return ApplicationShell(
             user: widget.user,
             currentTitle: 'Study Groups & Clubs',
@@ -138,6 +161,27 @@ class _ClubsPageState extends State<ClubsPage> {
           );
         }
         if (snap.hasError && (!snap.hasData || snap.data!.isEmpty)) {
+          if (!isDesktop) {
+            return Scaffold(
+              backgroundColor: ac.bg,
+              appBar: widget.embedded
+                  ? null
+                  : AppBar(
+                      backgroundColor: ac.bg,
+                      elevation: 0,
+                      title: Text(
+                        'Academic Groups',
+                        style: GoogleFonts.inter(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: ac.navy,
+                        ),
+                      ),
+                      iconTheme: IconThemeData(color: ac.navy),
+                    ),
+              body: Center(child: ErrorView(message: snap.error.toString())),
+            );
+          }
           return ApplicationShell(
             user: widget.user,
             currentTitle: 'Study Groups & Clubs',
@@ -176,6 +220,85 @@ class _ClubsPageState extends State<ClubsPage> {
                     ? const <Club>[]
                     : RecommendationRepository.instance.forClubs(pool: allClubs, favoriteSubjects: widget.user.favoriteSubjects, user: widget.user);
                 final recommendedClubs = candidates.where((c) => !c.isClassGroup && !joinedIds.contains(c.id) && !pendingIds.contains(c.id)).toList();
+
+                if (!isDesktop) {
+                  return Scaffold(
+                    backgroundColor: ac.bg,
+                    appBar: AppBar(
+                      backgroundColor: ac.bg,
+                      elevation: 0,
+                      toolbarHeight: widget.embedded ? 8 : kToolbarHeight,
+                      automaticallyImplyLeading: !widget.embedded,
+                      title: widget.embedded
+                          ? null
+                          : Text(
+                              'Academic Groups',
+                              style: GoogleFonts.inter(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: ac.navy,
+                              ),
+                            ),
+                      iconTheme: IconThemeData(color: ac.navy),
+                      actions: widget.embedded
+                          ? const []
+                          : [
+                              IconButton(
+                                icon: Icon(Icons.notifications_outlined, color: ac.txt2),
+                                onPressed: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => NotificationsPage(user: widget.user),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(right: 16),
+                                child: Center(
+                                  child: UserAvatar(
+                                    initials: widget.user.name.isEmpty
+                                        ? '?'
+                                        : widget.user.name[0].toUpperCase(),
+                                    radius: 17,
+                                    photoUrl: widget.user.photoUrl,
+                                  ),
+                                ),
+                              ),
+                            ],
+                      bottom: PreferredSize(
+                        preferredSize: Size.fromHeight(categories.length > 1 ? 104 : 58),
+                        child: Column(
+                          children: [
+                            _searchBar(ac),
+                            if (categories.length > 1) ...[
+                              const SizedBox(height: 8),
+                              _categoryChips(categories, ac),
+                            ],
+                            const SizedBox(height: 8),
+                          ],
+                        ),
+                      ),
+                    ),
+                    body: AppBackground(
+                      child: ListView(
+                        padding: const EdgeInsets.only(top: 8, bottom: 100),
+                        children: [
+                          if (_searchQuery.isEmpty &&
+                              _selectedCategory == null &&
+                              recommendedClubs.isNotEmpty) ...[
+                            _recommendedClubsSection(context, recommendedClubs),
+                          ],
+                          if (myClubs.isNotEmpty) ...[
+                            _myClubsSection(context, myClubs, joinedIds),
+                            const SizedBox(height: 20),
+                          ],
+                          _discoverClubsSection(context, discoverClubs, allClubs),
+                          const SizedBox(height: 20),
+                          _infoCards(context),
+                        ],
+                      ),
+                    ),
+                  );
+                }
 
                 return ApplicationShell(
                   user: widget.user,

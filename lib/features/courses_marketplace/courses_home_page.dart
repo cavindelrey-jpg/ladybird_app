@@ -27,7 +27,8 @@ import 'curriculum_icon_editor.dart';
 
 class CoursesHomePage extends StatefulWidget {
   final AppUser? user;
-  const CoursesHomePage({super.key, this.user});
+  final bool embedded;
+  const CoursesHomePage({super.key, this.user, this.embedded = false});
 
   @override
   State<CoursesHomePage> createState() => _CoursesHomePageState();
@@ -73,6 +74,49 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
+    final width = MediaQuery.of(context).size.width;
+    final isDesktop = width >= 900;
+
+    if (!isDesktop) {
+      return Scaffold(
+        backgroundColor: ac.bg,
+        body: AppBackground(
+          child: SafeArea(
+            child: ListView(
+              padding: EdgeInsets.only(top: widget.embedded ? 14 : 0, bottom: 24),
+              children: [
+                if (!widget.embedded) _header(context, ac),
+                _searchBar(context, ac),
+                const SizedBox(height: 18),
+                _levelRow(context, ac),
+                const SizedBox(height: 26),
+                _sectionHeader(
+                  'Recommended for You',
+                  ac,
+                  showNav: true,
+                  onSeeAll: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => RecommendedCoursesPage(user: widget.user),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _recommendedRow(context, ac),
+                const SizedBox(height: 24),
+                _sectionHeader('Recent Reads', ac),
+                const SizedBox(height: 12),
+                _recentReads(context, ac),
+                const SizedBox(height: 24),
+                _sectionHeader('Downloaded Courses', ac),
+                const SizedBox(height: 12),
+                _downloadedCoursesSection(context, ac),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return ApplicationShell(
       user: widget.user,
       currentTitle: 'Academic Courses',

@@ -47,12 +47,14 @@ class LibraryHomePage extends StatelessWidget {
   final AppUser user;
   final String? initialCollectionFilter;
   final AppNavDestination? navDestination;
+  final bool embedded;
 
   const LibraryHomePage({
     super.key,
     required this.user,
     this.initialCollectionFilter,
     this.navDestination,
+    this.embedded = false,
   });
 
   bool get _canUpload => user.canUploadContent;
@@ -81,6 +83,36 @@ class LibraryHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
+    final width = MediaQuery.of(context).size.width;
+    final isDesktop = width >= 900;
+
+    if (!isDesktop) {
+      return Scaffold(
+        backgroundColor: ac.bg,
+        body: AppBackground(
+          child: SafeArea(
+            child: _mobileBody(context, ac),
+          ),
+        ),
+        floatingActionButton: _canUpload
+            ? FloatingActionButton.extended(
+                onPressed: () {
+                  HapticFeedback.mediumImpact();
+                  if (user.isGuest) {
+                    showToast(context, 'Sign in to upload files to the Library.');
+                    return;
+                  }
+                  _showUploadChoices(context, ac);
+                },
+                backgroundColor: ac.primary,
+                foregroundColor: Colors.white,
+                icon: const Icon(Icons.upload_file_rounded),
+                label: Text('Upload', style: AppText.button.copyWith(fontSize: 15)),
+              )
+            : null,
+      );
+    }
+
     final dest = navDestination ?? AppNavDestination.academicLibrary;
     final isPast = dest == AppNavDestination.pastQuestions;
 
@@ -166,6 +198,49 @@ class LibraryHomePage extends StatelessWidget {
           _offlineSection(context, ac),
         ],
       ),
+    );
+  }
+
+  Widget _mobileBody(BuildContext context, AppColors ac) {
+    return ListView(
+      padding: EdgeInsets.only(top: embedded ? 14 : 0, bottom: 24),
+      children: [
+        if (!embedded) ...[
+          _header(context, ac),
+          const SizedBox(height: 8),
+        ],
+        _sectionHeader('File Explorer Collections', ac),
+        const SizedBox(height: 12),
+        _fileExplorer(context, ac),
+        const SizedBox(height: 26),
+        _sectionHeader(
+          'Recommended for You',
+          ac,
+          onSeeAll: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => RecommendedLibraryPage(user: user),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        StreamBuilder<bool>(
+          stream: ConnectivityService().watchOffline(),
+          builder: (context, net) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _recommendedRow(context, ac),
+              const SizedBox(height: 24),
+              _sectionHeader('Recent Reads', ac),
+              const SizedBox(height: 12),
+              _recentReads(context, ac),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        _sectionHeader('Available Offline', ac, badge: 'Downloaded'),
+        const SizedBox(height: 12),
+        _offlineSection(context, ac),
+      ],
     );
   }
 

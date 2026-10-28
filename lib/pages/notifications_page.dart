@@ -10,10 +10,9 @@ import '../models/app_notification.dart';
 import '../repositories/notification_repository.dart';
 import '../widgets/widgets.dart';
 import '../models/app_user.dart';
-import '../services/notification_router.dart';
+import '../features/messages/messages_home_page.dart';
 
 import '../widgets/app_background.dart';
-import '../widgets/application_shell.dart';
 class NotificationsPage extends StatelessWidget {
   final AppUser user;
   const NotificationsPage({super.key, required this.user});
@@ -27,9 +26,6 @@ class NotificationsPage extends StatelessWidget {
       case NotificationType.system:           return Icons.info_outline_rounded;
       case NotificationType.homework:         return Icons.menu_book_rounded;
       case NotificationType.dailyProgram:     return Icons.today_rounded;
-      case NotificationType.message:          return Icons.chat_bubble_outline_rounded;
-      case NotificationType.recommendation:   return Icons.auto_awesome_outlined;
-      default:                                return Icons.notifications_none_rounded;
     }
   }
 
@@ -47,37 +43,33 @@ class NotificationsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return ApplicationShell(
-      user: user,
-      currentTitle: 'Notifications',
-      subtitle: 'System updates, homework alerts, comments, and reminders',
-      currentDestination: AppNavDestination.none,
-      headerActions: [
-        TextButton(
-          onPressed: () => NotificationRepository.instance.markAllRead(user.id),
-          child: Text('Mark all read', style: GoogleFonts.inter(
-              fontSize: 12, fontWeight: FontWeight.w600, color: ac.primary)),
-        ),
-      ],
-      child: AppBackground(child: StreamBuilder<List<AppNotification>>(
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
+        title: Text('Notifications', style: GoogleFonts.sora(
+            fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
+        actions: [
+          TextButton(
+            onPressed: () => NotificationRepository.instance.markAllRead(user.id),
+            child: Text('Mark all read', style: GoogleFonts.inter(
+                fontSize: 12, fontWeight: FontWeight.w600, color: ac.primary)),
+          ),
+        ],
+      ),
+      body: AppBackground(child: StreamBuilder<List<AppNotification>>(
         stream: NotificationRepository.instance.watchFeed(user.id),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const LoadingView();
-          }
-          if (snap.hasError && !snap.hasData) {
-            return const EmptyState(
-              icon: Icons.wifi_off_rounded,
-              title: 'Can\'t load notifications',
-              subtitle: 'Check your connection — they\'ll appear here when you\'re back online.',
-            );
           }
           final items = snap.data ?? const <AppNotification>[];
           if (items.isEmpty) {
             return const EmptyState(
               icon: Icons.notifications_none_rounded,
               title: 'No notifications yet',
-              subtitle: 'Tomorrow\'s programme, recommendations, comments and replies will show up here.',
+              subtitle: 'Announcements, comments, and replies will show up here.',
             );
           }
           return ListView.builder(
@@ -108,7 +100,9 @@ class NotificationsPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(Rad.md),
                     onTap: () {
                       NotificationRepository.instance.markRead(user.id, n.id);
-                      NotificationRouter.open(context, user, n);
+                      if (n.type == NotificationType.message) {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => MessagesHomePage(user: user)));
+                      }
                     },
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Container(
@@ -122,7 +116,7 @@ class NotificationsPage extends StatelessWidget {
                           Text(n.title, style: GoogleFonts.inter(
                               fontSize: 13.5, fontWeight: FontWeight.w700, color: ac.txt)),
                           const SizedBox(height: 3),
-                          Text(n.body, maxLines: 4, overflow: TextOverflow.ellipsis, style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2, height: 1.4)),
+                          Text(n.body, style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2, height: 1.4)),
                           const SizedBox(height: 6),
                           Text(_formatTimestamp(n.createdAt),
                               style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted)),

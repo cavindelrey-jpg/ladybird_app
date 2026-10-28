@@ -8,23 +8,16 @@ import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_colors.dart';
 import '../providers/theme_provider.dart';
-import '../providers/locale_provider.dart';
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
 import 'profile_edit_page.dart';
 import 'change_password_page.dart';
 import 'notification_preferences_page.dart';
-import 'privacy_policy_page.dart';
-import 'delete_account_page.dart';
 import 'help_support_page.dart';
 import 'about_academia_page.dart';
 import '../features/onboarding/school_admin_page.dart';
-import '../features/school/class_management_page.dart';
 
 import '../widgets/app_background.dart';
-import '../widgets/application_shell.dart';
-import '../widgets/compact_sign_in_dialog.dart';
-
 class SettingsPage extends StatelessWidget {
   final AppUser user;
   const SettingsPage({super.key, required this.user});
@@ -32,96 +25,61 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return ApplicationShell(
-      user: user,
-      currentTitle: 'Settings',
-      currentDestination: AppNavDestination.settings,
-      child: ListView(
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
+        title: Text('Settings', style: GoogleFonts.sora(
+            fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
+      ),
+      body: AppBackground(child: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           _sectionLabel(context, 'Appearance'),
           _themeToggleTile(context),
-          const SizedBox(height: 16),
-          _sectionLabel(context, 'App Language'),
-          _languageToggleTile(context),
 
           const SizedBox(height: 24),
           _sectionLabel(context, 'Account'),
           _tile(context, Icons.person_outline_rounded, 'Edit Profile',
               'Photo, bio, and education level',
               () => Navigator.of(context).push(MaterialPageRoute(
-                  settings: const RouteSettings(name: '/settings/account'),
                   builder: (_) => ProfileEditPage(user: user)))),
           _tile(context, Icons.lock_outline_rounded, 'Change Password',
               'Update your sign-in password',
               () => Navigator.of(context).push(MaterialPageRoute(
-                  settings: const RouteSettings(name: '/settings/security'),
                   builder: (_) => const ChangePasswordPage()))),
 
           const SizedBox(height: 24),
           _sectionLabel(context, 'Notifications'),
           _tile(context, Icons.notifications_outlined, 'Notification Preferences',
-              "Tomorrow's programme, reminders, comments",
+              'Announcements, comments, replies',
               () => Navigator.of(context).push(MaterialPageRoute(
-                  settings: const RouteSettings(name: '/settings/notifications'),
                   builder: (_) => NotificationPreferencesPage(userId: user.id)))),
 
-          if (user.canManageSchool || user.isAdmin || user.isSchoolClassMaster) ...[
+          if (user.canManageUsers) ...[
             const SizedBox(height: 24),
             _sectionLabel(context, 'School Administration'),
-            _tile(context, Icons.meeting_room_outlined, 'Class Management',
-                'Configure custom classes, technical programmes, and academic years',
+            _tile(context, Icons.badge_outlined, 'School Access Admin',
+                'Register schools, issue voucher codes',
                 () => Navigator.of(context).push(MaterialPageRoute(
-                    settings: const RouteSettings(name: '/school/classes'),
-                    builder: (_) => ClassManagementPage(user: user)))),
-            if (user.canManageUsers)
-              _tile(context, Icons.badge_outlined, 'School Access Admin',
-                  'Register schools, issue voucher codes',
-                  () => Navigator.of(context).push(MaterialPageRoute(
-                      settings: const RouteSettings(name: '/school/admin'),
-                      builder: (_) => SchoolAdminPage(user: user)))),
+                    builder: (_) => SchoolAdminPage(user: user)))),
           ],
 
           const SizedBox(height: 24),
           _sectionLabel(context, 'Support'),
           _tile(context, Icons.help_outline_rounded, 'Help & Support', 'FAQs and contact',
               () => Navigator.of(context).push(MaterialPageRoute(
-                  settings: const RouteSettings(name: '/settings/help'),
-                  builder: (_) => HelpSupportPage(user: user)))),
+                  builder: (_) => const HelpSupportPage()))),
           _tile(context, Icons.info_outline_rounded, 'About', 'Version 2.0.0',
               () => Navigator.of(context).push(MaterialPageRoute(
-                  settings: const RouteSettings(name: '/settings/about'),
                   builder: (_) => const AboutAcademiaPage()))),
-          _tile(context, Icons.privacy_tip_outlined, 'Privacy Policy', 'Data protection and institutional rights',
-              () => Navigator.of(context).push(MaterialPageRoute(
-                  settings: const RouteSettings(name: '/settings/privacy'),
-                  builder: (_) => PrivacyPolicyPage(user: user)))),
-          _tile(context, Icons.delete_outline_rounded, 'Delete Account', 'Permanently delete your profile and personal data',
-              () => Navigator.of(context).push(MaterialPageRoute(
-                  settings: const RouteSettings(name: '/settings/delete-account'),
-                  builder: (_) => DeleteAccountPage(user: user))), color: ac.red),
 
           const SizedBox(height: 24),
-          if (user.isGuest)
-            _tile(
-              context,
-              Icons.login_rounded,
-              'Sign In to Account',
-              'Sign in with your email and password to access your student or teacher profile',
-              () => showCompactSignInDialog(context),
-              color: const Color(0xFFE5A93C),
-            )
-          else
-            _tile(
-              context,
-              Icons.logout_rounded,
-              'Sign Out',
-              null,
-              () => AuthService.instance.performSignOut(context),
-              color: ac.red,
-            ),
+          _tile(context, Icons.logout_rounded, 'Sign Out', null,
+              () => AuthService.instance.signOut(), color: ac.red),
         ],
-      ),
+      )),
     );
   }
 
@@ -168,50 +126,10 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
-  Widget _languageToggleTile(BuildContext context) {
-    final ac = AppColors.of(context);
-    final lang = context.watch<LocaleProvider>().language;
-    Widget seg(AppLanguage l, IconData icon, String label) {
-      final selected = lang == l;
-      return Expanded(
-        child: Material(
-          color: selected ? ac.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: () => context.read<LocaleProvider>().setLanguage(l),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(icon, size: 18, color: selected ? Colors.white : ac.txt2),
-                const SizedBox(height: 4),
-                Text(label, style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600,
-                    color: selected ? Colors.white : ac.txt2)),
-              ]),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-          color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
-      child: Row(children: [
-        seg(AppLanguage.system, Icons.settings_suggest_rounded, 'System'),
-        const SizedBox(width: 6),
-        seg(AppLanguage.english, Icons.language_rounded, 'English'),
-        const SizedBox(width: 6),
-        seg(AppLanguage.french, Icons.translate_rounded, 'Français'),
-      ]),
-    );
-  }
-
   Widget _sectionLabel(BuildContext context, String text) => Padding(
         padding: const EdgeInsets.only(bottom: 10, left: 4),
-        child: Text(text, style: GoogleFonts.inter(
-            fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.of(context).txt2, letterSpacing: .4)),
+        child: Text(text, style: GoogleFonts.sora(
+            fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.of(context).txt2, letterSpacing: .4)),
       );
 
   Widget _tile(BuildContext context, IconData icon, String title, String? subtitle,

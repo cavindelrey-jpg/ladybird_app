@@ -14,11 +14,9 @@ import '../../repositories/test_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/application_shell.dart';
 import 'quiz_icon_editor.dart';
 import 'tests_list_page.dart';
 
-import '../../widgets/skeleton_spinner.dart';
 class TestsTopicPickerPage extends StatefulWidget {
   final AppUser user;
   final String category;
@@ -71,17 +69,11 @@ class _TestsTopicPickerPageState extends State<TestsTopicPickerPage> {
       label: topic,
       currentEmoji: current.emoji,
       currentImageUrl: current.imageUrl,
-      onSave: (emoji, image, [imageBytes]) async {
+      onSave: (emoji, image) async {
         // Was unconditionally blank -- a failed upload silently wiped
         // whatever image was already set instead of leaving it alone.
         String imageUrl = current.imageUrl;
-        if (imageBytes != null) {
-          final upload = await TestRepository.instance.uploadQuizNodeImageBytes(key: key, bytes: imageBytes);
-          switch (upload) {
-            case Success(:final value): imageUrl = value;
-            case Failure(:final message): throw Exception(message);
-          }
-        } else if (image != null) {
+        if (image != null) {
           final upload = await TestRepository.instance.uploadQuizNodeImage(key: key, imageFile: image);
           switch (upload) {
             case Success(:final value): imageUrl = value;
@@ -99,21 +91,11 @@ class _TestsTopicPickerPageState extends State<TestsTopicPickerPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ApplicationShell(
-      user: widget.user,
-      currentDestination: AppNavDestination.testsAndQuizzes,
-      title: widget.subject,
-      breadcrumbs: [
-        ShellBreadcrumb(label: 'Tests & Quizzes', onTap: () {
-          Navigator.of(context).pop();
-          Navigator.of(context).pop();
-        }),
-        ShellBreadcrumb(label: widget.category, onTap: () => Navigator.of(context).pop()),
-        ShellBreadcrumb(label: widget.subject),
-      ],
-      rightPanel: QuizzesContextualPanel(user: widget.user),
-      child: _loading
-          ? const Center(child: SkeletonSpinner())
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(title: Text(widget.subject, style: AppText.h2)),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
           : _counts.isEmpty
               ? EmptyState(
                   icon: Icons.topic_outlined,
@@ -127,8 +109,8 @@ class _TestsTopicPickerPageState extends State<TestsTopicPickerPage> {
                   child: GridView.builder(
                     padding: const EdgeInsets.all(20),
                     itemCount: _counts.length,
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 240, crossAxisSpacing: 12, mainAxisSpacing: 12, mainAxisExtent: 188,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.92,
                     ),
                     itemBuilder: (context, i) {
                       final topic = (_counts.keys.toList()..sort())[i];

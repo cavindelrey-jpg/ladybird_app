@@ -19,6 +19,8 @@ import 'package:flutter_quill_extensions/flutter_quill_extensions.dart';
 import '../../models/app_user.dart';
 import '../../models/magazine_article.dart';
 import '../../repositories/magazine_repository.dart';
+import '../../repositories/notification_repository.dart';
+import '../../models/app_notification.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
@@ -26,8 +28,6 @@ import 'author_profile_page.dart';
 import 'article_composer_page.dart';
 
 import '../../widgets/app_background.dart';
-import '../../widgets/application_shell.dart';
-import '../../widgets/skeleton_spinner.dart';
 class ArticleReaderPage extends StatefulWidget {
   final MagazineArticle article;
   final AppUser? currentUser;
@@ -92,212 +92,164 @@ class _ArticleReaderPageState extends State<ArticleReaderPage> with SingleTicker
       body: body,
     );
     await MagazineRepository.instance.postComment(comment);
-    // The author (and, for replies, the parent commenter) is notified
-    // server-side by trg_notify_on_article_comment.
+    // Best-effort notify — never blocks the comment success path.
+    if (widget.article.authorId != user.id) {
+      NotificationRepository.instance.create(
+        uid: widget.article.authorId,
+        type: NotificationType.comment,
+        title: 'New comment on "${widget.article.title}"',
+        body: '${user.name}: $body',
+        deepLinkId: widget.article.id,
+      );
+    }
     _commentCtrl.clear();
     if (mounted) setState(() => _postingComment = false);
-  }
-
-  String _extractPlainText(MagazineArticle a) {
-    final deltaJson = a.bodyDelta;
-    if (deltaJson != null && deltaJson.isNotEmpty) {
-      try {
-        final doc = quill.Document.fromJson(jsonDecode(deltaJson));
-        final text = doc.toPlainText().trim();
-        if (text.isNotEmpty) return '${a.title}\nBy ${a.authorName}\n\n$text';
-      } catch (_) {}
-    }
-    return '${a.title}\nBy ${a.authorName}\n\n${a.body.trim()}';
-  }
-
-  void _copyArticleText() {
-    final text = _extractPlainText(widget.article);
-    Clipboard.setData(ClipboardData(text: text));
-    HapticFeedback.selectionClick();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Article text copied to clipboard'),
-        duration: Duration(seconds: 2),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     final a = widget.article;
     final ac = AppColors.of(context);
-    return ApplicationShell(
-      user: widget.currentUser,
-      currentTitle: a.title,
-      subtitle: 'By ${a.authorName} • ${a.category}',
-      currentDestination: AppNavDestination.magazine,
-      breadcrumbs: [
-        ShellBreadcrumb(
-          label: 'Magazine',
-          icon: Icons.article_outlined,
-          onTap: () => Navigator.of(context).pop(),
-        ),
-        ShellBreadcrumb(label: a.title),
-      ],
-      headerActions: [
-        IconButton(
-          tooltip: 'Copy article text',
-          icon: Icon(Icons.copy_all_rounded, color: ac.txt, size: 20),
-          onPressed: _copyArticleText,
-        ),
-        if (_isOwnArticle)
-          IconButton(
-            tooltip: 'Edit article',
-            icon: Icon(Icons.edit_outlined, color: ac.txt, size: 20),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) =>
-                    ArticleComposerPage(user: widget.currentUser!, existing: a),
-              ),
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
+        actions: [
+          if (_isOwnArticle)
+            IconButton(
+              icon: Icon(Icons.edit_outlined, color: ac.txt),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => ArticleComposerPage(user: widget.currentUser!, existing: a))),
             ),
-          ),
-      ],
-      child: AppBackground(child: FadeTransition(
+        ],
+      ),
+      body: AppBackground(child: FadeTransition(
         opacity: _entryFade,
         child: SlideTransition(
           position: _entryRise,
-          child: SelectionArea(
-            child: ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                if ((a.thumbnailUrl ?? '').isNotEmpty)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(Rad.md),
-                    child: Image.network(a.thumbnailUrl!, height: 200, width: double.infinity, fit: BoxFit.cover),
-                  ),
-                const SizedBox(height: 20),
-                Wrap(spacing: 6, runSpacing: 6, children: [
-                  StatusBadge(label: a.category, color: ac.primary),
-                  ...a.tags.map((t) => StatusBadge(label: t, color: ac.gold, bg: ac.goldBg)),
-                ]),
-                const SizedBox(height: 10),
-                Text(a.title, style: AppText.h1),
-                const SizedBox(height: 16),
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(Rad.sm),
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => AuthorProfilePage(authorId: a.authorId, currentUser: widget.currentUser)));
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(children: [
-                        UserAvatar(initials: a.authorName.isEmpty ? '?' : a.authorName[0].toUpperCase(),
-                            radius: 18, photoUrl: a.authorPhotoUrl),
-                        const SizedBox(width: 10),
-                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(a.authorName, style: AppText.subtitle.copyWith(color: ac.txt, fontSize: 13.5)),
-                          Text(_formatDate(a.createdAt), style: AppText.caption),
-                        ]),
-                        const Spacer(),
-                        Icon(Icons.visibility_outlined, size: 15, color: ac.muted),
-                        const SizedBox(width: 4),
-                        Text('${a.readCount}', style: AppText.caption),
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              if ((a.thumbnailUrl ?? '').isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(Rad.md),
+                  child: Image.network(a.thumbnailUrl!, height: 200, width: double.infinity, fit: BoxFit.cover),
+                ),
+              const SizedBox(height: 20),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                StatusBadge(label: a.category, color: ac.primary),
+                ...a.tags.map((t) => StatusBadge(label: t, color: ac.gold, bg: ac.goldBg)),
+              ]),
+              const SizedBox(height: 10),
+              Text(a.title, style: AppText.h1),
+              const SizedBox(height: 16),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(Rad.sm),
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => AuthorProfilePage(authorId: a.authorId, currentUser: widget.currentUser)));
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(children: [
+                      UserAvatar(initials: a.authorName.isEmpty ? '?' : a.authorName[0].toUpperCase(),
+                          radius: 18, photoUrl: a.authorPhotoUrl),
+                      const SizedBox(width: 10),
+                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(a.authorName, style: AppText.subtitle.copyWith(color: ac.txt, fontSize: 13.5)),
+                        Text(_formatDate(a.createdAt), style: AppText.caption),
                       ]),
-                    ),
+                      const Spacer(),
+                      Icon(Icons.visibility_outlined, size: 15, color: ac.muted),
+                      const SizedBox(width: 4),
+                      Text('${a.readCount}', style: AppText.caption),
+                    ]),
                   ),
                 ),
-                const SizedBox(height: 20),
-                Divider(color: ac.bdr2),
-                const SizedBox(height: 20),
-                _ArticleBody(article: a),
-                const SizedBox(height: 24),
-                _ActionRow(article: a, currentUser: widget.currentUser, onCopy: _copyArticleText),
-                const SizedBox(height: 24),
-                Divider(color: ac.bdr2),
-                const SizedBox(height: 16),
-                Text('Comments (${a.commentCount})', style: AppText.h2.copyWith(fontSize: 15)),
-                const SizedBox(height: 14),
-                if (widget.currentUser != null)
-                  Row(children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _commentCtrl,
-                        style: AppText.bodySm.copyWith(color: ac.txt),
-                        decoration: InputDecoration(
-                          hintText: 'Add a comment…',
-                          filled: true, fillColor: ac.surf3,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
-                          suffixIcon: IconButton(
-                            tooltip: 'Paste from clipboard',
-                            icon: Icon(Icons.content_paste_rounded, size: 18, color: ac.muted),
-                            onPressed: () async {
-                              final data = await Clipboard.getData(Clipboard.kTextPlain);
-                              final text = data?.text ?? '';
-                              if (text.isEmpty) return;
-                              final cur = _commentCtrl.text;
-                              _commentCtrl.text = cur.isEmpty ? text : '$cur $text';
-                              _commentCtrl.selection = TextSelection.collapsed(offset: _commentCtrl.text.length);
-                            },
-                          ),
-                        ),
+              ),
+              const SizedBox(height: 20),
+              Divider(color: ac.bdr2),
+              const SizedBox(height: 20),
+              _ArticleBody(article: a),
+              const SizedBox(height: 24),
+              _ActionRow(article: a, currentUser: widget.currentUser),
+              const SizedBox(height: 24),
+              Divider(color: ac.bdr2),
+              const SizedBox(height: 16),
+              Text('Comments (${a.commentCount})', style: AppText.h2.copyWith(fontSize: 15)),
+              const SizedBox(height: 14),
+              if (widget.currentUser != null)
+                Row(children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _commentCtrl,
+                      style: AppText.bodySm.copyWith(color: ac.txt),
+                      decoration: InputDecoration(
+                        hintText: 'Add a comment…',
+                        filled: true, fillColor: ac.surf3,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(Rad.sm), borderSide: BorderSide.none),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    _postingComment
-                        ? const SizedBox(width: 40, height: 40,
-                            child: Center(child: SizedBox(width: 18, height: 18,
-                                child: SkeletonSpinner(strokeWidth: 2))))
-                        : Material(
-                            color: Colors.transparent,
-                            shape: const CircleBorder(),
-                            child: IconButton(
-                              icon: Icon(Icons.send_rounded, color: ac.primary),
-                              onPressed: _postComment,
-                            ),
+                  ),
+                  const SizedBox(width: 8),
+                  _postingComment
+                      ? const SizedBox(width: 40, height: 40,
+                          child: Center(child: SizedBox(width: 18, height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2))))
+                      : Material(
+                          color: Colors.transparent,
+                          shape: const CircleBorder(),
+                          child: IconButton(
+                            icon: Icon(Icons.send_rounded, color: ac.primary),
+                            onPressed: _postComment,
                           ),
-                  ])
-                else
-                  Text('Sign in to join the discussion.', style: AppText.bodySm),
-                const SizedBox(height: 16),
-                StreamBuilder<List<ArticleComment>>(
-                  stream: MagazineRepository.instance.watchComments(a.id),
-                  builder: (context, snap) {
-                    final comments = snap.data ?? const <ArticleComment>[];
-                    if (comments.isEmpty) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Text('No comments yet — start the discussion.', style: AppText.bodySm),
-                      );
-                    }
-                    return Column(children: comments.map((c) => Padding(
-                      padding: const EdgeInsets.only(bottom: 14),
-                      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        GestureDetector(
-                          onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                              builder: (_) => AuthorProfilePage(authorId: c.authorId, currentUser: widget.currentUser))),
-                          child: UserAvatar(initials: c.authorName.isEmpty ? '?' : c.authorName[0].toUpperCase(),
-                              radius: 14, photoUrl: c.authorPhotoUrl),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Row(children: [
-                              Text(c.authorName, style: AppText.subtitle.copyWith(color: ac.txt)),
-                              const SizedBox(width: 6),
-                              Text(_formatDate(c.createdAt), style: AppText.caption),
-                            ]),
-                            const SizedBox(height: 3),
-                            Text(c.body, style: AppText.bodySm.copyWith(height: 1.4)),
+                ])
+              else
+                Text('Sign in to join the discussion.', style: AppText.bodySm),
+              const SizedBox(height: 16),
+              StreamBuilder<List<ArticleComment>>(
+                stream: MagazineRepository.instance.watchComments(a.id),
+                builder: (context, snap) {
+                  final comments = snap.data ?? const <ArticleComment>[];
+                  if (comments.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text('No comments yet — start the discussion.', style: AppText.bodySm),
+                    );
+                  }
+                  return Column(children: comments.map((c) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => AuthorProfilePage(authorId: c.authorId, currentUser: widget.currentUser))),
+                        child: UserAvatar(initials: c.authorName.isEmpty ? '?' : c.authorName[0].toUpperCase(),
+                            radius: 14, photoUrl: c.authorPhotoUrl),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Row(children: [
+                            Text(c.authorName, style: AppText.subtitle.copyWith(color: ac.txt)),
+                            const SizedBox(width: 6),
+                            Text(_formatDate(c.createdAt), style: AppText.caption),
                           ]),
-                        ),
-                      ]),
-                    )).toList());
-                  },
-                ),
-              ],
-            ),
+                          const SizedBox(height: 3),
+                          Text(c.body, style: AppText.bodySm.copyWith(height: 1.4)),
+                        ]),
+                      ),
+                    ]),
+                  )).toList());
+                },
+              ),
+            ],
           ),
         ),
       )),
@@ -319,7 +271,7 @@ class _ArticleBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final deltaJson = article.bodyDelta;
     if (deltaJson == null || deltaJson.isEmpty) {
-      return SelectableText(article.body, style: AppText.body);
+      return Text(article.body, style: AppText.body);
     }
     quill.QuillController controller;
     try {
@@ -330,7 +282,7 @@ class _ArticleBody extends StatelessWidget {
         readOnly: true,
       );
     } catch (_) {
-      return SelectableText(article.body, style: AppText.body);
+      return Text(article.body, style: AppText.body);
     }
 
     return quill.QuillEditor.basic(
@@ -338,7 +290,6 @@ class _ArticleBody extends StatelessWidget {
       config: quill.QuillEditorConfig(
         showCursor: false,
         autoFocus: false,
-        enableInteractiveSelection: true,
         placeholder: '',
         embedBuilders: FlutterQuillEmbeds.editorBuilders(),
       ),
@@ -346,14 +297,13 @@ class _ArticleBody extends StatelessWidget {
   }
 }
 
-// ── Like / Bookmark / Copy / Share ──────────────────────────
+// ── Like / Bookmark / Share ─────────────────────────────────
 // Like and bookmark backends already existed in MagazineRepository but
 // were never wired to any UI — real working code nobody could reach.
 class _ActionRow extends StatelessWidget {
   final MagazineArticle article;
   final AppUser? currentUser;
-  final VoidCallback onCopy;
-  const _ActionRow({required this.article, required this.currentUser, required this.onCopy});
+  const _ActionRow({required this.article, required this.currentUser});
 
   @override
   Widget build(BuildContext context) {
@@ -398,15 +348,10 @@ class _ActionRow extends StatelessWidget {
       ],
       const Spacer(),
       _ActionChip(
-        icon: Icons.copy_rounded, color: ac.txt2, label: 'Copy',
-        onTap: onCopy,
-      ),
-      const SizedBox(width: 14),
-      _ActionChip(
         icon: Icons.share_outlined, color: ac.txt2, label: 'Share',
         onTap: () {
           HapticFeedback.selectionClick();
-          Share.share('${article.title}\n\nRead it on Academia Magazine.');
+          Share.share('${article.title}\n\nRead it on Green Hills Magazine.');
           if (u != null) repo.recordShare(article.id, u.id);
         },
       ),

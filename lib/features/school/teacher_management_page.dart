@@ -9,30 +9,20 @@
 // 20260828060100_rls_policies.sql) -- see TeacherManagementRepository's
 // own header comment for why no new RPC/policy was needed.
 
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
-import '../../config/branding.dart';
 import '../../core/result.dart';
-import '../../core/teacher_csv.dart';
-import '../../core/universal_file_saver.dart';
 import '../../models/academic_content.dart' show kAcademicSubjects, kAcademicLevels;
 import '../../models/app_user.dart';
 import '../../models/teaching_assignment.dart';
 import '../../repositories/teacher_management_repository.dart';
-import '../../repositories/school_class_repository.dart';
 import '../../repositories/school_repository.dart';
-import '../../services/school_document_export_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import 'teacher_csv_import_page.dart';
 import 'widgets/management_scaffold.dart';
 import 'manage_subjects_dialog.dart';
 
-import '../../widgets/skeleton_spinner.dart';
 // Undergraduate/All Levels (the last two of kAcademicLevels) describe
 // CONTENT scope, not an actual class in this school's own roster -- a
 // teacher is never "assigned to" either one.
@@ -50,32 +40,24 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
   final _searchCtrl = TextEditingController();
   List<AppUser> _results = [];
   List<AppUser> _assigned = [];
-  List<String> _subjects = kAcademicSubjects;
-  List<String> _schoolClasses = [];
+  List<String> _subjects = [];
   bool _searching = false;
   bool _loadingAssigned = true;
 
-  String get _schoolId => widget.admin.effectiveSchoolId;
+  String get _schoolId => widget.admin.schoolId ?? '';
 
   @override
   void initState() {
     super.initState();
     _loadAssigned();
     _loadSubjects();
-    _loadClasses();
-  }
-
-  Future<void> _loadClasses() async {
-    final classes = await SchoolClassRepository.instance.getClassNames(_schoolId, activeOnly: true);
-    if (mounted) setState(() => _schoolClasses = classes);
   }
 
   Future<void> _loadSubjects() async {
     final res = await SchoolRepository.instance.getSubjects(_schoolId);
-    if (!mounted) return;
-    // A school that hasn't configured its own subject list yet gets the
-    // standard catalogue -- the dropdown used to offer only "Mathematics".
-    setState(() => _subjects = res is Success<List<String>> && res.value.isNotEmpty ? res.value : kAcademicSubjects);
+    if (res is Success<List<String>> && mounted) {
+      setState(() => _subjects = res.value);
+    }
   }
 
   @override
@@ -85,9 +67,7 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
   }
 
   Future<void> _loadAssigned() async {
-    // Every staff member, not only those already assigned -- a newly
-    // hired teacher used to be invisible here unless you knew to search.
-    final staff = await TeacherManagementRepository.instance.staffOnce(_schoolId);
+    final staff = await TeacherManagementRepository.instance.assignedStaffOnce(_schoolId);
     if (!mounted) return;
     setState(() {
       _assigned = staff;
@@ -109,88 +89,6 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
     });
   }
 
-  Future<void> _downloadTemplate() async {
-    try {
-      final csv = generateTeacherCsvTemplate();
-      await UniversalFileSaver.saveOrShareString(
-        content: '\uFEFF$csv',
-        fileName: 'teacher_assignments_template.csv',
-        mimeType: 'text/csv;charset=utf-8',
-        shareText: 'Teacher Assignments CSV Template',
-      );
-    } catch (e) {
-      if (mounted) showToast(context, 'Could not generate template: $e', isError: true);
-    }
-  }
-
-  Future<void> _exportCsv() async {
-    try {
-      final staff = await TeacherManagementRepository.instance.assignedStaffOnce(_schoolId);
-      if (staff.isEmpty) {
-        if (mounted) showToast(context, 'No teacher assignments to export yet.');
-        return;
-      }
-      final csv = exportTeacherAssignmentsCsv(staff);
-      await UniversalFileSaver.saveOrShareString(
-        content: '\uFEFF$csv',
-        fileName: 'teacher_assignments.csv',
-        mimeType: 'text/csv;charset=utf-8',
-        shareText: 'Teacher Assignments Export',
-      );
-    } catch (e) {
-      if (mounted) showToast(context, 'Could not export teacher assignments: $e', isError: true);
-    }
-  }
-
-  Future<void> _exportPdf() async {
-    try {
-      final staff = await TeacherManagementRepository.instance.assignedStaffOnce(_schoolId);
-      if (staff.isEmpty) {
-        if (mounted) showToast(context, 'No teacher assignments to export yet.');
-        return;
-      }
-      showToast(context, 'Generating Staff Directory PDF...');
-      final file = await SchoolDocumentExportService.instance.exportStaffDirectoryPdf(
-        schoolName: widget.admin.schoolName.isNotEmpty ? widget.admin.schoolName : Branding.current.appName,
-        staff: staff,
-      );
-      if (!mounted) return;
-      await SchoolDocumentExportService.instance.shareFile(file, text: 'Faculty & Staff Directory (PDF)');
-    } catch (e) {
-      if (mounted) showToast(context, 'Could not export PDF: $e', isError: true);
-    }
-  }
-
-  Future<void> _exportDocx() async {
-    try {
-      final staff = await TeacherManagementRepository.instance.assignedStaffOnce(_schoolId);
-      if (staff.isEmpty) {
-        if (mounted) showToast(context, 'No teacher assignments to export yet.');
-        return;
-      }
-      showToast(context, 'Generating Staff Directory Word document...');
-      final file = await SchoolDocumentExportService.instance.exportStaffDirectoryDocx(
-        schoolName: widget.admin.schoolName.isNotEmpty ? widget.admin.schoolName : Branding.current.appName,
-        staff: staff,
-      );
-      if (!mounted) return;
-      await SchoolDocumentExportService.instance.shareFile(file, text: 'Faculty & Staff Directory (Word Document)');
-    } catch (e) {
-      if (mounted) showToast(context, 'Could not export Word document: $e', isError: true);
-    }
-  }
-
-  Future<void> _openCsvImport() async {
-    await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => TeacherCsvImportPage(admin: widget.admin),
-      ),
-    );
-    if (!mounted) return;
-    _loadAssigned();
-    _loadSubjects();
-  }
-
   void _openEditor(AppUser teacher) {
     showModalBottomSheet(
       context: context,
@@ -199,7 +97,6 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
       builder: (_) => _AssignmentEditorSheet(
         teacher: teacher,
         subjects: _subjects,
-        classes: _schoolClasses.isNotEmpty ? _schoolClasses : _schoolClassLevels,
         onChanged: () {
           _loadAssigned();
           setState(() => _results = []);
@@ -224,76 +121,6 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
     return ManagementScaffold(
       title: 'Teacher Management',
       sidebarItems: const [ManagementNavItem(icon: Icons.badge_outlined, label: 'Teachers', selected: true)],
-      actions: [
-        IconButton(
-          tooltip: 'Upload Assignments CSV',
-          icon: const Icon(Icons.upload_file_rounded),
-          onPressed: _openCsvImport,
-        ),
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.ios_share_rounded),
-          tooltip: 'Import / Export & Templates',
-          onSelected: (val) {
-            switch (val) {
-              case 'template':
-                _downloadTemplate();
-                break;
-              case 'csv':
-                _exportCsv();
-                break;
-              case 'pdf':
-                _exportPdf();
-                break;
-              case 'docx':
-                _exportDocx();
-                break;
-            }
-          },
-          itemBuilder: (ctx) => [
-            const PopupMenuItem(
-              value: 'template',
-              child: Row(
-                children: [
-                  Icon(Icons.download_rounded, size: 20),
-                  SizedBox(width: 10),
-                  Text('Download CSV Template'),
-                ],
-              ),
-            ),
-            const PopupMenuDivider(),
-            const PopupMenuItem(
-              value: 'csv',
-              child: Row(
-                children: [
-                  Icon(Icons.table_chart_outlined, size: 20),
-                  SizedBox(width: 10),
-                  Text('Export as CSV'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'pdf',
-              child: Row(
-                children: [
-                  Icon(Icons.picture_as_pdf_outlined, size: 20, color: Colors.red),
-                  SizedBox(width: 10),
-                  Text('Export as PDF Document'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'docx',
-              child: Row(
-                children: [
-                  Icon(Icons.description_outlined, size: 20, color: Colors.blue),
-                  SizedBox(width: 10),
-                  Text('Export as Word (.docx)'),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -327,34 +154,6 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _openCsvImport,
-                  icon: const Icon(Icons.upload_file_rounded, size: 16),
-                  label: const Text('Upload CSV'),
-                  style: OutlinedButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    side: BorderSide(color: ac.bdr),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _exportCsv,
-                  icon: const Icon(Icons.download_rounded, size: 16),
-                  label: const Text('Export CSV'),
-                  style: OutlinedButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    side: BorderSide(color: ac.bdr),
-                  ),
-                ),
-              ),
-            ],
-          ),
           if (_searching) const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator()),
           for (final r in _results)
             ListTile(
@@ -364,12 +163,12 @@ class _TeacherManagementPageState extends State<TeacherManagementPage> {
               onTap: () => _openEditor(r),
             ),
           const SizedBox(height: 8),
-          Text('Staff', style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
+          Text('Assigned Staff', style: GoogleFonts.sora(fontSize: 13, fontWeight: FontWeight.w700, color: ac.txt)),
           const SizedBox(height: 8),
           if (_loadingAssigned)
-            const Center(child: Padding(padding: EdgeInsets.all(16), child: SkeletonSpinner()))
+            const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()))
           else if (_assigned.isEmpty)
-            Text('No staff accounts at this school yet. Issue Teacher codes from Access Codes.', style: GoogleFonts.inter(color: ac.muted))
+            Text('No teacher has any assignments yet -- search above to get started.', style: GoogleFonts.inter(color: ac.muted))
           else
             for (final t in _assigned) _StaffTile(teacher: t, onTap: () => _openEditor(t)),
         ],
@@ -401,7 +200,7 @@ class _StaffTile extends StatelessWidget {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(teacher.name, style: GoogleFonts.sora(fontSize: 13.5, fontWeight: FontWeight.w700, color: ac.txt)),
               const SizedBox(height: 4),
-              Text(summary.isEmpty ? '${teacher.roleLabel} · No assignments yet — tap to assign' : summary, style: GoogleFonts.inter(fontSize: 11.5, color: ac.muted)),
+              Text(summary.isEmpty ? 'No assignments' : summary, style: GoogleFonts.inter(fontSize: 11.5, color: ac.muted)),
             ]),
           ),
           Icon(Icons.chevron_right_rounded, color: ac.muted),
@@ -414,14 +213,8 @@ class _StaffTile extends StatelessWidget {
 class _AssignmentEditorSheet extends StatefulWidget {
   final AppUser teacher;
   final List<String> subjects;
-  final List<String> classes;
   final VoidCallback onChanged;
-  const _AssignmentEditorSheet({
-    required this.teacher,
-    required this.subjects,
-    required this.classes,
-    required this.onChanged,
-  });
+  const _AssignmentEditorSheet({required this.teacher, required this.subjects, required this.onChanged});
 
   @override
   State<_AssignmentEditorSheet> createState() => _AssignmentEditorSheetState();
@@ -430,7 +223,7 @@ class _AssignmentEditorSheet extends StatefulWidget {
 class _AssignmentEditorSheetState extends State<_AssignmentEditorSheet> {
   late List<TeachingAssignment> _assignments = List.of(widget.teacher.teachingAssignments);
   late String? _classMaster = widget.teacher.classMasterOfClass;
-  late String _addClass = widget.classes.isNotEmpty ? widget.classes.first : 'Form 1';
+  String _addClass = _schoolClassLevels.first;
   late String _addSubject = widget.subjects.isNotEmpty ? widget.subjects.first : 'Mathematics';
   bool _saving = false;
 
@@ -481,7 +274,7 @@ class _AssignmentEditorSheetState extends State<_AssignmentEditorSheet> {
               decoration: const InputDecoration(hintText: 'Not a class master'),
               items: [
                 const DropdownMenuItem<String?>(value: null, child: Text('Not a class master')),
-                for (final c in widget.classes) DropdownMenuItem<String?>(value: c, child: Text(c)),
+                for (final c in _schoolClassLevels) DropdownMenuItem<String?>(value: c, child: Text(c)),
               ],
               onChanged: _saving ? null : _saveClassMaster,
             ),
@@ -501,17 +294,15 @@ class _AssignmentEditorSheetState extends State<_AssignmentEditorSheet> {
             Row(children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  isExpanded: true,
                   initialValue: _addClass,
                   decoration: const InputDecoration(labelText: 'Class'),
-                  items: [for (final c in widget.classes) DropdownMenuItem(value: c, child: Text(c))],
+                  items: [for (final c in _schoolClassLevels) DropdownMenuItem(value: c, child: Text(c))],
                   onChanged: (v) => setState(() => _addClass = v ?? _addClass),
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  isExpanded: true, // long subject names overflowed by 26px on phones
                   initialValue: _addSubject,
                   decoration: const InputDecoration(labelText: 'Subject'),
                   items: [

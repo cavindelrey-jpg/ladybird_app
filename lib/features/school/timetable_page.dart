@@ -8,76 +8,56 @@
 // state when the school hasn't entered this class's timetable yet.
 
 import 'package:flutter/material.dart';
-import '../../models/academic_content.dart' show kAcademicLevels;
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/app_user.dart';
 import '../../models/school_timetable_slot.dart';
-import '../../repositories/school_class_repository.dart';
 import '../../repositories/school_timetable_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
-import '../timetable/personal_study_page.dart';
 import 'timetable_manager_page.dart';
 import 'widgets/school_shared_widgets.dart';
-import '../../widgets/application_shell.dart';
-import '../../widgets/compact_sign_in_dialog.dart';
 
-import '../../widgets/skeleton_spinner.dart';
 class TimetablePage extends StatelessWidget {
   final AppUser user;
-  final String? initialClass;
-  const TimetablePage({super.key, required this.user, this.initialClass});
+  const TimetablePage({super.key, required this.user});
 
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final schoolId = user.effectiveSchoolId;
-    final classLevel = user.classLevel;
+    final schoolId = user.schoolId ?? '';
+    // A student's own classLevel; a class master has no classLevel of
+    // their own (that field is student-only) so falls back to the class
+    // they're the master of. A plain (non-class-master) teacher has
+    // neither and correctly falls through to _missingClassState below —
+    // "my own class" isn't a single well-defined thing for them here.
+    final classLevel = user.classLevel.isNotEmpty ? user.classLevel : (user.classMasterOfClass ?? '');
 
-    return ApplicationShell(
-      user: user,
-      currentTitle: 'Timetable',
-      subtitle: 'Official class timetable and personal study schedule',
-      currentDestination: AppNavDestination.timetable,
-      headerActions: [
-        OutlinedButton.icon(
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => PersonalStudyPage(user: user)),
-          ),
-          icon: const Icon(Icons.event_note_rounded, size: 16),
-          label: const Text('Personal Study Plan'),
-          style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
-        ),
-        if (user.canManageAnyTimetable) ...[
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => TimetableManagerPage(user: user),
-              ),
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: schoolAppBar(
+        context: context,
+        title: 'Timetable',
+        subtitle: 'Your class schedule at a glance',
+        trailing: [
+          if (user.canManageAnyTimetable)
+            IconButton(
+              icon: Icon(Icons.edit_calendar_outlined, color: ac.txt2),
+              tooltip: 'Manage timetable',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => TimetableManagerPage(user: user))),
             ),
-            icon: const Icon(Icons.edit_calendar_rounded, size: 16),
-            label: const Text('Manage Timetable'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF081630),
-              foregroundColor: Colors.white,
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
         ],
-      ],
-      child: (schoolId.isNotEmpty && !user.isStudent && !user.isParent)
-          ? _StaffTimetableView(page: this)
-          : (schoolId.isEmpty || classLevel.isEmpty)
-          ? _missingClassState(context, ac)
+      ),
+      body: (schoolId.isEmpty || classLevel.isEmpty)
+          ? _missingClassState(ac)
           : StreamBuilder<List<SchoolTimetableSlot>>(
               stream: SchoolTimetableRepository.instance.watchForClass(schoolId, classLevel),
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(child: SkeletonSpinner(strokeWidth: 2));
+                  return const Center(child: CircularProgressIndicator(strokeWidth: 2));
                 }
                 final all = snap.data ?? const <SchoolTimetableSlot>[];
-                if (all.isEmpty) return _emptyState(context, ac, classLevel);
+                if (all.isEmpty) return _emptyState(ac, classLevel);
                 return ListView(
                   children: [
                     StudentInfoCard(user: user),
@@ -216,194 +196,36 @@ class TimetablePage extends StatelessWidget {
     );
   }
 
-  Widget _missingClassState(BuildContext context, AppColors ac) => Center(
+  Widget _missingClassState(AppColors ac) => Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: ac.surf, shape: BoxShape.circle),
-              child: Icon(Icons.school_outlined, size: 44, color: ac.muted),
-            ),
+            Icon(Icons.school_outlined, size: 48, color: ac.muted),
             const SizedBox(height: 16),
-            Text(
-              user.isGuest ? 'Sign in to access official timetables' : 'Your class isn\'t set yet',
-              style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              user.isGuest
-                  ? 'Official school timetables are published by school administration for enrolled students and teachers. Sign in to view your class schedule.'
-                  : 'Set your class in Profile to see your school timetable, or open your personal study plan.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2, height: 1.4),
-            ),
-            const SizedBox(height: 20),
-            Wrap(
-              spacing: 12,
-              runSpacing: 10,
-              alignment: WrapAlignment.center,
-              children: [
-                if (user.isGuest)
-                  ElevatedButton.icon(
-                    onPressed: () => showCompactSignInDialog(context),
-                    icon: const Icon(Icons.login_rounded, size: 18),
-                    label: const Text('Sign In to School Account'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE5A93C),
-                      foregroundColor: const Color(0xFF081630),
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => PersonalStudyPage(user: user)),
-                  ),
-                  icon: const Icon(Icons.event_note_rounded, size: 18),
-                  label: const Text('Browse Personal Study Plan'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ],
-            ),
-          ]),
-        ),
-      );
-
-  Widget _emptyState(BuildContext context, AppColors ac, String classLevel) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: ac.primaryBg, shape: BoxShape.circle),
-              child: Icon(Icons.event_busy_rounded, size: 44, color: ac.primary),
-            ),
-            const SizedBox(height: 16),
-            Text('No official timetable yet for $classLevel',
-                textAlign: TextAlign.center,
+            Text('Your class isn\'t set yet',
                 style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700, color: ac.txt)),
             const SizedBox(height: 8),
-            Text('Your school hasn\'t published this class\'s timetable yet. You can create your own personal study schedule in the meantime.',
+            Text('Set your class in Profile to see your timetable.',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2, height: 1.4)),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => PersonalStudyPage(user: user)),
-              ),
-              icon: const Icon(Icons.add_rounded, size: 20),
-              label: const Text('Create Personal Timetable'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: ac.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
+                style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2)),
           ]),
         ),
       );
-}
 
-
-/// Teachers / class masters / admins have no class of their own, so the
-/// student view used to dead-end on "no class". Staff see their own
-/// periods across every class (matched by teacher name, the same way the
-/// 7 PM programme does), or any class's timetable.
-class _StaffTimetableView extends StatefulWidget {
-  final TimetablePage page;
-  const _StaffTimetableView({required this.page});
-  @override
-  State<_StaffTimetableView> createState() => _StaffTimetableViewState();
-}
-
-class _StaffTimetableViewState extends State<_StaffTimetableView> {
-  static const _mine = '__mine__';
-  late String _view = widget.page.initialClass ?? _mine;
-  List<String> _dynamicClasses = [];
-  late final Stream<List<SchoolTimetableSlot>> _stream =
-      SchoolTimetableRepository.instance.watchForSchool(widget.page.user.effectiveSchoolId);
-
-  String _n(String s) => s.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
-
-  @override
-  void initState() {
-    super.initState();
-    _loadClasses();
-  }
-
-  Future<void> _loadClasses() async {
-    final list = await SchoolClassRepository.instance.getClassNames(
-      widget.page.user.effectiveSchoolId,
-      activeOnly: true,
-    );
-    if (mounted) setState(() => _dynamicClasses = list);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
-    final user = widget.page.user;
-    final classes = _dynamicClasses.isNotEmpty ? _dynamicClasses : kAcademicLevels.take(7).toList();
-    return StreamBuilder<List<SchoolTimetableSlot>>(
-      stream: _stream,
-      builder: (context, snap) {
-        if (!snap.hasData && snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: SkeletonSpinner(strokeWidth: 2));
-        }
-        if (!snap.hasData && snap.hasError) {
-          return Center(child: Text('Couldn\'t load the timetable. Check your connection.',
-              style: GoogleFonts.inter(color: ac.muted)));
-        }
-        final all = snap.data ?? const <SchoolTimetableSlot>[];
-        final slots = _view == _mine
-            ? [
-                for (final s in all.where((s) => _n(s.teacherName) == _n(user.name)))
-                  SchoolTimetableSlot(
-                    id: s.id, schoolId: s.schoolId, classLevel: s.classLevel, dayOfWeek: s.dayOfWeek,
-                    startTime: s.startTime, endTime: s.endTime,
-                    subject: '${s.subject} · ${s.classLevel}', teacherName: s.teacherName, room: s.room),
-              ]
-            : all.where((s) => s.classLevel == _view).toList();
-        return ListView(children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: DropdownButtonFormField<String>(
-              initialValue: _view,
-              decoration: const InputDecoration(labelText: 'Show', isDense: true),
-              items: [
-                const DropdownMenuItem(value: _mine, child: Text('My teaching timetable')),
-                for (final c in classes) DropdownMenuItem(value: c, child: Text('$c timetable')),
-              ],
-              onChanged: (v) => setState(() => _view = v ?? _view),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (slots.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(32),
-              child: Text(
-                _view != _mine
-                    ? 'No periods for $_view yet.'
-                    : user.canManageAnyTimetable
-                        ? 'You aren\'t teaching any periods. Choose a class above to see its timetable, '
-                          'or tap the edit icon to manage it.'
-                        : 'No periods list you (${user.name}) as the teacher yet. '
-                          'Ask your school admin to add you to the timetable.',
-                textAlign: TextAlign.center, style: GoogleFonts.inter(color: ac.muted, height: 1.5)),
-            )
-          else ...[
-            widget.page._todaysHighlights(ac, slots),
+  Widget _emptyState(AppColors ac, String classLevel) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.event_busy_rounded, size: 48, color: ac.muted),
             const SizedBox(height: 16),
-            widget.page._weekGrid(ac, slots),
-            const SizedBox(height: 16),
-          ],
-        ]);
-      },
-    );
-  }
+            Text('No timetable yet for $classLevel',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
+            const SizedBox(height: 8),
+            Text('Check back once the school has entered it.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2)),
+          ]),
+        ),
+      );
 }

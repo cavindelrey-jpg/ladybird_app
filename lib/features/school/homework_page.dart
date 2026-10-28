@@ -19,19 +19,12 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/result.dart';
 import '../../models/app_user.dart';
 import '../../models/homework.dart';
-import '../../models/test.dart';
 import '../../repositories/homework_repository.dart';
-import '../../repositories/school_class_repository.dart';
-import '../../repositories/test_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import '../testing/test_taking_page.dart';
 import 'widgets/management_scaffold.dart';
-import '../../core/content_quality.dart';
-import '../../widgets/application_shell.dart';
 
-import '../../widgets/skeleton_spinner.dart';
 class HomeworkPage extends StatefulWidget {
   final AppUser user;
   const HomeworkPage({super.key, required this.user});
@@ -61,30 +54,23 @@ class _HomeworkPageState extends State<HomeworkPage> with SingleTickerProviderSt
 
     final ac = AppColors.of(context);
     final tab = _tab!;
-    return ApplicationShell(
-      user: widget.user,
-      currentTitle: 'Homework',
-      currentDestination: AppNavDestination.homework,
-      child: Column(
-        children: [
-          Container(
-            color: ac.surf,
-            child: TabBar(
-              controller: tab,
-              labelColor: ac.primary,
-              unselectedLabelColor: ac.muted,
-              indicatorColor: ac.primary,
-              tabs: const [Tab(text: 'Create Homework'), Tab(text: 'Assigned Homework')],
-            ),
-          ),
-          Expanded(
-            child: TabBarView(controller: tab, children: [
-              _CreateHomeworkTab(user: widget.user),
-              _AssignedHomeworkTab(teacherId: widget.user.id),
-            ]),
-          ),
-        ],
+    return ManagementScaffold(
+      title: 'Homework Management',
+      sidebarItems: [
+        ManagementNavItem(icon: Icons.add_task_rounded, label: 'Create', selected: true, onTap: () => tab.animateTo(0)),
+        ManagementNavItem(icon: Icons.list_alt_rounded, label: 'Assigned', onTap: () => tab.animateTo(1)),
+      ],
+      bottom: TabBar(
+        controller: tab,
+        labelColor: ac.primary,
+        unselectedLabelColor: ac.muted,
+        indicatorColor: ac.primary,
+        tabs: const [Tab(text: 'Create Homework'), Tab(text: 'Assigned Homework')],
       ),
+      body: TabBarView(controller: tab, children: [
+        _CreateHomeworkTab(user: widget.user),
+        _AssignedHomeworkTab(teacherId: widget.user.id),
+      ]),
     );
   }
 }
@@ -108,32 +94,13 @@ class _CreateHomeworkTabState extends State<_CreateHomeworkTab> {
   DateTime _dueAt = DateTime.now().add(const Duration(days: 1));
   bool _notify = true;
   bool _saving = false;
-  String? _testId;
-  List<String> _dynamicClasses = [];
 
-  @override
-  void initState() {
-    super.initState();
-    _loadClasses();
-  }
+  List<String> get _classLevels =>
+      widget.user.teachingAssignments.map((a) => a.classLevel).toSet().toList()..sort();
 
-  Future<void> _loadClasses() async {
-    final list = await SchoolClassRepository.instance.getClassNames(widget.user.effectiveSchoolId, activeOnly: true);
-    if (mounted) setState(() => _dynamicClasses = list);
-  }
-
-  List<String> get _classLevels {
-    final assigned = widget.user.teachingAssignments.map((a) => a.classLevel).toSet().toList()..sort();
-    if (assigned.isNotEmpty) return assigned;
-    return _dynamicClasses;
-  }
-
-  List<String> _subjectsFor(String classLevel) {
-    final assigned = widget.user.teachingAssignments.where((a) => a.classLevel == classLevel).map((a) => a.subject).toSet().toList()
-      ..sort();
-    if (assigned.isNotEmpty) return assigned;
-    return const ['General', 'Mathematics', 'Science', 'Languages', 'Technical Studies'];
-  }
+  List<String> _subjectsFor(String classLevel) =>
+      widget.user.teachingAssignments.where((a) => a.classLevel == classLevel).map((a) => a.subject).toSet().toList()
+        ..sort();
 
   @override
   void dispose() {
@@ -167,10 +134,6 @@ class _CreateHomeworkTabState extends State<_CreateHomeworkTab> {
       showToast(context, 'Enter a title.', isError: true);
       return;
     }
-    if (_type == 'quiz' && (_testId ?? '').isEmpty) {
-      showToast(context, 'Pick a quiz to send as this homework.', isError: true);
-      return;
-    }
     // Client-side mirror of the real enforcement in the homework RLS
     // policy -- catches the mistake before a wasted round trip, but the
     // policy itself is the actual boundary.
@@ -181,7 +144,7 @@ class _CreateHomeworkTabState extends State<_CreateHomeworkTab> {
     setState(() => _saving = true);
     final homework = Homework(
       id: '',
-      schoolId: widget.user.effectiveSchoolId,
+      schoolId: widget.user.schoolId ?? '',
       classLevel: classLevel,
       subject: subject,
       teacherId: widget.user.id,
@@ -192,7 +155,6 @@ class _CreateHomeworkTabState extends State<_CreateHomeworkTab> {
       requiredMaterials: List.of(_materials),
       notify: _notify,
       createdAt: DateTime.now(),
-      testId: _type == 'quiz' ? _testId : null,
     );
     final result = await HomeworkRepository.instance.create(homework);
     if (!mounted) return;
@@ -204,10 +166,7 @@ class _CreateHomeworkTabState extends State<_CreateHomeworkTab> {
       _titleCtrl.clear();
       _descCtrl.clear();
       _materialCtrl.clear();
-      setState(() {
-        _materials.clear();
-        _testId = null;
-      });
+      setState(() => _materials.clear());
     }
   }
 
@@ -284,41 +243,11 @@ class _CreateHomeworkTabState extends State<_CreateHomeworkTab> {
                 DropdownMenuItem(value: 'reading', child: Text('Reading')),
                 DropdownMenuItem(value: 'project', child: Text('Project')),
                 DropdownMenuItem(value: 'revision', child: Text('Revision')),
-                DropdownMenuItem(value: 'quiz', child: Text('Quiz')),
               ],
               onChanged: (v) => setState(() => _type = v ?? _type),
             ),
           ),
         ]),
-        if (_type == 'quiz') ...[
-          const SizedBox(height: 16),
-          Text('Quiz', style: GoogleFonts.inter(fontSize: 12.5, color: ac.muted)),
-          const SizedBox(height: 6),
-          StreamBuilder<List<Test>>(
-            stream: TestRepository.instance.watchTestsByCreator(widget.user.id),
-            builder: (context, snap) {
-              final all = snap.data ?? const <Test>[];
-              final subject = _subject;
-              final tests = subject == null ? all : all.where((t) => t.subject == subject).toList();
-              if (snap.connectionState == ConnectionState.waiting) {
-                return const LinearProgressIndicator();
-              }
-              if (tests.isEmpty) {
-                return Text(
-                  "You haven't created a quiz for this subject yet — create one in Quizzes first.",
-                  style: GoogleFonts.inter(fontSize: 12, color: ac.muted),
-                );
-              }
-              if (_testId != null && !tests.any((t) => t.id == _testId)) _testId = null;
-              return DropdownButtonFormField<String>(
-                initialValue: _testId,
-                decoration: const InputDecoration(labelText: 'Select a quiz to send'),
-                items: [for (final t in tests) DropdownMenuItem(value: t.id, child: Text(displayQuizTitle(t)))],
-                onChanged: (v) => setState(() => _testId = v),
-              );
-            },
-          ),
-        ],
         const SizedBox(height: 16),
         Text('Required Materials (Optional)', style: GoogleFonts.inter(fontSize: 12.5, color: ac.muted)),
         const SizedBox(height: 6),
@@ -378,7 +307,7 @@ class _AssignedHomeworkTab extends StatelessWidget {
       builder: (context, snap) {
         final items = snap.data ?? const [];
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: SkeletonSpinner());
+          return const Center(child: CircularProgressIndicator());
         }
         if (items.isEmpty) {
           return Center(child: Text('You haven\'t assigned any homework yet.', style: GoogleFonts.inter(color: ac.muted)));
@@ -400,26 +329,31 @@ class _StudentHomeworkView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ApplicationShell(
-      user: user,
-      currentTitle: 'Homework',
-      currentDestination: AppNavDestination.homework,
-      child: StreamBuilder<List<Homework>>(
-        stream: HomeworkRepository.instance.watchForClass(user.effectiveSchoolId, user.classLevel),
+    final ac = AppColors.of(context);
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        backgroundColor: ac.bg,
+        elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
+        title: Text('My Homework', style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w800, color: ac.txt)),
+      ),
+      body: StreamBuilder<List<Homework>>(
+        stream: HomeworkRepository.instance.watchForClass(user.schoolId ?? '', user.classLevel),
         builder: (context, snap) {
           final items = snap.data ?? const [];
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: SkeletonSpinner());
+            return const Center(child: CircularProgressIndicator());
           }
           if (items.isEmpty) {
-            return Center(child: Text('No homework assigned yet.', style: GoogleFonts.inter(color: Colors.grey)));
+            return Center(child: Text('No homework assigned yet.', style: GoogleFonts.inter(color: ac.muted)));
           }
           final sorted = List.of(items)..sort((a, b) => a.dueAt.compareTo(b.dueAt));
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: sorted.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (_, i) => _HomeworkTile(homework: sorted[i], student: user),
+            itemBuilder: (_, i) => _HomeworkTile(homework: sorted[i]),
           );
         },
       ),
@@ -430,10 +364,7 @@ class _StudentHomeworkView extends StatelessWidget {
 class _HomeworkTile extends StatelessWidget {
   final Homework homework;
   final VoidCallback? onDelete;
-  /// Set only in the student's own "My Homework" view — enables the
-  /// "Take Quiz" action for quiz-type homework (spec item 4B).
-  final AppUser? student;
-  const _HomeworkTile({required this.homework, this.onDelete, this.student});
+  const _HomeworkTile({required this.homework, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -456,10 +387,6 @@ class _HomeworkTile extends StatelessWidget {
             const SizedBox(height: 8),
             Text('Due ${homework.dueAt.day}/${homework.dueAt.month}/${homework.dueAt.year}',
                 style: GoogleFonts.inter(fontSize: 11, color: ac.muted)),
-            if (homework.isQuiz && student != null) ...[
-              const SizedBox(height: 10),
-              _TakeQuizButton(homework: homework, student: student!),
-            ],
           ]),
         ),
         const SizedBox(width: 10),
@@ -477,58 +404,6 @@ class _HomeworkTile extends StatelessWidget {
             IconButton(icon: Icon(Icons.delete_outline_rounded, size: 18, color: ac.muted), onPressed: onDelete),
         ]),
       ]),
-    );
-  }
-}
-
-class _TakeQuizButton extends StatefulWidget {
-  final Homework homework;
-  final AppUser student;
-  const _TakeQuizButton({required this.homework, required this.student});
-
-  @override
-  State<_TakeQuizButton> createState() => _TakeQuizButtonState();
-}
-
-class _TakeQuizButtonState extends State<_TakeQuizButton> {
-  late final Future<DateTime?> _effectiveDueAt = HomeworkRepository.instance
-      .getEffectiveDueAt(widget.homework.id, widget.student.id);
-  bool _opening = false;
-
-  Future<void> _open() async {
-    setState(() => _opening = true);
-    final test = await TestRepository.instance.watchTest(widget.homework.testId!).first;
-    if (!mounted) return;
-    setState(() => _opening = false);
-    if (test == null) {
-      showToast(context, 'This quiz is no longer available.', isError: true);
-      return;
-    }
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => TestTakingPage(user: widget.student, test: test, homeworkId: widget.homework.id),
-    ));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
-    return FutureBuilder<DateTime?>(
-      future: _effectiveDueAt,
-      builder: (context, snap) {
-        final expired = snap.data != null && DateTime.now().isAfter(snap.data!);
-        return SizedBox(
-          height: 34,
-          child: OutlinedButton.icon(
-            onPressed: expired || _opening ? null : _open,
-            icon: Icon(expired ? Icons.lock_clock_outlined : Icons.quiz_outlined, size: 16),
-            label: Text(expired ? 'Expired' : 'Take Quiz', style: const TextStyle(fontSize: 12.5)),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: expired ? ac.muted : ac.primary,
-              side: BorderSide(color: expired ? ac.bdr2 : ac.primary),
-            ),
-          ),
-        );
-      },
     );
   }
 }

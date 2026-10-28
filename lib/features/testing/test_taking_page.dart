@@ -31,19 +31,13 @@ import '../../repositories/test_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/application_shell.dart';
 import '../../core/result.dart';
 import 'test_result_page.dart';
-import '../../core/content_quality.dart';
 
 class TestTakingPage extends StatefulWidget {
   final AppUser user;
   final Test test;
-  /// Set when launched from HomeworkPage's "Take Quiz" action (spec item
-  /// 4B) — threaded through to TestRepository.submitAttempt so the
-  /// server can enforce the real, per-student homework deadline.
-  final String? homeworkId;
-  const TestTakingPage({super.key, required this.user, required this.test, this.homeworkId});
+  const TestTakingPage({super.key, required this.user, required this.test});
 
   @override
   State<TestTakingPage> createState() => _TestTakingPageState();
@@ -103,12 +97,11 @@ class _TestTakingPageState extends State<TestTakingPage> {
   }
 
   Future<void> _submit() async {
-    final ac = AppColors.of(context);
     if (widget.user.isGuest) {
       showToast(context, 'Sign in to submit a test', isError: true);
       return;
     }
-
+    
     if (!_allAnswered) {
       final confirm = await showDialog<bool>(
         context: context,
@@ -162,7 +155,6 @@ class _TestTakingPageState extends State<TestTakingPage> {
       userName: widget.user.name,
       rawAnswers: rawAnswers,
       educationLevel: widget.user.educationLevel,
-      homeworkId: widget.homeworkId,
     );
     if (!mounted) return;
     setState(() => _submitting = false);
@@ -177,46 +169,27 @@ class _TestTakingPageState extends State<TestTakingPage> {
   @override
   Widget build(BuildContext context) {
     final test = widget.test;
-    return ApplicationShell(
-      user: widget.user,
-      currentDestination: AppNavDestination.testsAndQuizzes,
-      title: displayQuizTitle(test),
-      subtitle: '${test.subject} · ${test.questionCount} Questions · ${test.totalPossiblePoints} pts',
-      breadcrumbs: [
-        ShellBreadcrumb(label: 'Tests & Quizzes'),
-        ShellBreadcrumb(label: test.subject, onTap: () => Navigator.of(context).pop()),
-        ShellBreadcrumb(label: displayQuizTitle(test)),
-      ],
-      rightPanel: QuizzesContextualPanel(user: widget.user),
-      child: Column(
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(title: Text(test.title, style: AppText.h2)),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         children: [
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              children: [
-                for (var i = 0; i < test.questions.length; i++) ...[
-                  _questionCard(i, test.questions[i]),
-                  const SizedBox(height: 14),
-                ],
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: ac.surf,
-              border: Border(top: BorderSide(color: ac.bdr)),
-            ),
-            child: SafeArea(
-              top: false,
-              child: PrimaryBtn(
-                label: 'Submit Test',
-                loading: _submitting,
-                onTap: _submit,
-              ),
-            ),
-          ),
+          for (var i = 0; i < test.questions.length; i++) ...[
+            _questionCard(i, test.questions[i]),
+            const SizedBox(height: 14),
+          ],
         ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: PrimaryBtn(
+            label: 'Submit Test',
+            loading: _submitting,
+            onTap: _submit,
+          ),
+        ),
       ),
     );
   }

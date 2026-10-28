@@ -21,12 +21,10 @@ import '../../core/result.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/application_shell.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'chat_conversation_page.dart';
 
-import '../../widgets/skeleton_spinner.dart';
 class FindPeoplePage extends StatefulWidget {
   final AppUser user;
   const FindPeoplePage({super.key, required this.user});
@@ -78,21 +76,14 @@ class _FindPeoplePageState extends State<FindPeoplePage> {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     final filter = _query.trim().toLowerCase();
-    return ApplicationShell(
-      user: widget.user,
-      currentTitle: 'Find People & Start Chat',
-      subtitle: 'Connect with classmates, study partners, and lecturers',
-      currentDestination: AppNavDestination.messages,
-      contextualPanel: MessagesContextualPanel(user: widget.user),
-      breadcrumbs: [
-        ShellBreadcrumb(
-          label: 'Messages',
-          icon: Icons.chat_bubble_outline_rounded,
-          onTap: () => Navigator.of(context).pop(),
-        ),
-        const ShellBreadcrumb(label: 'Find People'),
-      ],
-      child: AppBackground(child: Column(children: [
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
+        title: Text('Friends', style: AppText.title),
+      ),
+      body: AppBackground(child: Column(children: [
         Padding(
           padding: const EdgeInsets.all(16),
           child: TextField(
@@ -394,30 +385,25 @@ class _PersonRowState extends State<_PersonRow> {
     final ac = AppColors.of(context);
     final name = widget.person['name'] ?? 'Unknown';
     final photoUrl = widget.person['photo_url'];
-    // Students have no role_name; their class tells two same-named
-    // students apart.
-    final roleLabel = (widget.person['role_name'] as String?)?.isNotEmpty == true
-        ? widget.person['role_name']
-        : (widget.person['class_level'] ?? '');
+    final roleLabel = widget.person['role_name'] ?? '';
     final personId = widget.person['id'] as String;
 
     return ACard(
       onTap: () async {
-        // The server decides (friends, or staff <-> student of the same
-        // school) -- a client-side friendship check used to block
-        // teachers from messaging their own students.
-        final convResult = await MessagingRepository.instance.getOrCreateConversation(
-          userAId: widget.user.id, userAName: widget.user.name, userAPhoto: widget.user.photoUrl,
-          userBId: personId, userBName: name, userBPhoto: photoUrl,
-        );
+        final isFriend = await MessagingRepository.instance.isFriend(widget.user.id, personId);
         if (!context.mounted) return;
-        switch (convResult) {
-          case Success(:final value):
+        if (isFriend) {
+          final convResult = await MessagingRepository.instance.getOrCreateConversation(
+            userAId: widget.user.id, userAName: widget.user.name, userAPhoto: widget.user.photoUrl,
+            userBId: personId, userBName: name, userBPhoto: photoUrl,
+          );
+          if (convResult is Success<String> && context.mounted) {
             Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatConversationPage(
-                conversationId: value, currentUser: widget.user,
+                conversationId: convResult.value, currentUser: widget.user,
                 otherUserId: personId, otherUserName: name, otherUserPhoto: photoUrl)));
-          case Failure(:final message):
-            showToast(context, message);
+          }
+        } else {
+          showToast(context, 'Send a friend request first to start messaging.');
         }
       },
       child: Row(children: [
@@ -450,7 +436,7 @@ class _PersonRowState extends State<_PersonRow> {
                   }
                 },
                 child: _sending
-                    ? const SizedBox(width: 16, height: 16, child: SkeletonSpinner(strokeWidth: 2))
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                     : Text('Add Friend', style: AppText.caption.copyWith(fontSize: 11.5, fontWeight: FontWeight.w700)),
               ),
       ]),

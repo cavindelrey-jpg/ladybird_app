@@ -48,28 +48,19 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/club_visuals.dart';
 import '../../config/branding.dart';
-import '../../widgets/application_shell.dart';
-import '../../widgets/compact_sign_in_dialog.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
+import '../../pages/public_profile_page.dart';
 import '../messages/messages_home_page.dart';
-import '../../core/club_scope.dart';
 import 'create_club_page.dart';
 import 'club_members_page.dart';
 import 'club_settings_page.dart';
 import 'club_discussion_page.dart';
 
-import '../../widgets/skeleton_spinner.dart';
 class ClubsPage extends StatefulWidget {
   final AppUser user;
-
-  /// True when the application shell renders this page directly — the global
-  /// top bar already provides notifications + account, so the page's own
-  /// AppBar drops those duplicated actions (keeping its title, search and
-  /// category chips, which are page-specific). False when pushed as a route.
-  final bool embedded;
-  const ClubsPage({super.key, required this.user, this.embedded = false});
+  const ClubsPage({super.key, required this.user});
 
   @override
   State<ClubsPage> createState() => _ClubsPageState();
@@ -80,39 +71,17 @@ class _ClubsPageState extends State<ClubsPage> {
   String? _selectedCategory; // null == "All Clubs"
   final _searchCtrl = TextEditingController();
 
-  late Stream<List<Club>> _clubsStream;
-  late Stream<List<String>> _myClubIdsStream;
-  late Stream<List<String>> _myPendingIdsStream;
+  // Created once and reused across rebuilds -- StreamBuilder resets to its
+  // "waiting" state (dropping the whole ListView, including the search bar
+  // itself) whenever it's handed a stream with a different identity, and
+  // building this inline in `build()` created a brand-new .snapshots()
+  // stream on every keystroke's setState. That's what made the Clubs
+  // search bar appear to vanish while typing.
+  //
+  late final Stream<List<Club>> _clubsStream =
+      ClubRepository.instance.watchClubs(schoolId: widget.user.schoolId);
 
   bool get _canCreate => !widget.user.isGuest;
-
-  @override
-  void initState() {
-    super.initState();
-    _clubsStream = ClubRepository.instance.watchClubs(user: widget.user);
-    _myClubIdsStream = ClubRepository.instance.watchMyClubIds(widget.user.id);
-    _myPendingIdsStream = ClubRepository.instance.watchMyPendingRequestClubIds(widget.user.id);
-    _searchCtrl.addListener(() {
-      final text = _searchCtrl.text.trim();
-      if (_searchQuery != text) {
-        setState(() => _searchQuery = text);
-      }
-    });
-  }
-
-  @override
-  void didUpdateWidget(ClubsPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.user.schoolId != widget.user.schoolId ||
-        oldWidget.user.id != widget.user.id ||
-        oldWidget.user.role != widget.user.role) {
-      setState(() {
-        _clubsStream = ClubRepository.instance.watchClubs(user: widget.user);
-        _myClubIdsStream = ClubRepository.instance.watchMyClubIds(widget.user.id);
-        _myPendingIdsStream = ClubRepository.instance.watchMyPendingRequestClubIds(widget.user.id);
-      });
-    }
-  }
 
   @override
   void dispose() {
@@ -123,304 +92,136 @@ class _ClubsPageState extends State<ClubsPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final width = MediaQuery.of(context).size.width;
-    final isDesktop = width >= 900;
+    return Scaffold(
+      backgroundColor: ac.bg,
+      body: AppBackground(child: SafeArea(
+        child: StreamBuilder<List<Club>>(
+          stream: _clubsStream,
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const _ClubsSkeleton();
+            }
+            if (snap.hasError) {
+              return ErrorView(message: snap.error.toString());
+            }
+            final allClubs = snap.data ?? const <Club>[];
+            var filtered = _searchQuery.isEmpty
+                ? allClubs
+                : allClubs.where((c) =>
+                    c.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                    c.category.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+            if (_selectedCategory != null) {
+              filtered = filtered.where((c) => c.category == _selectedCategory).toList();
+            }
+            final categories = allClubs.map((c) => c.category).toSet().toList()..sort();
 
-    return StreamBuilder<List<Club>>(
-      stream: _clubsStream,
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
-          if (!isDesktop) {
-            return Scaffold(
-              backgroundColor: ac.bg,
-              appBar: widget.embedded
-                  ? null
-                  : AppBar(
-                      backgroundColor: ac.bg,
-                      elevation: 0,
-                      title: Text(
-                        'Academic Groups',
-                        style: GoogleFonts.inter(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: ac.navy,
-                        ),
-                      ),
-                      iconTheme: IconThemeData(color: ac.navy),
-                    ),
-              body: const _ClubsSkeleton(),
-            );
-          }
-          return ApplicationShell(
-            user: widget.user,
-            currentTitle: 'Study Groups & Clubs',
-            subtitle: 'Join academic clubs, subject study groups, and campus communities',
-            currentDestination: AppNavDestination.clubs,
-            breadcrumbs: const [ShellBreadcrumb(label: 'Study Groups', icon: Icons.groups_outlined)],
-            child: const _ClubsSkeleton(),
-          );
-        }
-        if (snap.hasError && (!snap.hasData || snap.data!.isEmpty)) {
-          if (!isDesktop) {
-            return Scaffold(
-              backgroundColor: ac.bg,
-              appBar: widget.embedded
-                  ? null
-                  : AppBar(
-                      backgroundColor: ac.bg,
-                      elevation: 0,
-                      title: Text(
-                        'Academic Groups',
-                        style: GoogleFonts.inter(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: ac.navy,
-                        ),
-                      ),
-                      iconTheme: IconThemeData(color: ac.navy),
-                    ),
-              body: Center(child: ErrorView(message: snap.error.toString())),
-            );
-          }
-          return ApplicationShell(
-            user: widget.user,
-            currentTitle: 'Study Groups & Clubs',
-            subtitle: 'Join academic clubs, subject study groups, and campus communities',
-            currentDestination: AppNavDestination.clubs,
-            breadcrumbs: const [ShellBreadcrumb(label: 'Study Groups', icon: Icons.groups_outlined)],
-            child: Center(child: ErrorView(message: snap.error.toString())),
-          );
-        }
-
-        final rawClubs = snap.data ?? const <Club>[];
-        final allClubs = rawClubs.where((c) => ClubScope.canAccessClub(c, user: widget.user)).toList();
-        var filtered = _searchQuery.isEmpty
-            ? allClubs
-            : allClubs.where((c) =>
-                c.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-                c.category.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
-        if (_selectedCategory != null) {
-          filtered = filtered.where((c) => c.category == _selectedCategory).toList();
-        }
-        final categories = allClubs.map((c) => c.category).toSet().toList()..sort();
-
-        return StreamBuilder<List<String>>(
-          stream: _myClubIdsStream,
-          builder: (context, joinedSnap) {
-            final joinedIds = (joinedSnap.data ?? const <String>[]).toSet();
-            return StreamBuilder<List<String>>(
-              stream: _myPendingIdsStream,
-              builder: (context, pendingSnap) {
-                final pendingIds = (pendingSnap.data ?? const <String>[]).toSet();
-
-                final myClubs = filtered.where((c) => joinedIds.contains(c.id) || pendingIds.contains(c.id)).toList();
-                final discoverClubs = filtered.where((c) => !c.isClassGroup && !joinedIds.contains(c.id) && !pendingIds.contains(c.id)).toList();
-
-                final candidates = widget.user.favoriteSubjects.isEmpty
-                    ? const <Club>[]
-                    : RecommendationRepository.instance.forClubs(pool: allClubs, favoriteSubjects: widget.user.favoriteSubjects, user: widget.user);
-                final recommendedClubs = candidates.where((c) => !c.isClassGroup && !joinedIds.contains(c.id) && !pendingIds.contains(c.id)).toList();
-
-                if (!isDesktop) {
-                  return Scaffold(
-                    backgroundColor: ac.bg,
-                    appBar: AppBar(
-                      backgroundColor: ac.bg,
-                      elevation: 0,
-                      toolbarHeight: widget.embedded ? 8 : kToolbarHeight,
-                      automaticallyImplyLeading: !widget.embedded,
-                      title: widget.embedded
-                          ? null
-                          : Text(
-                              'Academic Groups',
-                              style: GoogleFonts.inter(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: ac.navy,
-                              ),
-                            ),
-                      iconTheme: IconThemeData(color: ac.navy),
-                      actions: widget.embedded
-                          ? const []
-                          : [
-                              IconButton(
-                                icon: Icon(Icons.notifications_outlined, color: ac.txt2),
-                                onPressed: () => Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => NotificationsPage(user: widget.user),
-                                  ),
-                                ),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.only(right: 16),
-                                child: Center(
-                                  child: UserAvatar(
-                                    initials: widget.user.name.isEmpty
-                                        ? '?'
-                                        : widget.user.name[0].toUpperCase(),
-                                    radius: 17,
-                                    photoUrl: widget.user.photoUrl,
-                                  ),
-                                ),
-                              ),
-                            ],
-                      bottom: PreferredSize(
-                        preferredSize: Size.fromHeight(categories.length > 1 ? 104 : 58),
-                        child: Column(
-                          children: [
-                            _searchBar(ac),
-                            if (categories.length > 1) ...[
-                              const SizedBox(height: 8),
-                              _categoryChips(categories, ac),
-                            ],
-                            const SizedBox(height: 8),
-                          ],
-                        ),
-                      ),
-                    ),
-                    body: AppBackground(
-                      child: ListView(
-                        padding: const EdgeInsets.only(top: 8, bottom: 100),
-                        children: [
-                          if (_searchQuery.isEmpty &&
-                              _selectedCategory == null &&
-                              recommendedClubs.isNotEmpty) ...[
-                            _recommendedClubsSection(context, recommendedClubs),
-                          ],
-                          if (myClubs.isNotEmpty) ...[
-                            _myClubsSection(context, myClubs, joinedIds),
-                            const SizedBox(height: 20),
-                          ],
-                          _discoverClubsSection(context, discoverClubs, allClubs),
-                          const SizedBox(height: 20),
-                          _infoCards(context),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-
-                return ApplicationShell(
-                  user: widget.user,
-                  currentTitle: 'Study Groups & Clubs',
-                  subtitle: 'Join academic clubs, subject study groups, and campus communities',
-                  currentDestination: AppNavDestination.clubs,
-                  breadcrumbs: const [ShellBreadcrumb(label: 'Study Groups', icon: Icons.groups_outlined)],
-                  headerActions: [
-                    if (_canCreate)
-                      ElevatedButton.icon(
-                        onPressed: () async {
-                          HapticFeedback.mediumImpact();
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              settings: const RouteSettings(name: '/clubs/create'),
-                              builder: (_) => CreateClubPage(user: widget.user),
-                            ),
-                          );
-                          if (mounted) {
-                            setState(() {
-                              _clubsStream = ClubRepository.instance.watchClubs(user: widget.user);
-                              _myClubIdsStream = ClubRepository.instance.watchMyClubIds(widget.user.id);
-                              _myPendingIdsStream = ClubRepository.instance.watchMyPendingRequestClubIds(widget.user.id);
-                            });
-                          }
-                        },
-                        icon: const Icon(Icons.add_rounded, size: 16),
-                        label: const Text('Create Group'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF081630),
-                          foregroundColor: Colors.white,
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      )
-                    else
-                      ElevatedButton.icon(
-                        onPressed: () => showCompactSignInDialog(context),
-                        icon: const Icon(Icons.login_rounded, size: 16),
-                        label: const Text('Sign In to Create'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE5A93C),
-                          foregroundColor: const Color(0xFF081630),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
-                  ],
-                  bottomHeader: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _searchBar(ac),
-                      if (categories.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        _categoryChips(categories, ac),
-                      ],
-                    ],
-                  ),
-                  child: AppBackground(
-                    child: ListView(
-                      padding: const EdgeInsets.only(top: 8, bottom: 100),
-                      children: [
-                        if (_searchQuery.isEmpty && _selectedCategory == null && recommendedClubs.isNotEmpty) ...[
-                          _recommendedClubsSection(context, recommendedClubs),
-                        ],
-                        if (myClubs.isNotEmpty) ...[
-                          _myClubsSection(context, myClubs, joinedIds),
-                          const SizedBox(height: 20),
-                        ],
-                        _discoverClubsSection(context, discoverClubs, allClubs),
-                        const SizedBox(height: 20),
-                        _infoCards(context),
-                      ],
-                    ),
-                  ),
-                );
-              },
+            return ListView(
+              padding: const EdgeInsets.only(bottom: 100),
+              children: [
+                _header(context),
+                const SizedBox(height: 10),
+                _searchAndFilter(),
+                if (categories.length > 1) ...[
+                  const SizedBox(height: 12),
+                  _categoryChips(categories),
+                ],
+                const SizedBox(height: 20),
+                // production_plan.md §7B — "Contextual recommendations should
+                // exist throughout Academia." Only shown in the unfiltered
+                // view, same "don't stack a recommendation rail on top of a
+                // search/filter the user is already doing" gate every other
+                // surface's rail uses (Library/Courses/Past Papers).
+                if (_searchQuery.isEmpty && _selectedCategory == null) ...[
+                  _recommendedClubsSection(context, allClubs),
+                ],
+                _myClubsSection(context, filtered),
+                const SizedBox(height: 24),
+                _discoverClubsSection(context, filtered, allClubs),
+                const SizedBox(height: 20),
+                _infoCards(context),
+              ],
             );
           },
-        );
-      },
+        ),
+      )),
+      floatingActionButton: _canCreate
+          ? FloatingActionButton.extended(
+              backgroundColor: C.navy,
+              onPressed: () {
+                HapticFeedback.mediumImpact();
+                Navigator.push(context, MaterialPageRoute(builder: (_) => CreateClubPage(user: widget.user)));
+              },
+              icon: const Icon(Icons.add_rounded, color: C.gold),
+              label: Text('Create Group', style: AppText.button.copyWith(fontSize: 13)),
+            )
+          : null,
     );
   }
 
-  Widget _searchBar(AppColors ac) {
-    return TextField(
-      controller: _searchCtrl,
-      style: AppText.bodySm.copyWith(color: ac.txt),
-      decoration: InputDecoration(
-        hintText: 'Search groups by name, interest or subject…',
-        hintStyle: AppText.bodySm.copyWith(color: ac.muted, fontSize: 13),
-        prefixIcon: Icon(Icons.search_rounded, color: ac.muted, size: 20),
-        suffixIcon: _searchQuery.isNotEmpty
-            ? IconButton(
-                icon: Icon(Icons.clear_rounded, color: ac.muted, size: 18),
-                onPressed: () => _searchCtrl.clear(),
-              )
-            : null,
-        filled: true,
-        fillColor: ac.surf,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: ac.bdr),
+  Widget _header(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+      child: Row(children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Groups', style: AppText.h1.copyWith(fontSize: 22)),
+          ]),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: ac.bdr),
+        IconButton(
+          icon: const Icon(Icons.notifications_outlined, color: C.txt2),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => NotificationsPage(user: widget.user))),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: ac.primary),
-        ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-      ),
+        UserAvatar(initials: widget.user.name.isEmpty ? '?' : widget.user.name[0].toUpperCase(),
+            radius: 18, photoUrl: widget.user.photoUrl),
+      ]),
     );
   }
 
-  Widget _categoryChips(List<String> categories, AppColors ac) {
+  Widget _searchAndFilter() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(children: [
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(14), border: Border.all(color: C.bdr)),
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (v) => setState(() => _searchQuery = v),
+              style: AppText.bodySm.copyWith(color: C.txt),
+              decoration: InputDecoration(
+                hintText: 'Search groups by name, interest or subject…',
+                hintStyle: AppText.bodySm.copyWith(color: C.muted, fontSize: 12.5),
+                prefixIcon: const Icon(Icons.search_rounded, size: 18, color: C.muted),
+                border: InputBorder.none, isDense: true,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(14), border: Border.all(color: C.bdr)),
+          child: Row(children: [
+            const Icon(Icons.filter_list_rounded, size: 18, color: C.txt2),
+            const SizedBox(width: 6),
+            Text('Filter', style: AppText.caption.copyWith(fontSize: 12.5, fontWeight: FontWeight.w700)),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  /// "All Clubs" + every real category currently in use, driven by
+  /// actual Club.category values (not a hardcoded list) — matches the
+  /// mockup's chip row without inventing categories no club actually has.
+  Widget _categoryChips(List<String> categories) {
     final chips = ['All Groups', ...categories];
     return SizedBox(
       height: 36,
       child: ListView.separated(
-        padding: EdgeInsets.zero,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         scrollDirection: Axis.horizontal,
         itemCount: chips.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
@@ -440,18 +241,13 @@ class _ClubsPageState extends State<ClubsPage> {
                 duration: const Duration(milliseconds: 150),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: active ? ac.navy : ac.surf,
+                  color: active ? C.navy : C.surf,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: active ? ac.navy : ac.bdr),
+                  border: Border.all(color: active ? C.navy : C.bdr),
                 ),
-                child: Text(
-                  label,
-                  style: AppText.caption.copyWith(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: active ? ac.gold : ac.txt2,
-                  ),
-                ),
+                child: Text(label, style: AppText.caption.copyWith(
+                    fontSize: 12.5, fontWeight: FontWeight.w700,
+                    color: active ? C.gold : C.txt2)),
               ),
             ),
           );
@@ -460,72 +256,137 @@ class _ClubsPageState extends State<ClubsPage> {
     );
   }
 
-  Widget _myClubsSection(BuildContext context, List<Club> myClubs, Set<String> joinedIds) {
+  /// Horizontal photo-card rail of clubs the user has joined, plus any
+  /// they have a pending approval request for (kept visible so a pending
+  /// request doesn't just disappear — Discover Clubs hides its own card
+  /// for the same club once a request is pending). Pre-filtered against
+  /// watchMyClubIds/watchMyPendingRequestClubIds BEFORE building any
+  /// cards — same fix as _recommendedClubsSection below, and for the
+  /// same reason: building a card per club in the whole (possibly
+  /// search-filtered) pool and letting each one silently self-hide once
+  /// its own status resolves can leave this rail rendering mostly empty
+  /// space.
+  Widget _myClubsSection(BuildContext context, List<Club> allClubs) {
+    
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text('My Groups', style: AppText.h2.copyWith(fontSize: 16))),
         ]),
         const SizedBox(height: 12),
-        if (myClubs.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text('No groups yet — discover one below or create your own.', style: AppText.bodySm),
-          )
-        else
-          SizedBox(
-            height: 245,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: myClubs.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (_, i) => _MyClubTile(
-                club: myClubs[i],
-                pending: !joinedIds.contains(myClubs[i].id),
-                onOpen: () => Navigator.push(context, MaterialPageRoute(
-                    settings: RouteSettings(name: '/clubs/${myClubs[i].id}'),
-                    builder: (_) => ClubDetailPage(club: myClubs[i], user: widget.user))),
+        StreamBuilder<List<String>>(
+          stream: ClubRepository.instance.watchMyClubIds(widget.user.id),
+          builder: (context, joinedSnap) {
+            if (joinedSnap.hasError) {
+              CrashService.instance.recordError(joinedSnap.error, joinedSnap.stackTrace,
+                  context: 'ClubsPage.watchMyClubIds(${widget.user.id})');
+            }
+            final joinedIds = (joinedSnap.data ?? const <String>[]).toSet();
+            return StreamBuilder<List<String>>(
+              stream: ClubRepository.instance.watchMyPendingRequestClubIds(widget.user.id),
+              builder: (context, pendingSnap) {
+                if (joinedSnap.connectionState == ConnectionState.waiting) {
+                  return SizedBox(
+                    height: 260,
+                    child: ListView(scrollDirection: Axis.horizontal, children: const [
+                      SizedBox(width: 200, child: ShimmerBlock(height: 260)),
+                      SizedBox(width: 12),
+                      SizedBox(width: 200, child: ShimmerBlock(height: 260)),
+                    ]),
+                  );
+                }
+                final pendingIds = (pendingSnap.data ?? const <String>[]).toSet();
+                final myClubs = allClubs.where((c) => joinedIds.contains(c.id) || pendingIds.contains(c.id)).toList();
+                if (myClubs.isEmpty) {
+                  return Text('No groups yet — discover one below or create your own.', style: AppText.bodySm);
+                }
+                return SizedBox(
+                  height: 260,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: myClubs.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemBuilder: (_, i) => _MyClubTile(
+                      club: myClubs[i],
+                      pending: !joinedIds.contains(myClubs[i].id),
+                      onOpen: () => Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => ClubDetailPage(club: myClubs[i], user: widget.user))),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ]),
+    );
+  }
+
+  /// production_plan.md §7B — "Contextual recommendations should exist
+  /// throughout Academia," replacing the removed Clubs banner. Ranks the
+  /// club list this page already streamed (`allClubs`) against the
+  /// signed-in user's favorite subjects via
+  /// RecommendationRepository.forClubs -- no second Firestore read, same
+  /// "hide entirely rather than show an empty personalized rail"
+  /// treatment as every other surface's recommendation rail.
+  ///
+  /// FIX: this previously computed `recommended` from the whole club
+  /// pool without excluding clubs the user had already joined, then
+  /// relied on each `_DiscoverClubCard` to silently collapse to
+  /// `SizedBox.shrink()` once it separately discovered (async, per
+  /// card) that the user was a member. If someone had already joined
+  /// most or all of their category-matched clubs, this rendered a
+  /// "Recommended for You" header followed by a visually empty
+  /// 260px-tall strip — which reads as broken, not empty-and-hidden.
+  /// Now pre-filtered against watchMyClubIds before deciding whether to
+  /// render anything at all, matching the section's own "hide entirely"
+  /// intent.
+  Widget _recommendedClubsSection(BuildContext context, List<Club> allClubs) {
+    if (widget.user.favoriteSubjects.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final candidates = RecommendationRepository.instance
+        .forClubs(pool: allClubs, favoriteSubjects: widget.user.favoriteSubjects);
+    if (candidates.isEmpty) return const SizedBox.shrink();
+    return StreamBuilder<List<String>>(
+      stream: ClubRepository.instance.watchMyClubIds(widget.user.id),
+      builder: (context, joinedSnap) {
+        if (joinedSnap.hasError) {
+          CrashService.instance.recordError(joinedSnap.error, joinedSnap.stackTrace,
+              context: 'ClubsPage._recommendedClubsSection.watchMyClubIds(${widget.user.id})');
+        }
+        final joinedIds = (joinedSnap.data ?? const <String>[]).toSet();
+        final recommended = candidates.where((c) => !joinedIds.contains(c.id)).toList();
+        if (recommended.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Recommended for You', style: AppText.h2.copyWith(fontSize: 16)),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 260,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: recommended.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (_, i) => _DiscoverClubCard(
+                  club: recommended[i], user: widget.user,
+                  onOpen: () => Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => ClubDetailPage(club: recommended[i], user: widget.user))),
+                ),
               ),
             ),
-          ),
-      ]),
+            const SizedBox(height: 24),
+          ]),
+        );
+      },
     );
   }
 
-  Widget _recommendedClubsSection(BuildContext context, List<Club> recommended) {
-    if (recommended.isEmpty) return const SizedBox.shrink();
+  Widget _discoverClubsSection(BuildContext context, List<Club> allClubs, List<Club> unfilteredClubs) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Recommended for You', style: AppText.h2.copyWith(fontSize: 16)),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 275,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: recommended.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (_, i) => _DiscoverClubCard(
-              club: recommended[i],
-              user: widget.user,
-              isMember: false,
-              isPending: false,
-              onOpen: () => Navigator.push(context, MaterialPageRoute(
-                  settings: RouteSettings(name: '/clubs/${recommended[i].id}'),
-                  builder: (_) => ClubDetailPage(club: recommended[i], user: widget.user))),
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
-      ]),
-    );
-  }
-
-  Widget _discoverClubsSection(BuildContext context, List<Club> discoverClubs, List<Club> unfilteredClubs) {
-    final ac = AppColors.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text('Discover Groups', style: AppText.h2.copyWith(fontSize: 16))),
@@ -534,37 +395,29 @@ class _ClubsPageState extends State<ClubsPage> {
             child: InkWell(
               borderRadius: BorderRadius.circular(Rad.xs),
               onTap: () => Navigator.push(context, MaterialPageRoute(
-                  settings: const RouteSettings(name: '/clubs/discover'),
                   builder: (_) => AllClubsPage(clubs: unfilteredClubs, user: widget.user))),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                 child: Text('See all', style: AppText.subtitle.copyWith(
-                    color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                    color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
               ),
             ),
           ),
         ]),
         const SizedBox(height: 12),
-        if (discoverClubs.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text('No groups yet — be the first to create one.', style: AppText.bodySm),
-          )
+        if (allClubs.isEmpty)
+          Text('No groups yet — be the first to create one.', style: AppText.bodySm)
         else
           SizedBox(
-            height: 275,
+            height: 260,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: discoverClubs.length,
+              itemCount: allClubs.length,
               separatorBuilder: (_, __) => const SizedBox(width: 12),
               itemBuilder: (_, i) => _DiscoverClubCard(
-                club: discoverClubs[i],
-                user: widget.user,
-                isMember: false,
-                isPending: false,
+                club: allClubs[i], user: widget.user,
                 onOpen: () => Navigator.push(context, MaterialPageRoute(
-                    settings: RouteSettings(name: '/clubs/${discoverClubs[i].id}'),
-                    builder: (_) => ClubDetailPage(club: discoverClubs[i], user: widget.user))),
+                    builder: (_) => ClubDetailPage(club: allClubs[i], user: widget.user))),
               ),
             ),
           ),
@@ -573,16 +426,15 @@ class _ClubsPageState extends State<ClubsPage> {
   }
 
   Widget _infoCards(BuildContext context) {
-    final ac = AppColors.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Expanded(
           child: Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
+            decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.groups_rounded, color: ac.blu, size: 20),
+              const Icon(Icons.groups_rounded, color: C.blu, size: 20),
               const SizedBox(height: 8),
               Text('Groups', style: AppText.title.copyWith(fontSize: 13)),
               const SizedBox(height: 4),
@@ -595,9 +447,9 @@ class _ClubsPageState extends State<ClubsPage> {
         Expanded(
           child: Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
+            decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.chat_bubble_rounded, color: ac.pur, size: 20),
+              const Icon(Icons.chat_bubble_rounded, color: C.pur, size: 20),
               const SizedBox(height: 8),
               Text('Messages', style: AppText.title.copyWith(fontSize: 13)),
               const SizedBox(height: 4),
@@ -612,7 +464,7 @@ class _ClubsPageState extends State<ClubsPage> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => MessagesHomePage(user: widget.user)));
                   },
                   child: Text('Go to Messages →', style: AppText.caption.copyWith(
-                      fontSize: 10.5, fontWeight: FontWeight.w700, color: ac.pur)),
+                      fontSize: 10.5, fontWeight: FontWeight.w700, color: C.pur)),
                 ),
               ),
             ]),
@@ -628,40 +480,19 @@ class _ClubsSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(16),
-      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(20),
       children: [
-        const ShimmerLine(width: 120, height: 18),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 245,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: 3,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (_, __) => const SizedBox(
-              width: 200,
-              child: ShimmerBlock(height: 245, borderRadius: Rad.md),
-            ),
+        const ShimmerLine(width: 100, height: 24),
+        const SizedBox(height: 20),
+        for (int i = 0; i < 3; i++)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 10),
+            child: Row(children: [
+              ShimmerCircle(size: 44),
+              SizedBox(width: 12),
+              Expanded(child: ShimmerLine(height: 14)),
+            ]),
           ),
-        ),
-        const SizedBox(height: 24),
-        const ShimmerLine(width: 140, height: 18),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 275,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: 3,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (_, __) => const SizedBox(
-              width: 200,
-              child: ShimmerBlock(height: 275, borderRadius: Rad.md),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -680,7 +511,6 @@ class _MyClubTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     final hasCover = (club.bannerUrl ?? '').isNotEmpty;
     final iconOption = ClubVisuals.fallbackIconFor(club);
     final accent = ClubVisuals.colorFor(club);
@@ -692,10 +522,10 @@ class _MyClubTile extends StatelessWidget {
         onTap: pending ? null : () { HapticFeedback.selectionClick(); onOpen(); },
         child: Container(
           width: 200,
-          decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
+          decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
           clipBehavior: Clip.antiAlias,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Stack(children: [
+            Stack(clipBehavior: Clip.none, children: [
               SizedBox(
                 height: 96, width: double.infinity,
                 child: hasCover
@@ -713,7 +543,7 @@ class _MyClubTile extends StatelessWidget {
                   decoration: const BoxDecoration(borderRadius: BorderRadius.all(Radius.circular(11))),
                   foregroundDecoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(11),
-                    border: Border.all(color: ac.surf, width: 2.5),
+                    border: Border.all(color: C.surf, width: 2.5),
                   ),
                   child: ClubLogo(club: club, size: 40, borderRadius: BorderRadius.circular(11)),
                 ),
@@ -723,38 +553,28 @@ class _MyClubTile extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: pending ? ac.orgBg : ac.grnBg,
+                    color: pending ? C.orgb : C.grnb,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(pending ? 'Pending' : 'Joined ✓', style: AppText.label.copyWith(
-                      fontSize: 9.5, color: pending ? ac.org : ac.grn, letterSpacing: 0)),
+                      fontSize: 9.5, color: pending ? C.org : C.grn, letterSpacing: 0)),
                 ),
               ),
             ]),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 18, 12, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(club.name, style: AppText.title.copyWith(fontSize: 13.5), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        const SizedBox(height: 3),
-                        Text(club.description, style: AppText.caption.copyWith(fontSize: 10.5, height: 1.25),
-                            maxLines: 2, overflow: TextOverflow.ellipsis),
-                      ],
-                    ),
-                    Row(children: [
-                      _MemberAvatarStack(clubId: club.id),
-                      const SizedBox(width: 6),
-                      Text('${club.memberCount} members', style: AppText.caption.copyWith(fontSize: 10.5)),
-                    ]),
-                  ],
-                ),
-              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 20, 12, 12),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(club.name, style: AppText.title.copyWith(fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 3),
+                Text(club.description, style: AppText.caption.copyWith(fontSize: 10.5, height: 1.3),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 8),
+                Row(children: [
+                  _MemberAvatarStack(clubId: club.id),
+                  const SizedBox(width: 6),
+                  Text('${club.memberCount} members', style: AppText.caption.copyWith(fontSize: 10.5)),
+                ]),
+              ]),
             ),
           ]),
         ),
@@ -777,36 +597,24 @@ class _DiscoverClubCard extends StatelessWidget {
   final AppUser user;
   final VoidCallback onOpen;
   final bool fullWidth;
-  final bool? isMember;
-  final bool? isPending;
-  const _DiscoverClubCard({
-    required this.club,
-    required this.user,
-    required this.onOpen,
-    this.fullWidth = false,
-    this.isMember,
-    this.isPending,
-  });
+  const _DiscoverClubCard({required this.club, required this.user, required this.onOpen, this.fullWidth = false});
 
   @override
   Widget build(BuildContext context) {
     if (user.isGuest) return _card(context, joined: false, pending: false);
-
-    // If caller pre-filtered membership and pending status, skip all per-card stream subscriptions!
-    if (isMember != null && isPending != null) {
-      if (isMember! || isPending!) return const SizedBox.shrink();
-      return _card(context, joined: isMember!, pending: isPending!);
-    }
-
     return StreamBuilder<ClubRole>(
       stream: ClubRepository.instance.watchUserRole(club.id, user.id),
       builder: (context, roleSnap) {
-        final isJoined = (roleSnap.data ?? ClubRole.visitor) != ClubRole.visitor;
-        if (isJoined) return const SizedBox.shrink();
+        final isMember = (roleSnap.data ?? ClubRole.visitor) != ClubRole.visitor;
+        if (isMember) return const SizedBox.shrink();
         return StreamBuilder<ClubJoinRequestStatus?>(
           stream: ClubRepository.instance.watchMyRequestStatus(club.id, user.id),
           builder: (context, reqSnap) {
             if (reqSnap.hasError) {
+              // Same reasoning as _MyClubTile above: this only gates
+              // whether the join card still shows, so record the failure
+              // and fall back to showing the card rather than an ErrorView
+              // wedged into a horizontally-scrolling card list.
               CrashService.instance.recordError(reqSnap.error, reqSnap.stackTrace,
                   context: 'ClubsPage.watchMyRequestStatus(${club.id}, ${user.id})');
               return _card(context, joined: false, pending: false);
@@ -821,7 +629,6 @@ class _DiscoverClubCard extends StatelessWidget {
   }
 
   Widget _card(BuildContext context, {required bool joined, required bool pending}) {
-    final ac = AppColors.of(context);
     final hasCover = (club.bannerUrl ?? '').isNotEmpty;
     final iconOption = ClubVisuals.fallbackIconFor(club);
     final accent = ClubVisuals.colorFor(club);
@@ -830,129 +637,82 @@ class _DiscoverClubCard extends StatelessWidget {
           alignment: Alignment.center,
           child: Icon(iconOption.icon, color: accent, size: 26),
         );
-
-    final cardContent = Padding(
-      padding: const EdgeInsets.fromLTRB(14, 18, 14, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: fullWidth ? MainAxisAlignment.start : MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                club.name,
-                style: AppText.title.copyWith(fontSize: 13.5),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+    return Container(
+      width: fullWidth ? double.infinity : 200,
+      decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Stack(clipBehavior: Clip.none, children: [
+          SizedBox(
+            height: 84, width: double.infinity,
+            child: hasCover
+                ? Image.network(club.bannerUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback())
+                : fallback(),
+          ),
+          // Real uploaded club logo photo when the admin has set one —
+          // see ClubLogo / Club.thumbnailUrl.
+          Positioned(
+            left: 10, bottom: -14,
+            child: Container(
+              width: 36, height: 36,
+              foregroundDecoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: C.surf, width: 2.5),
               ),
-              const SizedBox(height: 3),
-              Row(children: [
-                Icon(club.requiresApproval ? Icons.lock_outline_rounded : Icons.public_rounded,
-                    size: 12, color: club.requiresApproval ? ac.pur : ac.grn),
-                const SizedBox(width: 4),
-                Text(
-                  club.requiresApproval ? 'Approval required' : 'Open to all',
-                  style: AppText.caption.copyWith(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: club.requiresApproval ? ac.pur : ac.grn,
-                  ),
+              child: ClubLogo(club: club, size: 36, borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ]),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 20, 14, 14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(club.name, style: AppText.title.copyWith(fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 4),
+            Row(children: [
+              Icon(club.requiresApproval ? Icons.lock_outline_rounded : Icons.public_rounded,
+                  size: 12, color: club.requiresApproval ? C.pur : C.grn),
+              const SizedBox(width: 4),
+              Text(club.requiresApproval ? 'Approval required' : 'Open to all',
+                  style: AppText.caption.copyWith(fontSize: 10.5, fontWeight: FontWeight.w700,
+                      color: club.requiresApproval ? C.pur : C.grn)),
+            ]),
+            const SizedBox(height: 6),
+            // Expanded only makes sense inside the horizontal preview's fixed-
+            // height card; the vertical "See all" list has no bounded height
+            // to expand into, so it just wraps the text directly there.
+            if (fullWidth)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(club.description, style: AppText.caption.copyWith(fontSize: 10.5, height: 1.3),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+              )
+            else
+              Expanded(
+                child: Text(club.description, style: AppText.caption.copyWith(fontSize: 10.5, height: 1.3),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+              ),
+            Row(children: [
+              _MemberAvatarStack(clubId: club.id),
+              const SizedBox(width: 6),
+              Text('${club.memberCount} members', style: AppText.caption.copyWith(fontSize: 10.5)),
+            ]),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => _handleJoin(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: C.navy, foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-              ]),
-              const SizedBox(height: 5),
-              Text(
-                club.description,
-                style: AppText.caption.copyWith(fontSize: 10.5, height: 1.25),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+                child: Text(club.requiresApproval ? 'Request to Join' : 'Join Group',
+                    style: AppText.caption.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
               ),
-            ],
-          ),
-          if (fullWidth) const SizedBox(height: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                _MemberAvatarStack(clubId: club.id),
-                const SizedBox(width: 6),
-                Text('${club.memberCount} members', style: AppText.caption.copyWith(fontSize: 10.5)),
-              ]),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                height: 32,
-                child: ElevatedButton(
-                  onPressed: () => _handleJoin(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ac.navy,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 0),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  child: Text(
-                    club.requiresApproval ? 'Request to Join' : 'Join Group',
-                    style: AppText.caption.copyWith(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(Rad.md),
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onOpen();
-        },
-        child: Container(
-          width: fullWidth ? double.infinity : 200,
-          decoration: BoxDecoration(
-            color: ac.surf,
-            borderRadius: BorderRadius.circular(Rad.md),
-            border: Border.all(color: ac.bdr),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Stack(
-                children: [
-                  SizedBox(
-                    height: 84,
-                    width: double.infinity,
-                    child: hasCover
-                        ? Image.network(club.bannerUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback())
-                        : fallback(),
-                  ),
-                  Positioned(
-                    left: 10,
-                    bottom: -14,
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      foregroundDecoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: ac.surf, width: 2.5),
-                      ),
-                      child: ClubLogo(club: club, size: 36, borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                ],
-              ),
-              if (fullWidth)
-                cardContent
-              else
-                Expanded(child: cardContent),
-            ],
-          ),
+            ),
+          ]),
         ),
-      ),
+      ]),
     );
   }
 
@@ -961,16 +721,11 @@ class _DiscoverClubCard extends StatelessWidget {
       showToast(context, 'Create an account to join groups');
       return;
     }
-    if (!ClubScope.canAccessClub(club, user: user)) {
-      showToast(context, 'This group belongs to another school.');
-      return;
-    }
     HapticFeedback.mediumImpact();
     if (club.requiresApproval) {
       final result = await ClubRepository.instance.requestToJoin(
         clubId: club.id, clubName: club.name,
         userId: user.id, userName: user.name, userPhotoUrl: user.photoUrl,
-        user: user,
       );
       if (context.mounted) {
         showToast(context, result is Success ? 'Request sent — pending admin approval.' : (result as Failure).message);
@@ -978,7 +733,6 @@ class _DiscoverClubCard extends StatelessWidget {
     } else {
       final result = await ClubRepository.instance.joinClub(
         club.id, user.id, name: user.name, photoUrl: user.photoUrl,
-        user: user,
       );
       if (context.mounted) {
         showToast(context, result is Success ? '✅ Welcome to ${club.name}!' : 'Failed to join');
@@ -1002,7 +756,6 @@ class _MemberAvatarStack extends StatelessWidget {
     return StreamBuilder<List<ClubMember>>(
       stream: ClubRepository.instance.watchMemberPreview(clubId),
       builder: (context, snap) {
-        final ac = AppColors.of(context);
         final members = snap.data ?? const <ClubMember>[];
         if (members.isEmpty) return const SizedBox.shrink();
         return SizedBox(
@@ -1013,7 +766,7 @@ class _MemberAvatarStack extends StatelessWidget {
               Positioned(
                 left: i * 12.0,
                 child: Container(
-                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: ac.surf, width: 1.5)),
+                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: C.surf, width: 1.5)),
                   child: UserAvatar(
                     initials: members[i].name.isEmpty ? '?' : members[i].name[0].toUpperCase(),
                     radius: 9.5, photoUrl: members[i].photoUrl,
@@ -1032,177 +785,39 @@ class _MemberAvatarStack extends StatelessWidget {
 /// this is the same data in an actually-scannable vertical list rather
 /// than a real paginated fetch (there's nothing more to page in; the
 /// preview already held every club).
-class AllClubsPage extends StatefulWidget {
+class AllClubsPage extends StatelessWidget {
   final List<Club> clubs;
   final AppUser user;
   const AllClubsPage({super.key, required this.clubs, required this.user});
 
   @override
-  State<AllClubsPage> createState() => _AllClubsPageState();
-}
-
-class _AllClubsPageState extends State<AllClubsPage> {
-  final _searchCtrl = TextEditingController();
-  String _query = '';
-  String? _selectedCategory;
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final canCreate = !widget.user.isGuest;
-
-    var filtered = widget.clubs.where((c) => ClubScope.canAccessClub(c, user: widget.user)).toList();
-    if (_query.isNotEmpty) {
-      final q = _query.toLowerCase();
-      filtered = filtered
-          .where((c) =>
-              c.name.toLowerCase().contains(q) ||
-              c.category.toLowerCase().contains(q) ||
-              c.description.toLowerCase().contains(q))
-          .toList();
-    }
-    if (_selectedCategory != null) {
-      filtered = filtered.where((c) => c.category == _selectedCategory).toList();
-    }
-    final categories = widget.clubs.map((c) => c.category).toSet().toList()..sort();
-
     return Scaffold(
       backgroundColor: ac.bg,
       appBar: AppBar(
-        backgroundColor: ac.bg,
-        elevation: 0,
+        backgroundColor: ac.bg, elevation: 0,
         iconTheme: IconThemeData(color: ac.txt),
         title: Text('Discover Groups', style: AppText.title),
-        actions: [
-          if (canCreate)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  HapticFeedback.mediumImpact();
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      settings: const RouteSettings(name: '/clubs/create'),
-                      builder: (_) => CreateClubPage(user: widget.user),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.add_rounded, size: 16),
-                label: const Text('Create'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF081630),
-                  foregroundColor: Colors.white,
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
-            ),
-        ],
       ),
-      body: AppBackground(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: TextField(
-                controller: _searchCtrl,
-                style: AppText.bodySm.copyWith(color: ac.txt),
-                onChanged: (v) => setState(() => _query = v.trim()),
-                decoration: InputDecoration(
-                  hintText: 'Search groups by name or interest…',
-                  hintStyle: AppText.bodySm.copyWith(color: ac.muted, fontSize: 13),
-                  prefixIcon: Icon(Icons.search_rounded, color: ac.muted, size: 20),
-                  suffixIcon: _query.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(Icons.clear_rounded, color: ac.muted, size: 18),
-                          onPressed: () {
-                            _searchCtrl.clear();
-                            setState(() => _query = '');
-                          },
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: ac.surf,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: ac.bdr),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: ac.bdr),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: ac.primary),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-                ),
+      body: AppBackground(child: clubs.isEmpty
+          ? const EmptyState(icon: Icons.groups_outlined, title: 'No groups yet',
+              subtitle: 'Be the first to create one.')
+          : GridView.builder(
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 0.8,
               ),
-            ),
-            if (categories.isNotEmpty)
-              SizedBox(
-                height: 36,
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: categories.length + 1,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (_, i) {
-                    final cat = i == 0 ? null : categories[i - 1];
-                    final label = i == 0 ? 'All Groups' : categories[i - 1];
-                    final selected = _selectedCategory == cat;
-                    return FilterChip(
-                      selected: selected,
-                      label: Text(label),
-                      labelStyle: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                        color: selected ? Colors.white : ac.txt,
-                      ),
-                      backgroundColor: ac.surf,
-                      selectedColor: const Color(0xFF081630),
-                      checkmarkColor: Colors.white,
-                      side: BorderSide(color: selected ? Colors.transparent : ac.bdr),
-                      onSelected: (_) => setState(() => _selectedCategory = cat),
-                    );
-                  },
-                ),
+              itemCount: clubs.length,
+              itemBuilder: (_, i) => _DiscoverClubCard(
+                club: clubs[i], user: user, fullWidth: true,
+                onOpen: () => Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => ClubDetailPage(club: clubs[i], user: user))),
               ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: filtered.isEmpty
-                  ? const EmptyState(
-                      icon: Icons.groups_outlined,
-                      title: 'No groups found',
-                      subtitle: 'Try a different search or be the first to create one.',
-                    )
-                  : ListView.separated(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) => _DiscoverClubCard(
-                        club: filtered[i],
-                        user: widget.user,
-                        fullWidth: true,
-                        onOpen: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            settings: RouteSettings(name: '/clubs/${filtered[i].id}'),
-                            builder: (_) => ClubDetailPage(club: filtered[i], user: widget.user),
-                          ),
-                        ),
-                      ),
-                    ),
-            ),
-          ],
-        ),
-      ),
+            )),
     );
   }
 }
@@ -1254,53 +869,9 @@ class _ClubDetailPageState extends State<ClubDetailPage>
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    if (!ClubScope.canAccessClub(widget.club, user: widget.user)) {
-      return Scaffold(
-        backgroundColor: ac.bg,
-        appBar: AppBar(backgroundColor: ac.bg, elevation: 0),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.lock_outline, size: 56, color: ac.muted),
-                const SizedBox(height: 16),
-                Text(
-                  'Access Restricted',
-                  style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.bold, color: ac.txt),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'This academic group belongs to another school context and is not accessible.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(fontSize: 14, color: ac.txt2),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Go Back'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-    return ApplicationShell(
-      user: widget.user,
-      currentTitle: widget.club.name,
-      subtitle: '${widget.club.category} • ${widget.club.memberCount} members',
-      currentDestination: AppNavDestination.clubs,
-      breadcrumbs: [
-        ShellBreadcrumb(
-          label: 'Study Groups',
-          icon: Icons.groups_outlined,
-          onTap: () => Navigator.of(context).pop(),
-        ),
-        ShellBreadcrumb(label: widget.club.name),
-      ],
-      child: SafeArea(
+    return Scaffold(
+      backgroundColor: ac.bg,
+      body: SafeArea(
         bottom: false,
         child: Column(children: [
           StreamBuilder<ClubRole>(
@@ -1312,11 +883,11 @@ class _ClubDetailPageState extends State<ClubDetailPage>
             },
           ),
           Material(
-            color: ac.surf,
+            color: C.surf,
             child: TabBar(
               controller: _tabs, isScrollable: true,
-              labelColor: ac.navy, unselectedLabelColor: ac.muted,
-              indicatorColor: ac.gold, indicatorWeight: 2.5,
+              labelColor: C.navy, unselectedLabelColor: C.muted,
+              indicatorColor: C.gold, indicatorWeight: 2.5,
               labelStyle: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w700, letterSpacing: 0.3),
               tabs: const [
                 Tab(text: 'FEED'), Tab(text: 'DISCUSSIONS'), Tab(text: 'MEMBERS'),
@@ -1355,7 +926,6 @@ class _Hero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     final hasBanner = (club.bannerUrl ?? '').isNotEmpty;
     final iconOption = ClubVisuals.fallbackIconFor(club);
     final accent = ClubVisuals.colorFor(club);
@@ -1393,7 +963,6 @@ class _Hero extends StatelessWidget {
               icon: Icons.chat_bubble_outline_rounded,
               tooltip: 'Group chat',
               onTap: () => Navigator.push(context, MaterialPageRoute(
-                  settings: RouteSettings(name: '/clubs/${club.id}/chat'),
                   builder: (_) => ClubChatPage(club: club, user: user))),
             ),
             const SizedBox(width: 8),
@@ -1408,7 +977,7 @@ class _Hero extends StatelessWidget {
             decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: Shad.md),
             foregroundDecoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: ac.surf, width: 4),
+              border: Border.all(color: C.surf, width: 4),
             ),
             child: ClubLogo(club: club, size: 84),
           ),
@@ -1418,31 +987,27 @@ class _Hero extends StatelessWidget {
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Flexible(
-                    child: Text(
-                      club.name,
-                      style: GoogleFonts.sora(fontSize: 19, fontWeight: FontWeight.w800, color: ac.txt),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: true,
-                    ),
-                  ),
-                  if (isVerified) ...[
-                    const SizedBox(width: 6),
-                    Tooltip(
-                      message: 'School-verified group',
-                      child: Icon(Icons.verified_rounded, color: ac.blu, size: 18),
-                    ),
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(text: club.name, style: GoogleFonts.sora(fontSize: 19, fontWeight: FontWeight.w800, color: C.txt)),
+                    if (isVerified)
+                      WidgetSpan(
+                        alignment: PlaceholderAlignment.middle,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 6),
+                          child: Tooltip(
+                            message: 'School-verified group',
+                            child: Icon(Icons.verified_rounded, color: C.blu, size: 18),
+                          ),
+                        ),
+                      ),
                   ],
-                ],
+                ),
               ),
             ),
-            const SizedBox(width: 10),
             _joinedButton(context),
           ]),
           const SizedBox(height: 4),
@@ -1453,7 +1018,7 @@ class _Hero extends StatelessWidget {
               builder: (context, snap) {
                 final online = snap.data ?? 0;
                 if (online <= 0) return const SizedBox.shrink();
-                return Text(' • $online online', style: AppText.bodySm.copyWith(fontSize: 12.5, color: ac.grn, fontWeight: FontWeight.w700));
+                return Text(' • $online online', style: AppText.bodySm.copyWith(fontSize: 12.5, color: C.grn, fontWeight: FontWeight.w700));
               },
             ),
           ]),
@@ -1492,7 +1057,6 @@ class _Hero extends StatelessWidget {
   }
 
   Widget _joinedButton(BuildContext context) {
-    final ac = AppColors.of(context);
     
     if (!_isMember) {
       return SizedBox(
@@ -1500,7 +1064,7 @@ class _Hero extends StatelessWidget {
         child: ElevatedButton(
           onPressed: () => _handleJoin(context),
           style: ElevatedButton.styleFrom(
-            backgroundColor: ac.navy, foregroundColor: Colors.white,
+            backgroundColor: C.navy, foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           ),
@@ -1516,11 +1080,11 @@ class _Hero extends StatelessWidget {
         onTap: () => _showJoinedMenu(context),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(color: ac.grnBg, borderRadius: BorderRadius.circular(20)),
+          decoration: BoxDecoration(color: C.grnb, borderRadius: BorderRadius.circular(20)),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text('Joined', style: AppText.caption.copyWith(fontSize: 11.5, fontWeight: FontWeight.w700, color: ac.grn)),
+            Text('Joined', style: AppText.caption.copyWith(fontSize: 11.5, fontWeight: FontWeight.w700, color: C.grn)),
             const SizedBox(width: 3),
-            Icon(Icons.expand_more_rounded, size: 15, color: ac.grn),
+            Icon(Icons.expand_more_rounded, size: 15, color: C.grn),
           ]),
         ),
       ),
@@ -1528,22 +1092,17 @@ class _Hero extends StatelessWidget {
   }
 
   Future<void> _handleJoin(BuildContext context) async {
-    if (!ClubScope.canAccessClub(club, user: user)) {
-      showToast(context, 'This group belongs to another school.');
-      return;
-    }
     HapticFeedback.mediumImpact();
     if (club.requiresApproval) {
       final result = await ClubRepository.instance.requestToJoin(
         clubId: club.id, clubName: club.name,
         userId: user.id, userName: user.name, userPhotoUrl: user.photoUrl,
-        user: user,
       );
       if (context.mounted) {
         showToast(context, result is Success ? 'Request sent — pending admin approval.' : (result as Failure).message);
       }
     } else {
-      final result = await ClubRepository.instance.joinClub(club.id, user.id, name: user.name, photoUrl: user.photoUrl, user: user);
+      final result = await ClubRepository.instance.joinClub(club.id, user.id, name: user.name, photoUrl: user.photoUrl);
       if (context.mounted) {
         showToast(context, result is Success ? '✅ Welcome to ${club.name}!' : 'Failed to join');
       }
@@ -1551,7 +1110,6 @@ class _Hero extends StatelessWidget {
   }
 
   void _showJoinedMenu(BuildContext context) {
-    final ac = AppColors.of(context);
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -1564,7 +1122,6 @@ class _Hero extends StatelessWidget {
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(
-                    settings: RouteSettings(name: '/clubs/${club.id}/settings'),
                     builder: (_) => ClubSettingsPage(club: club, currentUser: user)));
               },
             ),
@@ -1574,7 +1131,6 @@ class _Hero extends StatelessWidget {
             onTap: () {
               Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(
-                  settings: RouteSettings(name: '/clubs/${club.id}/members'),
                   builder: (_) => ClubMembersPage(club: club, currentUser: user)));
             },
           ),
@@ -1589,8 +1145,8 @@ class _Hero extends StatelessWidget {
           ),
           const Divider(height: 1),
           ListTile(
-            leading: Icon(Icons.logout_rounded, color: ac.red),
-            title: Text('Leave Group', style: TextStyle(color: ac.red)),
+            leading: const Icon(Icons.logout_rounded, color: C.red),
+            title: const Text('Leave Group', style: TextStyle(color: C.red)),
             onTap: () {
               Navigator.pop(context);
               _confirmLeave(context);
@@ -1602,17 +1158,14 @@ class _Hero extends StatelessWidget {
   }
 
   Future<void> _confirmLeave(BuildContext context) async {
-    final ac = AppColors.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Leave this group?'),
-        content: Text(club.requiresApproval
-            ? 'You can rejoin "${club.name}" any time, but you will need approval again.'
-            : 'You can rejoin "${club.name}" any time.'),
+        content: Text('You can rejoin "${club.name}" any time${club.requiresApproval ? ", but you'll need approval again." : "."}'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text('Leave', style: TextStyle(color: ac.red))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Leave', style: TextStyle(color: C.red))),
         ],
       ),
     );
@@ -1645,7 +1198,6 @@ class _AdminsRow extends StatelessWidget {
     return StreamBuilder<List<ClubMember>>(
       stream: ClubRepository.instance.watchMembers(club.id),
       builder: (context, snap) {
-        final ac = AppColors.of(context);
         final admins = (snap.data ?? const <ClubMember>[]).where((m) => m.role == ClubRole.admin).toList();
         if (admins.isEmpty) return const SizedBox.shrink();
         final shown = admins.take(3).toList();
@@ -1657,7 +1209,7 @@ class _AdminsRow extends StatelessWidget {
             onTap: () => Navigator.push(context, MaterialPageRoute(
                 builder: (_) => ClubMembersPage(club: club, currentUser: user))),
             child: Row(children: [
-              Text('Admins', style: AppText.caption.copyWith(fontSize: 11.5, fontWeight: FontWeight.w700, color: ac.txt2)),
+              Text('Admins', style: AppText.caption.copyWith(fontSize: 11.5, fontWeight: FontWeight.w700, color: C.txt2)),
               const SizedBox(width: 10),
               SizedBox(
                 width: 20.0 + (shown.length - 1) * 16.0,
@@ -1667,7 +1219,7 @@ class _AdminsRow extends StatelessWidget {
                     Positioned(
                       left: i * 16.0,
                       child: Container(
-                        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: ac.surf, width: 2)),
+                        decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: C.surf, width: 2)),
                         child: UserAvatar(
                           initials: shown[i].name.isEmpty ? '?' : shown[i].name[0].toUpperCase(),
                           radius: 13, photoUrl: shown[i].photoUrl,
@@ -1678,7 +1230,7 @@ class _AdminsRow extends StatelessWidget {
               ),
               if (extra > 0) ...[
                 const SizedBox(width: 6),
-                Text('+$extra', style: AppText.caption.copyWith(fontSize: 11.5, fontWeight: FontWeight.w700, color: ac.txt2)),
+                Text('+$extra', style: AppText.caption.copyWith(fontSize: 11.5, fontWeight: FontWeight.w700, color: C.txt2)),
               ],
             ]),
           ),
@@ -1720,14 +1272,7 @@ class _ClubChatPageState extends State<ClubChatPage> {
       senderInitials: widget.user.initials, text: text, time: DateTime.now(),
     );
     _ctrl.clear();
-    final res = await ClubRepository.instance.sendMessage(widget.club.id, msg, user: widget.user);
-    if (!mounted) return;
-    if (res is Failure<void>) {
-      // Never silently drop what someone typed: put it back and say why.
-      if (_ctrl.text.isEmpty) _ctrl.text = text;
-      showToast(context, res.message, isError: true);
-      return;
-    }
+    await ClubRepository.instance.sendMessage(widget.club.id, msg);
     await Future.delayed(const Duration(milliseconds: 80));
     if (_scroll.hasClients) {
       _scroll.animateTo(_scroll.position.maxScrollExtent,
@@ -1738,13 +1283,6 @@ class _ClubChatPageState extends State<ClubChatPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    if (!ClubScope.canAccessClub(widget.club, user: widget.user)) {
-      return Scaffold(
-        backgroundColor: ac.bg,
-        appBar: AppBar(backgroundColor: ac.bg, elevation: 0),
-        body: const Center(child: Text('Access restricted to members of this institution.')),
-      );
-    }
     return Scaffold(
       backgroundColor: ac.bg,
       appBar: AppBar(
@@ -1768,7 +1306,6 @@ class _ChatTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return Column(children: [
       Expanded(
         child: StreamBuilder<List<ClubMessage>>(
@@ -1792,10 +1329,10 @@ class _ChatTab extends StatelessWidget {
                             width: 28, height: 28,
                             margin: const EdgeInsets.only(right: 6),
                             decoration: BoxDecoration(
-                                color: ac.goldBg, borderRadius: BorderRadius.circular(8)),
+                                color: C.goldp, borderRadius: BorderRadius.circular(8)),
                             child: Center(child: Text(m.senderInitials,
-                                style: TextStyle(
-                                    fontSize: 10, fontWeight: FontWeight.w700, color: ac.gold)))),
+                                style: const TextStyle(
+                                    fontSize: 10, fontWeight: FontWeight.w700, color: C.gold)))),
                       Flexible(child: Column(
                         crossAxisAlignment: isMe
                             ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -1803,8 +1340,8 @@ class _ChatTab extends StatelessWidget {
                           if (!isMe)
                             Padding(padding: const EdgeInsets.only(left: 2, bottom: 2),
                                 child: Text(m.senderName,
-                                    style: TextStyle(
-                                        fontSize: 10, fontWeight: FontWeight.w600, color: ac.muted))),
+                                    style: const TextStyle(
+                                        fontSize: 10, fontWeight: FontWeight.w600, color: C.muted))),
                           GestureDetector(
                             onLongPress: (isMe && !m.deleted) ? () => _confirmDelete(context, m) : null,
                             child: Container(
@@ -1812,21 +1349,21 @@ class _ChatTab extends StatelessWidget {
                                 constraints: BoxConstraints(
                                     maxWidth: MediaQuery.of(context).size.width * .65),
                                 decoration: BoxDecoration(
-                                  color: m.deleted ? ac.surf3 : (isMe ? ac.primary : ac.surf),
+                                  color: m.deleted ? C.surf3 : (isMe ? C.primary : Colors.white),
                                   borderRadius: BorderRadius.circular(14),
-                                  border: (isMe && !m.deleted) ? null : Border.all(color: ac.bdr),
+                                  border: (isMe && !m.deleted) ? null : Border.all(color: C.bdr),
                                 ),
                                 child: Text(m.deleted ? 'This message was deleted' : m.text,
                                     style: TextStyle(
                                         fontSize: 13,
                                         fontStyle: m.deleted ? FontStyle.italic : FontStyle.normal,
-                                        color: m.deleted ? ac.muted : (isMe ? Colors.white : ac.txt)))),
+                                        color: m.deleted ? C.muted : (isMe ? Colors.white : C.txt)))),
                           ),
                           Padding(padding: const EdgeInsets.only(top: 3),
                               child: Text(
                                   '${m.time.hour.toString().padLeft(2, '0')}:'
                                       '${m.time.minute.toString().padLeft(2, '0')}',
-                                  style: TextStyle(fontSize: 9, color: ac.muted))),
+                                  style: const TextStyle(fontSize: 9, color: C.muted))),
                         ],
                       )),
                     ],
@@ -1840,8 +1377,8 @@ class _ChatTab extends StatelessWidget {
       Container(
         padding: EdgeInsets.fromLTRB(
             12, 8, 12, MediaQuery.of(context).padding.bottom + 8),
-        decoration: BoxDecoration(
-            color: ac.surf, border: Border(top: BorderSide(color: ac.bdr))),
+        decoration: const BoxDecoration(
+            color: C.surf, border: Border(top: BorderSide(color: C.bdr))),
         child: Row(children: [
           Expanded(
               child: TextField(
@@ -1849,13 +1386,13 @@ class _ChatTab extends StatelessWidget {
                   onSubmitted: (_) => onSend(),
                   decoration: InputDecoration(
                       hintText: 'Message ${club.name}…',
-                      filled: true, fillColor: ac.bg,
+                      filled: true, fillColor: C.bg,
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide(color: ac.bdr)),
+                          borderSide: const BorderSide(color: C.bdr)),
                       enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide(color: ac.bdr)),
+                          borderSide: const BorderSide(color: C.bdr)),
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 10)))),
           const SizedBox(width: 8),
@@ -1870,7 +1407,7 @@ class _ChatTab extends StatelessWidget {
               },
               child: Container(
                   width: 42, height: 42,
-                  decoration: BoxDecoration(color: ac.primary, shape: BoxShape.circle),
+                  decoration: const BoxDecoration(color: C.primary, shape: BoxShape.circle),
                   child: const Icon(Icons.send, color: Colors.white, size: 18)),
             ),
           ),
@@ -1880,7 +1417,6 @@ class _ChatTab extends StatelessWidget {
   }
 
   Future<void> _confirmDelete(BuildContext context, ClubMessage m) async {
-    final ac = AppColors.of(context);
     HapticFeedback.mediumImpact();
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1891,7 +1427,7 @@ class _ChatTab extends StatelessWidget {
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Delete', style: TextStyle(color: ac.red)),
+            child: const Text('Delete', style: TextStyle(color: C.red)),
           ),
         ],
       ),
@@ -1943,9 +1479,9 @@ class _FeedTabState extends State<_FeedTab> {
         },
       ),
       floatingActionButton: widget.user.isGuest ? null : FloatingActionButton(
-        backgroundColor: ac.navy,
+        backgroundColor: C.navy,
         onPressed: () => _composePost(context),
-        child: Icon(Icons.edit_rounded, color: ac.gold, size: 20),
+        child: const Icon(Icons.edit_rounded, color: C.gold, size: 20),
       ),
     );
   }
@@ -2009,7 +1545,6 @@ class _ComposePostSheetState extends State<_ComposePostSheet> {
     return StreamBuilder<ClubRole>(
       stream: ClubRepository.instance.watchUserRole(widget.club.id, widget.user.id),
       builder: (context, roleSnap) {
-        final ac = AppColors.of(context);
         final canAnnounce = roleSnap.data == ClubRole.admin || roleSnap.data == ClubRole.moderator;
         return Padding(
           padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
@@ -2033,10 +1568,10 @@ class _ComposePostSheetState extends State<_ComposePostSheet> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _posting ? null : _submit,
-                  style: ElevatedButton.styleFrom(backgroundColor: ac.navy, foregroundColor: Colors.white,
+                  style: ElevatedButton.styleFrom(backgroundColor: C.navy, foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12)),
                   child: _posting
-                      ? const SizedBox(width: 18, height: 18, child: SkeletonSpinner(strokeWidth: 2, color: Colors.white))
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : const Text('Post'),
                 ),
               ),
@@ -2056,23 +1591,32 @@ class _PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
+      decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          UserAvatar(initials: post.authorName.isEmpty ? '?' : post.authorName[0].toUpperCase(),
-              radius: 16, photoUrl: post.authorPhotoUrl),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(post.authorName, style: AppText.title.copyWith(fontSize: 13)),
-              Text(_relativeTime(post.createdAt), style: AppText.caption.copyWith(fontSize: 10.5)),
-            ]),
+          Flexible(
+            child: InkWell(
+              onTap: () => PublicProfilePage.open(context, viewer: user,
+                  id: post.authorId, name: post.authorName, photoUrl: post.authorPhotoUrl),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                UserAvatar(initials: post.authorName.isEmpty ? '?' : post.authorName[0].toUpperCase(),
+                    radius: 16, photoUrl: post.authorPhotoUrl),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(post.authorName, style: AppText.title.copyWith(fontSize: 13),
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(_relativeTime(post.createdAt), style: AppText.caption.copyWith(fontSize: 10.5)),
+                  ]),
+                ),
+              ]),
+            ),
           ),
+          const SizedBox(width: 8),
           if (post.isAnnouncement)
-            StatusBadge(label: 'ANNOUNCEMENT', color: ac.gold),
+            const StatusBadge(label: 'ANNOUNCEMENT', color: C.gold),
         ]),
         const SizedBox(height: 10),
         Text(post.title, style: AppText.title.copyWith(fontSize: 15)),
@@ -2082,7 +1626,7 @@ class _PostCard extends StatelessWidget {
         Row(children: [
           _LikeChip(club: club, post: post, user: user),
           const SizedBox(width: 16),
-          Icon(Icons.mode_comment_outlined, size: 16, color: ac.muted),
+          const Icon(Icons.mode_comment_outlined, size: 16, color: C.muted),
           const SizedBox(width: 4),
           Text('${post.commentCount}', style: AppText.caption.copyWith(fontSize: 11.5)),
         ]),
@@ -2106,10 +1650,9 @@ class _LikeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     if (user.isGuest) {
       return Row(children: [
-        Icon(Icons.favorite_border_rounded, size: 16, color: ac.muted),
+        const Icon(Icons.favorite_border_rounded, size: 16, color: C.muted),
         const SizedBox(width: 4),
         Text('${post.likeCount}', style: AppText.caption.copyWith(fontSize: 11.5)),
       ]);
@@ -2128,7 +1671,7 @@ class _LikeChip extends StatelessWidget {
             },
             child: Row(children: [
               Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                  size: 16, color: liked ? ac.red : ac.muted),
+                  size: 16, color: liked ? C.red : C.muted),
               const SizedBox(width: 4),
               Text('${post.likeCount}', style: AppText.caption.copyWith(fontSize: 11.5)),
             ]),
@@ -2172,7 +1715,6 @@ class _DiscussionsTab extends StatelessWidget {
               return _DiscussionCard(
                 discussion: d,
                 onOpen: () => Navigator.push(context, MaterialPageRoute(
-                    settings: RouteSettings(name: '/clubs/${club.id}/discussions/${d.id}'),
                     builder: (_) => ClubDiscussionDetailPage(club: club, user: user, discussion: d))),
               );
             },
@@ -2180,11 +1722,10 @@ class _DiscussionsTab extends StatelessWidget {
         },
       ),
       floatingActionButton: user.isGuest ? null : FloatingActionButton.extended(
-        backgroundColor: ac.navy,
-        icon: Icon(Icons.add_rounded, color: ac.gold),
+        backgroundColor: C.navy,
+        icon: const Icon(Icons.add_rounded, color: C.gold),
         label: Text('Ask', style: AppText.button.copyWith(fontSize: 13)),
         onPressed: () => Navigator.push(context, MaterialPageRoute(
-            settings: RouteSettings(name: '/clubs/${club.id}/discussions/new'),
             builder: (_) => AskQuestionPage(club: club, user: user))),
       ),
     );
@@ -2198,16 +1739,15 @@ class _DiscussionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return Material(
-      color: ac.surf,
+      color: C.surf,
       borderRadius: BorderRadius.circular(Rad.md),
       child: InkWell(
         borderRadius: BorderRadius.circular(Rad.md),
         onTap: onOpen,
         child: Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               UserAvatar(initials: discussion.authorName.isEmpty ? '?' : discussion.authorName[0].toUpperCase(),
@@ -2215,21 +1755,21 @@ class _DiscussionCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(child: Text(discussion.authorName, style: AppText.bodySm.copyWith(fontSize: 12))),
               if (discussion.bestAnswerReplyId != null)
-                Icon(Icons.check_circle_rounded, color: ac.grn, size: 16),
+                const Icon(Icons.check_circle_rounded, color: C.grn, size: 16),
             ]),
             const SizedBox(height: 8),
             Text(discussion.title, style: AppText.title.copyWith(fontSize: 14.5)),
             if ((discussion.tag ?? '').isNotEmpty) ...[
               const SizedBox(height: 6),
-              StatusBadge(label: discussion.tag!, color: ac.pur),
+              StatusBadge(label: discussion.tag!, color: C.pur),
             ],
             const SizedBox(height: 8),
             Row(children: [
-              Icon(Icons.mode_comment_outlined, size: 14, color: ac.muted),
+              const Icon(Icons.mode_comment_outlined, size: 14, color: C.muted),
               const SizedBox(width: 4),
               Text('${discussion.replyCount}', style: AppText.caption.copyWith(fontSize: 11)),
               const SizedBox(width: 12),
-              Icon(Icons.visibility_outlined, size: 14, color: ac.muted),
+              const Icon(Icons.visibility_outlined, size: 14, color: C.muted),
               const SizedBox(width: 4),
               Text('${discussion.viewCount}', style: AppText.caption.copyWith(fontSize: 11)),
             ]),
@@ -2279,8 +1819,8 @@ class _ResourcesTab extends StatelessWidget {
                 child: Row(children: [
                   Container(
                     width: 40, height: 40,
-                    decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(10)),
-                    child: Icon(r.isFile ? Icons.insert_drive_file_outlined : Icons.link_rounded, color: ac.primary, size: 18),
+                    decoration: BoxDecoration(color: C.primaryBg, borderRadius: BorderRadius.circular(10)),
+                    child: Icon(r.isFile ? Icons.insert_drive_file_outlined : Icons.link_rounded, color: C.primary, size: 18),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -2291,7 +1831,7 @@ class _ResourcesTab extends StatelessWidget {
                   ),
                   if (canRemove)
                     IconButton(
-                      icon: Icon(Icons.delete_outline_rounded, size: 18, color: ac.muted),
+                      icon: const Icon(Icons.delete_outline_rounded, size: 18, color: C.muted),
                       onPressed: () => ClubRepository.instance.deleteResource(club.id, r.id),
                     ),
                 ]),
@@ -2301,13 +1841,13 @@ class _ResourcesTab extends StatelessWidget {
         },
       ),
       floatingActionButton: user.isGuest ? null : FloatingActionButton(
-        backgroundColor: ac.navy,
+        backgroundColor: C.navy,
         onPressed: () => showModalBottomSheet(
           context: context, isScrollControlled: true,
           shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
           builder: (_) => _AddResourceSheet(club: club, user: user),
         ),
-        child: Icon(Icons.add_rounded, color: ac.gold),
+        child: const Icon(Icons.add_rounded, color: C.gold),
       ),
     );
   }
@@ -2346,7 +1886,7 @@ class _AddResourceSheetState extends State<_AddResourceSheet> {
       id: '', clubId: widget.club.id, title: title, url: url,
       uploaderId: widget.user.id, uploaderName: widget.user.name, uploaderPhotoUrl: widget.user.photoUrl,
       createdAt: DateTime.now(),
-    ), user: widget.user);
+    ));
     if (!mounted) return;
     setState(() => _saving = false);
     if (result is Success) {
@@ -2358,7 +1898,6 @@ class _AddResourceSheetState extends State<_AddResourceSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
       child: SafeArea(
@@ -2373,9 +1912,9 @@ class _AddResourceSheetState extends State<_AddResourceSheet> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _saving ? null : _submit,
-              style: ElevatedButton.styleFrom(backgroundColor: ac.navy, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: C.navy, foregroundColor: Colors.white),
               child: _saving
-                  ? const SizedBox(width: 18, height: 18, child: SkeletonSpinner(strokeWidth: 2, color: Colors.white))
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Text('Share'),
             ),
           ),
@@ -2419,13 +1958,13 @@ class _EventsTab extends StatelessWidget {
         },
       ),
       floatingActionButton: user.isGuest ? null : FloatingActionButton(
-        backgroundColor: ac.navy,
+        backgroundColor: C.navy,
         onPressed: () => showModalBottomSheet(
           context: context, isScrollControlled: true,
           shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
           builder: (_) => _AddEventSheet(club: club, user: user),
         ),
-        child: Icon(Icons.add_rounded, color: ac.gold),
+        child: const Icon(Icons.add_rounded, color: C.gold),
       ),
     );
   }
@@ -2446,18 +1985,17 @@ class _EventCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
+      decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(event.title, style: AppText.title.copyWith(fontSize: 14.5)),
         const SizedBox(height: 4),
-        Text(_fmt(event.startAt), style: AppText.bodySm.copyWith(fontSize: 12, color: ac.primary)),
+        Text(_fmt(event.startAt), style: AppText.bodySm.copyWith(fontSize: 12, color: C.primary)),
         if ((event.location ?? '').isNotEmpty) ...[
           const SizedBox(height: 2),
           Row(children: [
-            Icon(Icons.place_outlined, size: 13, color: ac.muted),
+            const Icon(Icons.place_outlined, size: 13, color: C.muted),
             const SizedBox(width: 3),
             Text(event.location!, style: AppText.caption.copyWith(fontSize: 11)),
           ]),
@@ -2481,11 +2019,11 @@ class _EventCard extends StatelessWidget {
                     ClubRepository.instance.toggleEventRsvp(club.id, event.id, user.id, !going);
                   },
                   style: OutlinedButton.styleFrom(
-                    backgroundColor: going ? ac.grnBg : null,
-                    side: BorderSide(color: going ? ac.grn : ac.bdr),
+                    backgroundColor: going ? C.grnb : null,
+                    side: BorderSide(color: going ? C.grn : C.bdr),
                   ),
                   child: Text(going ? 'Going ✓' : 'RSVP', style: AppText.caption.copyWith(
-                      fontSize: 11.5, fontWeight: FontWeight.w700, color: going ? ac.grn : ac.txt2)),
+                      fontSize: 11.5, fontWeight: FontWeight.w700, color: going ? C.grn : C.txt2)),
                 );
               },
             ),
@@ -2532,7 +2070,7 @@ class _AddEventSheetState extends State<_AddEventSheet> {
       description: _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
       startAt: startAt, location: _locationCtrl.text.trim().isEmpty ? null : _locationCtrl.text.trim(),
       creatorId: widget.user.id, creatorName: widget.user.name,
-    ), user: widget.user);
+    ));
     if (!mounted) return;
     setState(() => _saving = false);
     if (result is Success) {
@@ -2544,7 +2082,6 @@ class _AddEventSheetState extends State<_AddEventSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 16),
       child: SafeArea(
@@ -2586,9 +2123,9 @@ class _AddEventSheetState extends State<_AddEventSheet> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _saving ? null : _submit,
-              style: ElevatedButton.styleFrom(backgroundColor: ac.navy, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: C.navy, foregroundColor: Colors.white),
               child: _saving
-                  ? const SizedBox(width: 18, height: 18, child: SkeletonSpinner(strokeWidth: 2, color: Colors.white))
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Text('Create Event'),
             ),
           ),

@@ -20,8 +20,6 @@ import '../features/magazine/gallery_composer_page.dart';
 import '../features/magazine/video_composer_page.dart';
 import '../features/testing/test_composer_page.dart';
 import '../features/academic_content/content_upload_page.dart';
-import '../features/academic_content/bulk_past_paper_upload_page.dart';
-import '../features/clubs/create_club_page.dart';
 
 class _CreateOption {
   final IconData icon;
@@ -56,11 +54,6 @@ Future<void> showCreateContentSheet(BuildContext context, AppUser user) async {
       pageBuilder: (_) => VideoComposerPage(user: user),
     ),
     _CreateOption(
-      icon: Icons.groups_rounded, label: 'Group / Club', subtitle: 'Start a new study circle or student club',
-      color: Colors.green,
-      pageBuilder: (_) => CreateClubPage(user: user),
-    ),
-    _CreateOption(
       icon: Icons.school_rounded, label: 'Course', subtitle: 'Create an Academia Course',
       color: Colors.blue,
       pageBuilder: (_) => CourseComposerPage(user: user),
@@ -75,11 +68,6 @@ Future<void> showCreateContentSheet(BuildContext context, AppUser user) async {
         icon: Icons.upload_file_rounded, label: 'Library Content', subtitle: 'PDF, image, past paper, book, or video',
         color: Colors.green,
         pageBuilder: (_) => ContentUploadPage(user: user),
-      ),
-      _CreateOption(
-        icon: Icons.drive_folder_upload_rounded, label: 'Mass Upload Past Papers', subtitle: 'Batch upload multiple PDFs with auto-parsed metadata',
-        color: Colors.amber,
-        pageBuilder: (_) => BulkPastPaperUploadPage(user: user),
       ),
     ],
   ];

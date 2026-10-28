@@ -4,21 +4,17 @@
 // the strict hierarchy: 5 education levels, then Recommended for You and
 // Recent Reads as secondary discovery, not extra organizational layers.
 
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/app_user.dart';
 import '../../models/public_course.dart';
-import '../../models/course_lesson.dart';
 import '../../repositories/public_course_repository.dart';
-import '../../services/course_offline_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import '../../pages/notifications_page.dart';
 import '../../pages/profile_page.dart';
-import '../../widgets/application_shell.dart';
 import 'level_subjects_page.dart';
 import 'course_lessons_page.dart';
 import 'course_search_page.dart';
@@ -27,8 +23,7 @@ import 'curriculum_icon_editor.dart';
 
 class CoursesHomePage extends StatefulWidget {
   final AppUser? user;
-  final bool embedded;
-  const CoursesHomePage({super.key, this.user, this.embedded = false});
+  const CoursesHomePage({super.key, this.user});
 
   @override
   State<CoursesHomePage> createState() => _CoursesHomePageState();
@@ -74,74 +69,29 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final width = MediaQuery.of(context).size.width;
-    final isDesktop = width >= 900;
-
-    if (!isDesktop) {
-      return Scaffold(
-        backgroundColor: ac.bg,
-        body: AppBackground(
-          child: SafeArea(
-            child: ListView(
-              padding: EdgeInsets.only(top: widget.embedded ? 14 : 0, bottom: 24),
-              children: [
-                if (!widget.embedded) _header(context, ac),
-                _searchBar(context, ac),
-                const SizedBox(height: 18),
-                _levelRow(context, ac),
-                const SizedBox(height: 26),
-                _sectionHeader(
-                  'Recommended for You',
-                  ac,
-                  showNav: true,
-                  onSeeAll: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => RecommendedCoursesPage(user: widget.user),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _recommendedRow(context, ac),
-                const SizedBox(height: 24),
-                _sectionHeader('Recent Reads', ac),
-                const SizedBox(height: 12),
-                _recentReads(context, ac),
-                const SizedBox(height: 24),
-                _sectionHeader('Downloaded Courses', ac),
-                const SizedBox(height: 12),
-                _downloadedCoursesSection(context, ac),
-              ],
-            ),
-          ),
+    return Scaffold(
+      backgroundColor: ac.bg,
+      body: AppBackground(child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: 24),
+          children: [
+            _header(context, ac),
+            _searchBar(context, ac),
+            const SizedBox(height: 18),
+            _levelRow(context, ac),
+            const SizedBox(height: 26),
+            _sectionHeader(ac, 'Recommended for You', showNav: true,
+                onSeeAll: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => RecommendedCoursesPage(user: widget.user)))),
+            const SizedBox(height: 12),
+            _recommendedRow(context, ac),
+            const SizedBox(height: 24),
+            _sectionHeader(ac, 'Recent Reads'),
+            const SizedBox(height: 12),
+            _recentReads(context, ac),
+          ],
         ),
-      );
-    }
-
-    return ApplicationShell(
-      user: widget.user,
-      currentTitle: 'Academic Courses',
-      currentDestination: AppNavDestination.academicCourses,
-      contextualPanel: CoursesContextualPanel(user: widget.user ?? AppUser.guest()),
-      child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        children: [
-          _levelRow(context, ac),
-          const SizedBox(height: 26),
-          _sectionHeader('Recommended for You', ac, showNav: true,
-              onSeeAll: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => RecommendedCoursesPage(user: widget.user)))),
-          const SizedBox(height: 12),
-          _recommendedRow(context, ac),
-          const SizedBox(height: 24),
-          _sectionHeader('Recent Reads', ac),
-          const SizedBox(height: 12),
-          _recentReads(context, ac),
-          const SizedBox(height: 24),
-          _sectionHeader('Downloaded Courses', ac),
-          const SizedBox(height: 12),
-          _downloadedCoursesSection(context, ac),
-        ],
-      ),
+      )),
     );
   }
 
@@ -224,57 +174,25 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
           future: _iconsFuture,
           builder: (context, iconSnap) {
             final icons = iconSnap.data ?? const <String, CurriculumIcon>{};
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                if (constraints.maxWidth >= 720 && levels.length <= 6) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: [
-                        for (int i = 0; i < levels.length; i++) ...[
-                          if (i > 0) const SizedBox(width: 12),
-                          Expanded(
-                            child: SizedBox(
-                              height: 118,
-                              child: _LevelCard(
-                                level: levels[i],
-                                icon: icons[PublicCourseRepository.eduLevelIconKey(levels[i].name)] ?? CurriculumIcon.none,
-                                canManage: widget.user?.canUploadContent ?? false,
-                                onTap: () {
-                                  HapticFeedback.selectionClick();
-                                  Navigator.of(context).push(MaterialPageRoute(
-                                      builder: (_) => LevelSubjectsPage(level: levels[i].name, user: widget.user)));
-                                },
-                                onChanged: _reloadIcons,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  );
-                }
-                return SizedBox(
-                  height: 118,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: levels.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 10),
-                    itemBuilder: (context, i) => _LevelCard(
-                      level: levels[i],
-                      icon: icons[PublicCourseRepository.eduLevelIconKey(levels[i].name)] ?? CurriculumIcon.none,
-                      canManage: widget.user?.canUploadContent ?? false,
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        Navigator.of(context).push(MaterialPageRoute(
-                            builder: (_) => LevelSubjectsPage(level: levels[i].name, user: widget.user)));
-                      },
-                      onChanged: _reloadIcons,
-                    ),
-                  ),
-                );
-              },
+            return SizedBox(
+              height: 118,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: levels.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (context, i) => _LevelCard(
+                  level: levels[i],
+                  icon: icons[PublicCourseRepository.eduLevelIconKey(levels[i].name)] ?? CurriculumIcon.none,
+                  canManage: widget.user?.canUploadContent ?? false,
+                  onTap: () {
+                    HapticFeedback.selectionClick();
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => LevelSubjectsPage(level: levels[i].name, user: widget.user)));
+                  },
+                  onChanged: _reloadIcons,
+                ),
+              ),
             );
           },
         );
@@ -282,7 +200,7 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
     );
   }
 
-  Widget _sectionHeader(String title, AppColors ac, {bool showNav = false, VoidCallback? onSeeAll}) {
+  Widget _sectionHeader(AppColors ac, String title, {bool showNav = false, VoidCallback? onSeeAll}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(children: [
@@ -420,213 +338,11 @@ class _CoursesHomePageState extends State<CoursesHomePage> {
     );
   }
 
-  Widget _downloadedCoursesSection(BuildContext context, AppColors ac) {
-    return StreamBuilder<List<PublicCourse>>(
-      stream: CourseOfflineService.instance.watchDownloadedCourses(),
-      builder: (context, snap) {
-        final downloaded = snap.data ?? const <PublicCourse>[];
-        if (downloaded.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: ac.surf,
-                borderRadius: BorderRadius.circular(Rad.md),
-                border: Border.all(color: ac.bdr2),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: ac.primaryBg,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(Icons.download_for_offline_outlined, color: ac.primary, size: 24),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('No downloaded courses yet',
-                            style: AppText.subtitle.copyWith(fontSize: 14, color: ac.txt)),
-                        const SizedBox(height: 2),
-                        Text('Download any course to access all lessons offline without internet.',
-                            style: AppText.caption.copyWith(fontSize: 11, color: ac.txt2)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        return SizedBox(
-          height: 190,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: downloaded.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (context, i) {
-              final course = downloaded[i];
-              return _DownloadedCourseCard(
-                course: course,
-                currentUser: widget.user,
-                onTap: () => _openCourse(context, course),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
   void _openCourse(BuildContext context, PublicCourse course) {
     HapticFeedback.selectionClick();
     Navigator.of(context).push(MaterialPageRoute(
-        settings: RouteSettings(name: '/courses/${course.id}'),
         builder: (_) => CourseLessonsPage(course: course, currentUser: widget.user)));
   }
-}
-
-class _DownloadedCourseCard extends StatelessWidget {
-  final PublicCourse course;
-  final AppUser? currentUser;
-  final VoidCallback onTap;
-  const _DownloadedCourseCard({required this.course, this.currentUser, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
-    final userId = currentUser?.id ?? 'guest';
-
-    return Material(
-      color: ac.surf,
-      borderRadius: BorderRadius.circular(Rad.md),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(Rad.md),
-        onTap: onTap,
-        child: Container(
-          width: 165,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Rad.md),
-            border: Border.all(color: ac.bdr2),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 80,
-                      child: FutureBuilder<String?>(
-                        future: CourseOfflineService.instance.getCourseCoverPath(course.id),
-                        builder: (context, coverSnap) {
-                          final localCover = coverSnap.data;
-                          if (localCover != null && File(localCover).existsSync()) {
-                            return Image.file(File(localCover), fit: BoxFit.cover);
-                          }
-                          return (course.coverImageUrl ?? '').isNotEmpty
-                              ? Image.network(
-                                  course.coverImageUrl!,
-                                  fit: BoxFit.cover,
-                                  gaplessPlayback: true,
-                                  errorBuilder: (_, __, ___) => _coverFallback(ac),
-                                )
-                              : _coverFallback(ac);
-                        },
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 6,
-                    left: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.black87,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.offline_pin_rounded, size: 10, color: ac.primary),
-                          const SizedBox(width: 3),
-                          const Text('Offline',
-                              style: TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                course.title,
-                style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const Spacer(),
-              StreamBuilder<Set<String>>(
-                stream: CourseOfflineService.instance.watchCompletedLessonIds(userId, course.id),
-                builder: (context, cSnap) {
-                  final completedCount = cSnap.data?.length ?? 0;
-                  return FutureBuilder<List<CourseLesson>>(
-                    future: CourseOfflineService.instance.getOfflineLessons(course.id),
-                    builder: (context, lSnap) {
-                      final total = lSnap.data?.length ?? 0;
-                      final pct = total > 0 ? (completedCount / total).clamp(0.0, 1.0) : 0.0;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('$completedCount/$total lessons',
-                                  style: AppText.caption.copyWith(fontSize: 10, color: ac.txt2)),
-                              Text('${(pct * 100).toInt()}%',
-                                  style: AppText.caption
-                                      .copyWith(fontSize: 10, color: ac.primary, fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(2),
-                            child: LinearProgressIndicator(
-                              value: pct,
-                              backgroundColor: ac.surf3,
-                              color: pct >= 1.0 ? Colors.green : ac.primary,
-                              minHeight: 4,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _coverFallback(AppColors ac) => Container(
-        color: ac.primaryBg,
-        alignment: Alignment.center,
-        child: Icon(Icons.school_rounded, color: ac.primary, size: 28),
-      );
 }
 
 class _LevelCard extends StatelessWidget {
@@ -661,11 +377,11 @@ class _LevelCard extends StatelessWidget {
               child: HierarchyAvatar(label: level.name, icon: icon.emoji, imageUrl: icon.imageUrl, fill: true),
             ),
             const SizedBox(height: 6),
-            Text(level.name, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5),
+            Text(level.name, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5, color: ac.txt),
                 maxLines: 2, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 2),
             Text('${level.courseCount} course${level.courseCount == 1 ? '' : 's'}',
-                style: AppText.caption.copyWith(fontSize: 10.5)),
+                style: AppText.caption.copyWith(fontSize: 10.5, color: ac.muted)),
           ]),
         ),
       ),
@@ -734,10 +450,10 @@ class _RecommendedCard extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 if (course.category.isNotEmpty) StatusBadge(label: course.category, color: ac.primary),
                 const SizedBox(height: 6),
-                Text(course.title, style: AppText.title.copyWith(fontSize: 12.5),
+                Text(course.title, style: AppText.title.copyWith(fontSize: 12.5, color: ac.txt),
                     maxLines: 2, overflow: TextOverflow.ellipsis),
                 const SizedBox(height: 4),
-                Text('By ${course.creatorName}', style: AppText.caption.copyWith(fontSize: 10),
+                Text('By ${course.creatorName}', style: AppText.caption.copyWith(fontSize: 10, color: ac.muted),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
               ]),
             ),
@@ -755,10 +471,10 @@ class _BookmarkDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return StreamBuilder<bool>(
       stream: PublicCourseRepository.instance.watchIsBookmarked(course.id, userId),
       builder: (context, snap) {
+        final ac = AppColors.of(context);
         final saved = snap.data ?? false;
         return Material(
           color: Colors.black38,
@@ -812,11 +528,11 @@ class _RecentReadTile extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(course.title, style: AppText.title.copyWith(fontSize: 13.5),
+                Text(course.title, style: AppText.title.copyWith(fontSize: 13.5, color: ac.txt),
                     maxLines: 1, overflow: TextOverflow.ellipsis),
                 if (meta.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text(meta, style: AppText.caption.copyWith(fontSize: 11)),
+                  Text(meta, style: AppText.caption.copyWith(fontSize: 11, color: ac.muted)),
                 ],
               ]),
             ),

@@ -18,14 +18,11 @@ import '../../repositories/recommendation_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/application_shell.dart';
 import 'quiz_icon_editor.dart';
 import 'test_taking_page.dart';
 import 'tests_topic_picker_page.dart';
 import 'xp_dashboard_page.dart';
-import '../../core/content_quality.dart';
 
-import '../../widgets/skeleton_spinner.dart';
 class TestsSubjectPickerPage extends StatefulWidget {
   final AppUser user;
   final String category;
@@ -80,17 +77,11 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
       label: subject,
       currentEmoji: current.emoji,
       currentImageUrl: current.imageUrl,
-      onSave: (emoji, image, [imageBytes]) async {
+      onSave: (emoji, image) async {
         // Was unconditionally blank -- a failed upload silently wiped
         // whatever image was already set instead of leaving it alone.
         String imageUrl = current.imageUrl;
-        if (imageBytes != null) {
-          final upload = await TestRepository.instance.uploadQuizNodeImageBytes(key: key, bytes: imageBytes);
-          switch (upload) {
-            case Success(:final value): imageUrl = value;
-            case Failure(:final message): throw Exception(message);
-          }
-        } else if (image != null) {
+        if (image != null) {
           final upload = await TestRepository.instance.uploadQuizNodeImage(key: key, imageFile: image);
           switch (upload) {
             case Success(:final value): imageUrl = value;
@@ -119,25 +110,21 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
   @override
   Widget build(BuildContext context) {
     final isGuest = widget.user.isGuest;
-    return ApplicationShell(
-      user: widget.user,
-      currentDestination: AppNavDestination.testsAndQuizzes,
-      title: widget.category,
-      breadcrumbs: [
-        ShellBreadcrumb(label: 'Tests & Quizzes', onTap: () => Navigator.of(context).pop()),
-        ShellBreadcrumb(label: widget.category),
-      ],
-      headerActions: [
-        if (!isGuest)
-          IconButton(
-            icon: Icon(Icons.bolt_rounded, color: ac.gold),
-            tooltip: 'XP Dashboard',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => XpDashboardPage(user: widget.user))),
-          ),
-      ],
-      rightPanel: QuizzesContextualPanel(user: widget.user),
-      child: FutureBuilder<Map<String, int>>(
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        title: Text(widget.category, style: AppText.h2),
+        actions: [
+          if (!isGuest)
+            IconButton(
+              icon: Icon(Icons.bolt_rounded, color: ac.gold),
+              tooltip: 'XP Dashboard',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => XpDashboardPage(user: widget.user))),
+            ),
+        ],
+      ),
+      body: FutureBuilder<Map<String, int>>(
         future: _counts,
         builder: (context, snap) {
           if (!snap.hasData) {
@@ -186,7 +173,7 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const SizedBox(height: 92,
-              child: Center(child: SkeletonSpinner(strokeWidth: 2)));
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
         }
         final tests = snap.data ?? const <Test>[];
         if (tests.isEmpty) return const SizedBox.shrink();
@@ -209,7 +196,7 @@ class _TestsSubjectPickerPageState extends State<TestsSubjectPickerPage> {
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(t.subject, style: AppText.caption.copyWith(color: ac.primary, fontWeight: FontWeight.w700)),
                       const SizedBox(height: 4),
-                      Text(displayQuizTitle(t), style: AppText.title.copyWith(fontSize: 13),
+                      Text(t.title, style: AppText.title.copyWith(fontSize: 13),
                           maxLines: 2, overflow: TextOverflow.ellipsis),
                       const Spacer(),
                       Text('${t.questionCount} question${t.questionCount == 1 ? '' : 's'}',

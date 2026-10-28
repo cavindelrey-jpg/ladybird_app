@@ -74,7 +74,6 @@ import '../../theme/category_colors.dart';
 import '../../theme/club_visuals.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
-import '../../widgets/application_shell.dart';
 import 'article_reader_page.dart';
 import 'article_composer_page.dart';
 import 'author_profile_page.dart';
@@ -103,13 +102,7 @@ Color _categoryColor(String cat) => _kCategoryColors.of(cat);
 
 class MagazineFeedPage extends StatefulWidget {
   final AppUser? user;
-
-  /// True when the application shell renders this page directly (its global
-  /// top bar already provides search / notifications / account). The in-body
-  /// header then drops those duplicated controls and keeps only the title and
-  /// magazine-specific actions. False when pushed as its own route.
-  final bool embedded;
-  const MagazineFeedPage({super.key, this.user, this.embedded = false});
+  const MagazineFeedPage({super.key, this.user});
 
   @override
   State<MagazineFeedPage> createState() => _MagazineFeedPageState();
@@ -183,7 +176,6 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
 
   void _showSortSheet() {
     HapticFeedback.selectionClick();
-    final ac = AppColors.of(context);
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -195,8 +187,8 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
           const SizedBox(height: 8),
           for (final opt in ['Newest', 'Most liked', 'Most discussed'])
             ListTile(
-              title: Text(opt, style: AppText.bodySm.copyWith(color: ac.txt)),
-              trailing: _sort == opt ? Icon(Icons.check_rounded, color: ac.gold) : null,
+              title: Text(opt, style: AppText.bodySm.copyWith(color: C.txt)),
+              trailing: _sort == opt ? const Icon(Icons.check_rounded, color: C.gold) : null,
               onTap: () {
                 setState(() => _sort = opt);
                 Navigator.pop(context);
@@ -211,207 +203,131 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final width = MediaQuery.of(context).size.width;
-    final isDesktop = width >= 900;
+    return Scaffold(
+      backgroundColor: ac.bg,
+      body: AppBackground(child: SafeArea(
+        child: Column(children: [
+          _header(context),
+          const SizedBox(height: 8),
+          _tabRow(),
+          const SizedBox(height: 16),
+          Expanded(
+            child: StreamBuilder<List<MagazineArticle>>(
+              stream: _streamForTab(),
+              builder: (context, snap) {
+                if (_tab == _FeedTab.local && !_hasSchool) {
+                  return _localFeedEmptyState();
+                }
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const _FeedSkeleton();
+                }
+                if (snap.hasError) {
+                  return ErrorView(message: snap.error.toString());
+                }
+                final articles = _applySort(snap.data ?? const <MagazineArticle>[]);
+                if (articles.isEmpty) return _emptyState();
 
-    final feedBody = AppBackground(
-      child: SafeArea(
-        child: Column(
-          children: [
-            if (!isDesktop) _header(context) else const SizedBox(height: 12),
-            _tabRow(),
-            const SizedBox(height: 16),
-            Expanded(
-              child: StreamBuilder<List<MagazineArticle>>(
-                stream: _streamForTab(),
-                builder: (context, snap) {
-                  if (_tab == _FeedTab.local && !_hasSchool) {
-                    return _localFeedEmptyState();
-                  }
-                  if (snap.connectionState == ConnectionState.waiting) {
-                    return const _FeedSkeleton();
-                  }
-                  if (snap.hasError) {
-                    return ErrorView(message: snap.error.toString());
-                  }
-                  final articles = _applySort(snap.data ?? const <MagazineArticle>[]);
-                  if (articles.isEmpty) return _emptyState();
-
-                  return ListView(
-                    padding: const EdgeInsets.only(bottom: 24),
-                    children: [
-                      if (_tab == _FeedTab.forYou || _tab == _FeedTab.global)
-                        _FeaturedCarousel(user: widget.user),
-                      if (_tab == _FeedTab.forYou && _showRecommended)
-                        _RecommendedSection(user: widget.user!),
-                      if (_tab == _FeedTab.forYou) ...[
-                        const SizedBox(height: 20),
-                        _StudentGallerySection(user: widget.user),
-                        const SizedBox(height: 20),
-                        _LatestVideosSection(user: widget.user),
-                      ],
-                      if (_tab == _FeedTab.trending) ...[
-                        const SizedBox(height: 20),
-                        _RecommendedClubsSection(user: widget.user),
-                      ],
-                      if (_tab == _FeedTab.following && !_isGuest)
-                        _FollowingAuthorsSection(userId: widget.user!.id, currentUser: widget.user),
+                return ListView(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  children: [
+                    if (_tab == _FeedTab.forYou || _tab == _FeedTab.global)
+                      _FeaturedCarousel(user: widget.user),
+                    if (_tab == _FeedTab.forYou && _showRecommended)
+                      _RecommendedSection(user: widget.user!),
+                    if (_tab == _FeedTab.forYou) ...[
                       const SizedBox(height: 20),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(children: [
-                          Expanded(child: Text(_sectionTitle, style: AppText.h2.copyWith(fontSize: 16))),
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(Rad.xs),
-                              onTap: () {
-                                HapticFeedback.selectionClick();
-                                Navigator.of(context).push(MaterialPageRoute(
-                                    builder: (_) => _AllArticlesPage(
-                                        title: _sectionTitle, stream: _streamForTab(), user: widget.user)));
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                                child: Text('See all', style: AppText.subtitle.copyWith(
-                                    color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
-                              ),
+                      _StudentGallerySection(user: widget.user),
+                      const SizedBox(height: 20),
+                      _LatestVideosSection(user: widget.user),
+                    ],
+                    if (_tab == _FeedTab.trending) ...[
+                      const SizedBox(height: 20),
+                      _RecommendedClubsSection(user: widget.user),
+                    ],
+                    if (_tab == _FeedTab.following && !_isGuest)
+                      _FollowingAuthorsSection(userId: widget.user!.id, currentUser: widget.user),
+                    const SizedBox(height: 20),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(children: [
+                        Expanded(child: Text(_sectionTitle, style: AppText.h2.copyWith(fontSize: 16))),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(Rad.xs),
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              Navigator.of(context).push(MaterialPageRoute(
+                                  builder: (_) => _AllArticlesPage(
+                                      title: _sectionTitle, stream: _streamForTab(), user: widget.user)));
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                              child: Text('See all', style: AppText.subtitle.copyWith(
+                                  color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
                             ),
                           ),
-                        ]),
-                      ),
-                      const SizedBox(height: 12),
-                      ...articles.map((a) => Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                        child: ArticleListCard(
-                          article: a,
-                          currentUser: widget.user,
-                          onOpen: () => Navigator.of(context).push(MaterialPageRoute(
-                              builder: (_) => ArticleReaderPage(article: a, currentUser: widget.user))),
-                          onOpenAuthor: () => Navigator.of(context).push(MaterialPageRoute(
-                              builder: (_) => AuthorProfilePage(authorId: a.authorId, currentUser: widget.user))),
                         ),
-                      )),
-                      if (_tab == _FeedTab.trending && !_isGuest)
-                        _PopularInNetworkSection(userId: widget.user!.id, currentUser: widget.user),
-                    ],
-                  );
-                },
-              ),
+                      ]),
+                    ),
+                    const SizedBox(height: 12),
+                    ...articles.map((a) => Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      child: ArticleListCard(
+                        article: a,
+                        currentUser: widget.user,
+                        onOpen: () => Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => ArticleReaderPage(article: a, currentUser: widget.user))),
+                        onOpenAuthor: () => Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) => AuthorProfilePage(authorId: a.authorId, currentUser: widget.user))),
+                      ),
+                    )),
+                    if (_tab == _FeedTab.trending && !_isGuest)
+                      _PopularInNetworkSection(userId: widget.user!.id, currentUser: widget.user),
+                  ],
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ]),
       ),
-    );
-
-    if (!isDesktop) {
-      return Scaffold(
-        backgroundColor: ac.bg,
-        body: feedBody,
-      );
-    }
-
-    return ApplicationShell(
-      user: widget.user,
-      currentTitle: 'Academia Magazine',
-      subtitle: 'Write. Share. Inspire.',
-      currentDestination: AppNavDestination.magazine,
-      headerActions: [
-        OutlinedButton.icon(
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => MagazineSearchPage(user: widget.user),
-            ),
-          ),
-          icon: const Icon(Icons.search_rounded, size: 16),
-          label: const Text('Search Articles'),
-          style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
-        ),
-        const SizedBox(width: 8),
-        OutlinedButton.icon(
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const TopWritersPage()),
-          ),
-          icon: const Icon(Icons.leaderboard_outlined, size: 16),
-          label: const Text('Top Writers'),
-          style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
-        ),
-        if (_canCompose) ...[
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ArticleComposerPage(user: widget.user!),
-              ),
-            ),
-            icon: const Icon(Icons.edit_note_rounded, size: 18),
-            label: const Text('Write Article'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF081630),
-              foregroundColor: Colors.white,
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
-        ],
-      ],
-      child: feedBody,
+      ),
     );
   }
 
   Widget _header(BuildContext context) {
-    if (widget.embedded) {
-      if (!_canCompose) return const SizedBox(height: 6);
-      final ac = AppColors.of(context);
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            IconButton(
-              icon: Icon(Icons.leaderboard_outlined, color: ac.txt2),
-              tooltip: 'Top Writers',
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const TopWritersPage())),
-            ),
-          ],
-        ),
-      );
-    }
     final canPop = Navigator.of(context).canPop();
-    final ac = AppColors.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 14, 16, 8),
       child: Row(children: [
         if (canPop)
           IconButton(
-            icon: Icon(Icons.arrow_back_rounded, color: ac.txt),
+            icon: const Icon(Icons.arrow_back_rounded, color: C.txt),
             onPressed: () => Navigator.of(context).pop(),
           )
         else
           const SizedBox(width: 8),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Academia Magazine', style: AppText.h1.copyWith(fontSize: 20)),
+            Text('Green Hills Magazine', style: AppText.h1.copyWith(fontSize: 20)),
             Text('Write. Share. Inspire.', style: AppText.caption.copyWith(fontSize: 12)),
           ]),
         ),
-        if (!widget.embedded)
-          IconButton(
-            icon: Icon(Icons.search_rounded, color: ac.txt2),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => MagazineSearchPage(user: widget.user))),
-          ),
+        IconButton(
+          icon: const Icon(Icons.search_rounded, color: C.txt2),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => MagazineSearchPage(user: widget.user))),
+        ),
         if (_canCompose)
           IconButton(
-            icon: Icon(Icons.leaderboard_outlined, color: ac.txt2),
+            icon: const Icon(Icons.leaderboard_outlined, color: C.txt2),
             tooltip: 'Top Writers',
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => const TopWritersPage())),
           ),
-        if (!widget.embedded)
-          widget.user == null || widget.user!.isGuest
+        widget.user == null || widget.user!.isGuest
             ? IconButton(
-                icon: Icon(Icons.notifications_outlined, color: ac.txt2),
+                icon: const Icon(Icons.notifications_outlined, color: C.txt2),
                 onPressed: () => showToast(context, 'Sign in to see notifications'),
               )
             : StreamBuilder<int>(
@@ -420,7 +336,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                   final count = snap.data ?? 0;
                   return Stack(clipBehavior: Clip.none, children: [
                     IconButton(
-                      icon: Icon(Icons.notifications_outlined, color: ac.txt2),
+                      icon: const Icon(Icons.notifications_outlined, color: C.txt2),
                       onPressed: () => Navigator.of(context).push(MaterialPageRoute(
                           builder: (_) => NotificationsPage(user: widget.user!))),
                     ),
@@ -430,7 +346,7 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                           constraints: const BoxConstraints(minWidth: 16),
-                          decoration: BoxDecoration(color: ac.red, borderRadius: BorderRadius.circular(8)),
+                          decoration: BoxDecoration(color: C.red, borderRadius: BorderRadius.circular(8)),
                           child: Text(count > 9 ? '9+' : '$count', textAlign: TextAlign.center,
                               style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
                         ),
@@ -438,28 +354,26 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                   ]);
                 },
               ),
-        if (!widget.embedded)
-          Material(
-            color: Colors.transparent,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: _canCompose
-                  ? () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => AuthorProfilePage(authorId: widget.user!.id, currentUser: widget.user)))
-                  : null,
-              child: UserAvatar(
-                initials: (widget.user?.name.isNotEmpty ?? false) ? widget.user!.name[0].toUpperCase() : '?',
-                radius: 18, photoUrl: widget.user?.photoUrl,
-              ),
+        Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: _canCompose
+                ? () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => AuthorProfilePage(authorId: widget.user!.id, currentUser: widget.user)))
+                : null,
+            child: UserAvatar(
+              initials: (widget.user?.name.isNotEmpty ?? false) ? widget.user!.name[0].toUpperCase() : '?',
+              radius: 18, photoUrl: widget.user?.photoUrl,
             ),
           ),
+        ),
       ]),
     );
   }
 
   Widget _tabRow() {
-    final ac = AppColors.of(context);
     final tabs = [
       (_FeedTab.forYou, 'For You'),
       (_FeedTab.trending, 'Trending'),
@@ -497,13 +411,13 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
                       duration: const Duration(milliseconds: 150),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: active ? ac.navy : ac.surf2,
+                        color: active ? C.navy : C.surf2,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: active ? ac.navy : ac.bdr),
+                        border: Border.all(color: active ? C.navy : C.bdr),
                       ),
                       child: Text(label, style: AppText.caption.copyWith(
                           fontSize: 12.5, fontWeight: FontWeight.w700,
-                          color: active ? ac.gold : ac.txt2)),
+                          color: active ? C.gold : C.txt2)),
                     ),
                   ),
                 );
@@ -513,14 +427,14 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
         ),
         const SizedBox(width: 8),
         Material(
-          color: ac.surf2,
+          color: C.surf2,
           shape: const CircleBorder(),
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: _showSortSheet,
-            child: Padding(
-              padding: const EdgeInsets.all(9),
-              child: Icon(Icons.tune_rounded, size: 18, color: ac.txt2),
+            child: const Padding(
+              padding: EdgeInsets.all(9),
+              child: Icon(Icons.tune_rounded, size: 18, color: C.txt2),
             ),
           ),
         ),
@@ -530,12 +444,11 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
 
 
   Widget _localFeedEmptyState() {
-    final ac = AppColors.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.school_outlined, size: 44, color: ac.muted),
+          const Icon(Icons.school_outlined, size: 44, color: C.muted),
           const SizedBox(height: 12),
           Text('No school linked', style: AppText.title.copyWith(fontSize: 15), textAlign: TextAlign.center),
           const SizedBox(height: 6),
@@ -553,15 +466,14 @@ class _MagazineFeedPageState extends State<MagazineFeedPage> {
       case _FeedTab.following: subtitle = 'Follow a writer to see their articles here.'; break;
       case _FeedTab.local:     subtitle = 'No articles from your school yet.'; break;
       default:                 subtitle = _canCompose
-          ? 'Be the first to write for the Academia Magazine.'
-          : 'Sign in to be the first to write for the Academia Magazine.';
+          ? 'Be the first to write for the Green Hills Magazine.'
+          : 'Sign in to be the first to write for the Green Hills Magazine.';
     }
-    final ac = AppColors.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.auto_stories_outlined, size: 44, color: ac.muted),
+          const Icon(Icons.auto_stories_outlined, size: 44, color: C.muted),
           const SizedBox(height: 12),
           Text('No articles yet', style: AppText.title.copyWith(fontSize: 15)),
           const SizedBox(height: 6),
@@ -730,7 +642,6 @@ class ArticleListCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _categoryColor(article.category);
-    final ac = AppColors.of(context);
     return ACard(
       onTap: onOpen,
       padding: const EdgeInsets.all(12),
@@ -741,7 +652,7 @@ class ArticleListCard extends StatelessWidget {
             width: 84, height: 84,
             child: (article.thumbnailUrl ?? '').isNotEmpty
                 ? Image.network(article.thumbnailUrl!, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(color: ac.surf3))
+                    errorBuilder: (_, __, ___) => Container(color: C.surf3))
                 : Container(color: color.withValues(alpha: .12),
                     child: Icon(Icons.article_rounded, color: color, size: 26)),
           ),
@@ -754,7 +665,7 @@ class ArticleListCard extends StatelessWidget {
               if (_isOwn)
                 PopupMenuButton<String>(
                   padding: EdgeInsets.zero,
-                  icon: Icon(Icons.more_horiz_rounded, size: 18, color: ac.muted),
+                  icon: const Icon(Icons.more_horiz_rounded, size: 18, color: C.muted),
                   onSelected: (v) {
                     if (v == 'edit') {
                       Navigator.of(context).push(MaterialPageRoute(
@@ -790,7 +701,7 @@ class ArticleListCard extends StatelessWidget {
                     UserAvatar(initials: article.authorName.isEmpty ? '?' : article.authorName[0].toUpperCase(),
                         radius: 10, photoUrl: article.authorPhotoUrl),
                     const SizedBox(width: 6),
-                    Text(article.authorName, style: AppText.caption.copyWith(fontSize: 11, color: ac.txt)),
+                    Text(article.authorName, style: AppText.caption.copyWith(fontSize: 11, color: C.txt)),
                   ]),
                 ),
               ),
@@ -799,7 +710,7 @@ class ArticleListCard extends StatelessWidget {
               const Spacer(),
               _LikeButton(article: article, currentUser: currentUser),
               const SizedBox(width: 10),
-              Icon(Icons.mode_comment_outlined, size: 14, color: ac.muted),
+              const Icon(Icons.mode_comment_outlined, size: 14, color: C.muted),
               const SizedBox(width: 3),
               Text('${article.commentCount}', style: AppText.caption.copyWith(fontSize: 10.5)),
             ]),
@@ -817,10 +728,9 @@ class _LikeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     if (currentUser == null || currentUser!.isGuest) {
       return Row(children: [
-        Icon(Icons.favorite_border_rounded, size: 14, color: ac.muted),
+        const Icon(Icons.favorite_border_rounded, size: 14, color: C.muted),
         const SizedBox(width: 3),
         Text('${article.likeCount}', style: AppText.caption.copyWith(fontSize: 10.5)),
       ]);
@@ -839,7 +749,7 @@ class _LikeButton extends StatelessWidget {
             },
             child: Row(children: [
               Icon(liked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                  size: 14, color: liked ? ac.red : ac.muted),
+                  size: 14, color: liked ? C.red : C.muted),
               const SizedBox(width: 3),
               Text('${article.likeCount}', style: AppText.caption.copyWith(fontSize: 10.5)),
             ]),
@@ -996,7 +906,6 @@ class _FollowPill extends StatelessWidget {
       stream: FollowRepository.instance.watchIsFollowing(currentUserId, authorId),
       builder: (context, snap) {
         final following = snap.data ?? false;
-        final ac = AppColors.of(context);
         return Material(
           color: Colors.transparent,
           child: InkWell(
@@ -1012,12 +921,12 @@ class _FollowPill extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: following ? ac.surf2 : ac.primary,
+                color: following ? C.surf2 : C.primary,
                 borderRadius: BorderRadius.circular(20),
-                border: following ? Border.all(color: ac.bdr) : null,
+                border: following ? Border.all(color: C.bdr) : null,
               ),
               child: Text(following ? 'Following' : 'Follow', style: AppText.caption.copyWith(
-                  fontSize: 11, fontWeight: FontWeight.w700, color: following ? ac.txt2 : Colors.white)),
+                  fontSize: 11, fontWeight: FontWeight.w700, color: following ? C.txt2 : Colors.white)),
             ),
           ),
         );
@@ -1083,7 +992,6 @@ class _StudentGallerySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return StreamBuilder<List<MagazineGalleryPost>>(
       stream: MagazineRepository.instance.watchGalleryPosts(limit: 8),
       builder: (context, snap) {
@@ -1103,7 +1011,7 @@ class _StudentGallerySection extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                     child: Text('See all', style: AppText.subtitle.copyWith(
-                        color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                        color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
                   ),
                 ),
               ),
@@ -1129,7 +1037,7 @@ class _StudentGallerySection extends StatelessWidget {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(Rad.sm),
                         child: Image.network(post.imageUrls.first, width: 90, height: 90, fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(width: 90, height: 90, color: ac.surf3)),
+                            errorBuilder: (_, __, ___) => Container(width: 90, height: 90, color: C.surf3)),
                       ),
                       if (post.imageUrls.length > 1)
                         Positioned(
@@ -1161,7 +1069,6 @@ class _LatestVideosSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
     return StreamBuilder<List<MagazineVideoPost>>(
       stream: MagazineRepository.instance.watchVideoPosts(limit: 8),
       builder: (context, snap) {
@@ -1181,7 +1088,7 @@ class _LatestVideosSection extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                     child: Text('See all', style: AppText.subtitle.copyWith(
-                        color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                        color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
                   ),
                 ),
               ),
@@ -1211,9 +1118,9 @@ class _LatestVideosSection extends StatelessWidget {
                             borderRadius: BorderRadius.circular(Rad.sm),
                             child: (v.thumbnailUrl ?? '').isNotEmpty
                                 ? Image.network(v.thumbnailUrl!, width: 150, height: 90, fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(width: 150, height: 90, color: ac.surf3))
-                                : Container(width: 150, height: 90, color: ac.surf3,
-                                    child: Icon(Icons.videocam_outlined, color: ac.muted)),
+                                    errorBuilder: (_, __, ___) => Container(width: 150, height: 90, color: C.surf3))
+                                : Container(width: 150, height: 90, color: C.surf3,
+                                    child: const Icon(Icons.videocam_outlined, color: C.muted)),
                           ),
                           const Positioned.fill(child: Center(child: Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 32))),
                           if (v.durationSeconds > 0)
@@ -1269,7 +1176,7 @@ class _RecommendedClubsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Club>>(
-      stream: ClubRepository.instance.watchClubs(user: user),
+      stream: ClubRepository.instance.watchClubs(schoolId: user?.schoolId),
       builder: (context, snap) {
         final allClubs = snap.data ?? const <Club>[];
         if (allClubs.isEmpty) return const SizedBox.shrink();
@@ -1290,7 +1197,6 @@ class _RecommendedClubsSection extends StatelessWidget {
   }
 
   Widget _section(BuildContext context, List<Club> preview, List<Club> seeAllList) {
-    final ac = AppColors.of(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1306,7 +1212,7 @@ class _RecommendedClubsSection extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                   child: Text('See all', style: AppText.subtitle.copyWith(
-                      color: ac.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                      color: C.primary, fontWeight: FontWeight.w700, fontSize: 12)),
                 ),
               ),
             ),
@@ -1332,7 +1238,7 @@ class _RecommendedClubsSection extends StatelessWidget {
                 child: Container(
                   width: 170,
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: ac.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: ac.bdr)),
+                  decoration: BoxDecoration(color: C.surf, borderRadius: BorderRadius.circular(Rad.md), border: Border.all(color: C.bdr)),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
                       ClubLogo(club: club, size: 28, borderRadius: BorderRadius.circular(8)),
@@ -1342,7 +1248,7 @@ class _RecommendedClubsSection extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(club.description, style: AppText.caption.copyWith(fontSize: 10), maxLines: 2, overflow: TextOverflow.ellipsis),
                     const Spacer(),
-                    Text('${club.memberCount} members', style: AppText.caption.copyWith(fontSize: 10, color: ac.muted)),
+                    Text('${club.memberCount} members', style: AppText.caption.copyWith(fontSize: 10, color: C.muted)),
                   ]),
                 ),
               ),
@@ -1484,7 +1390,7 @@ class _AllGalleryPage extends StatelessWidget {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(Rad.sm),
                       child: Image.network(post.imageUrls.first, fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(color: ac.surf3)),
+                          errorBuilder: (_, __, ___) => Container(color: C.surf3)),
                     ),
                     if (post.imageUrls.length > 1)
                       Positioned(
@@ -1553,9 +1459,9 @@ class _AllVideosPage extends StatelessWidget {
                         borderRadius: BorderRadius.circular(Rad.sm),
                         child: (v.thumbnailUrl ?? '').isNotEmpty
                             ? Image.network(v.thumbnailUrl!, width: 120, height: 72, fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(width: 120, height: 72, color: ac.surf3))
-                            : Container(width: 120, height: 72, color: ac.surf3,
-                                child: Icon(Icons.videocam_outlined, color: ac.muted)),
+                                errorBuilder: (_, __, ___) => Container(width: 120, height: 72, color: C.surf3))
+                            : Container(width: 120, height: 72, color: C.surf3,
+                                child: const Icon(Icons.videocam_outlined, color: C.muted)),
                       ),
                       const Positioned.fill(child: Center(child: Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 28))),
                       if (v.durationSeconds > 0)

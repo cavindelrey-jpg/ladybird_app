@@ -19,12 +19,10 @@ import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/application_shell.dart';
 import 'quiz_icon_editor.dart';
 import 'tests_subject_picker_page.dart';
 import 'xp_dashboard_page.dart';
 
-import '../../widgets/skeleton_spinner.dart';
 class QuizCategoriesPage extends StatefulWidget {
   final AppUser user;
   const QuizCategoriesPage({super.key, required this.user});
@@ -107,16 +105,9 @@ class _QuizCategoriesPageState extends State<QuizCategoriesPage> {
       label: c.name,
       currentEmoji: c.emoji,
       currentImageUrl: c.imageUrl,
-      onSave: (emoji, image, [imageBytes]) async {
+      onSave: (emoji, image) async {
         String imageUrl = c.imageUrl;
-        if (imageBytes != null) {
-          final upload = await TestRepository.instance
-              .uploadQuizCategoryImageBytes(categoryId: c.id, bytes: imageBytes);
-          switch (upload) {
-            case Success(:final value): imageUrl = value;
-            case Failure(:final message): throw Exception(message);
-          }
-        } else if (image != null) {
+        if (image != null) {
           final upload = await TestRepository.instance
               .uploadQuizCategoryImage(categoryId: c.id, imageFile: image);
           switch (upload) {
@@ -141,14 +132,23 @@ class _QuizCategoriesPageState extends State<QuizCategoriesPage> {
 
   @override
   Widget build(BuildContext context) {
-    return ApplicationShell(
-      user: widget.user,
-      currentTitle: 'Tests & Quizzes',
-      subtitle: 'Explore subjects, practice quizzes, and earn XP across all education levels',
-      currentDestination: AppNavDestination.testsAndQuizzes,
-      contextualPanel: QuizzesContextualPanel(user: widget.user),
-      child: _loading
-          ? const Center(child: SkeletonSpinner())
+    final isGuest = widget.user.isGuest;
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        title: Text('Academia Quizzes & Tests', style: AppText.h2),
+        actions: [
+          if (!isGuest)
+            IconButton(
+              icon: Icon(Icons.bolt_rounded, color: ac.gold),
+              tooltip: 'XP Dashboard',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => XpDashboardPage(user: widget.user))),
+            ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
           : _error != null
           ? Center(
               child: Padding(
@@ -188,11 +188,8 @@ class _QuizCategoriesPageState extends State<QuizCategoriesPage> {
               child: GridView.builder(
                 padding: const EdgeInsets.all(20),
                 itemCount: _categories.length + (_canManage ? 1 : 0),
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 260,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: 0.95,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2, crossAxisSpacing: 12, mainAxisSpacing: 12, childAspectRatio: 0.92,
                 ),
                 itemBuilder: (context, i) {
                   if (i >= _categories.length) return _addTile();

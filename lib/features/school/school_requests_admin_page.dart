@@ -12,7 +12,6 @@ import '../../models/school_request.dart';
 import '../../repositories/school_request_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/application_shell.dart';
 import '../../widgets/widgets.dart';
 
 class SchoolRequestsAdminPage extends StatefulWidget {
@@ -31,34 +30,29 @@ class _SchoolRequestsAdminPageState extends State<SchoolRequestsAdminPage> {
     final ac = AppColors.of(context);
     final staff = widget.staff;
 
-    if (!staff.hasMinRole(UserRole.lecturer) && !staff.canManageSchool) {
-      return ApplicationShell(
-        user: staff,
-        currentTitle: 'Requests Inbox',
-        currentDestination: AppNavDestination.schoolConnect,
-        child: Center(
-          child: Text(
-            'Staff access required.',
-            style: GoogleFonts.inter(color: ac.muted),
-          ),
-        ),
+    if (!staff.canUploadContent && !staff.canManageSchool) {
+      return Scaffold(
+        backgroundColor: ac.bg,
+        appBar: AppBar(backgroundColor: ac.bg, elevation: 0),
+        body: Center(child: Text('Staff access required.', style: GoogleFonts.inter(color: ac.muted))),
       );
     }
 
     final schoolId = staff.schoolId ?? '';
-    return ApplicationShell(
-      user: staff,
-      currentTitle: 'Requests Inbox',
-      subtitle: 'Respond to student and parent school service requests',
-      currentDestination: AppNavDestination.schoolConnect,
-      headerActions: [
-        OutlinedButton(
-          onPressed: () => setState(() => _openOnly = !_openOnly),
-          style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
-          child: Text(_openOnly ? 'Show All' : 'Show Open Only'),
-        ),
-      ],
-      child: StreamBuilder<List<SchoolRequest>>(
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        backgroundColor: ac.bg, elevation: 0,
+        title: Text('Requests Inbox', style: AppText.h2.copyWith(fontSize: 16, color: ac.txt)),
+        iconTheme: IconThemeData(color: ac.txt),
+        actions: [
+          TextButton(
+            onPressed: () => setState(() => _openOnly = !_openOnly),
+            child: Text(_openOnly ? 'Show all' : 'Show open only'),
+          ),
+        ],
+      ),
+      body: StreamBuilder<List<SchoolRequest>>(
         stream: SchoolRequestRepository.instance.watchForSchool(schoolId, openOnly: _openOnly),
         builder: (context, snap) {
           final requests = snap.data ?? const <SchoolRequest>[];

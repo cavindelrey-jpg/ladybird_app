@@ -9,17 +9,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../models/app_user.dart';
 import '../../models/school_mark.dart';
-import '../../repositories/school_class_repository.dart';
 import '../../repositories/school_marks_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
-import 'exam_composer/exam_metadata_page.dart';
 import 'marks_entry_page.dart';
 import 'marks_csv_import_page.dart';
 import 'widgets/school_shared_widgets.dart';
-import '../../widgets/application_shell.dart';
 
-import '../../widgets/skeleton_spinner.dart';
 enum _CompareTarget { previousSequence, firstSequence }
 
 class MarksPage extends StatefulWidget {
@@ -74,86 +70,30 @@ class _MarksPageState extends State<MarksPage> {
     final ac = AppColors.of(context);
     final u = widget.user;
 
-    // Staff have no report card of their own -- showing them the student
-    // view ("Student ID —", "No marks recorded yet") with the real
-    // actions hidden behind two unlabeled icons was the old behavior.
-    if (u.canRecordAnyMarks && !u.isStudent) return _StaffMarksHome(staff: u);
-
-    return ApplicationShell(
-      user: u,
-      currentTitle: 'Marks',
-      currentDestination: AppNavDestination.marks,
-      child: Column(children: [
-        if (u.canRecordAnyMarks)
-          Container(
-            margin: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: ac.primaryBg,
-              borderRadius: BorderRadius.circular(Rad.md),
-              border: Border.all(color: ac.primary.withValues(alpha: .3)),
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: schoolAppBar(
+        context: context,
+        title: 'Marks',
+        subtitle: 'View your academic performance',
+        trailing: [
+          if (u.canRecordAnyMarks) ...[
+            IconButton(
+              icon: Icon(Icons.edit_note_rounded, color: ac.txt2),
+              tooltip: 'Enter marks',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => MarksEntryPage(staff: u))).then((_) => _refresh()),
             ),
-            child: Row(children: [
-              Icon(Icons.edit_note_rounded, color: ac.primary, size: 24),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Teacher Marks Console', style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: ac.txt)),
-                  Text('Record marks or import class results spreadsheet', style: GoogleFonts.inter(fontSize: 11, color: ac.txt2)),
-                ]),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                    settings: const RouteSettings(name: '/academia/exam-composer/new'),
-                    builder: (_) => ExamMetadataPage(user: u))),
-                icon: const Icon(Icons.note_add_rounded, size: 14),
-                label: const Text('Set Exam'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  textStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
-                ),
-              ),
-              const SizedBox(width: 6),
-              ElevatedButton.icon(
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                    settings: const RouteSettings(name: '/school/marks/entry'),
-                    builder: (_) => MarksEntryPage(staff: u))).then((_) => _refresh()),
-                icon: const Icon(Icons.edit_rounded, size: 14),
-                label: const Text('Record Marks'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ac.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  textStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
-                ),
-              ),
-              const SizedBox(width: 6),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-                    settings: const RouteSettings(name: '/school/marks/import'),
-                    builder: (_) => MarksCsvImportPage(staff: u))).then((res) {
-                  if (res != null && mounted) {
-                    final result = res is MarksImportResult ? res : null;
-                    Navigator.of(context).push(MaterialPageRoute(
-                      settings: const RouteSettings(name: '/school/marks/entry'),
-                      builder: (_) => MarksEntryPage(
-                        staff: u,
-                        initialClass: result?.classLevel,
-                        initialSubject: result?.subject,
-                        initialSequence: result?.sequence,
-                      ),
-                    ));
-                  }
-                }),
-                icon: const Icon(Icons.upload_file_rounded, size: 14),
-                label: const Text('CSV'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  textStyle: const TextStyle(fontSize: 11.5),
-                ),
-              ),
-            ]),
-          ),
+            IconButton(
+              icon: Icon(Icons.upload_file_rounded, color: ac.txt2),
+              tooltip: 'Upload CSV',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => MarksCsvImportPage(staff: u))).then((_) => _refresh()),
+            ),
+          ],
+        ],
+      ),
+      body: Column(children: [
         StudentInfoCard(user: u),
         _controls(ac),
         Expanded(
@@ -161,10 +101,10 @@ class _MarksPageState extends State<MarksPage> {
             future: _future,
             builder: (context, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
-                return const Center(child: SkeletonSpinner(strokeWidth: 2));
+                return const Center(child: CircularProgressIndicator(strokeWidth: 2));
               }
               final (current, previous) = snap.data ?? (const <SchoolMark>[], const <SchoolMark>[]);
-              if (current.isEmpty) return _emptyState(ac);
+              if (current.isEmpty) return _emptyState(ac, u);
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 children: [
@@ -346,7 +286,7 @@ class _MarksPageState extends State<MarksPage> {
         Expanded(flex: 3, child: Text(mark.teacherName.isEmpty ? '—' : mark.teacherName,
             maxLines: 1, overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2))),
-        Expanded(flex: 2, child: Text(formatMark(double.parse(markOnScale.toStringAsFixed(2))),
+        Expanded(flex: 2, child: Text(markOnScale.toStringAsFixed(1),
             textAlign: TextAlign.center,
             style: GoogleFonts.sora(fontSize: 12.5, fontWeight: FontWeight.w700, color: ac.txt))),
         Expanded(flex: 1, child: Text(mark.grade,
@@ -385,271 +325,30 @@ class _MarksPageState extends State<MarksPage> {
     );
   }
 
-  Widget _emptyState(AppColors ac) => Center(
+  // A teacher/class-master/admin opening this page has no marks of
+  // their OWN to show here (this view is always "MY marks", keyed off
+  // whoever is signed in) -- without this branch the empty state reads
+  // like an error rather than pointing at the enter-marks icons above.
+  Widget _emptyState(AppColors ac, AppUser u) => Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(Icons.assessment_outlined, size: 48, color: ac.muted),
             const SizedBox(height: 16),
-            Text('No marks recorded for ${_selected.label} yet',
-                textAlign: TextAlign.center,
-                style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
+            Text(
+              u.canRecordAnyMarks
+                  ? 'This shows your own marks, which staff don\'t have.'
+                  : 'No marks recorded for ${_selected.label} yet',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.sora(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt),
+            ),
+            if (u.canRecordAnyMarks) ...[
+              const SizedBox(height: 8),
+              Text('Use the icons above to enter marks or upload a CSV for your students.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.inter(fontSize: 12.5, color: ac.txt2)),
+            ],
           ]),
         ),
       );
-}
-
-/// What a teacher / class master / admin sees on "Marks":
-/// Prominent "Record Marks" and "Upload CSV" controls, plus one card per class/subject.
-class _StaffMarksHome extends StatefulWidget {
-  final AppUser staff;
-  const _StaffMarksHome({required this.staff});
-
-  @override
-  State<_StaffMarksHome> createState() => _StaffMarksHomeState();
-}
-
-class _StaffMarksHomeState extends State<_StaffMarksHome> {
-  List<String> _dynamicClasses = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadClasses();
-  }
-
-  Future<void> _loadClasses() async {
-    final list = await SchoolClassRepository.instance.getClassNames(
-      widget.staff.effectiveSchoolId,
-      activeOnly: true,
-    );
-    if (mounted) setState(() => _dynamicClasses = list);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ac = AppColors.of(context);
-    final availableClasses = _dynamicClasses.isNotEmpty
-        ? (widget.staff.hasMinRole(UserRole.schoolAdmin) || widget.staff.isSuperAdmin || widget.staff.isAdmin
-            ? _dynamicClasses
-            : () {
-                final assigned = {
-                  if ((widget.staff.classMasterOfClass ?? '').isNotEmpty) widget.staff.classMasterOfClass!,
-                  for (final a in widget.staff.teachingAssignments) a.classLevel,
-                }.where((c) => c.isNotEmpty).toList();
-                return assigned.isNotEmpty ? assigned : _dynamicClasses;
-              }())
-        : recordableClassesFor(widget.staff);
-
-    final cards = <(String, String?)>[];
-    if (widget.staff.teachingAssignments.isEmpty) {
-      // Default: All classes are accessible with "All subjects"
-      for (final c in availableClasses) {
-        cards.add((c, null));
-      }
-    } else {
-      final pairs = <(String, String)>[
-        for (final c in availableClasses)
-          for (final s in recordableSubjectsFor(widget.staff, c))
-            if (widget.staff.hasMinRole(UserRole.schoolAdmin) ||
-                widget.staff.classMasterOfClass == c ||
-                widget.staff.teachingAssignments.any((a) => a.classLevel == c && a.subject == s))
-              (c, s),
-      ];
-      for (final (c, s) in pairs) {
-        final wholeClass = widget.staff.hasMinRole(UserRole.schoolAdmin) || widget.staff.classMasterOfClass == c;
-        if (wholeClass) {
-          if (!cards.any((e) => e.$1 == c && e.$2 == null)) cards.add((c, null));
-        } else {
-          cards.add((c, s));
-        }
-      }
-      if (cards.isEmpty) {
-        for (final c in availableClasses) {
-          cards.add((c, null));
-        }
-      }
-    }
-
-    void open(String? cls, String? subject, {AcademicSequence? sequence}) => Navigator.of(context).push(MaterialPageRoute(
-        settings: const RouteSettings(name: '/school/marks/entry'),
-        builder: (_) => MarksEntryPage(
-              staff: widget.staff,
-              initialClass: cls,
-              initialSubject: subject,
-              initialSequence: sequence,
-            )));
-
-    Future<void> openCsvImport() async {
-      final res = await Navigator.of(context).push(MaterialPageRoute(
-          settings: const RouteSettings(name: '/school/marks/import'),
-          builder: (_) => MarksCsvImportPage(staff: widget.staff)));
-      if (res != null && context.mounted) {
-        if (res is MarksImportResult && res.classLevel != null) {
-          open(res.classLevel, res.subject, sequence: res.sequence);
-        } else {
-          open(cards.isNotEmpty ? cards.first.$1 : null, null);
-        }
-      }
-    }
-
-    return ApplicationShell(
-      user: widget.staff,
-      currentTitle: 'Marks',
-      currentDestination: AppNavDestination.marks,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          // ── Prominent Teacher Marks Action Card ──────────────────────────
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [ac.primaryBg, ac.surf],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(Rad.lg),
-              border: Border.all(color: ac.primary.withValues(alpha: .35)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: .04),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: ac.primary, borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.edit_note_rounded, color: Colors.white, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Record Student Marks',
-                          style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w800, color: ac.txt)),
-                      const SizedBox(height: 2),
-                      Text('Enter scores directly for any class or import via CSV spreadsheet.',
-                          style: GoogleFonts.inter(fontSize: 11.5, color: ac.txt2)),
-                    ]),
-                  ),
-                ]),
-                const SizedBox(height: 14),
-                Row(children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => open(cards.isNotEmpty ? cards.first.$1 : null, null),
-                      icon: const Icon(Icons.edit_rounded, size: 16),
-                      label: const Text('Record / Enter Marks'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ac.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        elevation: 1,
-                        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: openCsvImport,
-                      icon: const Icon(Icons.upload_file_rounded, size: 16),
-                      label: const Text('Upload Marks CSV'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        side: BorderSide(color: ac.primary.withValues(alpha: .5)),
-                        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-                ]),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          Text('Classes & Subjects', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
-          const SizedBox(height: 10),
-          for (final (cls, subject) in cards)
-            Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: ac.surf,
-                borderRadius: BorderRadius.circular(Rad.md),
-                border: Border.all(color: ac.bdr2),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 18,
-                        backgroundColor: ac.primaryBg,
-                        child: Icon(Icons.groups_rounded, color: ac.primary, size: 18),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(cls,
-                                softWrap: true,
-                                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: ac.txt)),
-                            const SizedBox(height: 2),
-                            Text(
-                              subject ?? (widget.staff.classMasterOfClass == cls ? 'All subjects · Class master' : 'All subjects'),
-                              softWrap: true,
-                              style: GoogleFonts.inter(fontSize: 12, color: ac.txt2),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => open(cls, subject),
-                      icon: const Icon(Icons.edit_rounded, size: 15),
-                      label: const Text('Enter Marks', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ac.primaryBg,
-                        foregroundColor: ac.primary,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: ac.surf2, borderRadius: BorderRadius.circular(Rad.sm)),
-            child: Row(children: [
-              Icon(Icons.info_outline_rounded, size: 16, color: ac.muted),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text('Tip: Tap any class to view, enter, or edit student marks. You can also export class marks as CSV anytime.',
-                    style: GoogleFonts.inter(fontSize: 11.5, color: ac.muted, height: 1.4)),
-              ),
-            ]),
-          ),
-        ],
-      ),
-    );
-  }
 }

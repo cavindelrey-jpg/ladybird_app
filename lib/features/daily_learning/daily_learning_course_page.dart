@@ -14,7 +14,6 @@ import '../../repositories/daily_learning_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/application_shell.dart';
 import 'daily_learning_lesson_page.dart';
 
 class DailyLearningCoursePage extends StatelessWidget {
@@ -26,17 +25,15 @@ class DailyLearningCoursePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     final isGuest = user.isGuest;
-    return ApplicationShell(
-      user: user,
-      currentDestination: AppNavDestination.academicCourses,
-      title: course.title,
-      breadcrumbs: [
-        const ShellBreadcrumb(label: 'Courses'),
-        ShellBreadcrumb(label: 'Daily Challenge', onTap: () => Navigator.of(context).pop()),
-        ShellBreadcrumb(label: course.title),
-      ],
-      rightPanel: CoursesContextualPanel(user: user),
-      child: isGuest
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        backgroundColor: ac.bg,
+        elevation: 0,
+        title: Text(course.title, style: AppText.h2.copyWith(color: ac.txt)),
+        iconTheme: IconThemeData(color: ac.txt),
+      ),
+      body: false
           ? Center(
               child: Padding(
                 padding: const EdgeInsets.all(32),
@@ -44,43 +41,19 @@ class DailyLearningCoursePage extends StatelessWidget {
                   Icon(Icons.lock_outline_rounded, size: 48, color: ac.muted),
                   const SizedBox(height: 16),
                   Text('Sign in to start ${course.title}',
-                      style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
+                      style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.w700, color: ac.txt)),
                 ]),
               ),
             )
-          : StreamBuilder<(Set<String>, DateTime?)>(
+          : StreamBuilder<Set<String>>(
               stream: DailyLearningRepository.instance.watchProgress(user.id, course.id),
               builder: (context, snap) {
-                final completed = snap.data?.$1 ?? const <String>{};
-                final updatedAt = snap.data?.$2;
-                
-                final now = DateTime.now();
-                bool lockedForToday = false;
-                if (updatedAt != null && 
-                    updatedAt.year == now.year && 
-                    updatedAt.month == now.month && 
-                    updatedAt.day == now.day && 
-                    completed.isNotEmpty) {
-                  lockedForToday = true;
-                }
-                
+                final completed = snap.data ?? const <String>{};
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
                     Text('${completed.length} of ${course.lessons.length} lessons complete',
                         style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w600, color: ac.txt2)),
-                    if (lockedForToday && completed.length < course.lessons.length) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: ac.orgBg, borderRadius: BorderRadius.circular(8)),
-                        child: Row(children: [
-                          Icon(Icons.timer_rounded, color: ac.org, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text("You've completed your daily lesson for today! Come back tomorrow to continue.", style: GoogleFonts.inter(fontSize: 12, color: ac.org, fontWeight: FontWeight.w600))),
-                        ]),
-                      ),
-                    ],
                     const SizedBox(height: 16),
                     for (var i = 0; i < course.lessons.length; i++)
                       _LessonNode(
@@ -90,7 +63,6 @@ class DailyLearningCoursePage extends StatelessWidget {
                         index: i,
                         isCompleted: completed.contains(course.lessons[i].id),
                         isUnlocked: i == 0 || completed.contains(course.lessons[i - 1].id),
-                        lockedForToday: lockedForToday,
                       ),
                   ],
                 );
@@ -107,11 +79,9 @@ class _LessonNode extends StatelessWidget {
   final int index;
   final bool isCompleted;
   final bool isUnlocked;
-  final bool lockedForToday;
   const _LessonNode({
     required this.user, required this.course, required this.lesson,
     required this.index, required this.isCompleted, required this.isUnlocked,
-    this.lockedForToday = false,
   });
 
   @override
@@ -129,10 +99,6 @@ class _LessonNode extends StatelessWidget {
           onTap: () {
             if (!isUnlocked) {
               showToast(context, 'Complete the previous lesson to unlock this one.');
-              return;
-            }
-            if (!isCompleted && lockedForToday) {
-              showToast(context, 'You have already completed a lesson today. Come back tomorrow!');
               return;
             }
             HapticFeedback.selectionClick();
@@ -155,7 +121,7 @@ class _LessonNode extends StatelessWidget {
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Lesson ${index + 1}', style: GoogleFonts.inter(fontSize: 10.5, color: ac.muted)),
-                  Text(lesson.title, style: GoogleFonts.inter(
+                  Text(lesson.title, style: GoogleFonts.sora(
                       fontSize: 13.5, fontWeight: FontWeight.w700,
                       color: isUnlocked ? ac.txt : ac.muted)),
                 ]),

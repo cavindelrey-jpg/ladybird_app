@@ -28,19 +28,10 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../pages/notifications_page.dart';
 import '../announcements/announcements_page.dart';
-import 'daily_notices/daily_notices_page.dart';
-import 'disciplinary_records_page.dart';
-import 'class_management_page.dart';
-import 'student_roster_page.dart';
-import 'exam_composer/exam_list_page.dart';
-import 'homework_page.dart';
-import 'marks_page.dart';
-import 'timetable_page.dart';
 import 'school_calendar_manager_page.dart';
 import 'school_request_form_page.dart';
 import 'school_requests_admin_page.dart';
 import 'widgets/school_shared_widgets.dart';
-import '../../widgets/application_shell.dart';
 
 class SchoolConnectPage extends StatelessWidget {
   final AppUser user;
@@ -49,44 +40,35 @@ class SchoolConnectPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final schoolId = user.effectiveSchoolId;
+    final schoolId = user.schoolId ?? '';
 
-    final canViewInbox =
-        user.hasMinRole(UserRole.lecturer) || user.canManageSchool;
-
-    return ApplicationShell(
-      user: user,
-      currentTitle: 'School Connect',
-      subtitle: 'School services, student requests, calendar, and announcements',
-      currentDestination: AppNavDestination.schoolConnect,
-      headerActions: [
-        if (canViewInbox && schoolId.isNotEmpty)
-          ElevatedButton.icon(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                settings: const RouteSettings(name: '/school/requests/admin'),
-                builder: (_) => SchoolRequestsAdminPage(staff: user),
-              ),
-            ),
-            icon: const Icon(Icons.inbox_rounded, size: 16),
-            label: const Text('Requests Inbox'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF081630),
-              foregroundColor: Colors.white,
-              visualDensity: VisualDensity.compact,
-            ),
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: schoolAppBar(
+        context: context,
+        title: 'School Connect',
+        subtitle: 'Stay connected with your school',
+        trailing: [
+          IconButton(
+            icon: Icon(Icons.notifications_outlined, color: ac.txt2),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => NotificationsPage(user: user))),
           ),
-      ],
-      child: schoolId.isEmpty
+          if (user.canManageSchool || user.canUploadContent)
+            IconButton(
+              icon: Icon(Icons.inbox_outlined, color: ac.txt2),
+              tooltip: 'Requests inbox',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => SchoolRequestsAdminPage(staff: user))),
+            ),
+        ],
+      ),
+      body: schoolId.isEmpty
           ? _missingSchoolState(ac)
           : ListView(
               padding: const EdgeInsets.only(bottom: 24),
               children: [
                 StudentInfoCard(user: user),
-                const SizedBox(height: 16),
-                _coreAcademicsRow(context, ac),
-                const SizedBox(height: 12),
-                _academicToolsRow(context, ac),
                 const SizedBox(height: 16),
                 _quickActionBox(context, ac),
                 const SizedBox(height: 20),
@@ -102,243 +84,6 @@ class SchoolConnectPage extends StatelessWidget {
     );
   }
 
-  Widget _coreAcademicsRow(BuildContext context, AppColors ac) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        children: [
-          Expanded(
-            child: _schoolQuickCard(
-              context,
-              ac: ac,
-              icon: Icons.assessment_outlined,
-              iconColor: ac.primary,
-              iconBg: ac.primaryBg,
-              title: 'Marks',
-              subtitle: 'Grades & Reports',
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                settings: const RouteSettings(name: '/school/marks'),
-                builder: (_) => MarksPage(user: user),
-              )),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _schoolQuickCard(
-              context,
-              ac: ac,
-              icon: Icons.menu_book_outlined,
-              iconColor: ac.org,
-              iconBg: ac.orgBg,
-              title: 'Homework',
-              subtitle: 'Tasks & Quizzes',
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                settings: const RouteSettings(name: '/school/homework'),
-                builder: (_) => HomeworkPage(user: user),
-              )),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _schoolQuickCard(
-              context,
-              ac: ac,
-              icon: Icons.calendar_month_outlined,
-              iconColor: ac.grn,
-              iconBg: ac.grnBg,
-              title: 'Timetable',
-              subtitle: 'Class Schedule',
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                settings: const RouteSettings(name: '/school/timetable'),
-                builder: (_) => TimetablePage(user: user),
-              )),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _schoolQuickCard(
-    BuildContext context, {
-    required AppColors ac,
-    required IconData icon,
-    required Color iconColor,
-    required Color iconBg,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: ac.surf,
-      borderRadius: BorderRadius.circular(Rad.md),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(Rad.md),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Rad.md),
-            border: Border.all(color: ac.bdr2),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(8)),
-                child: Icon(icon, color: iconColor, size: 20),
-              ),
-              const SizedBox(height: 8),
-              Text(title, style: AppText.title.copyWith(fontSize: 13, color: ac.txt)),
-              Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: AppText.caption.copyWith(color: ac.muted, fontSize: 10)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _academicToolsRow(BuildContext context, AppColors ac) {
-    final canCompose = user.canComposeExam;
-    final canManageClasses = user.canManageSchool || user.isAdmin || user.isSchoolClassMaster || user.isTeacher;
-
-    final cards = <Widget>[
-      _toolCard(
-        context,
-        ac,
-        icon: Icons.campaign_outlined,
-        iconColor: ac.org,
-        iconBg: ac.orgBg,
-        title: 'Daily Notices',
-        subtitle: "Tomorrow's Programme",
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          settings: const RouteSettings(name: '/school/notices'),
-          builder: (_) => DailyNoticesPage(user: user),
-        )),
-      ),
-      if (canCompose)
-        _toolCard(
-          context,
-          ac,
-          icon: Icons.assignment_outlined,
-          iconColor: ac.primary,
-          iconBg: ac.primaryBg,
-          title: 'Exam Composer',
-          subtitle: 'Question Bank',
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            settings: const RouteSettings(name: '/academia/exam-composer'),
-            builder: (_) => ExamListPage(user: user),
-          )),
-        ),
-      if (canCompose)
-        _toolCard(
-          context,
-          ac,
-          icon: Icons.gavel_rounded,
-          iconColor: ac.red,
-          iconBg: ac.redBg,
-          title: 'Discipline',
-          subtitle: 'Conduct Logs',
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            settings: const RouteSettings(name: '/school/discipline'),
-            builder: (_) => DisciplinaryRecordsPage(user: user),
-          )),
-        ),
-      if (canManageClasses)
-        _toolCard(
-          context,
-          ac,
-          icon: Icons.meeting_room_outlined,
-          iconColor: ac.pur,
-          iconBg: ac.purBg,
-          title: 'Classes',
-          subtitle: 'Custom Levels',
-          onTap: () => Navigator.of(context).push(MaterialPageRoute(
-            settings: const RouteSettings(name: '/school/classes'),
-            builder: (_) => ClassManagementPage(user: user),
-          )),
-        ),
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          // On mobile or narrow screens, use 2-column grid
-          if (width < 640) {
-            final cardWidth = (width - 10) / 2;
-            return Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                for (final c in cards)
-                  SizedBox(width: cardWidth, child: c),
-              ],
-            );
-          }
-          // On desktop / wide screens, use flexible Row
-          return Row(
-            children: [
-              for (int i = 0; i < cards.length; i++) ...[
-                if (i > 0) const SizedBox(width: 10),
-                Expanded(child: cards[i]),
-              ],
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _toolCard(
-    BuildContext context,
-    AppColors ac, {
-    required IconData icon,
-    required Color iconColor,
-    required Color iconBg,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: ac.surf,
-      borderRadius: BorderRadius.circular(Rad.md),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(Rad.md),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Rad.md),
-            border: Border.all(color: ac.bdr2),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(8)),
-                child: Icon(icon, color: iconColor, size: 20),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(title, style: AppText.title.copyWith(fontSize: 13, color: ac.txt), overflow: TextOverflow.ellipsis),
-                    Text(subtitle, style: AppText.caption.copyWith(color: ac.muted, fontSize: 10), overflow: TextOverflow.ellipsis),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _quickActionBox(BuildContext context, AppColors ac) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -348,7 +93,6 @@ class SchoolConnectPage extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(Rad.md),
           onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              settings: const RouteSettings(name: '/school/requests/new'),
               builder: (_) => SchoolRequestFormPage(user: user, initialType: SchoolRequestType.general))),
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -395,7 +139,6 @@ class SchoolConnectPage extends StatelessWidget {
             child: InkWell(
               borderRadius: BorderRadius.circular(Rad.md),
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  settings: const RouteSettings(name: '/school/requests/new'),
                   builder: (_) => SchoolRequestFormPage(user: user, initialType: type))),
               child: Container(
                 width: 96,
@@ -425,7 +168,6 @@ class SchoolConnectPage extends StatelessWidget {
             icon: Icons.campaign_rounded, iconColor: ac.primary,
             title: 'Announcements',
             onViewAll: () => Navigator.of(context).push(MaterialPageRoute(
-                settings: const RouteSettings(name: '/school/announcements'),
                 builder: (_) => AnnouncementsPage(user: user, canPost: user.canPostAnnouncement))),
             child: StreamBuilder<List<Announcement>>(
               stream: AnnouncementRepository.instance.watchAnnouncements(schoolId: schoolId),
@@ -445,7 +187,6 @@ class SchoolConnectPage extends StatelessWidget {
             title: 'Upcoming Events',
             onViewAll: user.canManageSchool
                 ? () => Navigator.of(context).push(MaterialPageRoute(
-                    settings: const RouteSettings(name: '/school/calendar/manage'),
                     builder: (_) => SchoolCalendarManagerPage(user: user)))
                 : null,
             child: StreamBuilder<List<SchoolEvent>>(

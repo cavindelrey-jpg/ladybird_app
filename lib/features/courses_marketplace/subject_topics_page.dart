@@ -1,6 +1,5 @@
 // lib/features/courses_marketplace/subject_topics_page.dart
-// Third tier: topics available within one Level+Subject (e.g. Mathematics
-// -> Algebra, Geometry, ...). Topic = courses.topic.
+// Third tier: topics available within one Level+Subject. Topic = courses.topic.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,11 +8,8 @@ import '../../models/public_course.dart' show CurriculumIcon;
 import '../../repositories/public_course_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/application_shell.dart';
 import '../../widgets/widgets.dart';
-import 'courses_home_page.dart';
 import 'hierarchy_browse_scaffold.dart';
-import 'level_subjects_page.dart';
 import 'topic_courses_page.dart';
 import 'curriculum_icon_editor.dart';
 
@@ -56,29 +52,6 @@ class _SubjectTopicsPageState extends State<SubjectTopicsPage> {
   Widget build(BuildContext context) {
     final topics = _counts.keys.toList()..sort();
     return HierarchyBrowseScaffold<String>(
-      user: widget.user,
-      navDestination: AppNavDestination.academicCourses,
-      breadcrumbs: [
-        ShellBreadcrumb(
-          label: 'Courses',
-          icon: Icons.menu_book_rounded,
-          onTap: () => Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => CoursesHomePage(user: widget.user),
-            ),
-          ),
-        ),
-        ShellBreadcrumb(
-          label: widget.level,
-          onTap: () => Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) =>
-                  LevelSubjectsPage(level: widget.level, user: widget.user),
-            ),
-          ),
-        ),
-        ShellBreadcrumb(label: widget.subject),
-      ],
       title: widget.subject,
       subtitle: '${_counts.values.fold<int>(0, (a, b) => a + b)} courses',
       searchHint: 'Search topics…',
@@ -86,17 +59,17 @@ class _SubjectTopicsPageState extends State<SubjectTopicsPage> {
       items: topics,
       searchableText: (t) => t,
       emptyMessage: 'No topics have courses placed under this subject yet.',
-      gridTileBuilder: (context, topic) => _TopicTile(
+      gridTileBuilder: (context, topic, isSelected, isSelectionMode, toggleSelection) => _TopicTile(
         level: widget.level, subject: widget.subject, topic: topic, count: _counts[topic] ?? 0,
         icon: _icons[PublicCourseRepository.eduTopicIconKey(widget.level, widget.subject, topic)] ?? CurriculumIcon.none,
         isGrid: true, canManage: widget.user?.canUploadContent ?? false,
-        onTap: () => _open(context, topic), onChanged: _load,
+        onTap: isSelectionMode ? toggleSelection : () => _open(context, topic), onChanged: _load,
       ),
-      listTileBuilder: (context, topic) => _TopicTile(
+      listTileBuilder: (context, topic, isSelected, isSelectionMode, toggleSelection) => _TopicTile(
         level: widget.level, subject: widget.subject, topic: topic, count: _counts[topic] ?? 0,
         icon: _icons[PublicCourseRepository.eduTopicIconKey(widget.level, widget.subject, topic)] ?? CurriculumIcon.none,
         isGrid: false, canManage: widget.user?.canUploadContent ?? false,
-        onTap: () => _open(context, topic), onChanged: _load,
+        onTap: isSelectionMode ? toggleSelection : () => _open(context, topic), onChanged: _load,
       ),
     );
   }
@@ -169,9 +142,9 @@ class _TopicTile extends StatelessWidget {
                 child: HierarchyAvatar(label: topic, icon: icon.emoji, imageUrl: icon.imageUrl, fill: true),
               ),
               const SizedBox(height: 6),
-              Text(topic, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5),
+              Text(topic, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5, color: ac.txt),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
-              Text('$count course${count == 1 ? '' : 's'}', style: AppText.caption.copyWith(fontSize: 10.5)),
+              Text('$count course${count == 1 ? '' : 's'}', style: AppText.caption.copyWith(fontSize: 10.5, color: ac.muted)),
             ]),
           ),
         ),
@@ -192,8 +165,8 @@ class _TopicTile extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(topic, style: AppText.title.copyWith(fontSize: 14)),
-                Text('$count course${count == 1 ? '' : 's'}', style: AppText.caption.copyWith(fontSize: 11)),
+                Text(topic, style: AppText.title.copyWith(fontSize: 14, color: ac.txt)),
+                Text('$count course${count == 1 ? '' : 's'}', style: AppText.caption.copyWith(fontSize: 11, color: ac.muted)),
               ]),
             ),
             Icon(Icons.chevron_right_rounded, size: 18, color: ac.muted),

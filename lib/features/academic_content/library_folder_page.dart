@@ -1,49 +1,32 @@
 // lib/features/academic_content/library_folder_page.dart
 // One level of the Academia Library's File Explorer: shows this folder's
-// subfolders and the items filed directly in it. Supports grid/list modes
-// and multi-select mode with batch offline downloads.
+// subfolders and the items filed directly in it. Tapping a subfolder
+// recurses into another instance of this same page — the tree has no
+// fixed depth, per the user's "just like a computer file explorer" spec.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/result.dart';
 import '../../models/app_user.dart';
 import '../../models/library_folder.dart';
 import '../../models/academic_content.dart';
 import '../../repositories/library_folder_repository.dart';
-import '../../repositories/academic_content_repository.dart';
 import '../../services/analytics_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/application_shell.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import '../courses_marketplace/hierarchy_browse_scaffold.dart';
 import 'content_details_page.dart';
 import 'content_upload_page.dart';
-import 'content_viewer_page.dart';
-import 'bulk_past_paper_upload_page.dart';
 import 'library_folder_picker_page.dart';
-import 'library_home_page.dart';
 import 'folder_thumbnail_editor.dart';
 
-import '../../widgets/skeleton_spinner.dart';
 class LibraryFolderPage extends StatefulWidget {
   final String folderId;
   final String folderName;
   final AppUser user;
-  final AppNavDestination? navDestination;
-  final List<ShellBreadcrumb>? parentBreadcrumbs;
-
-  const LibraryFolderPage({
-    super.key,
-    required this.folderId,
-    required this.folderName,
-    required this.user,
-    this.navDestination,
-    this.parentBreadcrumbs,
-  });
+  const LibraryFolderPage({super.key, required this.folderId, required this.folderName, required this.user});
 
   @override
   State<LibraryFolderPage> createState() => _LibraryFolderPageState();
@@ -61,397 +44,37 @@ class _Entry {
 class _LibraryFolderPageState extends State<LibraryFolderPage> {
   bool get _canManage => widget.user.canUploadContent;
 
-  bool _isSelecting = false;
-  final Set<String> _selectedIds = {};
-  bool _batchDownloading = false;
-
-  late final Stream<List<LibraryFolder>> _foldersStream;
-  late final Stream<List<AcademicContent>> _itemsStream;
-
-  @override
-  void initState() {
-    super.initState();
-    _foldersStream = LibraryFolderRepository.instance.watchChildFolders(widget.folderId);
-    _itemsStream = LibraryFolderRepository.instance.watchItemsInFolder(widget.folderId);
-  }
-
-  void _enterSelection(String? initialId) {
-    HapticFeedback.selectionClick();
-    setState(() {
-      _isSelecting = true;
-      _selectedIds.clear();
-      if (initialId != null) _selectedIds.add(initialId);
-    });
-  }
-
-  void _exitSelection() {
-    setState(() {
-      _isSelecting = false;
-      _selectedIds.clear();
-    });
-  }
-
-  void _toggleItem(String id) {
-    HapticFeedback.selectionClick();
-    setState(() {
-      if (_selectedIds.contains(id)) {
-        _selectedIds.remove(id);
-        if (_selectedIds.isEmpty) _isSelecting = false;
-      } else {
-        _selectedIds.add(id);
-      }
-    });
-  }
-
-  Future<void> _batchDownloadOffline(List<AcademicContent> allItems) async {
-    final toDownload = allItems.where((i) => _selectedIds.contains(i.id)).toList();
-    if (toDownload.isEmpty) return;
-
-    setState(() => _batchDownloading = true);
-    int successCount = 0;
-
-    for (final item in toDownload) {
-      if ((item.fileUrl ?? '').isNotEmpty) {
-        try {
-          await AcademicContentRepository.instance.downloadForOffline(item);
-          successCount++;
-        } catch (_) {}
-      }
-    }
-
-    if (mounted) {
-      setState(() {
-        _batchDownloading = false;
-        _exitSelection();
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Downloaded $successCount item${successCount == 1 ? '' : 's'} for offline access.')),
-      );
-    }
-  }
-
-  Future<void> _batchCopy(
-    BuildContext context,
-    List<AcademicContent> allItems,
-    List<LibraryFolder> allFolders,
-  ) async {
-    final selectedContent = allItems.where((i) => _selectedIds.contains(i.id)).toList();
-    if (selectedContent.isEmpty) {
-      showToast(context, 'Only file contents can be copied.');
-      return;
-    }
-
-    final destination = await Navigator.of(context).push<String?>(
-      MaterialPageRoute(
-        builder: (_) => LibraryFolderPickerPage(
-          folderId: null,
-          title: 'Copy ${selectedContent.length} file(s) to…',
-        ),
-      ),
-    );
-    if (destination == null || !mounted) return;
-
-    int copiedCount = 0;
-    for (final item in selectedContent) {
-      final copyItem = AcademicContent(
-        id: '',
-        title: item.title.startsWith('Copy of ') ? item.title : 'Copy of ${item.title}',
-        description: item.description,
-        contentType: item.contentType,
-        subject: item.subject,
-        level: item.level,
-        fileUrl: item.fileUrl,
-        thumbnailUrl: item.thumbnailUrl,
-        fileSizeBytes: item.fileSizeBytes,
-        uploadedBy: widget.user.id,
-        uploaderName: widget.user.name,
-        institutionId: widget.user.schoolId ?? '',
-        examBoard: item.examBoard,
-        year: item.year,
-        tags: item.tags,
-        folderId: destination.isEmpty ? null : destination,
-        uploadDate: DateTime.now(),
-        accessPolicy: item.accessPolicy,
-      );
-      final res = await AcademicContentRepository.instance.add(copyItem);
-      if (res is Success) copiedCount++;
-    }
-
-    if (mounted) {
-      _exitSelection();
-      showToast(context, 'Copied $copiedCount file(s)');
-    }
-  }
-
-  Future<void> _batchRename(
-    BuildContext context,
-    List<AcademicContent> allItems,
-    List<LibraryFolder> allFolders,
-  ) async {
-    final selectedContent = allItems.where((i) => _selectedIds.contains(i.id)).toList();
-    final selectedFolders = allFolders.where((f) => _selectedIds.contains(f.id)).toList();
-    final total = selectedContent.length + selectedFolders.length;
-    if (total == 0) return;
-
-    if (total == 1) {
-      if (selectedFolders.isNotEmpty) {
-        final f = selectedFolders.first;
-        final newName = await _promptName(context, title: 'Rename folder', initial: f.name);
-        if (newName != null && newName.trim().isNotEmpty && newName != f.name) {
-          final res = await LibraryFolderRepository.instance.renameFolder(f.id, newName.trim());
-          if (mounted && res is Success) {
-            _exitSelection();
-            showToast(context, 'Renamed folder');
-          }
-        }
-      } else {
-        final c = selectedContent.first;
-        final newName = await _promptName(context, title: 'Rename content', initial: c.title);
-        if (newName != null && newName.trim().isNotEmpty && newName != c.title) {
-          final updated = c.copyWith(title: newName.trim());
-          final res = await AcademicContentRepository.instance.update(updated);
-          if (mounted && res is Success) {
-            _exitSelection();
-            showToast(context, 'Renamed content');
-          }
-        }
-      }
-      return;
-    }
-
-    final prefix = await _promptName(context, title: 'Add prefix to $total selected items', initial: '');
-    if (prefix == null || prefix.trim().isEmpty || !mounted) return;
-
-    int renamed = 0;
-    for (final c in selectedContent) {
-      final updated = c.copyWith(title: '${prefix.trim()} ${c.title}');
-      final res = await AcademicContentRepository.instance.update(updated);
-      if (res is Success) renamed++;
-    }
-    for (final f in selectedFolders) {
-      final res = await LibraryFolderRepository.instance.renameFolder(f.id, '${prefix.trim()} ${f.name}');
-      if (res is Success) renamed++;
-    }
-
-    if (mounted) {
-      _exitSelection();
-      showToast(context, 'Renamed $renamed item(s)');
-    }
-  }
-
-  Future<void> _batchChangeThumbnail(
-    BuildContext context,
-    List<AcademicContent> allItems,
-  ) async {
-    final selectedContent = allItems.where((i) => _selectedIds.contains(i.id)).toList();
-    if (selectedContent.isEmpty) {
-      showToast(context, 'No files selected to change thumbnail.');
-      return;
-    }
-
-    final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery, maxWidth: 800);
-    if (image == null || !mounted) return;
-
-    showToast(context, 'Uploading thumbnail for ${selectedContent.length} item(s)...');
-    try {
-      final bytes = await image.readAsBytes();
-      final ext = image.name.split('.').last.toLowerCase();
-      final path = 'thumbnails/batch_${DateTime.now().millisecondsSinceEpoch}.$ext';
-      await Supabase.instance.client.storage
-          .from('content')
-          .uploadBinary(path, bytes);
-      final thumbUrl = Supabase.instance.client.storage.from('content').getPublicUrl(path);
-
-      int updated = 0;
-      for (final c in selectedContent) {
-        final upd = c.copyWith(thumbnailUrl: thumbUrl);
-        final res = await AcademicContentRepository.instance.update(upd);
-        if (res is Success) updated++;
-      }
-
-      if (mounted) {
-        _exitSelection();
-        showToast(context, 'Updated thumbnail for $updated item(s)');
-      }
-    } catch (e) {
-      if (mounted) showToast(context, 'Failed to update thumbnails: $e', isError: true);
-    }
-  }
-
-  Future<void> _batchMove(
-    BuildContext context,
-    List<AcademicContent> allItems,
-    List<LibraryFolder> allFolders,
-  ) async {
-    final selectedContent = allItems.where((i) => _selectedIds.contains(i.id)).toList();
-    final selectedFolders = allFolders.where((f) => _selectedIds.contains(f.id)).toList();
-    if (selectedContent.isEmpty && selectedFolders.isEmpty) return;
-
-    final blockedFolderIds = selectedFolders.map((f) => f.id).toSet();
-    final destination = await Navigator.of(context).push<String?>(
-      MaterialPageRoute(
-        builder: (_) => LibraryFolderPickerPage(
-          folderId: null,
-          title: 'Move ${_selectedIds.length} item(s)',
-          disabledFolderIds: blockedFolderIds,
-        ),
-      ),
-    );
-    if (destination == null || !mounted) return;
-
-    int movedCount = 0;
-    for (final item in selectedContent) {
-      final res = await LibraryFolderRepository.instance.moveItem(item.id, destination);
-      if (res is Success) movedCount++;
-    }
-    for (final folder in selectedFolders) {
-      final res = await LibraryFolderRepository.instance.moveFolder(folder.id, destination);
-      if (res is Success) movedCount++;
-    }
-
-    if (mounted) {
-      _exitSelection();
-      showToast(context, 'Moved $movedCount item(s)');
-    }
-  }
-
-  Future<void> _batchDelete(
-    BuildContext context,
-    List<AcademicContent> allItems,
-    List<LibraryFolder> allFolders,
-  ) async {
-    final selectedContent = allItems.where((i) => _selectedIds.contains(i.id)).toList();
-    final selectedFolders = allFolders.where((f) => _selectedIds.contains(f.id)).toList();
-    final totalCount = selectedContent.length + selectedFolders.length;
-    if (totalCount == 0) return;
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dCtx) => AlertDialog(
-        title: Text('Delete $totalCount item(s)?'),
-        content: Text(
-          'Are you sure you want to delete $totalCount selected item(s)? '
-          'Files and subfolders will be permanently removed.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-            onPressed: () => Navigator.pop(dCtx, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true || !mounted) return;
-
-    int deletedCount = 0;
-    for (final item in selectedContent) {
-      final res = await AcademicContentRepository.instance.delete(item.id);
-      if (res is Success) deletedCount++;
-    }
-    for (final folder in selectedFolders) {
-      final res = await LibraryFolderRepository.instance.deleteFolder(folder.id);
-      if (res is Success) deletedCount++;
-    }
-
-    if (mounted) {
-      _exitSelection();
-      showToast(context, 'Deleted $deletedCount item(s)');
-    }
-  }
-
-  AppNavDestination get _effectiveDestination {
-    if (widget.navDestination != null) return widget.navDestination!;
-    if (widget.folderName.toLowerCase().contains('past')) {
-      return AppNavDestination.pastQuestions;
-    }
-    return AppNavDestination.academicLibrary;
-  }
-
-  List<ShellBreadcrumb> _buildBreadcrumbs(BuildContext context) {
-    final dest = _effectiveDestination;
-    if (widget.parentBreadcrumbs != null &&
-        widget.parentBreadcrumbs!.isNotEmpty) {
-      return [
-        ...widget.parentBreadcrumbs!,
-        ShellBreadcrumb(
-          label: widget.folderName,
-          icon: Icons.folder_open_rounded,
-        ),
-      ];
-    }
-    return [
-      ShellBreadcrumb(
-        label: 'Academic Library',
-        icon: Icons.folder_copy_rounded,
-        onTap: () => Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => LibraryHomePage(
-              user: widget.user,
-              navDestination: AppNavDestination.academicLibrary,
-            ),
-          ),
-        ),
-      ),
-      ShellBreadcrumb(
-        label: widget.folderName,
-        icon: dest == AppNavDestination.pastQuestions
-            ? Icons.description_rounded
-            : Icons.folder_open_rounded,
-      ),
-    ];
-  }
-
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    final dest = _effectiveDestination;
-    final isPast = dest == AppNavDestination.pastQuestions;
-    final crumbs = _buildBreadcrumbs(context);
-
     return StreamBuilder<List<LibraryFolder>>(
-      stream: _foldersStream,
+      stream: LibraryFolderRepository.instance.watchChildFolders(widget.folderId),
       builder: (context, folderSnap) {
         final folders = folderSnap.data ?? const <LibraryFolder>[];
         return StreamBuilder<List<AcademicContent>>(
-          stream: _itemsStream,
+          stream: LibraryFolderRepository.instance.watchItemsInFolder(widget.folderId),
           builder: (context, itemSnap) {
-            final items = itemSnap.data ?? const <AcademicContent>[];
-            if ((folderSnap.hasError || itemSnap.hasError) && folders.isEmpty && items.isEmpty) {
+            if (folderSnap.hasError || itemSnap.hasError) {
               CrashService.instance.recordError(folderSnap.error ?? itemSnap.error, null,
                   context: 'LibraryFolderPage(${widget.folderId})');
-              return ApplicationShell(
-                user: widget.user,
-                currentTitle: widget.folderName,
-                currentDestination: dest,
-                breadcrumbs: crumbs,
-                child: ErrorView(
-                  message:
-                      "Couldn't load this folder — ${folderSnap.error ?? itemSnap.error}",
-                ),
+              return Scaffold(
+                backgroundColor: ac.bg,
+                appBar: AppBar(backgroundColor: ac.bg, elevation: 0, iconTheme: IconThemeData(color: ac.txt),
+                    title: Text(widget.folderName, style: AppText.title.copyWith(fontSize: 16, color: ac.txt))),
+                body: AppBackground(child: ErrorView(message: "Couldn't load this folder — ${folderSnap.error ?? itemSnap.error}")),
               );
             }
-            final loading = (!folderSnap.hasData && folderSnap.connectionState == ConnectionState.waiting) ||
-                (!itemSnap.hasData && itemSnap.connectionState == ConnectionState.waiting);
-            final entries = <_Entry>[
+            final items = itemSnap.data ?? const <AcademicContent>[];
+            final loading = folderSnap.connectionState == ConnectionState.waiting ||
+                itemSnap.connectionState == ConnectionState.waiting;
+            final entries = [
               ...folders.map((f) => _Entry.folder(f)),
               ...items.map((c) => _Entry.content(c)),
             ]..sort((a, b) {
                 if (a.isFolder != b.isFolder) return a.isFolder ? -1 : 1;
                 return a.sortKey.toLowerCase().compareTo(b.sortKey.toLowerCase());
               });
-
             return HierarchyBrowseScaffold<_Entry>(
-              user: widget.user,
-              navDestination: dest,
-              breadcrumbs: crumbs,
-              contextualPanel: LibraryContextualPanel(
-                user: widget.user,
-                isPastQuestions: isPast,
-                currentFolderName: widget.folderName,
-              ),
               title: widget.folderName,
               subtitle: '${folders.length} folder${folders.length == 1 ? '' : 's'} · '
                   '${items.length} file${items.length == 1 ? '' : 's'}',
@@ -459,126 +82,29 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
               loading: loading,
               items: entries,
               searchableText: (e) => e.sortKey,
-              emptyMessage: _canManage ? 'Empty — use + below to add a folder or file.' : 'Nothing here yet.',
-              isSelecting: _isSelecting,
-              selectionTitle: '${_selectedIds.length} selected',
-              onCancelSelection: _exitSelection,
-              selectionActions: [
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      final allIds = <String>{
-                        ...items.map((i) => i.id),
-                        ...folders.map((f) => f.id),
-                      };
-                      if (_selectedIds.length == allIds.length && allIds.isNotEmpty) {
-                        _selectedIds.clear();
-                        _isSelecting = false;
-                      } else {
-                        _selectedIds.addAll(allIds);
-                      }
-                    });
-                  },
-                  child: Text(
-                    _selectedIds.length == (items.length + folders.length) && (items.isNotEmpty || folders.isNotEmpty)
-                        ? 'Deselect All'
-                        : 'Select All',
-                  ),
-                ),
-                if (_batchDownloading)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12),
-                    child: Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: SkeletonSpinner(strokeWidth: 2),
-                      ),
-                    ),
-                  )
-                else ...[
-                  IconButton(
-                    icon: const Icon(Icons.download_rounded),
-                    tooltip: 'Save selected files offline',
-                    onPressed: _selectedIds.isEmpty ? null : () => _batchDownloadOffline(items),
-                  ),
-                  if (_canManage) ...[
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined),
-                      tooltip: 'Rename selected',
-                      onPressed: _selectedIds.isEmpty ? null : () => _batchRename(context, items, folders),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.copy_rounded),
-                      tooltip: 'Copy selected files to folder…',
-                      onPressed: _selectedIds.isEmpty ? null : () => _batchCopy(context, items, folders),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.image_outlined),
-                      tooltip: 'Change thumbnail for selected',
-                      onPressed: _selectedIds.isEmpty ? null : () => _batchChangeThumbnail(context, items),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.drive_file_move_outlined),
-                      tooltip: 'Move selected to folder…',
-                      onPressed: _selectedIds.isEmpty ? null : () => _batchMove(context, items, folders),
-                    ),
-                    IconButton(
-                      icon: Icon(Icons.delete_outline_rounded, color: ac.red),
-                      tooltip: 'Delete selected',
-                      onPressed: _selectedIds.isEmpty ? null : () => _batchDelete(context, items, folders),
-                    ),
-                  ],
-                ],
-              ],
-              gridTileBuilder: (context, e) => _EntryTile(
-                entry: e,
-                isGrid: true,
-                canManage: _canManage,
-                isSelecting: _isSelecting,
-                isSelected: (e.content != null && _selectedIds.contains(e.content!.id)) ||
-                    (e.folder != null && _selectedIds.contains(e.folder!.id)),
-                onOpen: () {
-                  if (_isSelecting) {
-                    final id = e.content?.id ?? e.folder?.id;
-                    if (id != null) _toggleItem(id);
-                  } else {
-                    _open(context, e);
-                  }
-                },
-                onLongPress: () {
-                  final id = e.content?.id ?? e.folder?.id;
-                  if (id != null) _enterSelection(id);
-                },
+              emptyMessage: _canManage
+                  ? 'Empty — use + below to add a folder or file.'
+                  : 'Nothing here yet.',
+              gridTileBuilder: (context, e, isSelected, isSelectionMode, toggleSelection) => _EntryTile(
+                entry: e, isGrid: true, canManage: _canManage, isSelected: isSelected, isSelectionMode: isSelectionMode,
+                onOpen: isSelectionMode ? toggleSelection : () => _open(context, e),
                 onRename: () => _renameFolder(context, e.folder!),
                 onDelete: () => _deleteFolder(context, e.folder!),
                 onMoveFolder: () => _moveFolder(context, e.folder!),
                 onMove: () => _moveItem(context, e.content!),
+                onLongPress: isSelectionMode || !_canManage ? null : toggleSelection,
               ),
-              listTileBuilder: (context, e) => _EntryTile(
-                entry: e,
-                isGrid: false,
-                canManage: _canManage,
-                isSelecting: _isSelecting,
-                isSelected: (e.content != null && _selectedIds.contains(e.content!.id)) ||
-                    (e.folder != null && _selectedIds.contains(e.folder!.id)),
-                onOpen: () {
-                  if (_isSelecting) {
-                    final id = e.content?.id ?? e.folder?.id;
-                    if (id != null) _toggleItem(id);
-                  } else {
-                    _open(context, e);
-                  }
-                },
-                onLongPress: () {
-                  final id = e.content?.id ?? e.folder?.id;
-                  if (id != null) _enterSelection(id);
-                },
+              listTileBuilder: (context, e, isSelected, isSelectionMode, toggleSelection) => _EntryTile(
+                entry: e, isGrid: false, canManage: _canManage, isSelected: isSelected, isSelectionMode: isSelectionMode,
+                onOpen: isSelectionMode ? toggleSelection : () => _open(context, e),
                 onRename: () => _renameFolder(context, e.folder!),
                 onDelete: () => _deleteFolder(context, e.folder!),
                 onMoveFolder: () => _moveFolder(context, e.folder!),
                 onMove: () => _moveItem(context, e.content!),
+                onLongPress: isSelectionMode || !_canManage ? null : toggleSelection,
               ),
+              multiSelectEnabled: _canManage,
+              multiSelectBottomBar: (selected, clearSelection) => _bulkActionBar(context, selected, clearSelection),
               floatingActionButton: _canManage
                   ? FloatingActionButton(
                       heroTag: 'library_folder_add_${widget.folderId}',
@@ -597,45 +123,11 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
   void _open(BuildContext context, _Entry e) {
     HapticFeedback.selectionClick();
     if (e.isFolder) {
-      final currentCrumbs = _buildBreadcrumbs(context);
-      final clickableHistory = [
-        ...currentCrumbs.sublist(0, currentCrumbs.length - 1),
-        ShellBreadcrumb(
-          label: widget.folderName,
-          icon: Icons.folder_open_rounded,
-          onTap: () => Navigator.of(context).pop(),
-        ),
-      ];
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => LibraryFolderPage(
-            folderId: e.folder!.id,
-            folderName: e.folder!.name,
-            user: widget.user,
-            navDestination: _effectiveDestination,
-            parentBreadcrumbs: clickableHistory,
-          ),
-        ),
-      );
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => LibraryFolderPage(
+          folderId: e.folder!.id, folderName: e.folder!.name, user: widget.user)));
     } else {
-      final item = e.content!;
-      if ((item.fileUrl ?? '').isNotEmpty) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ContentViewerPage(
-              content: item,
-              user: widget.user,
-            ),
-          ),
-        );
-      } else {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) =>
-                ContentDetailsPage(contentId: item.id, user: widget.user),
-          ),
-        );
-      }
+      Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => ContentDetailsPage(contentId: e.content!.id, user: widget.user)));
     }
   }
 
@@ -662,25 +154,6 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
               Navigator.pop(sheetContext);
               Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => ContentUploadPage(user: widget.user, initialFolderId: widget.folderId)));
-            },
-          ),
-          ListTile(
-            leading: Icon(Icons.drive_folder_upload_rounded, color: ac.primary),
-            title: const Text('Bulk upload content (all categories)'),
-            subtitle: const Text('Select multiple files with thumbnail assignment, filed here'),
-            onTap: () {
-              Navigator.pop(sheetContext);
-              Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => BulkContentUploadPage(
-                      user: widget.user, folderId: widget.folderId)));
-            },
-          ),
-          ListTile(
-            leading: Icon(Icons.checklist_rounded, color: ac.primary),
-            title: const Text('Select multiple files'),
-            onTap: () {
-              Navigator.pop(sheetContext);
-              _enterSelection(null);
             },
           ),
         ]),
@@ -757,33 +230,62 @@ class _LibraryFolderPageState extends State<LibraryFolderPage> {
       ),
     );
   }
+
+  Future<void> _bulkMove(BuildContext context, Set<_Entry> selected, VoidCallback clearSelection) async {
+    final destination = await Navigator.of(context).push<String?>(MaterialPageRoute(
+        builder: (_) => LibraryFolderPickerPage(folderId: null, title: 'Move ${selected.length} items')));
+    if (!context.mounted || destination == null) return;
+    
+    // Process items first, then folders (or in any order)
+    for (final e in selected) {
+      if (e.isFolder) {
+        await LibraryFolderRepository.instance.moveFolder(e.folder!.id, destination);
+      } else {
+        await LibraryFolderRepository.instance.moveItem(e.content!.id, destination);
+      }
+    }
+    if (!context.mounted) return;
+    showToast(context, 'Moved ${selected.length} items');
+    clearSelection();
+  }
+
+  Widget _bulkActionBar(BuildContext context, Set<_Entry> selected, VoidCallback clearSelection) {
+    final ac = AppColors.of(context);
+    return Container(
+      color: ac.surf,
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+          TextButton.icon(
+            onPressed: () => _bulkMove(context, selected, clearSelection),
+            icon: Icon(Icons.folder_open_rounded, color: ac.primary),
+            label: Text('Move', style: AppText.bodySm.copyWith(color: ac.primary, fontWeight: FontWeight.w700)),
+          ),
+          // Note: Bulk Copy is not implemented yet as per current architecture (only move exists in repository).
+        ]),
+      ),
+    );
+  }
 }
 
 class _EntryTile extends StatelessWidget {
   final _Entry entry;
   final bool isGrid;
   final bool canManage;
-  final bool isSelecting;
   final bool isSelected;
+  final bool isSelectionMode;
   final VoidCallback onOpen;
-  final VoidCallback? onLongPress;
   final VoidCallback onRename;
   final VoidCallback onDelete;
   final VoidCallback onMoveFolder;
   final VoidCallback onMove;
-
+  final VoidCallback? onLongPress;
   const _EntryTile({
-    required this.entry,
-    required this.isGrid,
-    required this.canManage,
-    this.isSelecting = false,
-    this.isSelected = false,
-    required this.onOpen,
-    this.onLongPress,
-    required this.onRename,
-    required this.onDelete,
-    required this.onMoveFolder,
-    required this.onMove,
+    required this.entry, required this.isGrid, required this.canManage,
+    this.isSelected = false, this.isSelectionMode = false,
+    required this.onOpen, required this.onRename, required this.onDelete,
+    required this.onMoveFolder, required this.onMove, this.onLongPress,
   });
 
   @override
@@ -792,20 +294,38 @@ class _EntryTile extends StatelessWidget {
     return _fileTile(context, entry.content!);
   }
 
+  Widget _checkIcon(AppColors ac) => isSelectionMode
+      ? Positioned(
+          top: 8, right: 8,
+          child: Icon(isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+              color: isSelected ? ac.primary : ac.muted, size: 24),
+        )
+      : const SizedBox.shrink();
+
   Widget _folderTile(BuildContext context, LibraryFolder folder) {
     final ac = AppColors.of(context);
+    final border = isSelected ? Border.all(color: ac.primary, width: 2) : Border.all(color: ac.bdr2);
     final tile = isGrid
-        ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: HierarchyAvatar(label: folder.name, icon: folder.emoji, imageUrl: folder.imageUrl, fill: true)),
-            const SizedBox(height: 6),
-            Text(folder.name, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5, color: ac.txt),
-                maxLines: 1, overflow: TextOverflow.ellipsis),
+        ? Stack(children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: HierarchyAvatar(label: folder.name, icon: folder.emoji, imageUrl: folder.imageUrl, fill: true)),
+              const SizedBox(height: 6),
+              Text(folder.name, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5, color: ac.txt),
+                  maxLines: 1, overflow: TextOverflow.ellipsis),
+            ]),
+            _checkIcon(ac),
           ])
         : Row(children: [
+            if (isSelectionMode) ...[
+              Icon(isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                  color: isSelected ? ac.primary : ac.muted, size: 24),
+              const SizedBox(width: 12),
+            ],
             HierarchyAvatar(label: folder.name, icon: folder.emoji, imageUrl: folder.imageUrl, size: 44),
             const SizedBox(width: 12),
             Expanded(child: Text(folder.name, style: AppText.title.copyWith(fontSize: 14, color: ac.txt))),
-            Icon(Icons.chevron_right_rounded, size: 18, color: ac.muted),
+            if (!isSelectionMode)
+              Icon(Icons.chevron_right_rounded, size: 18, color: ac.muted),
           ]);
     return Material(
       color: ac.surf,
@@ -813,38 +333,11 @@ class _EntryTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(Rad.md),
         onTap: onOpen,
-        onLongPress: canManage ? () => _showFolderMenu(context, folder) : null,
+        onLongPress: onLongPress ?? (canManage ? () => _showFolderMenu(context, folder) : null),
         child: Container(
           padding: EdgeInsets.all(isGrid ? 10 : 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Rad.md),
-            border: Border.all(
-              color: isSelected ? ac.primary : ac.bdr2,
-              width: isSelected ? 2 : 1,
-            ),
-          ),
-          child: Stack(
-            children: [
-              tile,
-              if (isSelecting)
-                Positioned(
-                  top: 2,
-                  right: 2,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: isSelected ? ac.primary : Colors.black45,
-                      shape: BoxShape.circle,
-                    ),
-                    padding: const EdgeInsets.all(2),
-                    child: Icon(
-                      isSelected ? Icons.check : Icons.circle_outlined,
-                      size: 16,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-            ],
-          ),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: border),
+          child: tile,
         ),
       ),
     );
@@ -900,22 +393,10 @@ class _EntryTile extends StatelessWidget {
       builder: (sheetContext) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
-            leading: Icon(Icons.menu_book_rounded, color: ac.primary),
-            title: const Text('Open / Read'),
-            onTap: () { Navigator.pop(sheetContext); onOpen(); },
+            leading: Icon(Icons.folder_open_rounded, color: ac.primary),
+            title: const Text('Move to folder…'),
+            onTap: () { Navigator.pop(sheetContext); onMove(); },
           ),
-          if (onLongPress != null)
-            ListTile(
-              leading: Icon(Icons.checklist_rounded, color: ac.primary),
-              title: const Text('Select multiple files'),
-              onTap: () { Navigator.pop(sheetContext); onLongPress!(); },
-            ),
-          if (canManage)
-            ListTile(
-              leading: Icon(Icons.folder_open_rounded, color: ac.primary),
-              title: const Text('Move to folder…'),
-              onTap: () { Navigator.pop(sheetContext); onMove(); },
-            ),
         ]),
       ),
     );
@@ -923,6 +404,7 @@ class _EntryTile extends StatelessWidget {
 
   Widget _fileTile(BuildContext context, AcademicContent item) {
     final ac = AppColors.of(context);
+    final border = isSelected ? Border.all(color: ac.primary, width: 2) : Border.all(color: ac.bdr2);
     if (isGrid) {
       return Material(
         color: ac.surf,
@@ -930,52 +412,27 @@ class _EntryTile extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(Rad.md),
           onTap: onOpen,
-          onLongPress: () => _showFileMenu(context),
+          onLongPress: onLongPress ?? (canManage ? () => _showFileMenu(context) : null),
           child: Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(Rad.md),
-              border: Border.all(
-                color: isSelected ? ac.primary : ac.bdr2,
-                width: isSelected ? 2 : 1,
-              ),
-            ),
-            child: Stack(
-              children: [
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: (item.thumbnailUrl ?? '').isNotEmpty
-                          ? Image.network(item.thumbnailUrl!, fit: BoxFit.cover, width: double.infinity,
-                              gaplessPlayback: true,
-                              errorBuilder: (_, __, ___) => _filePlaceholder(ac, item))
-                          : _filePlaceholder(ac, item),
-                    ),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: border),
+            child: Stack(children: [
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: (item.thumbnailUrl ?? '').isNotEmpty
+                        ? Image.network(item.thumbnailUrl!, fit: BoxFit.cover, width: double.infinity,
+                            errorBuilder: (_, __, ___) => _filePlaceholder(ac, item))
+                        : _filePlaceholder(ac, item),
                   ),
-                  const SizedBox(height: 6),
-                  Text(item.title, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5, color: ac.txt),
-                      maxLines: 2, overflow: TextOverflow.ellipsis),
-                ]),
-                if (isSelecting)
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: isSelected ? ac.primary : Colors.black45,
-                        shape: BoxShape.circle,
-                      ),
-                      padding: const EdgeInsets.all(2),
-                      child: Icon(
-                        isSelected ? Icons.check : Icons.circle_outlined,
-                        size: 16,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+                ),
+                const SizedBox(height: 6),
+                Text(item.title, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5, color: ac.txt),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+              ]),
+              _checkIcon(ac),
+            ]),
           ),
         ),
       );
@@ -986,32 +443,21 @@ class _EntryTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(Rad.md),
         onTap: onOpen,
-        onLongPress: () => _showFileMenu(context),
+        onLongPress: onLongPress ?? (canManage ? () => _showFileMenu(context) : null),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Rad.md),
-            border: Border.all(
-              color: isSelected ? ac.primary : ac.bdr2,
-              width: isSelected ? 2 : 1,
-            ),
-          ),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(Rad.md), border: border),
           child: Row(children: [
-            if (isSelecting)
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: Icon(
-                  isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
-                  color: isSelected ? ac.primary : ac.muted,
-                  size: 20,
-                ),
-              ),
+            if (isSelectionMode) ...[
+              Icon(isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                  color: isSelected ? ac.primary : ac.muted, size: 24),
+              const SizedBox(width: 12),
+            ],
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: SizedBox(width: 44, height: 44,
                   child: (item.thumbnailUrl ?? '').isNotEmpty
                       ? Image.network(item.thumbnailUrl!, fit: BoxFit.cover,
-                          gaplessPlayback: true,
                           errorBuilder: (_, __, ___) => _filePlaceholder(ac, item))
                       : _filePlaceholder(ac, item)),
             ),
@@ -1022,11 +468,8 @@ class _EntryTile extends StatelessWidget {
                 Text(item.contentType.label, style: AppText.caption.copyWith(fontSize: 11, color: ac.muted)),
               ]),
             ),
-            IconButton(
-              icon: Icon(Icons.more_vert_rounded, size: 18, color: ac.muted),
-              tooltip: 'More options',
-              onPressed: () => _showFileMenu(context),
-            ),
+            if (!isSelectionMode)
+              Icon(Icons.chevron_right_rounded, size: 18, color: ac.muted),
           ]),
         ),
       ),

@@ -18,9 +18,7 @@ import '../../repositories/test_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import '../../widgets/application_shell.dart';
 import 'test_taking_page.dart';
-import '../../core/content_quality.dart';
 
 class TestsListPage extends StatelessWidget {
   final AppUser user;
@@ -42,17 +40,10 @@ class TestsListPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return ApplicationShell(
-      user: user,
-      currentDestination: AppNavDestination.testsAndQuizzes,
-      title: topic ?? subject,
-      breadcrumbs: [
-        if (category != null) ShellBreadcrumb(label: category!),
-        ShellBreadcrumb(label: subject, onTap: topic != null ? () => Navigator.of(context).pop() : null),
-        if (topic != null) ShellBreadcrumb(label: topic!),
-      ],
-      rightPanel: QuizzesContextualPanel(user: user),
-      child: StreamBuilder<List<Test>>(
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(title: Text(topic ?? subject, style: AppText.h2)),
+      body: StreamBuilder<List<Test>>(
         stream: TestRepository.instance.watchTestsBySubject(
             subject, institutionId: user.schoolId, category: category, topic: topic),
         builder: (context, snap) {
@@ -86,9 +77,9 @@ class TestsListPage extends StatelessWidget {
                         builder: (_) => TestTakingPage(user: user, test: test))),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    HierarchyAvatar(label: displayQuizTitle(test), imageUrl: test.thumbnailUrl ?? '', size: 40),
+                    HierarchyAvatar(label: test.title, imageUrl: test.thumbnailUrl ?? '', size: 40),
                     const SizedBox(width: 12),
-                    Expanded(child: Text(displayQuizTitle(test), style: AppText.title)),
+                    Expanded(child: Text(test.title, style: AppText.title)),
                     StatusBadge(label: test.difficulty.label, color: color),
                   ]),
                   if (test.description.isNotEmpty) ...[

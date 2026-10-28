@@ -10,25 +10,17 @@
 // dependency in this project and a 7-column grid is simple enough not to
 // need one.
 
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
-import '../../config/branding.dart';
 import '../../core/result.dart';
-import '../../core/school_calendar_csv.dart';
 import '../../models/app_user.dart';
 import '../../models/school_calendar_event.dart';
 import '../../repositories/school_calendar_repository.dart';
-import '../../services/school_document_export_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
-import 'school_calendar_csv_import_page.dart';
 import 'widgets/management_scaffold.dart';
 
-import '../../widgets/skeleton_spinner.dart';
 Color _categoryColor(AppColors ac, SchoolEventCategory c) {
   switch (c) {
     case SchoolEventCategory.academic: return ac.primary;
@@ -49,10 +41,9 @@ class SchoolCalendarPage extends StatefulWidget {
 
 class _SchoolCalendarPageState extends State<SchoolCalendarPage> {
   DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
-  List<SchoolCalendarEvent> _currentEvents = const [];
 
   bool get _canManage => widget.user.hasMinRole(UserRole.schoolAdmin);
-  String get _schoolId => widget.user.effectiveSchoolId;
+  String get _schoolId => widget.user.schoolId ?? '';
 
   void _openComposer({SchoolCalendarEvent? existing}) {
     showModalBottomSheet(
@@ -63,155 +54,12 @@ class _SchoolCalendarPageState extends State<SchoolCalendarPage> {
     );
   }
 
-  Future<void> _downloadTemplate() async {
-    try {
-      final csv = generateSchoolCalendarCsvTemplate();
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/school_activities_template.csv');
-      await file.writeAsString('\uFEFF$csv');
-      if (!mounted) return;
-      await Share.shareXFiles([XFile(file.path)], text: 'School Activities CSV Template');
-    } catch (e) {
-      if (mounted) showToast(context, 'Could not generate template: $e', isError: true);
-    }
-  }
-
-  Future<void> _openCsvImport() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => SchoolCalendarCsvImportPage(user: widget.user)),
-    );
-  }
-
-  Future<void> _exportCsv() async {
-    if (_currentEvents.isEmpty) {
-      showToast(context, 'No calendar events to export.');
-      return;
-    }
-    try {
-      final csv = exportSchoolCalendarCsv(_currentEvents);
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/school_activities_${DateTime.now().year}.csv');
-      await file.writeAsString('\uFEFF$csv');
-      if (!mounted) return;
-      await Share.shareXFiles([XFile(file.path)], text: 'School Activities Export');
-    } catch (e) {
-      if (mounted) showToast(context, 'Could not export CSV: $e', isError: true);
-    }
-  }
-
-  Future<void> _exportPdf() async {
-    if (_currentEvents.isEmpty) {
-      showToast(context, 'No calendar events to export.');
-      return;
-    }
-    try {
-      showToast(context, 'Generating Program of Activities PDF...');
-      final file = await SchoolDocumentExportService.instance.exportActivitiesPdf(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : Branding.current.appName,
-        events: _currentEvents,
-      );
-      if (!mounted) return;
-      await SchoolDocumentExportService.instance.shareFile(file, text: 'School Program of Activities (PDF)');
-    } catch (e) {
-      if (mounted) showToast(context, 'Could not export PDF: $e', isError: true);
-    }
-  }
-
-  Future<void> _exportDocx() async {
-    if (_currentEvents.isEmpty) {
-      showToast(context, 'No calendar events to export.');
-      return;
-    }
-    try {
-      showToast(context, 'Generating Program of Activities Word document...');
-      final file = await SchoolDocumentExportService.instance.exportActivitiesDocx(
-        schoolName: widget.user.schoolName.isNotEmpty ? widget.user.schoolName : Branding.current.appName,
-        events: _currentEvents,
-      );
-      if (!mounted) return;
-      await SchoolDocumentExportService.instance.shareFile(file, text: 'School Program of Activities (Word Document)');
-    } catch (e) {
-      if (mounted) showToast(context, 'Could not export Word document: $e', isError: true);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     return ManagementScaffold(
       title: 'School Calendar / Activities',
       sidebarItems: const [ManagementNavItem(icon: Icons.calendar_month_rounded, label: 'Calendar', selected: true)],
-      actions: [
-        if (_canManage)
-          IconButton(
-            tooltip: 'Upload Activities CSV',
-            icon: const Icon(Icons.upload_file_rounded),
-            onPressed: _openCsvImport,
-          ),
-        PopupMenuButton<String>(
-          icon: const Icon(Icons.ios_share_rounded),
-          tooltip: 'Import / Export & Templates',
-          onSelected: (val) {
-            switch (val) {
-              case 'template':
-                _downloadTemplate();
-                break;
-              case 'csv':
-                _exportCsv();
-                break;
-              case 'pdf':
-                _exportPdf();
-                break;
-              case 'docx':
-                _exportDocx();
-                break;
-            }
-          },
-          itemBuilder: (ctx) => [
-            const PopupMenuItem(
-              value: 'template',
-              child: Row(
-                children: [
-                  Icon(Icons.download_rounded, size: 20),
-                  SizedBox(width: 10),
-                  Text('Download CSV Template'),
-                ],
-              ),
-            ),
-            const PopupMenuDivider(),
-            const PopupMenuItem(
-              value: 'csv',
-              child: Row(
-                children: [
-                  Icon(Icons.table_chart_outlined, size: 20),
-                  SizedBox(width: 10),
-                  Text('Export as CSV'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'pdf',
-              child: Row(
-                children: [
-                  Icon(Icons.picture_as_pdf_outlined, size: 20, color: Colors.red),
-                  SizedBox(width: 10),
-                  Text('Export as PDF Document'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'docx',
-              child: Row(
-                children: [
-                  Icon(Icons.description_outlined, size: 20, color: Colors.blue),
-                  SizedBox(width: 10),
-                  Text('Export as Word (.docx)'),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ],
       floatingActionButton: _canManage
           ? FloatingActionButton.extended(
               onPressed: () => _openComposer(),
@@ -223,9 +71,8 @@ class _SchoolCalendarPageState extends State<SchoolCalendarPage> {
         stream: SchoolCalendarRepository.instance.watchAll(_schoolId),
         builder: (context, snap) {
           final events = snap.data ?? const [];
-          _currentEvents = events;
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: SkeletonSpinner());
+            return const Center(child: CircularProgressIndicator());
           }
           final upcoming = SchoolCalendarRepository.instance.upcomingFrom(events);
           return ListView(
@@ -249,7 +96,7 @@ class _SchoolCalendarPageState extends State<SchoolCalendarPage> {
                   _EventTile(
                     event: e,
                     onTap: _canManage ? () => _openComposer(existing: e) : null,
-                    onDelete: _canManage ? () => SchoolCalendarRepository.instance.delete(_schoolId, e.id) : null,
+                    onDelete: _canManage ? () => SchoolCalendarRepository.instance.delete(e.id) : null,
                   ),
             ],
           );

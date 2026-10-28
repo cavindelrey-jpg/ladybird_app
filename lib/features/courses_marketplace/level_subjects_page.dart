@@ -1,8 +1,6 @@
 // lib/features/courses_marketplace/level_subjects_page.dart
 // Second tier of the hierarchy: subjects available within one education
-// level (e.g. Junior Secondary -> Mathematics, English Language, ...).
-// Subject = courses.category — see the IA redesign notes in
-// public_course_repository.dart for why.
+// level. Subject = courses.category.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,9 +9,7 @@ import '../../models/public_course.dart' show CurriculumIcon;
 import '../../repositories/public_course_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/application_shell.dart';
 import '../../widgets/widgets.dart';
-import 'courses_home_page.dart';
 import 'hierarchy_browse_scaffold.dart';
 import 'subject_topics_page.dart';
 import 'curriculum_icon_editor.dart';
@@ -56,20 +52,6 @@ class _LevelSubjectsPageState extends State<LevelSubjectsPage> {
   Widget build(BuildContext context) {
     final subjects = _counts.keys.toList()..sort();
     return HierarchyBrowseScaffold<String>(
-      user: widget.user,
-      navDestination: AppNavDestination.academicCourses,
-      breadcrumbs: [
-        ShellBreadcrumb(
-          label: 'Courses',
-          icon: Icons.menu_book_rounded,
-          onTap: () => Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => CoursesHomePage(user: widget.user),
-            ),
-          ),
-        ),
-        ShellBreadcrumb(label: widget.level),
-      ],
       title: widget.level,
       subtitle: '${_counts.values.fold<int>(0, (a, b) => a + b)} courses',
       searchHint: 'Search subjects…',
@@ -77,17 +59,17 @@ class _LevelSubjectsPageState extends State<LevelSubjectsPage> {
       items: subjects,
       searchableText: (s) => s,
       emptyMessage: 'No subjects have courses placed under this level yet.',
-      gridTileBuilder: (context, subject) => _SubjectTile(
+      gridTileBuilder: (context, subject, isSelected, isSelectionMode, toggleSelection) => _SubjectTile(
         level: widget.level, subject: subject, count: _counts[subject] ?? 0,
         icon: _icons[PublicCourseRepository.eduSubjectIconKey(widget.level, subject)] ?? CurriculumIcon.none,
         isGrid: true, canManage: widget.user?.canUploadContent ?? false,
-        onTap: () => _open(context, subject), onChanged: _load,
+        onTap: isSelectionMode ? toggleSelection : () => _open(context, subject), onChanged: _load,
       ),
-      listTileBuilder: (context, subject) => _SubjectTile(
+      listTileBuilder: (context, subject, isSelected, isSelectionMode, toggleSelection) => _SubjectTile(
         level: widget.level, subject: subject, count: _counts[subject] ?? 0,
         icon: _icons[PublicCourseRepository.eduSubjectIconKey(widget.level, subject)] ?? CurriculumIcon.none,
         isGrid: false, canManage: widget.user?.canUploadContent ?? false,
-        onTap: () => _open(context, subject), onChanged: _load,
+        onTap: isSelectionMode ? toggleSelection : () => _open(context, subject), onChanged: _load,
       ),
     );
   }
@@ -159,9 +141,9 @@ class _SubjectTile extends StatelessWidget {
                 child: HierarchyAvatar(label: subject, icon: icon.emoji, imageUrl: icon.imageUrl, fill: true),
               ),
               const SizedBox(height: 6),
-              Text(subject, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5),
+              Text(subject, style: AppText.bodySm.copyWith(fontWeight: FontWeight.w700, fontSize: 12.5, color: ac.txt),
                   maxLines: 1, overflow: TextOverflow.ellipsis),
-              Text('$count course${count == 1 ? '' : 's'}', style: AppText.caption.copyWith(fontSize: 10.5)),
+              Text('$count course${count == 1 ? '' : 's'}', style: AppText.caption.copyWith(fontSize: 10.5, color: ac.muted)),
             ]),
           ),
         ),
@@ -182,8 +164,8 @@ class _SubjectTile extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(subject, style: AppText.title.copyWith(fontSize: 14)),
-                Text('$count course${count == 1 ? '' : 's'}', style: AppText.caption.copyWith(fontSize: 11)),
+                Text(subject, style: AppText.title.copyWith(fontSize: 14, color: ac.txt)),
+                Text('$count course${count == 1 ? '' : 's'}', style: AppText.caption.copyWith(fontSize: 11, color: ac.muted)),
               ]),
             ),
             Icon(Icons.chevron_right_rounded, size: 18, color: ac.muted),

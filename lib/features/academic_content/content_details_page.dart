@@ -11,17 +11,16 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/app_user.dart';
 import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
-import '../../core/result.dart';
-import '../../widgets/widgets.dart' show showToast, ShimmerCard, EmptyState;
-import '../../widgets/application_shell.dart';
+import '../../repositories/xp_repository.dart';
+import '../../core/xp_rules.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/paper_unlock_sheet.dart';
 import 'content_edit_page.dart';
 import 'content_delete_dialog.dart';
 import 'content_viewer_page.dart';
 
 import '../../widgets/app_background.dart';
-import '../../widgets/skeleton_spinner.dart';
 class ContentDetailsPage extends StatefulWidget {
   final String contentId;
   final AppUser user;
@@ -45,34 +44,24 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
       stream: AcademicContentRepository.instance.watchOne(widget.contentId),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return ApplicationShell(
-            user: widget.user,
-            currentTitle: 'Document Details',
-            currentDestination: AppNavDestination.academicLibrary,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-              children: const [
-                ShimmerCard(height: 190),
-                SizedBox(height: 16),
-                ShimmerCard(height: 280),
-              ],
-            ),
+          return const Scaffold(
+            body: AppBackground(child: Center(child: CircularProgressIndicator())),
           );
         }
         final item = snap.data;
         if (item == null) {
-          return ApplicationShell(
-            user: widget.user,
-            currentTitle: 'Not Found',
-            currentDestination: AppNavDestination.academicLibrary,
-            child: const EmptyState(
-              icon: Icons.find_in_page_outlined,
-              title: 'Content no longer exists',
-              subtitle: 'This item may have been moved or removed by its author.',
-            ),
+          return Scaffold(
+            appBar: AppBar(title: const Text('Not Found')),
+            body: const Center(child: Text('Content no longer exists.')),
           );
         }
 
+        // Track view once per page open. Deferred to a post-frame callback
+        // rather than fired directly here -- this whole block runs inside
+        // StreamBuilder's builder, which build() invokes, and the
+        // framework can call build() during layout; committing a database
+        // write as a direct side effect of that is what the guard alone
+        // doesn't prevent (only re-firing does).
         if (!_viewTracked) {
           _viewTracked = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -83,330 +72,159 @@ class _ContentDetailsPageState extends State<ContentDetailsPage> {
 
         final canEdit = widget.user.canUploadContent ||
             item.uploadedBy == widget.user.id;
+
         final ac = AppColors.of(context);
-        final isPastPaper = item.contentType == ContentType.pastPaper;
-
-        return ApplicationShell(
-          user: widget.user,
-          currentTitle: item.title,
-          subtitle: item.contentType.label,
-          currentDestination: isPastPaper
-              ? AppNavDestination.pastQuestions
-              : AppNavDestination.academicLibrary,
-          contextualPanel: BookDetailsContextualPanel(
-            content: item,
-            user: widget.user,
-          ),
-          headerActions: [
-            IconButton(
-              icon: Icon(Icons.copy_rounded, color: ac.txt2, size: 20),
-              tooltip: 'Copy title & description',
-              onPressed: () {
-                HapticFeedback.selectionClick();
-                final buf = StringBuffer(item.title);
-                if (item.description.trim().isNotEmpty) {
-                  buf.write('\n\n${item.description.trim()}');
-                }
-                if ((item.fileUrl ?? '').isNotEmpty) {
-                  buf.write('\n\n${item.fileUrl}');
-                }
-                Clipboard.setData(ClipboardData(text: buf.toString()));
-                showToast(context, 'Copied to clipboard.');
-              },
-            ),
-            StreamBuilder<bool>(
-              stream: AcademicContentRepository.instance
-                  .watchIsSaved(item.id, widget.user.id),
-              builder: (context, savedSnap) {
-                final saved = savedSnap.data ?? false;
-                return IconButton(
-                  icon: Icon(
-                    saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-                    color: saved ? ac.gold : ac.txt2,
-                  ),
-                  tooltip: saved ? 'Saved' : 'Save for offline',
-                  onPressed: () async {
-                    HapticFeedback.lightImpact();
-                    final wasSaved = saved;
-                    await AcademicContentRepository.instance
-                        .toggleSave(item.id, widget.user.id);
-                    if (wasSaved) {
-                      await AcademicContentRepository.instance
-                          .removeOfflineFile(item.id);
-                    } else if (!item.isViewOnly && (item.fileUrl ?? '').isNotEmpty) {
-                      showToast(context, 'Downloading for offline…');
-                      final res = await AcademicContentRepository.instance
-                          .downloadForOffline(item);
-                      if (!context.mounted) return;
-                      showToast(
-                        context,
-                        res is Failure<String>
-                            ? res.message
-                            : 'Saved — available offline in your Library.',
-                        isError: res is Failure<String>,
-                      );
-                    } else if (item.isViewOnly) {
-                      if (!context.mounted) return;
-                      showToast(context, 'Saved to your Library bookmarks.');
-                    }
-                  },
-                );
-              },
-            ),
-            if (canEdit && !item.isPastPaper) ...[
-              IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                tooltip: 'Edit',
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        ContentEditPage(content: item, user: widget.user),
+        return Scaffold(
+          backgroundColor: ac.bg,
+          appBar: AppBar(
+            title: Text(item.contentType.label, style: AppText.title),
+            actions: [
+              StreamBuilder<bool>(
+                stream: AcademicContentRepository.instance.watchIsSaved(item.id, widget.user.id),
+                builder: (context, savedSnap) {
+                  final saved = savedSnap.data ?? false;
+                  return IconButton(
+                    icon: Icon(saved ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+                        color: saved ? ac.grn : ac.txt2),
+                    tooltip: saved ? 'Saved' : 'Save for offline',
+                    onPressed: () async {
+                      HapticFeedback.lightImpact();
+                      final wasSaved = saved;
+                      await AcademicContentRepository.instance.toggleSave(item.id, widget.user.id);
+                      if (wasSaved) {
+                        // Un-saving also drops the locally-downloaded file
+                        // rather than leaving an orphaned copy on disk.
+                        await AcademicContentRepository.instance.removeOfflineFile(item.id);
+                      } else if ((item.fileUrl ?? '').isNotEmpty) {
+                        // Fire-and-forget: "Save for offline" should
+                        // actually put the file on the device, not just
+                        // bookmark it. Best-effort -- a failed download
+                        // here still leaves the bookmark saved, and the
+                        // content simply opens over the network like
+                        // before.
+                        unawaited(AcademicContentRepository.instance.downloadForOffline(item));
+                      }
+                    },
+                  );
+                },
+              ),
+              if (canEdit) ...[
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ContentEditPage(content: item, user: widget.user),
+                    ),
                   ),
                 ),
-              ),
-              IconButton(
-                icon: Icon(Icons.delete_outline_rounded, color: ac.red),
-                tooltip: 'Delete',
-                onPressed: () => showDialog(
-                  context: context,
-                  builder: (_) => ContentDeleteDialog(
-                    content: item,
-                    onDeleted: () => Navigator.pop(context),
+                IconButton(
+                  icon: Icon(Icons.delete_outline, color: ac.red),
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (_) => ContentDeleteDialog(
+                      content: item,
+                      onDeleted: () => Navigator.pop(context),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
-          child: Column(
-            children: [
-              Expanded(
-                child: SelectionArea(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-                    child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Thumbnail with frosted type badge overlay (Mistake 1 & 2)
-                  Stack(
-                    children: [
-                      if (item.thumbnailUrl != null && item.thumbnailUrl!.isNotEmpty)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(Rad.lg),
-                          child: AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child: Image.network(
-                              item.thumbnailUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  _PlaceholderThumbnail(type: item.contentType),
-                            ),
-                          ),
-                        )
-                      else
-                        _PlaceholderThumbnail(type: item.contentType),
-                      Positioned(
-                        top: 12,
-                        left: 12,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1),
-                          ),
-                          child: Text(
-                            item.contentType.label.toUpperCase(),
-                            style: AppText.label.copyWith(
-                              color: Colors.white,
-                              letterSpacing: 0.8,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ),
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Thumbnail
+                if (item.thumbnailUrl != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Image.network(
+                        item.thumbnailUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            _PlaceholderThumbnail(type: item.contentType),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
+                    ),
+                  )
+                else
+                  _PlaceholderThumbnail(type: item.contentType),
+                const SizedBox(height: 20),
 
-                  // Improvement 1 (Scrollable card container): soft rounded card
-                  // with subtle shadow, consistent 20px internal alignment (Mistake 3).
+                // Type badge + classification (subject/level/exam/year)
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  _TypeBadge(type: item.contentType),
                   Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: ac.surf,
-                      borderRadius: BorderRadius.circular(Rad.lg),
-                      border: Border.all(color: ac.bdr.withValues(alpha: 0.7), width: 0.8),
-                      boxShadow: Shad.card,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Scannable classification badges (Mistake 6)
-                        Wrap(spacing: 8, runSpacing: 8, children: [
-                          _TypeBadge(type: item.contentType),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(color: ac.bluBg, borderRadius: BorderRadius.circular(8)),
-                            child: Text(item.subject,
-                                style: AppText.label.copyWith(fontSize: 10.5, letterSpacing: 0.6, color: ac.blu)),
-                          ),
-                          if (item.level.isNotEmpty && item.level != 'All Levels')
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(color: ac.grnBg, borderRadius: BorderRadius.circular(8)),
-                              child: Text(item.level,
-                                  style: AppText.label.copyWith(fontSize: 10.5, letterSpacing: 0.6, color: ac.grn)),
-                            ),
-                          if (item.examBoard.isNotEmpty && item.examBoard != 'N/A')
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(color: ac.goldBg, borderRadius: BorderRadius.circular(8)),
-                              child: Text(item.year != null ? '${item.examBoard} ${item.year}' : item.examBoard,
-                                  style: AppText.label.copyWith(fontSize: 10.5, letterSpacing: 0.6, color: ac.gold)),
-                            ),
-                        ]),
-                        const SizedBox(height: 12),
-
-                        // Balanced title hierarchy (Mistake 7)
-                        Text(
-                          item.title,
-                          style: AppText.h1.copyWith(fontSize: 22, height: 1.25, color: ac.txt),
-                        ),
-                        const SizedBox(height: 10),
-
-                        // Trust signals right next to title (Mistake 9 & 10)
-                        Wrap(
-                          spacing: 16,
-                          runSpacing: 8,
-                          children: [
-                            _Stat(icon: Icons.visibility_outlined, value: '${item.views} views'),
-                            _Stat(icon: Icons.download_outlined, value: '${item.downloads} downloads'),
-                            _Stat(icon: Icons.calendar_today_outlined, value: _formatDate(item.uploadDate)),
-                          ],
-                        ),
-
-                        // Description with relaxed line-height & softer contrast (Mistake 8, 11, 12)
-                        if (item.description.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          Divider(height: 1, thickness: 0.8, color: ac.bdr.withValues(alpha: 0.7)),
-                          const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Overview', style: AppText.title.copyWith(fontSize: 14)),
-                              TextButton.icon(
-                                onPressed: () {
-                                  Clipboard.setData(ClipboardData(text: item.description));
-                                  showToast(context, 'Description copied to clipboard.');
-                                },
-                                icon: Icon(Icons.copy_rounded, size: 14, color: ac.primary),
-                                label: Text('Copy', style: AppText.caption.copyWith(color: ac.primary, fontWeight: FontWeight.w700)),
-                                style: TextButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            item.description,
-                            style: AppText.body.copyWith(fontSize: 14.5, height: 1.65, color: ac.txt2),
-                          ),
-                        ],
-
-                        // Tags
-                        if (item.tags.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          Divider(height: 1, thickness: 0.8, color: ac.bdr.withValues(alpha: 0.7)),
-                          const SizedBox(height: 14),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 6,
-                            children: item.tags.map((t) => _Tag(label: t)).toList(),
-                          ),
-                        ],
-
-                        // Super Admin Policy Control
-                        if (widget.user.isSuperAdmin) ...[
-                          const SizedBox(height: 18),
-                          Divider(height: 1, thickness: 0.8, color: ac.bdr.withValues(alpha: 0.7)),
-                          const SizedBox(height: 14),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: ac.surf2,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: ac.bdr),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.admin_panel_settings_outlined, color: ac.primary, size: 20),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text('Document Access Policy', style: AppText.caption.copyWith(fontWeight: FontWeight.bold)),
-                                      Text(
-                                        item.isViewOnly ? 'Protected View Only' : 'Download Permitted',
-                                        style: AppText.caption.copyWith(color: ac.muted, fontSize: 11),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                DropdownButton<String>(
-                                  value: item.accessPolicy,
-                                  underline: const SizedBox.shrink(),
-                                  items: const [
-                                    DropdownMenuItem(value: 'view_only', child: Text('View Only')),
-                                    DropdownMenuItem(value: 'download_allowed', child: Text('Allow Download')),
-                                    DropdownMenuItem(value: 'standard', child: Text('Standard')),
-                                  ],
-                                  onChanged: (newPolicy) async {
-                                    if (newPolicy != null) {
-                                      await AcademicContentRepository.instance.update(
-                                        item.copyWith(accessPolicy: newPolicy),
-                                      );
-                                      if (context.mounted) {
-                                        showToast(context, 'Access policy updated to $newPolicy');
-                                      }
-                                    }
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(color: ac.bluBg, borderRadius: BorderRadius.circular(20)),
+                    child: Text(item.subject,
+                        style: AppText.subtitle.copyWith(fontSize: 11, color: ac.blu)),
                   ),
+                  if (item.level.isNotEmpty && item.level != 'All Levels')
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: ac.grnBg, borderRadius: BorderRadius.circular(20)),
+                      child: Text(item.level,
+                          style: AppText.subtitle.copyWith(fontSize: 11, color: ac.grn)),
+                    ),
+                  if (item.examBoard.isNotEmpty && item.examBoard != 'N/A')
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: ac.goldBg, borderRadius: BorderRadius.circular(20)),
+                      child: Text(item.year != null ? '${item.examBoard} ${item.year}' : item.examBoard,
+                          style: AppText.subtitle.copyWith(fontSize: 11, color: ac.gold)),
+                    ),
+                ]),
+                const SizedBox(height: 14),
+
+                // Title
+                Text(item.title, style: AppText.h1),
+                const SizedBox(height: 12),
+
+                // Stats row
+                Row(children: [
+                  _Stat(icon: Icons.visibility_outlined, value: '${item.views} views'),
+                  const SizedBox(width: 16),
+                  _Stat(icon: Icons.download_outlined, value: '${item.downloads} downloads'),
+                  const SizedBox(width: 16),
+                  _Stat(icon: Icons.calendar_today_outlined, value: _formatDate(item.uploadDate)),
+                ]),
+                const SizedBox(height: 20),
+
+                // Description
+                if (item.description.isNotEmpty) ...[
+                  Text('Description', style: AppText.title.copyWith(fontSize: 14)),
+                  const SizedBox(height: 8),
+                  Text(item.description, style: AppText.body.copyWith(fontSize: 14)),
+                  const SizedBox(height: 20),
                 ],
-              ),
+
+                // Tags
+                if (item.tags.isNotEmpty) ...[
+                  Text('Tags', style: AppText.title.copyWith(fontSize: 14)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: item.tags.map((t) => _Tag(label: t)).toList(),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+
+                // Download button
+                if (item.fileUrl != null)
+                  _DownloadButton(item: item, user: widget.user),
+              ],
             ),
           ),
-        ),
-        if ((item.fileUrl ?? '').isNotEmpty)
-          Container(
-            decoration: BoxDecoration(
-              color: ac.surf,
-              border: Border(
-                top: BorderSide(color: ac.bdr.withValues(alpha: 0.7), width: 0.8),
-              ),
-              boxShadow: Shad.sm,
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 12),
-            child: _DownloadButton(item: item, user: widget.user),
-          ),
-      ],
-    ),
-  );
-},
-);
-}
+        );
+      },
+    );
+  }
 
   String _formatDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
 }
@@ -419,33 +237,17 @@ class _PlaceholderThumbnail extends StatelessWidget {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     return Container(
-      height: 190,
+      height: 200,
       width: double.infinity,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [ac.primary.withValues(alpha: 0.88), ac.navy],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(Rad.lg),
+        color: ac.surf2,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: ac.bdr),
       ),
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Container(
-          width: 64,
-          height: 64,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.14),
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1),
-          ),
-          child: Text(type.emoji, style: const TextStyle(fontSize: 32)),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          type.label,
-          style: AppText.subtitle.copyWith(color: Colors.white.withValues(alpha: 0.9), fontSize: 13),
-        ),
+        Text(type.emoji, style: const TextStyle(fontSize: 48)),
+        const SizedBox(height: 8),
+        Text(type.label, style: AppText.bodySm),
       ]),
     );
   }
@@ -460,9 +262,9 @@ class _TypeBadge extends StatelessWidget {
     final ac = AppColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: ac.purBg, borderRadius: BorderRadius.circular(8)),
-      child: Text(type.label,
-          style: AppText.label.copyWith(fontSize: 10.5, letterSpacing: 0.6, color: ac.pur)),
+      decoration: BoxDecoration(color: ac.purBg, borderRadius: BorderRadius.circular(20)),
+      child: Text('${type.emoji} ${type.label}',
+          style: AppText.subtitle.copyWith(fontSize: 11, color: ac.pur)),
     );
   }
 }
@@ -476,9 +278,9 @@ class _Stat extends StatelessWidget {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 14, color: ac.muted),
-      const SizedBox(width: 5),
-      Text(value, style: AppText.caption.copyWith(fontSize: 12, color: ac.txt2)),
+      Icon(icon, size: 13, color: ac.muted),
+      const SizedBox(width: 4),
+      Text(value, style: AppText.caption.copyWith(fontSize: 12)),
     ]);
   }
 }
@@ -495,7 +297,7 @@ class _Tag extends StatelessWidget {
       decoration: BoxDecoration(
         color: ac.surf2,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: ac.bdr.withValues(alpha: 0.7), width: 0.8),
+        border: Border.all(color: ac.bdr),
       ),
       child: Text('#$label', style: AppText.caption.copyWith(fontSize: 11, color: ac.txt2)),
     );
@@ -514,33 +316,21 @@ class _DownloadButton extends StatefulWidget {
 class _DownloadButtonState extends State<_DownloadButton> {
   bool _loading = false;
 
-  ViewableFileKind? get _viewableKind {
-    final byUrl = viewableKindFor(widget.item.fileUrl ?? '');
-    if (byUrl != null) return byUrl;
-    if (widget.item.contentType == ContentType.video) return ViewableFileKind.video;
-    if (widget.item.contentType == ContentType.pastPaper ||
-        widget.item.contentType == ContentType.book ||
-        widget.item.contentType == ContentType.note) {
-      return ViewableFileKind.pdf;
-    }
-    return null;
-  }
+  bool get _isPastPaper => widget.item.contentType == ContentType.pastPaper;
+  ViewableFileKind? get _viewableKind => viewableKindFor(widget.item.fileUrl!);
 
   Future<void> _openFile() async {
-    // Images, PDFs, video, .docx, .epub, and .txt render in-app instead of
-    // handing off to whatever external app the OS picks.
-    final kind = _viewableKind ?? (widget.item.isViewOnly ? ViewableFileKind.pdf : null);
+    // Images, PDFs, video, and .docx render in-app instead of handing off
+    // to whatever external app the OS picks. Other office formats and
+    // archives have no practical in-app renderer, so those still open
+    // externally.
+    final kind = _viewableKind;
     if (kind != null) {
       await AcademicContentRepository.instance.incrementDownloads(widget.item.id);
-      String? localPath;
-      try {
-        localPath = await AcademicContentRepository.instance.offlineFilePath(widget.item.id);
-      } catch (_) {}
+      final localPath = await AcademicContentRepository.instance.offlineFilePath(widget.item.id);
       if (!mounted) return;
       await Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => ContentViewerPage(
-          content: widget.item,
-          user: widget.user,
           fileUrl: widget.item.fileUrl!,
           localFilePath: localPath,
           title: widget.item.title,
@@ -551,16 +341,6 @@ class _DownloadButtonState extends State<_DownloadButton> {
       ));
       return;
     }
-
-    if (widget.item.isViewOnly) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('This protected document is view-only.')),
-        );
-      }
-      return;
-    }
-
     final uri = Uri.tryParse(widget.item.fileUrl!);
     if (uri != null && await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -575,6 +355,8 @@ class _DownloadButtonState extends State<_DownloadButton> {
   Future<void> _download() async {
     HapticFeedback.mediumImpact();
     setState(() => _loading = true);
+
+    // Past papers are freely accessible in Green Hills (no XP economy).
 
     try {
       await _openFile();
@@ -598,16 +380,14 @@ class _DownloadButtonState extends State<_DownloadButton> {
         ),
         icon: _loading
             ? const SizedBox(width: 18, height: 18,
-                child: SkeletonSpinner(strokeWidth: 2, color: Colors.white))
-            : Icon(widget.item.isViewOnly
-                ? Icons.menu_book_rounded
-                : (_viewableKind != null ? Icons.menu_book_rounded : Icons.download_rounded)),
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+            : Icon(_isPastPaper
+                ? Icons.bolt_rounded
+                : (_viewableKind != null ? Icons.visibility_rounded : Icons.download_rounded)),
         label: Text(
             _loading
                 ? 'Opening…'
-                : (widget.item.isViewOnly
-                    ? 'Read Document (Protected Read-Only)'
-                    : (_viewableKind != null ? 'Read / Open File' : 'Download / Open')),
+                : (_isPastPaper ? 'Unlock / Open' : (_viewableKind != null ? 'View' : 'Download')),
             style: AppText.button.copyWith(fontSize: 15)),
       ),
     );

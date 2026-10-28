@@ -44,20 +44,18 @@
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../models/app_user.dart';
 import '../../models/messaging.dart';
 import '../../models/public_course.dart';
 import '../../models/test.dart';
 import '../../models/magazine_article.dart';
 import '../../models/academic_content.dart';
+import '../../pages/public_profile_page.dart';
 import '../../repositories/messaging_repository.dart';
 import '../../repositories/public_course_repository.dart';
 import '../../repositories/test_repository.dart';
@@ -69,17 +67,13 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
-import '../../widgets/application_shell.dart';
-import '../../widgets/compact_sign_in_dialog.dart';
 import '../../widgets/chat_media_widgets.dart';
 import '../../widgets/media_players.dart' show ArticleVideoPlayer;
-import '../academic_content/content_details_page.dart';
-import '../academic_content/content_viewer_page.dart';
 import '../courses_marketplace/course_lessons_page.dart';
-import '../magazine/article_reader_page.dart';
 import '../testing/test_taking_page.dart';
+import '../magazine/article_reader_page.dart';
+import '../academic_content/content_details_page.dart';
 
-import '../../widgets/skeleton_spinner.dart';
 class ChatConversationPage extends StatefulWidget {
   final String conversationId;
   final AppUser currentUser;
@@ -107,13 +101,10 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   Timer? _presenceHeartbeat;
   StreamSubscription<Conversation?>? _convSub;
   Conversation? _conversation;
-  late final Stream<List<ChatMessage>> _messagesStream;
-  List<ChatMessage>? _lastKnownMessages;
 
   @override
   void initState() {
     super.initState();
-    _messagesStream = MessagingRepository.instance.watchMessages(widget.conversationId);
     MessagingRepository.instance.markConversationRead(widget.conversationId, widget.currentUser.id);
     MessagingRepository.instance.pingActive(widget.conversationId, widget.currentUser.id);
     _presenceHeartbeat = Timer.periodic(const Duration(seconds: 45), (_) {
@@ -153,14 +144,10 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     super.dispose();
   }
 
-  Future<void> _sendText([String? explicitText]) async {
-    if (widget.currentUser.isGuest) {
-      await showCompactSignInDialog(context);
-      return;
-    }
-    final text = (explicitText ?? _textCtrl.text).trim();
+  Future<void> _sendText() async {
+    final text = _textCtrl.text.trim();
     if (text.isEmpty) return;
-    if (explicitText == null) _textCtrl.clear();
+    _textCtrl.clear();
     HapticFeedback.lightImpact();
     final result = await MessagingRepository.instance.sendMessage(
       conversationId: widget.conversationId,
@@ -215,12 +202,11 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   };
 
   Future<void> _pickAndSendFile() async {
-    final result = await FilePicker.platform.pickFiles(withData: true);
+    final result = await FilePicker.platform.pickFiles(withData: false);
     if (result == null || result.files.isEmpty) return;
     final picked = result.files.single;
-    final bytes = picked.bytes;
-    final path = !kIsWeb ? picked.path : null;
-    if (bytes == null && (path == null || path.isEmpty)) {
+    final path = picked.path;
+    if (path == null) {
       if (mounted) showToast(context, 'Could not read that file.', isError: true);
       return;
     }
@@ -229,20 +215,13 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
       if (mounted) showToast(context, 'That file type isn\'t allowed as an attachment.', isError: true);
       return;
     }
-    await _uploadAndSendFile(
-      file: path != null ? File(path) : null,
-      bytes: bytes,
-      fileName: picked.name,
-    );
+    await _uploadAndSendFile(File(path), picked.name);
   }
 
-  Future<void> _uploadAndSendFile({File? file, Uint8List? bytes, required String fileName}) async {
+  Future<void> _uploadAndSendFile(File file, String fileName) async {
     setState(() { _sending = true; _uploadProgress = 0; });
     final upload = await MessagingRepository.instance.uploadChatFile(
-      conversationId: widget.conversationId,
-      file: file,
-      bytes: bytes,
-      fileName: fileName,
+      conversationId: widget.conversationId, file: file, fileName: fileName,
       onProgress: (p) { if (mounted) setState(() => _uploadProgress = p); },
     );
     if (upload is Success<String>) {
@@ -253,7 +232,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
         fileUrl: upload.value, fileName: fileName,
       );
     } else if (mounted) {
-      _showUploadFailedSnackBar(() => _uploadAndSendFile(file: file, bytes: bytes, fileName: fileName));
+      _showUploadFailedSnackBar(() => _uploadAndSendFile(file, fileName));
     }
     if (mounted) setState(() { _sending = false; _uploadProgress = null; });
   }
@@ -275,59 +254,55 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     final online = _conversation?.isRecentlyActive(widget.otherUserId) ?? false;
-    final statusSubtitle = _otherTyping
-        ? 'typing…'
-        : (online ? 'Active now' : 'Direct conversation');
-
-    return ApplicationShell(
-      user: widget.currentUser,
-      currentTitle: widget.otherUserName,
-      subtitle: statusSubtitle,
-      currentDestination: AppNavDestination.messages,
-      contextualPanel: ChatConversationsSidebar(
-        me: widget.currentUser,
-        activeConversationId: widget.conversationId,
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
+        titleSpacing: 0,
+        title: InkWell(
+          onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => PublicProfilePage(
+                  viewer: widget.currentUser,
+                  person: AppUser(id: widget.otherUserId, name: widget.otherUserName, photoUrl: widget.otherUserPhoto)))),
+          child: Row(children: [
+            UserAvatar(
+              initials: widget.otherUserName.isEmpty ? '?' : widget.otherUserName[0].toUpperCase(),
+              radius: 18, photoUrl: widget.otherUserPhoto,
+              showPresenceDot: true, online: online,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(widget.otherUserName, style: AppText.title.copyWith(fontSize: 15),
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (_otherTyping)
+                  Text('typing…', style: AppText.caption.copyWith(fontSize: 11, color: ac.primary))
+                else if (online)
+                  Text('Active now', style: AppText.caption.copyWith(fontSize: 11, color: ac.grn)),
+              ]),
+            ),
+          ]),
+        ),
+        actions: [
+          IconButton(icon: Icon(Icons.call_outlined, color: ac.txt2),
+              onPressed: () => showToast(context, 'Voice calling isn\'t built yet.')),
+          IconButton(icon: Icon(Icons.videocam_outlined, color: ac.txt2),
+              onPressed: () => showToast(context, 'Video calling isn\'t built yet.')),
+        ],
       ),
-      breadcrumbs: [
-        ShellBreadcrumb(
-          label: 'Messages',
-          icon: Icons.chat_bubble_outline_rounded,
-          onTap: () => Navigator.of(context).pop(),
-        ),
-        ShellBreadcrumb(
-          label: widget.otherUserName,
-        ),
-      ],
-      headerActions: [
-        UserAvatar(
-          initials: widget.otherUserName.isEmpty
-              ? '?'
-              : widget.otherUserName[0].toUpperCase(),
-          radius: 15,
-          photoUrl: widget.otherUserPhoto,
-          showPresenceDot: true,
-          online: online,
-        ),
-      ],
-      child: AppBackground(child: Column(children: [
+      body: AppBackground(child: Column(children: [
         Expanded(
           child: StreamBuilder<List<ChatMessage>>(
-            stream: _messagesStream,
+            stream: MessagingRepository.instance.watchMessages(widget.conversationId),
             builder: (context, snap) {
-              if (snap.hasData && snap.data != null) {
-                _lastKnownMessages = snap.data;
-              }
-              final messages = _lastKnownMessages != null
-                  ? List<ChatMessage>.from(_lastKnownMessages!)
-                  : <ChatMessage>[];
-              _messages = messages;
-
-              if (snap.connectionState == ConnectionState.waiting && messages.isEmpty) {
+              if (snap.connectionState == ConnectionState.waiting) {
                 return const LoadingView();
               }
-              if (snap.hasError && messages.isEmpty) {
-                return Center(child: ErrorView(message: snap.error.toString()));
+              if (snap.hasError) {
+                return ErrorView(message: snap.error.toString());
               }
+              final messages = List.of(snap.data ?? const <ChatMessage>[]);
               if (messages.isEmpty) {
                 return const EmptyState(
                   icon: Icons.chat_bubble_outline_rounded,
@@ -335,18 +310,19 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
                   subtitle: 'Say hello to start the conversation.',
                 );
               }
-
+              
               // Sort newest first
               messages.sort((a, b) => b.sentAt.compareTo(a.sentAt));
 
               final items = <dynamic>[];
               DateTime? lastDay;
-
+              
               // Since we are reversed, items[0] is rendered at the absolute bottom.
               // We iterate newest -> oldest.
               for (final m in messages) {
                 final day = DateTime(m.sentAt.year, m.sentAt.month, m.sentAt.day);
                 if (lastDay != null && day != lastDay) {
+                  // Add date separator for the *previous* group we just finished iterating (which is newer)
                   items.add(lastDay);
                 }
                 items.add(m);
@@ -354,131 +330,57 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
               }
               if (lastDay != null) items.add(lastDay); // Separator for the oldest group at the very top
 
-              final isOfflineOrError = snap.hasError;
-
-              return Column(
-                children: [
-                  if (isOfflineOrError)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
-                      color: ac.orgBg,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.wifi_off_rounded, size: 14, color: ac.org),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Offline — showing cached messages',
-                            style: AppText.caption.copyWith(fontSize: 11, color: ac.org, fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    ),
-                  Expanded(
-                    child: ListView.builder(
-                      controller: _scrollCtrl,
-                      reverse: true,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: items.length,
-                      itemBuilder: (_, i) {
-                        final item = items[i];
-                        if (item is DateTime) return _DateSeparator(date: item);
-                        final m = item as ChatMessage;
-                        return _MessageBubble(
-                          message: m,
-                          isMe: m.senderId == widget.currentUser.id,
-                          otherUserId: widget.otherUserId,
-                          currentUser: widget.currentUser,
-                        );
-                      },
-                    ),
-                  ),
-                ],
+              return ListView.builder(
+                controller: _scrollCtrl,
+                reverse: true,
+                padding: const EdgeInsets.all(16),
+                itemCount: items.length,
+                itemBuilder: (_, i) {
+                  final item = items[i];
+                  if (item is DateTime) return _DateSeparator(date: item);
+                  final m = item as ChatMessage;
+                  return _MessageBubble(
+                    message: m, isMe: m.senderId == widget.currentUser.id,
+                    otherUserId: widget.otherUserId, currentUser: widget.currentUser,
+                  );
+                },
               );
             },
           ),
         ),
-        if (_messages != null && _isRequest(_messages!))
-          _buildRequestBanner(),
-        if (_messages == null || !_isRequest(_messages!))
-          _inputBar(),
+        _quickAttachRow(),
+        _inputBar(),
       ])),
     );
   }
-  
-  List<ChatMessage>? _messages;
-  
-  bool _isRequest(List<ChatMessage> msgs) {
-    // If the conversation is empty, it's not a request (you're starting it).
-    if (msgs.isEmpty) return false;
-    // If you have sent at least one message, it's an accepted conversation.
-    if (msgs.any((m) => m.senderId == widget.currentUser.id)) return false;
-    // Otherwise, you received messages but haven't replied.
-    // In a real app we'd have a status flag. We'll use this heuristic.
-    return true;
-  }
-  
-  Widget _buildRequestBanner() {
+
+  /// The mockup's five-icon row (Note/Course/Quiz/Article/Past Paper),
+  /// always visible above the input bar rather than buried in a bottom
+  /// sheet. Colors match each content type's existing color elsewhere in
+  /// the app (see the old bottom-sheet ListTile icon colors below, kept
+  /// identical here).
+  Widget _quickAttachRow() {
     final ac = AppColors.of(context);
     return Container(
-      color: ac.surf,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
+      height: 78,
+      decoration: BoxDecoration(
+        color: ac.surf,
+        border: Border(top: BorderSide(color: ac.bdr)),
+      ),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         children: [
-          Text(
-            '${widget.otherUserName} wants to connect',
-            style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.bold, color: ac.txt),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Message requests let you safely decide who can contact you without restricting discovery.',
-            style: GoogleFonts.inter(fontSize: 12, color: ac.txt2),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    // Block - placeholder for real block logic
-                    showToast(context, 'User blocked.');
-                    Navigator.of(context).pop();
-                  },
-                  style: OutlinedButton.styleFrom(foregroundColor: ac.red, side: BorderSide(color: ac.red)),
-                  child: const Text('Block'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    // Decline - just pop
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text('Decline'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () async {
-                    // Accept by sending an empty/system message or just replying.
-                    // For UI purposes, we just send a "Request accepted." message.
-                    await _sendText('Request accepted.');
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: ac.gold, foregroundColor: ac.navy),
-                  child: const Text('Accept'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
+          QuickAttachTile(icon: Icons.sticky_note_2_outlined, label: 'Note',
+              color: ac.blu, bg: ac.bluBg, onTap: _pickNote),
+          QuickAttachTile(icon: Icons.menu_book_rounded, label: 'Course',
+              color: ac.grn, bg: ac.grnBg, onTap: _pickCourse),
+          QuickAttachTile(icon: Icons.quiz_rounded, label: 'Quiz',
+              color: ac.pur, bg: ac.purBg, onTap: _pickQuiz),
+          QuickAttachTile(icon: Icons.article_rounded, label: 'Article',
+              color: ac.org, bg: ac.orgBg, onTap: _pickArticle),
+          QuickAttachTile(icon: Icons.history_edu_rounded, label: 'Past Paper',
+              color: ac.gold, bg: ac.goldBg, onTap: _pickPastPaper),
         ],
       ),
     );
@@ -514,7 +416,7 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
           Row(children: [
           IconButton(
             icon: _sending
-                ? const SizedBox(width: 20, height: 20, child: SkeletonSpinner(strokeWidth: 2))
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                 : Icon(Icons.add_circle_outline_rounded, color: ac.primary),
             onPressed: _sending ? null : () => _showAttachSheet(),
           ),
@@ -543,61 +445,31 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     );
   }
 
+  /// Photo/Video/File only now — the five content shares live in the
+  /// always-visible row above (see _quickAttachRow).
   void _showAttachSheet() {
-    if (widget.currentUser.isGuest) {
-      showCompactSignInDialog(context);
-      return;
-    }
     final ac = AppColors.of(context);
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => SafeArea(
-        child: SingleChildScrollView(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            ListTile(
-              leading: Icon(Icons.image_outlined, color: ac.primary),
-              title: const Text('Photo'),
-              onTap: () { Navigator.pop(context); _pickAndSendMedia(isVideo: false); },
-            ),
-            ListTile(
-              leading: Icon(Icons.videocam_outlined, color: ac.primary),
-              title: const Text('Video'),
-              onTap: () { Navigator.pop(context); _pickAndSendMedia(isVideo: true); },
-            ),
-            ListTile(
-              leading: Icon(Icons.attach_file_rounded, color: ac.primary),
-              title: const Text('File'),
-              onTap: () { Navigator.pop(context); _pickAndSendFile(); },
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: Icon(Icons.sticky_note_2_outlined, color: ac.blu),
-              title: const Text('Share Note'),
-              onTap: () { Navigator.pop(context); _pickNote(); },
-            ),
-            ListTile(
-              leading: Icon(Icons.menu_book_rounded, color: ac.grn),
-              title: const Text('Share Course'),
-              onTap: () { Navigator.pop(context); _pickCourse(); },
-            ),
-            ListTile(
-              leading: Icon(Icons.quiz_rounded, color: ac.pur),
-              title: const Text('Share Quiz'),
-              onTap: () { Navigator.pop(context); _pickQuiz(); },
-            ),
-            ListTile(
-              leading: Icon(Icons.article_rounded, color: ac.org),
-              title: const Text('Share Article'),
-              onTap: () { Navigator.pop(context); _pickArticle(); },
-            ),
-            ListTile(
-              leading: Icon(Icons.history_edu_rounded, color: ac.gold),
-              title: const Text('Share Past Paper'),
-              onTap: () { Navigator.pop(context); _pickPastPaper(); },
-            ),
-          ]),
-        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: Icon(Icons.image_outlined, color: ac.primary),
+            title: const Text('Photo'),
+            onTap: () { Navigator.pop(context); _pickAndSendMedia(isVideo: false); },
+          ),
+          ListTile(
+            leading: Icon(Icons.videocam_outlined, color: ac.primary),
+            title: const Text('Video'),
+            onTap: () { Navigator.pop(context); _pickAndSendMedia(isVideo: true); },
+          ),
+          ListTile(
+            leading: Icon(Icons.attach_file_rounded, color: ac.primary),
+            title: const Text('File'),
+            onTap: () { Navigator.pop(context); _pickAndSendFile(); },
+          ),
+        ]),
       ),
     );
   }
@@ -606,10 +478,6 @@ class _ChatConversationPageState extends State<ChatConversationPage> {
     required SharedContentType type, required String id,
     required String title, required String subtitle, String? thumbnailUrl,
   }) async {
-    if (widget.currentUser.isGuest) {
-      showCompactSignInDialog(context);
-      return;
-    }
     await MessagingRepository.instance.sendMessage(
       conversationId: widget.conversationId,
       senderId: widget.currentUser.id, senderName: widget.currentUser.name,
@@ -1077,33 +945,13 @@ class _SharedContentCardState extends State<_SharedContentCard> {
           break;
         case SharedContentType.note:
         case SharedContentType.pastPaper:
-          final item = await AcademicContentRepository.instance.watchOne(id).first;
-          if (!mounted) return;
-          if (item != null) {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ContentViewerPage(
-                  content: item,
-                  user: widget.currentUser,
-                ),
-              ),
-            );
-          } else {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ContentDetailsPage(
-                  contentId: id,
-                  user: widget.currentUser,
-                ),
-              ),
-            );
+          // Both are AcademicContent items — ContentDetailsPage itself
+          // handles the not-found/no-longer-exists case (see its own
+          // StreamBuilder), same as opening one from the Library grid.
+          if (mounted) {
+            Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => ContentDetailsPage(contentId: id, user: widget.currentUser)));
           }
-          break;
-        case SharedContentType.clubPost:
-        case SharedContentType.authorProfile:
-          // Not implemented yet
-          break;
-        default:
           break;
       }
     } finally {
@@ -1117,8 +965,6 @@ class _SharedContentCardState extends State<_SharedContentCard> {
         SharedContentType.quiz => Icons.quiz_rounded,
         SharedContentType.article => Icons.article_rounded,
         SharedContentType.pastPaper => Icons.history_edu_rounded,
-        SharedContentType.clubPost => Icons.forum_rounded,
-        SharedContentType.authorProfile => Icons.person_rounded,
       };
 
   @override
@@ -1140,7 +986,7 @@ class _SharedContentCardState extends State<_SharedContentCard> {
                     width: 40, height: 40,
                     decoration: BoxDecoration(color: ac.primaryBg, borderRadius: BorderRadius.circular(10)),
                     child: _opening
-                        ? Padding(padding: const EdgeInsets.all(10), child: SkeletonSpinner(strokeWidth: 2, color: ac.primary))
+                        ? Padding(padding: const EdgeInsets.all(10), child: CircularProgressIndicator(strokeWidth: 2, color: ac.primary))
                         : Icon(_icon, color: ac.primary, size: 18),
                   ),
             const SizedBox(width: 10),
@@ -1155,7 +1001,7 @@ class _SharedContentCardState extends State<_SharedContentCard> {
             if (_opening && (thumb != null && thumb.isNotEmpty))
               Padding(
                 padding: const EdgeInsets.only(left: 6),
-                child: SizedBox(width: 16, height: 16, child: SkeletonSpinner(strokeWidth: 2, color: ac.primary)),
+                child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: ac.primary)),
               )
             else
               Icon(Icons.chevron_right_rounded, color: ac.muted, size: 18),
@@ -1202,7 +1048,7 @@ class _LinkPreviewCardState extends State<_LinkPreviewCard> {
         decoration: BoxDecoration(color: ac.surf3, borderRadius: BorderRadius.circular(10)),
         alignment: Alignment.center,
         child: SizedBox(width: 16, height: 16,
-            child: SkeletonSpinner(strokeWidth: 2, color: ac.muted)),
+            child: CircularProgressIndicator(strokeWidth: 2, color: ac.muted)),
       );
     }
     final data = _data;

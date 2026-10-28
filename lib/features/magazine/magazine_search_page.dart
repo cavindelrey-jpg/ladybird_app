@@ -1,17 +1,23 @@
 // lib/features/magazine/magazine_search_page.dart
+// Backs the Magazine feed header's search icon, which previously only
+// showed an honest "coming soon" toast. Real search now: debounced
+// as-you-type queries against MagazineRepository.searchArticles(), which
+// is itself bounded (the most recent 200 published articles, filtered
+// client-side) rather than a fabricated full-text index this project has
+// no infrastructure for — see that method's doc comment.
+
 import 'package:flutter/material.dart';
-import '../../core/debouncer.dart';
 import '../../models/app_user.dart';
 import '../../models/magazine_article.dart';
 import '../../repositories/magazine_repository.dart';
-import '../../theme/app_colors.dart';
+import '../../core/debouncer.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/app_background.dart';
-import '../../widgets/application_shell.dart';
+import '../../theme/app_colors.dart';
 import '../../widgets/widgets.dart';
+import '../../widgets/app_background.dart';
+import 'magazine_feed_page.dart' show ArticleListCard;
 import 'article_reader_page.dart';
 import 'author_profile_page.dart';
-import 'magazine_feed_page.dart' show ArticleListCard;
 
 class MagazineSearchPage extends StatefulWidget {
   final AppUser? user;
@@ -26,7 +32,7 @@ class _MagazineSearchPageState extends State<MagazineSearchPage> {
   final _debouncer = Debouncer(milliseconds: 350);
   String _query = '';
   bool _loading = false;
-  List<MagazineArticle>? _results;
+  List<MagazineArticle>? _results; // null = no search run yet
 
   @override
   void dispose() {
@@ -39,10 +45,7 @@ class _MagazineSearchPageState extends State<MagazineSearchPage> {
     setState(() => _query = v);
     if (v.trim().isEmpty) {
       _debouncer.cancel();
-      setState(() {
-        _results = null;
-        _loading = false;
-      });
+      setState(() { _results = null; _loading = false; });
       return;
     }
     setState(() => _loading = true);
@@ -51,108 +54,75 @@ class _MagazineSearchPageState extends State<MagazineSearchPage> {
 
   Future<void> _runSearch(String v) async {
     final results = await MagazineRepository.instance.searchArticles(v);
-    if (!mounted || v != _query) return;
-    setState(() {
-      _results = results;
-      _loading = false;
-    });
+    if (!mounted || v != _query) return; // a newer keystroke already superseded this query
+    setState(() { _results = results; _loading = false; });
   }
 
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return ApplicationShell(
-      user: widget.user,
-      currentTitle: 'Search Magazine',
-      subtitle: 'Find articles by title, topic, category, or writer',
-      currentDestination: AppNavDestination.magazine,
-      breadcrumbs: [
-        ShellBreadcrumb(
-          label: 'Magazine',
-          icon: Icons.article_outlined,
-          onTap: () => Navigator.of(context).pop(),
-        ),
-        const ShellBreadcrumb(label: 'Search'),
-      ],
-      bottomHeader: Container(
-        height: 40,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: ac.surf2,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: ac.bdr),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.search_rounded, size: 18, color: ac.muted),
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
+        titleSpacing: 0,
+        title: Container(
+          height: 40,
+          margin: const EdgeInsets.only(right: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(color: C.surf2, borderRadius: BorderRadius.circular(20), border: Border.all(color: C.bdr)),
+          child: Row(children: [
+            Icon(Icons.search_rounded, size: 18, color: C.muted),
             const SizedBox(width: 8),
             Expanded(
               child: TextField(
                 controller: _ctrl,
                 autofocus: true,
                 onChanged: _onChanged,
-                style: AppText.bodySm.copyWith(color: ac.txt),
+                style: AppText.bodySm.copyWith(color: C.txt),
                 decoration: InputDecoration(
                   hintText: 'Search articles, topics, writers…',
-                  hintStyle: AppText.bodySm.copyWith(
-                    color: ac.muted,
-                    fontSize: 12.5,
-                  ),
-                  border: InputBorder.none,
-                  isDense: true,
+                  hintStyle: AppText.bodySm.copyWith(color: C.muted, fontSize: 12.5),
+                  border: InputBorder.none, isDense: true,
                 ),
               ),
             ),
             if (_query.isNotEmpty)
               InkWell(
-                onTap: () {
-                  _ctrl.clear();
-                  _onChanged('');
-                },
-                child: Icon(Icons.close_rounded, size: 16, color: ac.muted),
+                onTap: () { _ctrl.clear(); _onChanged(''); },
+                child: Icon(Icons.close_rounded, size: 16, color: C.muted),
               ),
-          ],
+          ]),
         ),
       ),
-      child: AppBackground(child: _body(ac)),
+      body: AppBackground(child: _body()),
     );
   }
 
-  Widget _body(AppColors ac) {
+  Widget _body() {
     if (_query.trim().isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.search_rounded, size: 44, color: ac.muted),
-              const SizedBox(height: 12),
-              Text(
-                'Search the Magazine',
-                style: AppText.title.copyWith(fontSize: 15, color: ac.txt),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Find articles by title, topic, category, or writer.',
-                style: AppText.bodySm.copyWith(color: ac.txt2),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.search_rounded, size: 44, color: C.muted),
+            const SizedBox(height: 12),
+            Text('Search the Magazine', style: AppText.title.copyWith(fontSize: 15)),
+            const SizedBox(height: 6),
+            Text('Find articles by title, topic, category, or writer.',
+                style: AppText.bodySm, textAlign: TextAlign.center),
+          ]),
         ),
       );
     }
     if (_loading && _results == null) {
       return ListView(
         padding: const EdgeInsets.all(16),
-        children: List.generate(
-          4,
-          (_) => const Padding(
-            padding: EdgeInsets.only(bottom: 12),
-            child: ShimmerBlock(height: 84),
-          ),
-        ),
+        children: List.generate(4, (_) => const Padding(
+          padding: EdgeInsets.only(bottom: 12),
+          child: ShimmerBlock(height: 84),
+        )),
       );
     }
     final results = _results ?? const <MagazineArticle>[];
@@ -171,22 +141,10 @@ class _MagazineSearchPageState extends State<MagazineSearchPage> {
         child: ArticleListCard(
           article: results[i],
           currentUser: widget.user,
-          onOpen: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => ArticleReaderPage(
-                article: results[i],
-                currentUser: widget.user,
-              ),
-            ),
-          ),
-          onOpenAuthor: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => AuthorProfilePage(
-                authorId: results[i].authorId,
-                currentUser: widget.user,
-              ),
-            ),
-          ),
+          onOpen: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ArticleReaderPage(article: results[i], currentUser: widget.user))),
+          onOpenAuthor: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => AuthorProfilePage(authorId: results[i].authorId, currentUser: widget.user))),
         ),
       ),
     );

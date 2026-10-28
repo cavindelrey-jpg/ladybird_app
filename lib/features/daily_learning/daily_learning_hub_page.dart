@@ -12,7 +12,6 @@ import '../../models/daily_learning.dart';
 import '../../repositories/daily_learning_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/application_shell.dart';
 import 'daily_learning_course_page.dart';
 
 class DailyLearningHubPage extends StatelessWidget {
@@ -23,19 +22,18 @@ class DailyLearningHubPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
     final courses = DailyLearningRepository.instance.courses;
-    return ApplicationShell(
-      user: user,
-      currentDestination: AppNavDestination.academicCourses,
-      title: 'Daily Challenge',
-      breadcrumbs: [
-        ShellBreadcrumb(label: 'Courses', onTap: () => Navigator.of(context).pop()),
-        const ShellBreadcrumb(label: 'Daily Challenge'),
-      ],
-      rightPanel: CoursesContextualPanel(user: user),
-      child: ListView(
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        backgroundColor: ac.bg,
+        elevation: 0,
+        title: Text('Daily Challenge', style: AppText.h2.copyWith(color: ac.txt)),
+        iconTheme: IconThemeData(color: ac.txt),
+      ),
+      body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('A short lesson and quiz every day — pick a course to continue.',
+          Text('A short lesson and quiz every day -- pick a course to continue.',
               style: GoogleFonts.inter(fontSize: 13, color: ac.txt2, height: 1.4)),
           const SizedBox(height: 16),
           for (final course in courses) _CourseCard(user: user, course: course),
@@ -76,7 +74,7 @@ class _CourseCard extends StatelessWidget {
               const SizedBox(width: 14),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(course.title, style: GoogleFonts.inter(
+                  Text(course.title, style: GoogleFonts.sora(
                       fontSize: 15, fontWeight: FontWeight.w800, color: ac.txt)),
                   const SizedBox(height: 4),
                   Text(course.description, style: GoogleFonts.inter(fontSize: 12, color: ac.txt2, height: 1.3)),

@@ -10,11 +10,9 @@ import '../../models/academic_content.dart';
 import '../../repositories/academic_content_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/application_shell.dart';
 import '../../widgets/widgets.dart';
 import '../../widgets/app_background.dart';
 import 'content_details_page.dart';
-import 'content_viewer_page.dart';
 
 class LibrarySearchPage extends StatefulWidget {
   final AppUser user;
@@ -58,33 +56,18 @@ class _LibrarySearchPageState extends State<LibrarySearchPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return ApplicationShell(
-      user: widget.user,
-      currentTitle: 'Library Search',
-      subtitle: 'Instant query across books, past papers, notes, and syllabus materials',
-      currentDestination: AppNavDestination.academicLibrary,
-      breadcrumbs: [
-        ShellBreadcrumb(
-          label: 'Academic Library',
-          icon: Icons.local_library_rounded,
-          onTap: () => Navigator.of(context).pop(),
-        ),
-        const ShellBreadcrumb(
-          label: 'Search',
-          icon: Icons.search_rounded,
-        ),
-      ],
-      contextualPanel: LibraryContextualPanel(user: widget.user),
-      bottomHeader: Container(
-        height: 42,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: ac.surf2,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: ac.bdr),
-        ),
-        child: Row(
-          children: [
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        backgroundColor: ac.bg, elevation: 0,
+        iconTheme: IconThemeData(color: ac.txt),
+        titleSpacing: 0,
+        title: Container(
+          height: 40,
+          margin: const EdgeInsets.only(right: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(color: ac.surf2, borderRadius: BorderRadius.circular(20), border: Border.all(color: ac.bdr)),
+          child: Row(children: [
             Icon(Icons.search_rounded, size: 18, color: ac.muted),
             const SizedBox(width: 8),
             Expanded(
@@ -94,28 +77,19 @@ class _LibrarySearchPageState extends State<LibrarySearchPage> {
                 onChanged: _onChanged,
                 style: AppText.bodySm.copyWith(color: ac.txt),
                 decoration: InputDecoration(
-                  hintText: 'Search past papers, notes, books, documents…',
-                  hintStyle: AppText.bodySm.copyWith(
-                    color: ac.muted,
-                    fontSize: 12.5,
-                  ),
-                  border: InputBorder.none,
-                  isDense: true,
+                  hintText: 'Search past papers, notes, documents…',
+                  hintStyle: AppText.bodySm.copyWith(color: ac.muted, fontSize: 12.5),
+                  border: InputBorder.none, isDense: true,
                 ),
               ),
             ),
             if (_query.isNotEmpty)
-              InkWell(
-                onTap: () {
-                  _ctrl.clear();
-                  _onChanged('');
-                },
-                child: Icon(Icons.close_rounded, size: 16, color: ac.muted),
-              ),
-          ],
+              InkWell(onTap: () { _ctrl.clear(); _onChanged(''); },
+                  child: Icon(Icons.close_rounded, size: 16, color: ac.muted)),
+          ]),
         ),
       ),
-      child: _body(ac),
+      body: AppBackground(child: _body(ac)),
     );
   }
 
@@ -155,22 +129,11 @@ class _LibrarySearchPageState extends State<LibrarySearchPage> {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       itemCount: results.length,
-      itemBuilder: (_, i) {
-        final item = results[i];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: _ResultTile(
-            item: item,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => (item.fileUrl ?? '').isNotEmpty
-                    ? ContentViewerPage(content: item, user: widget.user)
-                    : ContentDetailsPage(contentId: item.id, user: widget.user),
-              ),
-            ),
-          ),
-        );
-      },
+      itemBuilder: (_, i) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: _ResultTile(item: results[i], onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => ContentDetailsPage(contentId: results[i].id, user: widget.user)))),
+      ),
     );
   }
 }

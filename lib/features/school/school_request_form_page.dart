@@ -12,7 +12,6 @@ import '../../models/school_request.dart';
 import '../../repositories/school_request_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/application_shell.dart';
 import '../../widgets/widgets.dart';
 
 class SchoolRequestFormPage extends StatefulWidget {
@@ -66,12 +65,14 @@ class _SchoolRequestFormPageState extends State<SchoolRequestFormPage> {
   @override
   Widget build(BuildContext context) {
     final ac = AppColors.of(context);
-    return ApplicationShell(
-      user: widget.user,
-      currentTitle: 'New School Request',
-      subtitle: _type.label,
-      currentDestination: AppNavDestination.schoolConnect,
-      child: ListView(
+    return Scaffold(
+      backgroundColor: ac.bg,
+      appBar: AppBar(
+        backgroundColor: ac.bg, elevation: 0,
+        title: Text('New Request', style: AppText.h2.copyWith(fontSize: 16, color: ac.txt)),
+        iconTheme: IconThemeData(color: ac.txt),
+      ),
+      body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           DropdownButtonFormField<SchoolRequestType>(
